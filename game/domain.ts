@@ -3,6 +3,7 @@ import { CROP_DEFINITIONS, getCropDefinition, type CropId } from "./data/crops";
 import type { ItemId } from "./data/items";
 import type { Facing } from "./assets/definitions";
 import { GAME_CONFIG } from "./config";
+import type { MapId } from "./maps/types";
 
 export interface FarmTileData {
   x: number;
@@ -14,9 +15,9 @@ export interface FarmTileData {
   plantedDay: number | null;
 }
 export interface InventoryData { items: Partial<Record<ItemId, number>> }
-export interface PlayerData { x: number; y: number; facing: Facing }
+export interface PlayerData { x: number; y: number; facing: Facing; mapId: MapId }
 export interface SaveData {
-  version: 3;
+  version: 4;
   day: number;
   timeMinutes: number;
   money: number;
@@ -27,11 +28,12 @@ export interface SaveData {
   savedAt: number;
 }
 
+interface Version3SaveData extends Omit<SaveData, "version" | "player"> { version: 3; player: Omit<PlayerData, "mapId"> }
 interface Version2InventoryData { seeds: number; harvest: number }
-interface Version2SaveData extends Omit<SaveData, "version" | "inventory"> { version: 2; inventory: Version2InventoryData }
+interface Version2SaveData extends Omit<Version3SaveData, "version" | "inventory"> { version: 2; inventory: Version2InventoryData }
 interface Version1FarmTileData { x: number; y: number; tilled: boolean; watered: boolean; cropStage: number | null; lastGrowthAt: number | null }
 interface Version1SaveData {
-  version: 1; money: number; selectedTool: ToolKey; player: PlayerData;
+  version: 1; money: number; selectedTool: ToolKey; player: Omit<PlayerData, "mapId">;
   inventory: Version2InventoryData; farm: Version1FarmTileData[]; savedAt: number;
 }
 
@@ -68,13 +70,14 @@ export function advanceFarmDay(farm: FarmTileData[]) {
   return grown;
 }
 
+const migrateV3 = (data: Version3SaveData): SaveData => ({ ...data, version: 4, player: { ...data.player, mapId: "farm" } });
 const migrateV2 = (data: Version2SaveData): SaveData => ({
-  ...data, version: 3,
+  ...data, version: 4, player: { ...data.player, mapId: "farm" },
   inventory: { items: { sproutberry_seed: data.inventory.seeds, sproutberry: data.inventory.harvest } },
 });
 
 const migrateV1 = (data: Version1SaveData): SaveData => ({
-  version: 3, day: 1, timeMinutes: GAME_CONFIG.day.startMinutes, money: data.money, selectedTool: data.selectedTool, player: data.player,
+  version: 4, day: 1, timeMinutes: GAME_CONFIG.day.startMinutes, money: data.money, selectedTool: data.selectedTool, player: { ...data.player, mapId: "farm" },
   inventory: { items: { sproutberry_seed: data.inventory.seeds, sproutberry: data.inventory.harvest } },
   farm: data.farm.map((tile) => ({
     x: tile.x, y: tile.y, tilled: tile.tilled, wateredToday: tile.watered,
@@ -86,12 +89,14 @@ const migrateV1 = (data: Version1SaveData): SaveData => ({
 
 export interface SaveRepository { save(data: SaveData): void; load(): SaveData | null }
 export class LocalStorageSaveRepository implements SaveRepository {
-  private readonly key = "jiwoos-farm.save.v3";
+  private readonly key = "jiwoos-farm.save.v4";
   save(data: SaveData) { localStorage.setItem(this.key, JSON.stringify(data)); }
   load(): SaveData | null {
     try {
       const current = localStorage.getItem(this.key);
       if (current) return JSON.parse(current) as SaveData;
+      const v3 = localStorage.getItem("jiwoos-farm.save.v3");
+      if (v3) return migrateV3(JSON.parse(v3) as Version3SaveData);
       const v2 = localStorage.getItem("jiwoos-farm.save.v2");
       if (v2) return migrateV2(JSON.parse(v2) as Version2SaveData);
       const v1 = localStorage.getItem("jiwoos-farm.save.v1");
