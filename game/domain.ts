@@ -55,6 +55,12 @@ export class Inventory {
   serialize(): InventoryData { return { items: { ...this.items } }; }
 }
 
+export function purchaseInventoryItem(inventory: Inventory, money: number, itemId: ItemId, price: number, quantity = 1) {
+  if (money < price) return { purchased: false, money };
+  inventory.add(itemId, quantity);
+  return { purchased: true, money: money - price };
+}
+
 export function advanceFarmDay(farm: FarmTileData[]) {
   let grown = 0;
   for (const tile of farm) {

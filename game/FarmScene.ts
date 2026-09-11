@@ -1,6 +1,6 @@
 import * as Phaser from "phaser";
 import { gameEvents, type HudState, type ToolKey } from "./events";
-import { advanceFarmDay, Inventory, LocalStorageSaveRepository, type FarmTileData, type SaveData } from "./domain";
+import { advanceFarmDay, Inventory, LocalStorageSaveRepository, purchaseInventoryItem, type FarmTileData, type SaveData } from "./domain";
 import { AssetManager } from "./assets/AssetManager";
 import { PLAYER_ASSET, displayedSize, physicsBoxForScale, type Facing } from "./assets/definitions";
 import { WorldRenderer } from "./rendering/WorldRenderer";
@@ -115,7 +115,10 @@ export class FarmScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, width, height); this.cameras.main.setBounds(0, 0, width, height);
     this.obstacleCollider = this.physics.add.collider(this.player, this.obstacles);
     const spawn = map.spawns.find((entry) => entry.id === spawnId) ?? map.spawns[0];
-    if (position) { this.player.setPosition(position.x, position.y); this.facing = position.facing; }
+    if (position) {
+      this.player.setPosition(Phaser.Math.Clamp(position.x, GAME_CONFIG.tileSize, width - GAME_CONFIG.tileSize), Phaser.Math.Clamp(position.y, GAME_CONFIG.tileSize, height - GAME_CONFIG.tileSize));
+      this.facing = position.facing;
+    }
     else { const point = tilePoint(spawn.tileX, spawn.tileY); this.player.setPosition(point.x, point.y); this.facing = spawn.facing; }
     this.cameras.main.startFollow(this.player, true, GAME_CONFIG.cameraFollowLerp, GAME_CONFIG.cameraFollowLerp).setZoom(GAME_CONFIG.cameraZoom);
     this.lockedWarpId = map.warps.find((warp) => pointInTileRect(this.player.x, this.player.y, warp.area))?.id ?? null;
@@ -187,8 +190,9 @@ export class FarmScene extends Phaser.Scene {
   private buy(listingId: string) {
     const listing = GENERAL_STORE_LISTINGS.find((entry) => entry.id === listingId);
     if (!listing) return;
-    if (this.money < listing.price) this.say("돈이 부족해요.");
-    else { this.money -= listing.price; this.inventory.add(listing.itemId, listing.quantity); this.say(`${listing.name} ${listing.quantity}개를 샀어요.`); this.save(false); }
+    const result = purchaseInventoryItem(this.inventory, this.money, listing.itemId, listing.price, listing.quantity);
+    if (!result.purchased) this.say("돈이 부족해요.");
+    else { this.money = result.money; this.say(`${listing.name} ${listing.quantity}개를 샀어요.`); this.save(false); }
     this.emitHud();
   }
   private sellHarvest() {

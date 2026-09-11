@@ -1,7 +1,8 @@
 import { strict as assert } from "node:assert";
 import { PLAYER_ASSET, displayedSize, physicsBoxForScale } from "../assets/definitions";
 import { CROP_DEFINITIONS } from "../data/crops";
-import { Inventory, LocalStorageSaveRepository, advanceFarmDay, type FarmTileData, type SaveData } from "../domain";
+import { Inventory, LocalStorageSaveRepository, advanceFarmDay, purchaseInventoryItem, type FarmTileData, type SaveData } from "../domain";
+import { GENERAL_STORE_LISTINGS } from "../data/shop";
 import { GAME_CONFIG } from "../config";
 import { MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS, getTileTypeAt } from "../maps/definitions";
 
@@ -23,6 +24,12 @@ const inventory = new Inventory();
 assert.equal(inventory.consume("sproutberry_seed"), true);
 inventory.add("sproutberry");
 assert.deepEqual(inventory.sellAll("sproutberry", CROP_DEFINITIONS.sproutberry.sellPrice), { amount: 1, earned: 35 });
+const listing = GENERAL_STORE_LISTINGS[0];
+const seedsBeforePurchase = inventory.count(listing.itemId);
+const purchase = purchaseInventoryItem(inventory, 120, listing.itemId, listing.price, listing.quantity);
+assert.deepEqual(purchase, { purchased: true, money: 100 });
+assert.equal(inventory.count(listing.itemId), seedsBeforePurchase + 1, "구매 시 돈을 차감하고 씨앗을 늘려야 함");
+assert.deepEqual(purchaseInventoryItem(inventory, 0, listing.itemId, listing.price), { purchased: false, money: 0 });
 
 const save: SaveData = {
   version: 4, day: 3, timeMinutes: 560, money: 435, selectedTool: "water",
