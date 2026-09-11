@@ -80,6 +80,20 @@ export class AssetManager {
       g.fillStyle(f.fill).fillRect(3, 3, width - 6, height - 6).lineStyle(6, f.stroke).strokeRect(3, 3, width - 6, height - 6)
         .generateTexture(basket.textureKey, width, height).destroy();
     }
+    const store = BUILDING_ASSETS.store;
+    if (!this.scene.textures.exists(store.textureKey)) {
+      const g = this.scene.add.graphics(); const f = store.fallback; const { width, height } = displayedSize(store);
+      g.fillStyle(f.wall).fillRect(0, 28, width, height - 28).fillStyle(f.roof).fillTriangle(0, 50, width, 50, width / 2, 0)
+        .lineStyle(6, f.trim).strokeRect(4, 48, width - 8, height - 52).fillStyle(f.door).fillRect(width / 2 - 18, height - 54, 36, 54)
+        .generateTexture(store.textureKey, width, height).destroy();
+    }
+    for (const asset of [BUILDING_ASSETS.bed, BUILDING_ASSETS.shop_counter]) {
+      if (this.scene.textures.exists(asset.textureKey)) continue;
+      const g = this.scene.add.graphics(); const f = asset.fallback; const { width, height } = displayedSize(asset);
+      g.fillStyle(f.fill).fillRoundedRect(2, 2, width - 4, height - 4, 7).lineStyle(4, f.stroke).strokeRoundedRect(2, 2, width - 4, height - 4, 7);
+      if (asset.assetId === "bed") g.fillStyle(0xb86665).fillRect(width * 0.35, 6, width * 0.58, height - 12);
+      g.generateTexture(asset.textureKey, width, height).destroy();
+    }
   }
 
   private createCropFallbacks() {
