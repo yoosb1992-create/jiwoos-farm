@@ -153,7 +153,8 @@ export class FarmScene extends Phaser.Scene {
     if (!tile) { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
     const center = tilePoint(x + 0.5, y + 0.5);
     if (Phaser.Math.Distance.Between(this.player.x, this.player.y, center.x, center.y) > GAME_CONFIG.farmInteractionDistance) { this.say("조금 더 가까이 가 주세요."); return; }
-    this.toolActions.execute(this.selectedTool, this.facing, (tool) => this.applyTool(tool, tile));
+    const executed = this.toolActions.execute(this.selectedTool, this.facing, (tool) => this.applyTool(tool, tile));
+    if (!executed) return;
     this.worldRenderer.renderFarmTile(tile); this.save(false); this.emitHud();
   }
 
