@@ -42,7 +42,7 @@ export class FarmScene extends Phaser.Scene {
   private shopOpen = false;
   private transitioning = false;
   private lateNightWarned = false;
-  private warpLocked = true;
+  private lockedWarpId: string | null = null;
   private message = "갈색 밭 가까이에서 괭이를 사용하세요.";
   private commandHandler = (event: Event) => this.handleCommand((event as CustomEvent<Command>).detail);
 
@@ -118,13 +118,14 @@ export class FarmScene extends Phaser.Scene {
     if (position) { this.player.setPosition(position.x, position.y); this.facing = position.facing; }
     else { const point = tilePoint(spawn.tileX, spawn.tileY); this.player.setPosition(point.x, point.y); this.facing = spawn.facing; }
     this.cameras.main.startFollow(this.player, true, GAME_CONFIG.cameraFollowLerp, GAME_CONFIG.cameraFollowLerp).setZoom(GAME_CONFIG.cameraZoom);
-    this.warpLocked = true; this.message = `${map.name}에 도착했어요.`; this.save(false); this.emitHud();
+    this.lockedWarpId = map.warps.find((warp) => pointInTileRect(this.player.x, this.player.y, warp.area))?.id ?? null;
+    this.message = `${map.name}에 도착했어요.`; this.save(false); this.emitHud();
   }
 
   private checkWarp() {
     const active = MAP_DEFINITIONS[this.currentMapId].warps.find((warp) => pointInTileRect(this.player.x, this.player.y, warp.area));
-    if (!active) { this.warpLocked = false; return; }
-    if (this.warpLocked) return;
+    if (!active) { this.lockedWarpId = null; return; }
+    if (this.lockedWarpId === active.id) return;
     this.loadMap(active.targetMapId, active.targetSpawnId);
   }
 

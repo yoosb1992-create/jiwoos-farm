@@ -49,7 +49,7 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
     id: "road", name: "들꽃길", width: 22, height: 26, baseTileType: "grass",
     terrainRegions: [{ ...area(9, 12, 0, 25), tileType: "path" }, { ...area(1, 4, 7, 18), tileType: "water" }], farmAreas: [], collisionRegions: [area(1, 4, 7, 18)],
     objects: [],
-    spawns: [{ id: "farm_entrance", tileX: 10.5, tileY: 2, facing: "down" }, { id: "town_entrance", tileX: 10.5, tileY: 23, facing: "up" }],
+    spawns: [{ id: "farm_entrance", tileX: 10.5, tileY: 3, facing: "down" }, { id: "town_entrance", tileX: 10.5, tileY: 22.5, facing: "up" }],
     warps: [{ id: "to_farm", area: area(9, 12, 0, 1), targetMapId: "farm", targetSpawnId: "from_road" }, { id: "to_town", area: area(9, 12, 24, 25), targetMapId: "town", targetSpawnId: "from_road" }],
     boundary: { enabled: true, openings: [area(9, 12, 0, 1), area(9, 12, 24, 25)] },
   },
