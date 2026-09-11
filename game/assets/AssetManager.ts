@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { BUILDING_ASSETS, CROP_ASSETS, ITEM_ASSETS, PLAYER_ASSET, TILE_ASSETS, displayedSize, type AssetSource } from "./definitions";
+import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, type AssetSource } from "./definitions";
 
 const loadSource = (scene: Phaser.Scene, key: string, source: AssetSource) => {
   if (!source) return;
@@ -13,7 +13,7 @@ export class AssetManager {
   preload() {
     loadSource(this.scene, PLAYER_ASSET.textureKey, PLAYER_ASSET.source);
     Object.values(TILE_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
-    Object.values(BUILDING_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
+    Object.values(WORLD_OBJECT_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
     Object.values(CROP_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
     Object.values(ITEM_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
   }
@@ -59,7 +59,7 @@ export class AssetManager {
   }
 
   private createBuildingFallbacks() {
-    const house = BUILDING_ASSETS.house;
+    const house = WORLD_OBJECT_ASSETS.house;
     if (!this.scene.textures.exists(house.textureKey)) {
       const g = this.scene.add.graphics(); const f = house.fallback;
       const { width, height } = displayedSize(house);
@@ -67,27 +67,27 @@ export class AssetManager {
         .fillStyle(f.roof).fillTriangle(0, 55, width, 55, width / 2, 0).fillStyle(f.door).fillRect(width / 2 - 22, height - 80, 44, 60)
         .generateTexture(house.textureKey, width, height).destroy();
     }
-    const tree = BUILDING_ASSETS.tree;
+    const tree = WORLD_OBJECT_ASSETS.tree;
     if (!this.scene.textures.exists(tree.textureKey)) {
       const g = this.scene.add.graphics(); const f = tree.fallback;
       g.fillStyle(f.trunk).fillRect(18, 29, 8, 22).fillStyle(f.crown).fillCircle(22, 17, 19)
         .fillStyle(f.highlight).fillCircle(13, 22, 11).generateTexture(tree.textureKey, displayedSize(tree).width, displayedSize(tree).height).destroy();
     }
-    const basket = BUILDING_ASSETS.sell_basket;
+    const basket = WORLD_OBJECT_ASSETS.sell_basket;
     if (!this.scene.textures.exists(basket.textureKey)) {
       const g = this.scene.add.graphics(); const f = basket.fallback;
       const { width, height } = displayedSize(basket);
       g.fillStyle(f.fill).fillRect(3, 3, width - 6, height - 6).lineStyle(6, f.stroke).strokeRect(3, 3, width - 6, height - 6)
         .generateTexture(basket.textureKey, width, height).destroy();
     }
-    const store = BUILDING_ASSETS.store;
+    const store = WORLD_OBJECT_ASSETS.store;
     if (!this.scene.textures.exists(store.textureKey)) {
       const g = this.scene.add.graphics(); const f = store.fallback; const { width, height } = displayedSize(store);
       g.fillStyle(f.wall).fillRect(0, 28, width, height - 28).fillStyle(f.roof).fillTriangle(0, 50, width, 50, width / 2, 0)
         .lineStyle(6, f.trim).strokeRect(4, 48, width - 8, height - 52).fillStyle(f.door).fillRect(width / 2 - 18, height - 54, 36, 54)
         .generateTexture(store.textureKey, width, height).destroy();
     }
-    for (const asset of [BUILDING_ASSETS.bed, BUILDING_ASSETS.shop_counter]) {
+    for (const asset of [WORLD_OBJECT_ASSETS.bed, WORLD_OBJECT_ASSETS.shop_counter]) {
       if (this.scene.textures.exists(asset.textureKey)) continue;
       const g = this.scene.add.graphics(); const f = asset.fallback; const { width, height } = displayedSize(asset);
       g.fillStyle(f.fill).fillRoundedRect(2, 2, width - 4, height - 4, 7).lineStyle(4, f.stroke).strokeRoundedRect(2, 2, width - 4, height - 4, 7);

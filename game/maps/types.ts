@@ -1,5 +1,5 @@
 import type { Facing } from "../assets/definitions";
-import type { BuildingAssetId, TileAssetId } from "../assets/definitions";
+import type { WorldObjectAssetId } from "../assets/definitions";
 
 export type MapId = "farm" | "farmhouse" | "road" | "town" | "general_store";
 export type TileTypeId = "grass" | "path" | "water" | "farm" | "wood_floor" | "stone_floor";
@@ -17,9 +17,9 @@ export interface WarpDefinition {
 }
 export interface MapObjectDefinition {
   id: string;
-  assetId: BuildingAssetId | TileAssetId;
+  assetId: WorldObjectAssetId;
   position: { tileX: number; tileY: number };
-  size?: { width: number; height: number };
+  displaySizeOverride?: { width: number; height: number };
   collision?: PixelRect;
   interaction?: { action: MapAction; area: TileRect };
   label?: string;

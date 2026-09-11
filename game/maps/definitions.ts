@@ -22,7 +22,7 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
     ],
     farmAreas: [area(9, 18, 8, 14)], collisionRegions: [area(24, 30, 15, 20)],
     objects: [
-      { id: "house", assetId: "house", position: { tileX: 5, tileY: 5 }, size: { width: 192, height: 176 }, collision: { x: -96, y: -80, width: 192, height: 135 }, label: "집", depth: 4 },
+      { id: "house", assetId: "house", position: { tileX: 5, tileY: 5 }, collision: { x: -96, y: -80, width: 192, height: 135 }, label: "집", depth: 4 },
       { id: "sell_basket", assetId: "sell_basket", position: { tileX: 33, tileY: 7.5 }, collision: { x: -45, y: -38, width: 90, height: 76 }, interaction: { action: "sell", area: area(31, 35, 6, 9) }, label: "판매 바구니", depth: 3 },
     ],
     spawns: [

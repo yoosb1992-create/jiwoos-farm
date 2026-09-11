@@ -1,12 +1,17 @@
 import * as Phaser from "phaser";
 import type { FarmTileData } from "../domain";
-import { BUILDING_ASSETS, CROP_ASSETS, TILE_ASSETS, displayedSize, type BuildingAssetId, type CropAssetId } from "../assets/definitions";
+import { CROP_ASSETS, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, type CropAssetId } from "../assets/definitions";
 import { CROP_DEFINITIONS } from "../data/crops";
 import { GAME_CONFIG } from "../config";
 import { MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS, tilePoint } from "../maps/definitions";
 import type { MapDefinition, MapId, TileRect } from "../maps/types";
 
 const farmKey = (tile: Pick<FarmTileData, "x" | "y">) => `${tile.x},${tile.y}`;
+
+export const collisionRectCenter = (position: { x: number; y: number }, collision: { x: number; y: number; width: number; height: number }) => ({
+  x: position.x + collision.x + collision.width / 2,
+  y: position.y + collision.y + collision.height / 2,
+});
 
 export class WorldRenderer {
   private root?: Phaser.GameObjects.Container;
@@ -64,15 +69,18 @@ export class WorldRenderer {
   }
 
   private addObject(object: MapDefinition["objects"][number]) {
-    const asset = BUILDING_ASSETS[object.assetId as BuildingAssetId];
+    const asset = WORLD_OBJECT_ASSETS[object.assetId];
     const position = tilePoint(object.position.tileX, object.position.tileY);
-    if (asset) {
-      const image = this.makeImage(position.x, position.y, asset).setDepth(object.depth ?? 3);
-      if (object.size) image.setDisplaySize(object.size.width, object.size.height);
-      this.root!.add(image);
+    const assetDisplaySize = displayedSize(asset);
+    const finalDisplaySize = object.displaySizeOverride ?? assetDisplaySize;
+    const image = this.makeImage(position.x, position.y, asset).setDepth(object.depth ?? 3)
+      .setDisplaySize(finalDisplaySize.width, finalDisplaySize.height);
+    this.root!.add(image);
+    if (object.collision) {
+      const center = collisionRectCenter(position, object.collision);
+      this.addObstacle(center.x, center.y, object.collision.width, object.collision.height);
     }
-    if (object.collision) this.addObstacle(position.x + object.collision.x, position.y + object.collision.y, object.collision.width, object.collision.height);
-    if (object.label) this.root!.add(this.scene.add.text(position.x, position.y + (object.size?.height ?? asset?.frameSize.height ?? 40) / 2 + 6, object.label, { fontFamily: "sans-serif", fontSize: "13px", color: "#fff4d8", fontStyle: "bold", backgroundColor: "#70402dcc", padding: { x: 7, y: 4 } }).setOrigin(0.5).setDepth(8));
+    if (object.label) this.root!.add(this.scene.add.text(position.x, position.y + finalDisplaySize.height / 2 + 6, object.label, { fontFamily: "sans-serif", fontSize: "13px", color: "#fff4d8", fontStyle: "bold", backgroundColor: "#70402dcc", padding: { x: 7, y: 4 } }).setOrigin(0.5).setDepth(8));
   }
 
   private addCollisionRegion(region: TileRect) {
