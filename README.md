@@ -2,7 +2,7 @@
 
 ## Game asset replacement
 
-Temporary graphics are isolated behind `game/assets/definitions.ts` and `game/assets/AssetManager.ts`. To replace them, add image or spritesheet files under `public/`, set each asset's `source`, and update only its frame size, display scale, origin, collision box, and animation frame data. World layout lives in `game/worldData.ts`; crop and item rules live under `game/data/`; Phaser rendering lives in `game/rendering/WorldRenderer.ts`, while farming and save logic remain independent of texture paths and pixel-art geometry. See `game/README.md` for the replacement map.
+Temporary graphics are isolated behind `game/assets/definitions.ts` and `game/assets/AssetManager.ts`. To replace them, add image or spritesheet files under `public/`, set each asset's `source`, and update only its frame size, display scale, origin, collision box, and animation frame data. The five-map world is data-defined in `game/maps/definitions.ts`; crop, item, and shop rules live under `game/data/`; Phaser rendering lives in `game/rendering/WorldRenderer.ts`, while farming, warps, and save logic remain independent of texture paths and pixel-art geometry. See `game/README.md` for the replacement map.
 
 A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.
 

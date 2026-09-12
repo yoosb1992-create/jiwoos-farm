@@ -5,8 +5,10 @@
 - `assets/AssetManager.ts`: 에셋 로딩과 현재 임시 그래픽 fallback 생성
 - `data/crops.ts`: 작물 이름, 성장 일수/단계, 단계별 asset id, 씨앗·수확 아이템과 판매가
 - `data/items.ts`: 도구·씨앗·수확물과 UI icon asset 연결
-- `worldData.ts`: 논리 타일 종류, 이동/농사 가능 여부, 월드 오브젝트 위치·충돌·상호작용
-- `rendering/WorldRenderer.ts`: 월드 데이터와 asset id를 Phaser 화면으로 변환
+- `maps/types.ts`: 맵, 타일, 오브젝트, 스폰, 워프 데이터 계약
+- `maps/definitions.ts`: 다섯 장소의 타일·충돌·농사 영역·오브젝트·스폰·워프 데이터
+- `data/shop.ts`: 상점 판매 목록과 가격
+- `rendering/WorldRenderer.ts`: 현재 맵 데이터와 asset id를 Phaser 화면으로 변환
 - `player/PlayerAnimationController.ts`: 이동/대기/도구 사용 상태를 방향별 애니메이션 이름으로 변환
 - `actions/ToolActionSystem.ts`: 플레이어 행동 → 도구 행동 → 애니메이션 연결
 

@@ -1,9 +1,13 @@
 import { strict as assert } from "node:assert";
-import { PLAYER_ASSET, displayedSize, physicsBoxForScale } from "../assets/definitions";
+import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale } from "../assets/definitions";
 import { CROP_DEFINITIONS } from "../data/crops";
-import { Inventory, LocalStorageSaveRepository, advanceFarmDay, type FarmTileData, type SaveData } from "../domain";
+import { Inventory, LocalStorageSaveRepository, advanceFarmDay, normalizeSaveData, purchaseInventoryItem, type FarmTileData, type SaveData } from "../domain";
+import { GENERAL_STORE_LISTINGS } from "../data/shop";
+import { ITEM_DEFINITIONS } from "../data/items";
 import { GAME_CONFIG } from "../config";
-import { TILE_TYPE_DEFINITIONS, getTileTypeAt } from "../worldData";
+import { MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS, getTileTypeAt, tilePoint } from "../maps/definitions";
+import { collisionRectCenter } from "../rendering/WorldRenderer";
+import { ToolActionSystem } from "../actions/ToolActionSystem";
 
 const storage = new Map<string, string>();
 Object.defineProperty(globalThis, "localStorage", { value: {
@@ -23,10 +27,16 @@ const inventory = new Inventory();
 assert.equal(inventory.consume("sproutberry_seed"), true);
 inventory.add("sproutberry");
 assert.deepEqual(inventory.sellAll("sproutberry", CROP_DEFINITIONS.sproutberry.sellPrice), { amount: 1, earned: 35 });
+const listing = GENERAL_STORE_LISTINGS[0];
+const seedsBeforePurchase = inventory.count(listing.itemId);
+const purchase = purchaseInventoryItem(inventory, 120, listing.itemId, listing.price, listing.quantity);
+assert.deepEqual(purchase, { purchased: true, money: 100 });
+assert.equal(inventory.count(listing.itemId), seedsBeforePurchase + 1, "구매 시 돈을 차감하고 씨앗을 늘려야 함");
+assert.deepEqual(purchaseInventoryItem(inventory, 0, listing.itemId, listing.price), { purchased: false, money: 0 });
 
 const save: SaveData = {
-  version: 3, day: 3, timeMinutes: 560, money: 435, selectedTool: "water",
-  player: { x: 224, y: 256, facing: "down" }, inventory: inventory.serialize(), farm: [tile], savedAt: 123,
+  version: 4, day: 3, timeMinutes: 560, money: 435, selectedTool: "water",
+  player: { x: 224, y: 256, facing: "down", mapId: "town" }, inventory: inventory.serialize(), farm: [tile], savedAt: 123,
 };
 const repository = new LocalStorageSaveRepository();
 repository.save(save);
@@ -38,9 +48,34 @@ storage.set("jiwoos-farm.save.v2", JSON.stringify({
   player: { x: 200, y: 220, facing: "left" }, inventory: { seeds: 6, harvest: 2 }, farm: [tile], savedAt: 99,
 }));
 const migrated = repository.load();
-assert.equal(migrated?.version, 3, "기존 0.2 저장은 새 저장 형식으로 이전되어야 함");
+assert.equal(migrated?.version, 4, "기존 0.2 저장은 새 저장 형식으로 이전되어야 함");
+assert.equal(migrated?.player.mapId, "farm", "기존 저장은 농장 맵에서 시작해야 함");
 assert.equal(migrated?.inventory.items.sproutberry_seed, 6);
 assert.equal(migrated?.inventory.items.sproutberry, 2);
+
+storage.clear();
+storage.set("jiwoos-farm.save.v4", JSON.stringify({
+  version: 4, day: -8, timeMinutes: "broken", money: -50, selectedTool: "axe",
+  player: { x: "NaN", y: null, facing: "sideways", mapId: "deleted_map" },
+  inventory: { items: { sproutberry_seed: 3, unknown_item: 99 } },
+  farm: [{ x: 9, y: 8, tilled: true, wateredToday: true, cropType: "missing_crop", cropStage: 99 }],
+}));
+const recovered = repository.load();
+const farmSpawn = MAP_DEFINITIONS.farm.spawns[0];
+assert.equal(recovered?.player.mapId, "farm", "삭제되거나 이름이 바뀐 맵은 farm으로 복구해야 함");
+assert.deepEqual(recovered?.player, { ...tilePoint(farmSpawn.tileX, farmSpawn.tileY), facing: farmSpawn.facing, mapId: "farm" });
+assert.equal(recovered?.day, 1);
+assert.equal(recovered?.timeMinutes, GAME_CONFIG.day.startMinutes);
+assert.equal(recovered?.money, GAME_CONFIG.startingMoney);
+assert.equal(recovered?.farm[0].cropType, null, "알 수 없는 작물은 빈 타일로 안전하게 복구해야 함");
+assert.equal(recovered?.inventory.items.sproutberry_seed, 3);
+assert.equal("unknown_item" in (recovered?.inventory.items ?? {}), false);
+assert.equal(normalizeSaveData({ version: 99 }), null, "지원하지 않는 버전은 새 게임으로 처리해야 함");
+
+storage.clear();
+storage.set("jiwoos-farm.save.v4", "{ malformed");
+storage.set("jiwoos-farm.save.v3", JSON.stringify({ ...save, version: 3, player: { x: 120, y: 140, facing: "left" } }));
+assert.equal(repository.load()?.version, 4, "손상된 최신 저장 뒤에 복구 가능한 이전 저장이 있으면 사용해야 함");
 
 const requiredAnimations = [
   "idle_down", "idle_up", "idle_left", "idle_right", "walk_down", "walk_up", "walk_left", "walk_right",
@@ -53,7 +88,49 @@ const compensatedBox = physicsBoxForScale(PLAYER_ASSET.collisionBox, scaledPlaye
 assert.equal(compensatedBox.width * scaledPlayer.displayScale.x, PLAYER_ASSET.collisionBox.width, "시각 배율이 충돌 폭을 바꾸면 안 됨");
 assert.equal(compensatedBox.height * scaledPlayer.displayScale.y, PLAYER_ASSET.collisionBox.height, "시각 배율이 충돌 높이를 바꾸면 안 됨");
 assert.equal(GAME_CONFIG.playerSpeed, 145, "에셋 scale 변경이 이동 속도 설정에 영향을 주면 안 됨");
-assert.equal(TILE_TYPE_DEFINITIONS[getTileTypeAt(9, 8)].farmable, true);
-assert.equal(TILE_TYPE_DEFINITIONS[getTileTypeAt(27, 18)].walkable, false);
+assert.equal(TILE_TYPE_DEFINITIONS[getTileTypeAt("farm", 9, 8)].farmable, true);
+assert.equal(TILE_TYPE_DEFINITIONS[getTileTypeAt("farm", 27, 18)].walkable, false);
+assert.deepEqual(Object.keys(MAP_DEFINITIONS), ["farm", "farmhouse", "road", "town", "general_store"]);
+for (const map of Object.values(MAP_DEFINITIONS)) {
+  assert.ok(TILE_TYPE_DEFINITIONS[map.baseTileType], `${map.id} 기본 타일 종류가 존재해야 함`);
+  for (const region of map.terrainRegions) assert.ok(TILE_TYPE_DEFINITIONS[region.tileType], `${map.id} 지형 타일 종류가 존재해야 함`);
+  for (const object of map.objects) assert.ok(WORLD_OBJECT_ASSETS[object.assetId], `${map.id}.${object.id} asset이 존재해야 함`);
+  for (const warp of map.warps) {
+    assert.ok(MAP_DEFINITIONS[warp.targetMapId], `${map.id}.${warp.id} 목적지 맵이 존재해야 함`);
+    assert.ok(MAP_DEFINITIONS[warp.targetMapId].spawns.some((spawn) => spawn.id === warp.targetSpawnId), `${map.id}.${warp.id} 목적지 스폰이 존재해야 함`);
+  }
+}
 
-console.log("0.2 regression and asset-swap checks: passed");
+for (const crop of Object.values(CROP_DEFINITIONS)) {
+  assert.ok(ITEM_DEFINITIONS[crop.seedItemId], `${crop.id} 씨앗 아이템이 존재해야 함`);
+  assert.ok(ITEM_DEFINITIONS[crop.harvestItemId], `${crop.id} 수확 아이템이 존재해야 함`);
+  let previousGrowthDay = -1;
+  for (const stage of crop.stages) {
+    assert.ok(CROP_ASSETS[stage.assetId], `${crop.id}.${stage.id} stage asset이 존재해야 함`);
+    assert.ok(stage.growthDay >= previousGrowthDay, `${crop.id} growthDay가 오름차순이어야 함`);
+    previousGrowthDay = stage.growthDay;
+  }
+}
+for (const listingEntry of GENERAL_STORE_LISTINGS) {
+  assert.ok(ITEM_DEFINITIONS[listingEntry.itemId], `${listingEntry.id} 상점 아이템이 존재해야 함`);
+  assert.ok(listingEntry.price >= 0, `${listingEntry.id} 가격이 음수가 아니어야 함`);
+  assert.ok(listingEntry.quantity >= 1, `${listingEntry.id} 수량이 1 이상이어야 함`);
+}
+for (const tileType of Object.values(TILE_TYPE_DEFINITIONS)) assert.ok(TILE_ASSETS[tileType.graphicAssetId], `${tileType.graphicAssetId} tile asset이 존재해야 함`);
+for (const item of Object.values(ITEM_DEFINITIONS)) assert.ok(ITEM_ASSETS[item.assetId], `${item.id} icon asset이 존재해야 함`);
+
+const house = MAP_DEFINITIONS.farm.objects.find((object) => object.id === "house")!;
+const basket = MAP_DEFINITIONS.farm.objects.find((object) => object.id === "sell_basket")!;
+assert.deepEqual(collisionRectCenter(tilePoint(house.position.tileX, house.position.tileY), house.collision!), { x: 160, y: 147.5 });
+assert.deepEqual(collisionRectCenter(tilePoint(basket.position.tileX, basket.position.tileY), basket.collision!), { x: 1056, y: 240 });
+
+let now = 1_000;
+let effects = 0;
+const toolActions = new ToolActionSystem({ playTool: () => undefined }, () => now);
+assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), true);
+assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), false, "한 animation 중 중복 행동을 막아야 함");
+now += GAME_CONFIG.toolActionCooldownMs;
+assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), true);
+assert.equal(effects, 2);
+
+console.log("0.3 world, save migration, farming, and asset-swap regression checks: passed");

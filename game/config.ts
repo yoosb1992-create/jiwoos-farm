@@ -4,6 +4,7 @@ export const GAME_CONFIG = {
   startingMoney: 120,
   startingSeedCount: 8,
   farmInteractionDistance: 120,
+  toolActionCooldownMs: 180,
   autoSaveIntervalMs: 4_000,
   cameraZoom: 1.25,
   cameraFollowLerp: 0.12,

@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Verify checkout
+        run: |
+          pwd
+          ls -la package.json package-lock.json
+          test -f package-lock.json
+          node --version
+          npm --version
+          node -e "const lock = require('./package-lock.json'); if (lock.lockfileVersion < 1) process.exit(1)"
+
+      - name: Install dependencies
+        run: npm run install:ci
+
+      - name: Run regression tests
+        run: npm run test:regression
+
+      - name: Build
+        run: npm run build

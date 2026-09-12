@@ -1,55 +1,44 @@
 import * as Phaser from "phaser";
 import type { FarmTileData } from "../domain";
-import { BUILDING_ASSETS, CROP_ASSETS, TILE_ASSETS, displayedSize, type BuildingAssetId, type CropAssetId } from "../assets/definitions";
+import { CROP_ASSETS, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, type CropAssetId } from "../assets/definitions";
 import { CROP_DEFINITIONS } from "../data/crops";
-import { TILE_TYPE_DEFINITIONS, WORLD_MAP, worldPoint, type WorldObjectDefinition } from "../worldData";
+import { GAME_CONFIG } from "../config";
+import { MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS, tilePoint } from "../maps/definitions";
+import type { MapDefinition, MapId, TileRect } from "../maps/types";
 
 const farmKey = (tile: Pick<FarmTileData, "x" | "y">) => `${tile.x},${tile.y}`;
 
+export const collisionRectCenter = (position: { x: number; y: number }, collision: { x: number; y: number; width: number; height: number }) => ({
+  x: position.x + collision.x + collision.width / 2,
+  y: position.y + collision.y + collision.height / 2,
+});
+
 export class WorldRenderer {
+  private root?: Phaser.GameObjects.Container;
+  private obstacles?: Phaser.Physics.Arcade.StaticGroup;
   private readonly farmViews = new Map<string, Phaser.GameObjects.Container>();
   constructor(private readonly scene: Phaser.Scene) {}
 
-  createWorld() {
-    const worldWidth = WORLD_MAP.width * WORLD_MAP.tileSize;
-    const worldHeight = WORLD_MAP.height * WORLD_MAP.tileSize;
-    const grass = TILE_ASSETS[TILE_TYPE_DEFINITIONS.grass.graphicAssetId];
-    this.scene.add.tileSprite(worldWidth / 2, worldHeight / 2, worldWidth, worldHeight, grass.textureKey);
-    for (const region of WORLD_MAP.terrainRegions) {
-      const tileAsset = TILE_ASSETS[TILE_TYPE_DEFINITIONS[region.tileType].graphicAssetId];
-      this.addTileRegion(region.startX, region.startY, region.endX, region.endY, tileAsset.textureKey, region.depth);
-    }
-
-    const obstacles = this.scene.physics.add.staticGroup();
-    for (const object of WORLD_MAP.objects) {
-      if (object.id !== "pond") this.addWorldObject(object, obstacles);
-      else this.addObjectCollision(object, obstacles);
-    }
-    const house = WORLD_MAP.objects.find((object) => object.id === "house")!;
-    const houseInteraction = house.interaction!;
-    const housePosition = worldPoint(house.position.tileX, house.position.tileY);
-    this.scene.add.text(housePosition.x, houseInteraction.tileY * WORLD_MAP.tileSize + 3, "집 · 잠자기", {
-      fontFamily: "sans-serif", fontSize: "13px", color: "#fff4d8", fontStyle: "bold", backgroundColor: "#70402dcc", padding: { x: 7, y: 4 },
-    }).setOrigin(0.5).setDepth(8);
-
-    this.createBoundary(obstacles);
-    const basket = WORLD_MAP.objects.find((object) => object.id === "sell_basket")!;
-    const basketPosition = worldPoint(basket.position.tileX, basket.position.tileY);
-    this.scene.add.text(basketPosition.x, basketPosition.y, "판매\n바구니", {
-      fontFamily: "sans-serif", fontSize: "15px", color: "#fff4d8", align: "center", fontStyle: "bold",
-    }).setOrigin(0.5).setDepth(4);
-    this.scene.add.text(WORLD_MAP.farmArea.startX * WORLD_MAP.tileSize, (WORLD_MAP.farmArea.startY - 1) * WORLD_MAP.tileSize, "햇살밭", {
-      fontFamily: "sans-serif", fontSize: "18px", color: "#35522f", fontStyle: "bold", backgroundColor: "#f4e3abcc", padding: { x: 10, y: 5 },
-    }).setDepth(8);
-    return obstacles;
+  renderMap(mapId: MapId, farm: Iterable<FarmTileData>) {
+    this.destroy();
+    const map = MAP_DEFINITIONS[mapId];
+    this.root = this.scene.add.container(0, 0);
+    this.obstacles = this.scene.physics.add.staticGroup();
+    const size = GAME_CONFIG.tileSize, width = map.width * size, height = map.height * size;
+    const base = TILE_ASSETS[TILE_TYPE_DEFINITIONS[map.baseTileType].graphicAssetId];
+    this.root.add(this.scene.add.tileSprite(width / 2, height / 2, width, height, base.textureKey));
+    for (const region of map.terrainRegions) this.addRegion(region);
+    for (const region of map.collisionRegions) this.addCollisionRegion(region);
+    for (const object of map.objects) this.addObject(object);
+    if (map.boundary.enabled) this.createBoundary(map);
+    this.root.add(this.scene.add.text(20, 18, map.name, { fontFamily: "sans-serif", fontSize: "20px", color: "#fff4d8", fontStyle: "bold", backgroundColor: "#4f633dcc", padding: { x: 10, y: 5 } }).setDepth(30));
+    if (mapId === "farm") this.createFarmViews(farm);
+    return this.obstacles;
   }
 
-  createFarmViews(farm: Iterable<FarmTileData>) {
-    for (const tile of farm) {
-      const position = worldPoint(tile.x + 0.5, tile.y + 0.5);
-      this.farmViews.set(farmKey(tile), this.scene.add.container(position.x, position.y).setDepth(6));
-      this.renderFarmTile(tile);
-    }
+  destroy() {
+    this.farmViews.clear(); this.root?.destroy(true); this.root = undefined;
+    this.obstacles?.clear(true, true); this.obstacles = undefined;
   }
 
   renderFarmTile(tile: FarmTileData) {
@@ -57,12 +46,59 @@ export class WorldRenderer {
     if (!view) return;
     view.removeAll(true);
     const groundId = tile.wateredToday ? "tile_farm_watered" : tile.tilled ? "tile_farm_tilled" : "tile_farm_empty";
-    const ground = TILE_ASSETS[groundId];
-    view.add(this.makeImage(0, 0, ground));
+    view.add(this.makeImage(0, 0, TILE_ASSETS[groundId]));
     if (tile.cropType && tile.cropStage !== null) {
-      const stageDefinition = CROP_DEFINITIONS[tile.cropType].stages[tile.cropStage];
-      const crop = CROP_ASSETS[stageDefinition.assetId as CropAssetId];
-      view.add(this.makeImage(0, 0, crop));
+      const stage = CROP_DEFINITIONS[tile.cropType].stages[tile.cropStage];
+      view.add(this.makeImage(0, 0, CROP_ASSETS[stage.assetId as CropAssetId]));
+    }
+  }
+
+  private createFarmViews(farm: Iterable<FarmTileData>) {
+    for (const tile of farm) {
+      const position = tilePoint(tile.x + 0.5, tile.y + 0.5);
+      const view = this.scene.add.container(position.x, position.y).setDepth(6);
+      this.root!.add(view); this.farmViews.set(farmKey(tile), view); this.renderFarmTile(tile);
+    }
+  }
+
+  private addRegion(region: TileRect & { tileType: keyof typeof TILE_TYPE_DEFINITIONS; depth?: number }) {
+    const size = GAME_CONFIG.tileSize;
+    const width = (region.endX - region.startX + 1) * size, height = (region.endY - region.startY + 1) * size;
+    const asset = TILE_ASSETS[TILE_TYPE_DEFINITIONS[region.tileType].graphicAssetId];
+    this.root!.add(this.scene.add.tileSprite(region.startX * size + width / 2, region.startY * size + height / 2, width, height, asset.textureKey).setDepth(region.depth ?? 1));
+  }
+
+  private addObject(object: MapDefinition["objects"][number]) {
+    const asset = WORLD_OBJECT_ASSETS[object.assetId];
+    const position = tilePoint(object.position.tileX, object.position.tileY);
+    const assetDisplaySize = displayedSize(asset);
+    const finalDisplaySize = object.displaySizeOverride ?? assetDisplaySize;
+    const image = this.makeImage(position.x, position.y, asset).setDepth(object.depth ?? 3)
+      .setDisplaySize(finalDisplaySize.width, finalDisplaySize.height);
+    this.root!.add(image);
+    if (object.collision) {
+      const center = collisionRectCenter(position, object.collision);
+      this.addObstacle(center.x, center.y, object.collision.width, object.collision.height);
+    }
+    if (object.label) this.root!.add(this.scene.add.text(position.x, position.y + finalDisplaySize.height / 2 + 6, object.label, { fontFamily: "sans-serif", fontSize: "13px", color: "#fff4d8", fontStyle: "bold", backgroundColor: "#70402dcc", padding: { x: 7, y: 4 } }).setOrigin(0.5).setDepth(8));
+  }
+
+  private addCollisionRegion(region: TileRect) {
+    const size = GAME_CONFIG.tileSize;
+    this.addObstacle((region.startX + region.endX + 1) * size / 2, (region.startY + region.endY + 1) * size / 2, (region.endX - region.startX + 1) * size, (region.endY - region.startY + 1) * size);
+  }
+
+  private createBoundary(map: MapDefinition) {
+    const size = GAME_CONFIG.tileSize, width = map.width * size, height = map.height * size;
+    const openings = map.boundary.openings ?? [];
+    const open = (x: number, y: number) => openings.some((r) => x >= r.startX && x <= r.endX && y >= r.startY && y <= r.endY);
+    for (let x = 0; x < map.width; x++) {
+      if (!open(x, 0)) this.addObstacle(x * size + size / 2, size / 4, size, size / 2);
+      if (!open(x, map.height - 1)) this.addObstacle(x * size + size / 2, height - size / 4, size, size / 2);
+    }
+    for (let y = 1; y < map.height - 1; y++) {
+      if (!open(0, y)) this.addObstacle(size / 4, y * size + size / 2, size / 2, size);
+      if (!open(map.width - 1, y)) this.addObstacle(width - size / 4, y * size + size / 2, size / 2, size);
     }
   }
 
@@ -71,48 +107,8 @@ export class WorldRenderer {
     return this.scene.add.image(x, y, asset.textureKey).setDisplaySize(size.width, size.height).setOrigin(asset.origin.x, asset.origin.y);
   }
 
-  private addTileRegion(startX: number, startY: number, endX: number, endY: number, textureKey: string, depth: number) {
-    const width = (endX - startX + 1) * WORLD_MAP.tileSize;
-    const height = (endY - startY + 1) * WORLD_MAP.tileSize;
-    this.scene.add.tileSprite(startX * WORLD_MAP.tileSize + width / 2, startY * WORLD_MAP.tileSize + height / 2, width, height, textureKey).setDepth(depth);
-  }
-
-  private addWorldObject(object: WorldObjectDefinition, obstacles: Phaser.Physics.Arcade.StaticGroup) {
-    const asset = BUILDING_ASSETS[object.assetId as BuildingAssetId];
-    if (!asset) return;
-    const position = worldPoint(object.position.tileX, object.position.tileY);
-    this.makeImage(position.x, position.y, asset).setDepth(object.depth);
-    this.addObjectCollision(object, obstacles);
-  }
-
-  private addObjectCollision(object: WorldObjectDefinition, obstacles: Phaser.Physics.Arcade.StaticGroup) {
-    if (!object.collision.enabled) return;
-    const position = worldPoint(object.position.tileX, object.position.tileY);
-    this.addObstacle(position.x + object.collision.offsetX, position.y + object.collision.offsetY, object.collision.width, object.collision.height, obstacles);
-  }
-
-  private createBoundary(obstacles: Phaser.Physics.Arcade.StaticGroup) {
-    const worldWidth = WORLD_MAP.width * WORLD_MAP.tileSize;
-    const worldHeight = WORLD_MAP.height * WORLD_MAP.tileSize;
-    const definition = WORLD_MAP.boundary;
-    const tree = BUILDING_ASSETS[definition.assetId];
-    const addTree = (x: number, y: number) => {
-      this.makeImage(x, y, tree).setDepth(4);
-      this.addObstacle(x, y, definition.collision.width, definition.collision.height, obstacles);
-    };
-    for (let x = 0; x < WORLD_MAP.width; x += 1) {
-      addTree(x * WORLD_MAP.tileSize + WORLD_MAP.tileSize / 2, definition.spriteOffset);
-      addTree(x * WORLD_MAP.tileSize + WORLD_MAP.tileSize / 2, worldHeight - definition.spriteOffset);
-    }
-    for (let y = 1; y < WORLD_MAP.height - 1; y += 1) {
-      addTree(WORLD_MAP.tileSize / 2, y * WORLD_MAP.tileSize + WORLD_MAP.tileSize / 2);
-      addTree(worldWidth - WORLD_MAP.tileSize / 2, y * WORLD_MAP.tileSize + WORLD_MAP.tileSize / 2);
-    }
-  }
-
-  private addObstacle(x: number, y: number, width: number, height: number, group: Phaser.Physics.Arcade.StaticGroup) {
-    const obstacle = this.scene.add.rectangle(x, y, width, height, 0x000000, 0);
-    this.scene.physics.add.existing(obstacle, true);
-    group.add(obstacle);
+  private addObstacle(x: number, y: number, width: number, height: number) {
+    const obstacle = this.scene.add.rectangle(x, y, width, height, 0, 0);
+    this.scene.physics.add.existing(obstacle, true); this.obstacles!.add(obstacle); this.root!.add(obstacle);
   }
 }

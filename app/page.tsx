@@ -5,6 +5,7 @@ import type * as Phaser from "phaser";
 import { gameEvents, type HudState, initialHud, type ToolKey } from "@/game/events";
 import { ITEM_ASSETS } from "@/game/assets/definitions";
 import { ITEM_DEFINITIONS } from "@/game/data/items";
+import { GENERAL_STORE_LISTINGS } from "@/game/data/shop";
 
 const toolKeys: ToolKey[] = ["hoe", "seed", "water", "hand"];
 const tools = toolKeys.map((key) => {
@@ -47,15 +48,16 @@ export default function Home() {
         <div id="game-canvas" className="game-canvas" />
         <header className="top-hud">
           <div className="brand-plate"><span className="brand-leaf">✦</span><div><strong>지우네 농장</strong><small>우리 가족의 봄날</small></div></div>
-          <div className="status-plate"><span>☀ 맑음</span><b>봄 {hud.day}일</b><strong>{hud.timeText}</strong><em>{hud.money.toLocaleString()} G</em></div>
+          <div className="status-plate"><span>☀ 맑음 · {hud.mapName}</span><b>봄 {hud.day}일</b><strong>{hud.timeText}</strong><em>{hud.money.toLocaleString()} G</em></div>
         </header>
         <aside className="quest-card">
           <span className="quest-kicker">오늘 할 일</span><strong>{hud.objective}</strong>
           <div className="growth-track"><i style={{ width: `${hud.progress}%` }} /></div><small>{hud.message}</small>
         </aside>
         <div className="save-row"><button onClick={() => command("save")}>저장</button><button onClick={() => command("load")}>불러오기</button><button onClick={toggleHelp}>?</button></div>
-        {showHelp && <div className="modal-shade"><div className="help-card"><button aria-label="도움말 닫기" onClick={toggleHelp}>×</button><b>농사 시작하기</b><p><kbd>WASD</kbd> / 방향키로 이동 · 가까운 밭을 클릭하거나 <kbd>Space</kbd>로 행동</p><p>괭이 → 씨앗 → 물 → 잠자기 → 다음 날 물 주기 순서로 키워 보세요.</p><p>집 문 앞에서 <kbd>Space</kbd>를 누르면 하루를 마칠 수 있어요.</p></div></div>}
+        {showHelp && <div className="modal-shade"><div className="help-card"><button aria-label="도움말 닫기" onClick={toggleHelp}>×</button><b>농사와 마을 생활</b><p><kbd>WASD</kbd> / 방향키로 이동 · 가까운 밭을 클릭하거나 <kbd>Space</kbd>로 행동</p><p>괭이 → 씨앗 → 물 → 잠자기 → 다음 날 물 주기 순서로 키워 보세요.</p><p>집 안 침대에서 잠들고, 농장 남쪽 길을 따라 마을 상점에 갈 수 있어요.</p></div></div>}
         {hud.sleepPrompt && <div className="modal-shade"><div className="sleep-card" role="dialog" aria-modal="true" aria-label="잠자기 확인"><span>🌙</span><b>오늘 하루를 마치고 잠드시겠습니까?</b><p>물을 준 작물은 잠든 사이 한 단계 자랍니다.</p><div><button onClick={() => command("sleep-confirm")}>확인</button><button onClick={() => command("sleep-cancel")}>취소</button></div></div></div>}
+        {hud.shopOpen && <div className="modal-shade"><div className="sleep-card" role="dialog" aria-modal="true" aria-label="새봄 상점"><span>🌱</span><b>새봄 상점</b><p>농사에 필요한 씨앗을 준비했어요.</p>{GENERAL_STORE_LISTINGS.map((listing) => <div key={listing.id}><button onClick={() => command("shop-buy", listing.id)}>{listing.name} · {listing.price} G</button></div>)}<div><button onClick={() => command("shop-close")}>상점 나가기</button></div></div></div>}
         {hud.transitioning && <div className="night-fade"><span>하루를 마무리합니다…</span></div>}
         <div className="inventory-chip" aria-live="polite"><span>씨앗 <b>{hud.seeds}</b></span><span>새싹열매 <b>{hud.harvest}</b></span></div>
         <nav className="quickbar" aria-label="도구 선택">
