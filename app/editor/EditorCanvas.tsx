@@ -45,6 +45,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
     onContinuous((target) => {
       const previous = target.terrainRegions.at(-1);
       if (previous?.startX === x && previous.startY === y && previous.endX === x && previous.endY === y && previous.tileType === terrain) return;
+      target.terrainRegions = target.terrainRegions.filter((entry) => !(entry.startX === x && entry.endX === x && entry.startY === y && entry.endY === y));
       target.terrainRegions.push({ startX: x, endX: x, startY: y, endY: y, tileType: terrain });
     });
   };

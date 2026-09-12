@@ -1,5 +1,21 @@
 # 지우네 농장 그래픽 교체 구조
 
+## 0.3.5 개발용 맵 편집기
+
+게임 화면 상단의 `맵 편집`으로 진입한다. 편집 문서는 게임 SaveData v4와 다른
+`jiwoos-farm.map-editor.v1` localStorage key에 저장되며, `editorVersion: 1`을 가진다.
+
+- `MapRegistry`: 내장 `MAP_DEFINITIONS`와 runtime working copy 사이의 경계
+- `game/editor/document.ts`: 편집 문서 clone, local repository, registry 변환
+- `game/editor/history.ts`: 최근 75단계 snapshot 기반 Undo/Redo
+- `game/editor/validation.ts`: Import/저장/테스트 플레이 전 schema와 데이터 참조 검증
+- `app/editor/*`: 도구, SVG 맵 화면, Inspector UI
+
+JSON Import는 validation을 통과한 문서만 적용한다. `테스트 플레이`는 편집 문서의
+working copy를 별도 registry로 주입하며 실제 게임 저장에는 쓰지 않는다.
+
+## 그래픽·에셋 구조
+
 - `config.ts`: 타일 크기, 이동 속도, 상호작용 거리, 카메라와 시간 설정
 - `assets/definitions.ts`: asset id, 경로/시트, 프레임 크기, 표시 배율, origin, 충돌·상호작용 기준점과 애니메이션 프레임
 - `assets/AssetManager.ts`: 에셋 로딩과 현재 임시 그래픽 fallback 생성
