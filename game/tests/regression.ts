@@ -168,5 +168,8 @@ assert.ok(editorIssues.some((issue) => issue.message.includes("등록되지 않�
 assert.ok(editorIssues.some((issue) => issue.message.includes("목적지 맵")));
 assert.equal(parseEditorDocument({ editorVersion: 99, maps: [] }).document, null, "잘못된 Import는 적용하지 않아야 함");
 assert.doesNotThrow(() => validateEditorDocument({ editorVersion: 1, maps: [{ id: "bad", width: 20, height: 10, warps: [null] }] }), "손상된 문서 검증이 crash하면 안 됨");
+const importedRoundTrip = parseEditorDocument(JSON.parse(JSON.stringify(editorDocument))).document;
+assert.deepEqual(importedRoundTrip, editorDocument, "Export한 Editor Document를 validation 후 동일하게 Import해야 함");
+assert.equal(createBuiltInEditorDocument().maps.find((map) => map.id === "town")?.name, "햇살마을", "기본값 초기화는 내장 맵의 새 사본을 만들어야 함");
 
 console.log("0.3.5 world, save migration, editor document, history, validation, farming, and asset-swap regression checks: passed");
