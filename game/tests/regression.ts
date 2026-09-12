@@ -8,6 +8,10 @@ import { GAME_CONFIG } from "../config";
 import { MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS, getTileTypeAt, tilePoint } from "../maps/definitions";
 import { collisionRectCenter } from "../rendering/WorldRenderer";
 import { ToolActionSystem } from "../actions/ToolActionSystem";
+import { cloneEditorDocument, createBuiltInEditorDocument, documentToRegistry, LocalMapEditorRepository, parseEditorDocument } from "../editor/document";
+import { EditorHistory } from "../editor/history";
+import { validateEditorDocument } from "../editor/validation";
+import { MapRegistry } from "../maps/MapRegistry";
 
 const storage = new Map<string, string>();
 Object.defineProperty(globalThis, "localStorage", { value: {
@@ -133,4 +137,36 @@ now += GAME_CONFIG.toolActionCooldownMs;
 assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), true);
 assert.equal(effects, 2);
 
-console.log("0.3 world, save migration, farming, and asset-swap regression checks: passed");
+const editorDocument = createBuiltInEditorDocument();
+assert.deepEqual(validateEditorDocument(editorDocument), [], "기본 맵은 편집기 schema/참조 검증을 통과해야 함");
+const editorRepository = new LocalMapEditorRepository();
+editorDocument.maps.find((map) => map.id === "town")!.name = "테스트 햇살마을";
+editorRepository.save(editorDocument);
+assert.equal(editorRepository.load()?.maps.find((map) => map.id === "town")?.name, "테스트 햇살마을", "게임 저장과 별도 key로 편집 문서를 복원해야 함");
+assert.ok(storage.has(LocalMapEditorRepository.key));
+const registry = new MapRegistry();
+registry.replace(documentToRegistry(editorDocument));
+assert.equal(registry.require("town").name, "테스트 햇살마을", "working copy를 runtime registry에 적용해야 함");
+registry.require("town").name = "runtime only";
+assert.equal(MAP_DEFINITIONS.town.name, "햇살마을", "runtime 편집이 내장 맵 상수를 변경하면 안 됨");
+
+const history = new EditorHistory(cloneEditorDocument, 3);
+const beforeEdit = cloneEditorDocument(editorDocument);
+history.push(beforeEdit);
+editorDocument.maps[0].name = "변경";
+const undone = history.undo(editorDocument)!;
+assert.equal(undone.maps[0].name, beforeEdit.maps[0].name);
+assert.equal(history.redo(undone)?.maps[0].name, "변경");
+
+const brokenEditor = cloneEditorDocument(editorDocument);
+brokenEditor.maps.push(structuredClone(brokenEditor.maps[0]));
+brokenEditor.maps[0].objects.push({ id: "missing", assetId: "not_registered" as never, position: { tileX: 2, tileY: 2 } });
+brokenEditor.maps[0].warps.push({ id: "broken", area: { startX: 0, endX: 0, startY: 0, endY: 0 }, targetMapId: "missing_map", targetSpawnId: "missing" });
+const editorIssues = validateEditorDocument(brokenEditor);
+assert.ok(editorIssues.some((issue) => issue.message.includes("중복된 map id")));
+assert.ok(editorIssues.some((issue) => issue.message.includes("등록되지 않은 asset")));
+assert.ok(editorIssues.some((issue) => issue.message.includes("목적지 맵")));
+assert.equal(parseEditorDocument({ editorVersion: 99, maps: [] }).document, null, "잘못된 Import는 적용하지 않아야 함");
+assert.doesNotThrow(() => validateEditorDocument({ editorVersion: 1, maps: [{ id: "bad", width: 20, height: 10, warps: [null] }] }), "손상된 문서 검증이 crash하면 안 됨");
+
+console.log("0.3.5 world, save migration, editor document, history, validation, farming, and asset-swap regression checks: passed");

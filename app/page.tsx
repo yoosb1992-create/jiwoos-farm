@@ -6,6 +6,10 @@ import { gameEvents, type HudState, initialHud, type ToolKey } from "@/game/even
 import { ITEM_ASSETS } from "@/game/assets/definitions";
 import { ITEM_DEFINITIONS } from "@/game/data/items";
 import { GENERAL_STORE_LISTINGS } from "@/game/data/shop";
+import { MapEditor } from "./editor/MapEditor";
+import { documentToRegistry } from "@/game/editor/document";
+import type { MapEditorDocument } from "@/game/editor/types";
+import type { MapDefinition } from "@/game/maps/types";
 
 const toolKeys: ToolKey[] = ["hoe", "seed", "water", "hand"];
 const tools = toolKeys.map((key) => {
@@ -13,7 +17,7 @@ const tools = toolKeys.map((key) => {
   return { key, ...item, visual: ITEM_ASSETS[item.assetId] };
 });
 
-export default function Home() {
+function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor }: { editorMaps?: Record<string, MapDefinition>; initialMapId?: string; testMode?: boolean; onOpenEditor: () => void }) {
   const gameRef = useRef<Phaser.Game | null>(null);
   const [hud, setHud] = useState<HudState>(initialHud);
   const [showHelp, setShowHelp] = useState(true);
@@ -23,7 +27,7 @@ export default function Home() {
     gameEvents.addEventListener("hud", update);
     let cancelled = false;
     import("@/game/createGame").then(({ createGame }) => {
-      if (!cancelled && !gameRef.current) gameRef.current = createGame("game-canvas");
+      if (!cancelled && !gameRef.current) gameRef.current = createGame("game-canvas", { maps: editorMaps, initialMapId, testMode });
     });
     return () => {
       cancelled = true;
@@ -31,7 +35,7 @@ export default function Home() {
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };
-  }, []);
+  }, [editorMaps, initialMapId, testMode]);
 
   const command = (type: string, value?: string) =>
     gameEvents.dispatchEvent(new CustomEvent("command", { detail: { type, value } }));
@@ -46,6 +50,7 @@ export default function Home() {
     <main className="game-shell">
       <section className="game-frame" aria-label="지우네 농장 게임">
         <div id="game-canvas" className="game-canvas" />
+        <div className="mode-switch"><button onClick={onOpenEditor}>{testMode ? "← 편집기로 돌아가기" : "🛠 맵 편집"}</button>{testMode && <span>TEST PLAY · 저장 비활성</span>}</div>
         <header className="top-hud">
           <div className="brand-plate"><span className="brand-leaf">✦</span><div><strong>지우네 농장</strong><small>우리 가족의 봄날</small></div></div>
           <div className="status-plate"><span>☀ 맑음 · {hud.mapName}</span><b>봄 {hud.day}일</b><strong>{hud.timeText}</strong><em>{hud.money.toLocaleString()} G</em></div>
@@ -71,4 +76,11 @@ export default function Home() {
       </section>
     </main>
   );
+}
+
+export default function Home() {
+  const [mode, setMode] = useState<"play" | "editor" | "test">("play");
+  const [testSession, setTestSession] = useState<{ maps: Record<string, MapDefinition>; mapId: string } | null>(null);
+  if (mode === "editor") return <MapEditor onExit={() => setMode("play")} onPlay={(document: MapEditorDocument, mapId: string) => { setTestSession({ maps: documentToRegistry(document), mapId }); setMode("test"); }} />;
+  return <FarmGameView editorMaps={mode === "test" ? testSession?.maps : undefined} initialMapId={mode === "test" ? testSession?.mapId : undefined} testMode={mode === "test"} onOpenEditor={() => setMode("editor")} />;
 }

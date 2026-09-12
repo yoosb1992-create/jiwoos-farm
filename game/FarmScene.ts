@@ -8,13 +8,15 @@ import { GAME_CONFIG } from "./config";
 import { DEFAULT_CROP_ID, getCropDefinition, isMatureCrop } from "./data/crops";
 import { ITEM_DEFINITIONS } from "./data/items";
 import { GENERAL_STORE_LISTINGS } from "./data/shop";
-import { MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS, getTileTypeAt, pointInTileRect, tilePoint } from "./maps/definitions";
+import { TILE_TYPE_DEFINITIONS, getTileTypeInMap, pointInTileRect, tilePoint } from "./maps/definitions";
 import type { MapAction, MapId } from "./maps/types";
+import { MapRegistry } from "./maps/MapRegistry";
 import { PlayerAnimationController } from "./player/PlayerAnimationController";
 import { ToolActionSystem } from "./actions/ToolActionSystem";
 
 export const REAL_MS_PER_GAME_MINUTE = GAME_CONFIG.day.realMsPerGameMinute;
 type Command = { type: string; value?: string };
+export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; testMode?: boolean }
 
 export class FarmScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
@@ -36,7 +38,9 @@ export class FarmScene extends Phaser.Scene {
   private timeMinutes = GAME_CONFIG.day.startMinutes;
   private timeAccumulator = 0;
   private facing: Facing = "down";
-  private currentMapId: MapId = "farm";
+  private currentMapId: MapId;
+  private readonly mapRegistry: MapRegistry;
+  private readonly testMode: boolean;
   private helpOpen = true;
   private sleepPrompt = false;
   private shopOpen = false;
@@ -46,14 +50,19 @@ export class FarmScene extends Phaser.Scene {
   private message = "갈색 밭 가까이에서 괭이를 사용하세요.";
   private commandHandler = (event: Event) => this.handleCommand((event as CustomEvent<Command>).detail);
 
-  constructor() { super("FarmScene"); }
+  constructor(options: FarmSceneOptions = {}) {
+    super("FarmScene");
+    this.mapRegistry = options.maps ?? new MapRegistry();
+    this.currentMapId = this.mapRegistry.has(options.initialMapId ?? "farm") ? (options.initialMapId ?? "farm") : "farm";
+    this.testMode = options.testMode === true;
+  }
   preload() { this.assetManager = new AssetManager(this); this.assetManager.preload(); }
 
   create() {
     this.assetManager ??= new AssetManager(this);
     this.assetManager.createFallbackTextures(); this.assetManager.createPlayerAnimations();
-    this.worldRenderer = new WorldRenderer(this); this.buildFarm();
-    const saved = this.repository.load();
+    this.worldRenderer = new WorldRenderer(this, this.mapRegistry); this.buildFarm();
+    const saved = this.testMode ? null : this.repository.load();
     if (saved) this.applySavedState(saved);
     const playerSize = displayedSize(PLAYER_ASSET);
     this.player = this.physics.add.sprite(0, 0, PLAYER_ASSET.textureKey).setDisplaySize(playerSize.width, playerSize.height)
@@ -103,14 +112,14 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private buildFarm() {
-    for (const area of MAP_DEFINITIONS.farm.farmAreas) for (let y = area.startY; y <= area.endY; y++) for (let x = area.startX; x <= area.endX; x++) {
+    for (const area of this.mapRegistry.require("farm").farmAreas) for (let y = area.startY; y <= area.endY; y++) for (let x = area.startX; x <= area.endX; x++) {
       this.farm.set(`${x},${y}`, { x, y, tilled: false, wateredToday: false, cropType: null, cropStage: null, plantedDay: null });
     }
   }
 
   private loadMap(mapId: MapId, spawnId?: string, position?: { x: number; y: number; facing: Facing }) {
     this.currentMapId = mapId;
-    const map = MAP_DEFINITIONS[mapId], width = map.width * GAME_CONFIG.tileSize, height = map.height * GAME_CONFIG.tileSize;
+    const map = this.mapRegistry.require(mapId), width = map.width * GAME_CONFIG.tileSize, height = map.height * GAME_CONFIG.tileSize;
     this.obstacleCollider?.destroy(); this.obstacles = this.worldRenderer.renderMap(mapId, this.farm.values());
     this.physics.world.setBounds(0, 0, width, height); this.cameras.main.setBounds(0, 0, width, height);
     this.obstacleCollider = this.physics.add.collider(this.player, this.obstacles);
@@ -126,7 +135,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private checkWarp() {
-    const active = MAP_DEFINITIONS[this.currentMapId].warps.find((warp) => pointInTileRect(this.player.x, this.player.y, warp.area));
+    const active = this.mapRegistry.require(this.currentMapId).warps.find((warp) => pointInTileRect(this.player.x, this.player.y, warp.area));
     if (!active) { this.lockedWarpId = null; return; }
     if (this.lockedWarpId === active.id) return;
     this.loadMap(active.targetMapId, active.targetSpawnId);
@@ -134,7 +143,7 @@ export class FarmScene extends Phaser.Scene {
 
   private useFacingTile() {
     const point = this.playerAnimations.interactionPoint(this.facing);
-    const object = MAP_DEFINITIONS[this.currentMapId].objects.find((entry) => entry.interaction && pointInTileRect(point.x, point.y, entry.interaction.area));
+    const object = this.mapRegistry.require(this.currentMapId).objects.find((entry) => entry.interaction && pointInTileRect(point.x, point.y, entry.interaction.area));
     if (object?.interaction) { this.performWorldAction(object.interaction.action); return; }
     this.useAtWorld(point.x, point.y);
   }
@@ -148,7 +157,7 @@ export class FarmScene extends Phaser.Scene {
   private useAtWorld(worldX: number, worldY: number) {
     if (this.currentMapId !== "farm") { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
     const x = Math.floor(worldX / GAME_CONFIG.tileSize), y = Math.floor(worldY / GAME_CONFIG.tileSize);
-    if (!TILE_TYPE_DEFINITIONS[getTileTypeAt("farm", x, y)].farmable) { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
+    if (!TILE_TYPE_DEFINITIONS[getTileTypeInMap(this.mapRegistry.require("farm"), x, y)].farmable) { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
     const tile = this.farm.get(`${x},${y}`);
     if (!tile) { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
     const center = tilePoint(x + 0.5, y + 0.5);
@@ -176,6 +185,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
+    if (this.testMode && (command.type === "save" || command.type === "load")) { this.say("테스트 플레이에서는 실제 게임 저장을 변경하지 않아요."); return; }
     if (command.type === "tool" && command.value) this.selectTool(command.value as ToolKey);
     if (command.type === "action") this.useFacingTile();
     if (command.type === "save") this.save(true);
@@ -231,13 +241,13 @@ export class FarmScene extends Phaser.Scene {
     const step = this.getObjective();
     const hud: HudState = { money: this.money, seeds: this.inventory.count("sproutberry_seed"), harvest: this.inventory.count("sproutberry"), selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: this.day, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
-      transitioning: this.transitioning, shopOpen: this.shopOpen, mapName: MAP_DEFINITIONS[this.currentMapId].name };
+      transitioning: this.transitioning, shopOpen: this.shopOpen, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));
   }
   private say(message: string) { this.message = message; this.emitHud(); }
   private snapshot(): SaveData { return { version: 4, day: this.day, timeMinutes: this.timeMinutes, money: this.money, selectedTool: this.selectedTool,
     player: { x: this.player.x, y: this.player.y, facing: this.facing, mapId: this.currentMapId }, inventory: this.inventory.serialize(), farm: [...this.farm.values()].map((tile) => ({ ...tile })), savedAt: Date.now() }; }
-  private save(notify: boolean) { if (!this.player) return; this.repository.save(this.snapshot()); if (notify) this.say("이 브라우저에 현재 장소와 농장 상태를 저장했어요."); }
+  private save(notify: boolean) { if (!this.player || this.testMode) return; this.repository.save(this.snapshot()); if (notify) this.say("이 브라우저에 현재 장소와 농장 상태를 저장했어요."); }
   private applySavedState(data: SaveData) {
     this.day = data.day; this.timeMinutes = data.timeMinutes; this.money = data.money; this.selectedTool = data.selectedTool;
     this.inventory = new Inventory(data.inventory); this.facing = data.player.facing; this.currentMapId = data.player.mapId;

@@ -3,8 +3,9 @@ import type { FarmTileData } from "../domain";
 import { CROP_ASSETS, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, type CropAssetId } from "../assets/definitions";
 import { CROP_DEFINITIONS } from "../data/crops";
 import { GAME_CONFIG } from "../config";
-import { MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS, tilePoint } from "../maps/definitions";
+import { TILE_TYPE_DEFINITIONS, tilePoint } from "../maps/definitions";
 import type { MapDefinition, MapId, TileRect } from "../maps/types";
+import type { MapRegistry } from "../maps/MapRegistry";
 
 const farmKey = (tile: Pick<FarmTileData, "x" | "y">) => `${tile.x},${tile.y}`;
 
@@ -17,11 +18,11 @@ export class WorldRenderer {
   private root?: Phaser.GameObjects.Container;
   private obstacles?: Phaser.Physics.Arcade.StaticGroup;
   private readonly farmViews = new Map<string, Phaser.GameObjects.Container>();
-  constructor(private readonly scene: Phaser.Scene) {}
+  constructor(private readonly scene: Phaser.Scene, private readonly maps: MapRegistry) {}
 
   renderMap(mapId: MapId, farm: Iterable<FarmTileData>) {
     this.destroy();
-    const map = MAP_DEFINITIONS[mapId];
+    const map = this.maps.require(mapId);
     this.root = this.scene.add.container(0, 0);
     this.obstacles = this.scene.physics.add.staticGroup();
     const size = GAME_CONFIG.tileSize, width = map.width * size, height = map.height * size;

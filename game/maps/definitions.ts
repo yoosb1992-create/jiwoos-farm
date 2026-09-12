@@ -12,7 +12,7 @@ export const TILE_TYPE_DEFINITIONS: Record<TileTypeId, { walkable: boolean; farm
 
 const area = (startX: number, endX: number, startY: number, endY: number): TileRect => ({ startX, endX, startY, endY });
 
-export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
+export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
   farm: {
     id: "farm", name: "지우네 농장", width: 42, height: 26, baseTileType: "grass",
     terrainRegions: [
@@ -77,8 +77,8 @@ export const pointInTileRect = (x: number, y: number, rect: TileRect) => {
   const tileX = x / tileSize, tileY = y / tileSize;
   return tileX >= rect.startX && tileX <= rect.endX + 1 && tileY >= rect.startY && tileY <= rect.endY + 1;
 };
-export const getTileTypeAt = (mapId: MapId, x: number, y: number): TileTypeId => {
-  const map = MAP_DEFINITIONS[mapId];
+export const getTileTypeInMap = (map: MapDefinition, x: number, y: number): TileTypeId => {
   if (map.farmAreas.some((rect) => x >= rect.startX && x <= rect.endX && y >= rect.startY && y <= rect.endY)) return "farm";
-  return map.terrainRegions.find((r) => x >= r.startX && x <= r.endX && y >= r.startY && y <= r.endY)?.tileType ?? map.baseTileType;
+  return map.terrainRegions.findLast((r) => x >= r.startX && x <= r.endX && y >= r.startY && y <= r.endY)?.tileType ?? map.baseTileType;
 };
+export const getTileTypeAt = (mapId: MapId, x: number, y: number): TileTypeId => getTileTypeInMap(MAP_DEFINITIONS[mapId], x, y);

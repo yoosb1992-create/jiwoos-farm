@@ -1,7 +1,8 @@
 import type { Facing } from "../assets/definitions";
 import type { WorldObjectAssetId } from "../assets/definitions";
 
-export type MapId = "farm" | "farmhouse" | "road" | "town" | "general_store";
+/** Map ids are data-owned so editor-created maps do not require a TypeScript change. */
+export type MapId = string;
 export type TileTypeId = "grass" | "path" | "water" | "farm" | "wood_floor" | "stone_floor";
 export type MapAction = "sleep" | "open_shop" | "sell";
 
