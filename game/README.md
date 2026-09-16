@@ -1,6 +1,24 @@
 # 지우네 농장 그래픽 교체 구조
 
-## 0.3.5 개발용 맵 편집기
+## 0.4 Mobile + Map Editor
+
+모바일 게임은 왼쪽 아래 가상 조이스틱, 오른쪽 행동 버튼과 도구 퀵바를 사용한다.
+키보드와 가상 조이스틱은 `game/input/MovementInput.ts`에서 같은 이동 벡터로 합쳐지므로
+방향, 속도 정규화, 걷기 애니메이션 상태를 공유한다. 모바일 HUD는 safe-area를 반영하고
+오늘 할 일과 저장 메뉴를 접을 수 있다.
+
+모바일 맵 편집기는 상단 맵/저장/테스트, 중앙 캔버스, 하단 도구막대 구조다.
+한 손가락은 현재 도구를 사용하고 두 손가락은 pan/pinch zoom에만 사용한다. 선택 항목의
+Inspector는 Bottom Sheet로 열린다. Undo, Redo, 삭제, 레이어, Import/Export는 모두
+터치 버튼으로 접근할 수 있다.
+
+편집 문서는 항상 `LocalMapEditorRepository`에 먼저 저장된다. 로그인된 편집자는
+`CloudMapEditorRepository`와 `/api/editor-draft`를 통해 D1의 `editor_drafts`에 사용자별
+초안을 저장한다. 클라우드 실패는 로컬 편집을 막지 않으며, revision/updatedAt이 다르면
+서버 버전 불러오기 또는 현재 로컬 유지 중 하나를 선택한다. 게임 SaveData v4와 편집 문서는
+서로 다른 저장소를 계속 사용한다.
+
+## 0.3.5 개발용 맵 편집기 기반 구조
 
 게임 화면 상단의 `맵 편집`으로 진입한다. 편집 문서는 게임 SaveData v4와 다른
 `jiwoos-farm.map-editor.v1` localStorage key에 저장되며, `editorVersion: 1`을 가진다.
