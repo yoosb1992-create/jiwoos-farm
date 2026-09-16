@@ -6,6 +6,7 @@ import { GAME_CONFIG } from "@/game/config";
 import { TILE_TYPE_DEFINITIONS } from "@/game/maps/definitions";
 import type { MapDefinition, TileRect, TileTypeId } from "@/game/maps/types";
 import type { EditorLayer, EditorTool, Selection, SnapMode } from "@/game/editor/types";
+import { clampEditorZoom, createPinchStart, updatePinchViewport, type PinchStart } from "@/game/editor/viewport";
 
 const tileColors: Record<TileTypeId, string> = {
   grass: "#83b85e", path: "#c9aa71", water: "#66a8ca", farm: "#9b7049", wood_floor: "#b77b4c", stone_floor: "#c8bd9f",
@@ -35,6 +36,11 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
   const svgRef = useRef<SVGSVGElement>(null);
   const dragObject = useRef<string | null>(null);
   const painting = useRef(false);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<PinchStart | null>(null);
+  const suppressEdit = useRef(false);
+  const pendingTap = useRef<{ kind: "terrain" | "object" | "spawn"; point: { x: number; y: number } } | null>(null);
+  const [viewport, setViewport] = useState({ zoom: 1, panX: 0, panY: 0 });
   const [draft, setDraft] = useState<{ start: { x: number; y: number }; end: { x: number; y: number } } | null>(null);
   const point = (event: React.PointerEvent) => {
     const box = svgRef.current!.getBoundingClientRect();
@@ -49,41 +55,70 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
       target.terrainRegions.push({ startX: x, endX: x, startY: y, endY: y, tileType: terrain });
     });
   };
+  const placeObject = (p: { x: number; y: number }) => onCommit((target) => {
+    const base = objectAssetId.replace(/[^a-z0-9_]/gi, "_");
+    let id = base, suffix = 2;
+    while (target.objects.some((entry) => entry.id === id)) id = `${base}_${suffix++}`;
+    target.objects.push({ id, assetId: objectAssetId, position: { tileX: snap(p.x, snapMode), tileY: snap(p.y, snapMode) }, depth: 3 });
+  });
+  const placeSpawn = (p: { x: number; y: number }) => onCommit((target) => {
+    let id = "spawn", suffix = 2;
+    while (target.spawns.some((entry) => entry.id === id)) id = `spawn_${suffix++}`;
+    target.spawns.push({ id, tileX: snap(p.x, snapMode), tileY: snap(p.y, snapMode), facing: "down" });
+  });
   const pointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
-    if ((event.target as Element).closest("[data-editor-item]")) return;
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     event.currentTarget.setPointerCapture(event.pointerId);
+    if (pointers.current.size >= 2) {
+      const [a, b] = [...pointers.current.values()];
+      pinch.current = createPinchStart(a, b, viewport);
+      suppressEdit.current = true; painting.current = false; dragObject.current = null; pendingTap.current = null; setDraft(null);
+      event.preventDefault(); event.stopPropagation(); return;
+    }
+    if (suppressEdit.current) return;
+    if ((event.target as Element).closest("[data-editor-item]")) return;
     const p = point(event);
-    if (tool === "terrain") { painting.current = true; onBeginContinuous(); paint(p); return; }
+    if (tool === "terrain") { painting.current = true; onBeginContinuous(); if (event.pointerType === "touch") pendingTap.current = { kind: "terrain", point: p }; else paint(p); return; }
     if (tool === "object") {
-      onCommit((target) => {
-        const base = objectAssetId.replace(/[^a-z0-9_]/gi, "_");
-        let id = base, suffix = 2;
-        while (target.objects.some((entry) => entry.id === id)) id = `${base}_${suffix++}`;
-        target.objects.push({ id, assetId: objectAssetId, position: { tileX: snap(p.x, snapMode), tileY: snap(p.y, snapMode) }, depth: 3 });
-      });
+      if (event.pointerType === "touch") pendingTap.current = { kind: "object", point: p }; else placeObject(p);
       return;
     }
     if (tool === "spawn") {
-      onCommit((target) => {
-        let id = "spawn", suffix = 2;
-        while (target.spawns.some((entry) => entry.id === id)) id = `spawn_${suffix++}`;
-        target.spawns.push({ id, tileX: snap(p.x, snapMode), tileY: snap(p.y, snapMode), facing: "down" });
-      });
+      if (event.pointerType === "touch") pendingTap.current = { kind: "spawn", point: p }; else placeSpawn(p);
       return;
     }
     if (tool === "collision" || tool === "farm" || tool === "warp") setDraft({ start: p, end: p });
     else onSelect(null);
   };
   const pointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (pointers.current.has(event.pointerId)) pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pinch.current && pointers.current.size >= 2) {
+      const [a, b] = [...pointers.current.values()];
+      setViewport(updatePinchViewport(pinch.current, a, b));
+      event.preventDefault(); event.stopPropagation(); return;
+    }
+    if (suppressEdit.current) return;
     const p = point(event);
-    if (painting.current) paint(p);
+    if (painting.current) { pendingTap.current = null; paint(p); }
     if (draft) setDraft({ ...draft, end: p });
     if (dragObject.current) onContinuous((target) => {
       const object = target.objects.find((entry) => entry.id === dragObject.current);
       if (object) object.position = { tileX: snap(p.x, snapMode), tileY: snap(p.y, snapMode) };
     });
   };
-  const pointerUp = () => {
+  const pointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+    pointers.current.delete(event.pointerId);
+    if (suppressEdit.current) {
+      pinch.current = null;
+      if (pointers.current.size === 0) suppressEdit.current = false;
+      painting.current = false; dragObject.current = null; pendingTap.current = null; setDraft(null); return;
+    }
+    if (pendingTap.current) {
+      const pending = pendingTap.current; pendingTap.current = null;
+      if (pending.kind === "terrain") paint(pending.point);
+      if (pending.kind === "object") placeObject(pending.point);
+      if (pending.kind === "spawn") placeSpawn(pending.point);
+    }
     painting.current = false;
     dragObject.current = null;
     if (!draft) return;
@@ -108,7 +143,9 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
   };
   const draftRect = draft ? normalizeRect(draft.start, draft.end) : null;
 
-  return <div className="editor-stage-scroll"><svg ref={svgRef} className="editor-stage" style={{ aspectRatio: `${map.width}/${map.height}` }} viewBox={`0 0 ${map.width} ${map.height}`} preserveAspectRatio="none" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}>
+  const resetViewport = () => setViewport({ zoom: 1, panX: 0, panY: 0 });
+  return <div className="editor-stage-scroll" onWheel={(event) => { if (!event.ctrlKey && Math.abs(event.deltaY) < 1) return; event.preventDefault(); setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom * (event.deltaY > 0 ? .9 : 1.1)) })); }}>
+    <div className="editor-stage-transform" style={{ transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`, aspectRatio: `${map.width}/${map.height}` }}><svg ref={svgRef} className="editor-stage" viewBox={`0 0 ${map.width} ${map.height}`} preserveAspectRatio="none" onPointerDownCapture={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}>
     <rect width={map.width} height={map.height} fill={tileColors[map.baseTileType]} />
     {layers.terrain && map.terrainRegions.map((region, index) => <rect key={`terrain-${index}`} x={region.startX} y={region.startY} width={region.endX - region.startX + 1} height={region.endY - region.startY + 1} fill={tileColors[region.tileType]} />)}
     {layers.farm && map.farmAreas.map((region, index) => <rect data-editor-item key={`farm-${index}`} x={region.startX + .06} y={region.startY + .06} width={region.endX - region.startX + .88} height={region.endY - region.startY + .88} fill="#d98c4855" stroke="#f0b25d" strokeWidth=".09" onPointerDown={(event) => { event.stopPropagation(); onSelect({ kind: "farm", index }); }} />)}
@@ -127,5 +164,5 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
     {layers.spawn && map.spawns.map((spawn) => <g data-editor-item key={spawn.id} transform={`translate(${spawn.tileX} ${spawn.tileY})`} onPointerDown={(event) => { event.stopPropagation(); onSelect({ kind: "spawn", id: spawn.id }); }}><circle r=".34" fill="#32d6d0" stroke="#eaffff" strokeWidth=".08" /><text y="-.48" textAnchor="middle" fontSize=".36" fill="#fff">{spawn.id}</text><text y=".13" textAnchor="middle" fontSize=".35">{spawn.facing === "up" ? "↑" : spawn.facing === "down" ? "↓" : spawn.facing === "left" ? "←" : "→"}</text></g>)}
     {draftRect && <rect x={draftRect.startX} y={draftRect.startY} width={draftRect.endX - draftRect.startX + 1} height={draftRect.endY - draftRect.startY + 1} fill="#fff4" stroke="#fff" strokeWidth=".12" pointerEvents="none" />}
     {layers.grid && <g className="editor-grid" pointerEvents="none">{Array.from({ length: map.width + 1 }, (_, x) => <line key={`x${x}`} x1={x} y1={0} x2={x} y2={map.height} />)}{Array.from({ length: map.height + 1 }, (_, y) => <line key={`y${y}`} x1={0} y1={y} x2={map.width} y2={y} />)}</g>}
-  </svg><span className="editor-scale-note">Grid {GAME_CONFIG.tileSize}px · {map.width}×{map.height}</span></div>;
+  </svg></div><div className="editor-viewport-controls"><button onClick={() => setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom + .25) }))}>＋</button><b>{Math.round(viewport.zoom * 100)}%</b><button onClick={() => setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom - .25) }))}>－</button><button onClick={resetViewport}>초기화</button></div><span className="editor-scale-note">한 손가락 편집 · 두 손가락 이동/확대 · Grid {GAME_CONFIG.tileSize}px</span></div>;
 }

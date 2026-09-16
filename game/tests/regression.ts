@@ -12,6 +12,9 @@ import { cloneEditorDocument, createBuiltInEditorDocument, documentToRegistry, L
 import { EditorHistory } from "../editor/history";
 import { validateEditorDocument } from "../editor/validation";
 import { MapRegistry } from "../maps/MapRegistry";
+import { facingFromMovement, mergeMovementInput, normalizeMovement } from "../input/MovementInput";
+import { compareDraftFreshness } from "../editor/sync";
+import { createPinchStart, updatePinchViewport } from "../editor/viewport";
 
 const storage = new Map<string, string>();
 Object.defineProperty(globalThis, "localStorage", { value: {
@@ -20,6 +23,14 @@ Object.defineProperty(globalThis, "localStorage", { value: {
 } });
 
 const tile: FarmTileData = { x: 9, y: 8, tilled: true, wateredToday: false, cropType: "sproutberry", cropStage: 0, plantedDay: 1 };
+const diagonal = normalizeMovement({ x: 1, y: 1 });
+assert.ok(Math.abs(Math.hypot(diagonal.x, diagonal.y) - 1) < 1e-12, "대각선 이동 속도는 정규화되어야 함");
+assert.deepEqual(mergeMovementInput({ x: 1, y: 0 }, { x: 0, y: -1 }), { x: 0, y: -1 }, "가상 조이스틱 입력은 공통 이동 입력으로 합쳐져야 함");
+assert.equal(facingFromMovement({ x: -.8, y: -.2 }, "down"), "left");
+assert.equal(compareDraftFreshness(100, 200), "cloud-newer", "서버 updatedAt이 최신이면 충돌 안내가 필요함");
+assert.equal(compareDraftFreshness(300, 200), "local-newer", "오프라인 로컬 편집은 다음 연결 때 업로드 대상이어야 함");
+const pinchStart = createPinchStart({ x: 40, y: 50 }, { x: 80, y: 50 }, { zoom: 1, panX: 0, panY: 0 });
+assert.deepEqual(updatePinchViewport(pinchStart, { x: 20, y: 65 }, { x: 100, y: 65 }), { zoom: 2, panX: 0, panY: 15 }, "두 손가락 간격과 중심 이동이 zoom/pan에 함께 반영되어야 함");
 for (let day = 0; day < CROP_DEFINITIONS.sproutberry.growthDays; day += 1) {
   tile.wateredToday = true;
   advanceFarmDay([tile]);
@@ -172,4 +183,4 @@ const importedRoundTrip = parseEditorDocument(JSON.parse(JSON.stringify(editorDo
 assert.deepEqual(importedRoundTrip, editorDocument, "Export한 Editor Document를 validation 후 동일하게 Import해야 함");
 assert.equal(createBuiltInEditorDocument().maps.find((map) => map.id === "town")?.name, "햇살마을", "기본값 초기화는 내장 맵의 새 사본을 만들어야 함");
 
-console.log("0.3.5 world, save migration, editor document, history, validation, farming, and asset-swap regression checks: passed");
+console.log("0.4 mobile input, editor viewport/cloud sync, world, save migration, farming, and asset-swap regression checks: passed");

@@ -13,9 +13,10 @@ import type { MapAction, MapId } from "./maps/types";
 import { MapRegistry } from "./maps/MapRegistry";
 import { PlayerAnimationController } from "./player/PlayerAnimationController";
 import { ToolActionSystem } from "./actions/ToolActionSystem";
+import { facingFromMovement, mergeMovementInput, type MovementVector } from "./input/MovementInput";
 
 export const REAL_MS_PER_GAME_MINUTE = GAME_CONFIG.day.realMsPerGameMinute;
-type Command = { type: string; value?: string };
+type Command = { type: string; value?: unknown };
 export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; testMode?: boolean }
 
 export class FarmScene extends Phaser.Scene {
@@ -38,6 +39,7 @@ export class FarmScene extends Phaser.Scene {
   private timeMinutes = GAME_CONFIG.day.startMinutes;
   private timeAccumulator = 0;
   private facing: Facing = "down";
+  private virtualMovement: MovementVector = { x: 0, y: 0 };
   private currentMapId: MapId;
   private readonly mapRegistry: MapRegistry;
   private readonly testMode: boolean;
@@ -84,13 +86,14 @@ export class FarmScene extends Phaser.Scene {
   update(_time: number, delta: number) {
     if (!this.isPaused()) this.advanceClock(delta);
     if (this.isPaused()) { this.player.setVelocity(0, 0); this.playerAnimations.playMovement(this.facing, false); return; }
-    let vx = 0, vy = 0;
-    if (this.cursors.left.isDown || this.wasd.A.isDown) { vx = -GAME_CONFIG.playerSpeed; this.facing = "left"; }
-    else if (this.cursors.right.isDown || this.wasd.D.isDown) { vx = GAME_CONFIG.playerSpeed; this.facing = "right"; }
-    if (this.cursors.up.isDown || this.wasd.W.isDown) { vy = -GAME_CONFIG.playerSpeed; this.facing = "up"; }
-    else if (this.cursors.down.isDown || this.wasd.S.isDown) { vy = GAME_CONFIG.playerSpeed; this.facing = "down"; }
-    if (vx && vy) { vx *= 0.707; vy *= 0.707; }
-    this.player.setVelocity(vx, vy); this.playerAnimations.playMovement(this.facing, Boolean(vx || vy));
+    const keyboard = {
+      x: (this.cursors.right.isDown || this.wasd.D.isDown ? 1 : 0) - (this.cursors.left.isDown || this.wasd.A.isDown ? 1 : 0),
+      y: (this.cursors.down.isDown || this.wasd.S.isDown ? 1 : 0) - (this.cursors.up.isDown || this.wasd.W.isDown ? 1 : 0),
+    };
+    const movement = mergeMovementInput(keyboard, this.virtualMovement);
+    this.facing = facingFromMovement(movement, this.facing);
+    this.player.setVelocity(movement.x * GAME_CONFIG.playerSpeed, movement.y * GAME_CONFIG.playerSpeed);
+    this.playerAnimations.playMovement(this.facing, Boolean(movement.x || movement.y));
     if (Phaser.Input.Keyboard.JustDown(this.actionKey)) this.useFacingTile();
     if (Phaser.Input.Keyboard.JustDown(this.wasd.ONE)) this.selectTool("hoe");
     if (Phaser.Input.Keyboard.JustDown(this.wasd.TWO)) this.selectTool("seed");
@@ -186,15 +189,19 @@ export class FarmScene extends Phaser.Scene {
 
   private handleCommand(command: Command) {
     if (this.testMode && (command.type === "save" || command.type === "load")) { this.say("테스트 플레이에서는 실제 게임 저장을 변경하지 않아요."); return; }
-    if (command.type === "tool" && command.value) this.selectTool(command.value as ToolKey);
+    if (command.type === "move") {
+      const value = command.value as Partial<MovementVector> | undefined;
+      this.virtualMovement = { x: Number(value?.x) || 0, y: Number(value?.y) || 0 };
+    }
+    if (command.type === "tool" && typeof command.value === "string") this.selectTool(command.value as ToolKey);
     if (command.type === "action") this.useFacingTile();
     if (command.type === "save") this.save(true);
     if (command.type === "load") { const data = this.repository.load(); if (data) this.restore(data, true); else this.say("아직 저장된 농장이 없어요."); }
-    if (command.type === "help") { this.helpOpen = command.value === "open"; this.emitHud(); }
+    if (command.type === "help") { this.helpOpen = command.value === "open"; this.virtualMovement = { x: 0, y: 0 }; this.emitHud(); }
     if (command.type === "sleep-confirm") this.sleep();
     if (command.type === "sleep-cancel") { this.sleepPrompt = false; this.say("조금 더 둘러보기로 했어요."); }
     if (command.type === "shop-close") { this.shopOpen = false; this.say("다음에 또 들러 주세요."); }
-    if (command.type === "shop-buy" && command.value) this.buy(command.value);
+    if (command.type === "shop-buy" && typeof command.value === "string") this.buy(command.value);
     if (command.type === "sell") this.sellHarvest();
   }
 

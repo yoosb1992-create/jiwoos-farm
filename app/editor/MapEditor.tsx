@@ -10,6 +10,8 @@ import { TILE_TYPE_DEFINITIONS } from "@/game/maps/definitions";
 import type { MapDefinition, TileTypeId } from "@/game/maps/types";
 import { EditorCanvas } from "./EditorCanvas";
 import { MapInspector } from "./MapInspector";
+import { CloudMapEditorRepository, type CloudEditorDraft } from "@/game/editor/cloud";
+import { compareDraftFreshness } from "@/game/editor/sync";
 
 const tools: { id: EditorTool; label: string; hint: string }[] = [
   { id: "select", label: "선택 / 이동", hint: "오브젝트를 선택하고 드래그" }, { id: "terrain", label: "지형 타일", hint: "드래그하여 연속 칠하기" },
@@ -20,6 +22,7 @@ const tools: { id: EditorTool; label: string; hint: string }[] = [
 const layerLabels: Record<EditorLayer, string> = { terrain: "Terrain", objects: "Objects", collision: "Collision", farm: "Farm area", spawn: "Spawn", warp: "Warp", grid: "Grid" };
 const initialLayers: Record<EditorLayer, boolean> = { terrain: true, objects: true, collision: false, farm: false, spawn: true, warp: true, grid: true };
 const repository = new LocalMapEditorRepository();
+const cloudRepository = new CloudMapEditorRepository();
 
 export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocument, mapId: string) => void; onExit: () => void }) {
   const [document, setDocument] = useState<MapEditorDocument>(() => repository.load() ?? createBuiltInEditorDocument());
@@ -33,6 +36,10 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [notice, setNotice] = useState("편집 문서는 게임 저장과 별도로 자동 보관됩니다.");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState<"checking" | "ready" | "saving" | "offline" | "signed-out">("checking");
+  const [cloudConflict, setCloudConflict] = useState<CloudEditorDraft | null>(null);
+  const cloudRevision = useRef(0);
+  const cloudSyncedAt = useRef(0);
   const importRef = useRef<HTMLInputElement>(null);
   const history = useRef(new EditorHistory<MapEditorDocument>(cloneEditorDocument, 75));
   const documentRef = useRef(document);
@@ -44,7 +51,51 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     return () => window.clearTimeout(timer);
   }, [document]);
 
+  useEffect(() => {
+    const preserveLocal = () => repository.save(documentRef.current);
+    const visibility = () => { if (window.document.visibilityState === "hidden") preserveLocal(); };
+    window.addEventListener("pagehide", preserveLocal);
+    window.document.addEventListener("visibilitychange", visibility);
+    return () => { window.removeEventListener("pagehide", preserveLocal); window.document.removeEventListener("visibilitychange", visibility); };
+  }, []);
+
   const replaceDocument = useCallback((next: MapEditorDocument) => { documentRef.current = next; setDocument(next); }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    cloudRepository.load().then((result) => {
+      if (cancelled) return;
+      if (result.status !== "ok") { setCloudStatus(result.status === "unauthorized" ? "signed-out" : "offline"); setNotice(result.message); return; }
+      setCloudStatus("ready");
+      if (!result.draft) { cloudRevision.current = 0; return; }
+      cloudRevision.current = result.draft.revision;
+      cloudSyncedAt.current = result.draft.updatedAt;
+      if (compareDraftFreshness(documentRef.current.updatedAt, result.draft.updatedAt) === "cloud-newer") {
+        setCloudConflict(result.draft);
+        setNotice("다른 기기에 더 최신 편집 내용이 있습니다.");
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const saveCloud = useCallback(async (source = documentRef.current) => {
+    if (validateEditorDocument(source).length) return;
+    setCloudStatus("saving");
+    const result = await cloudRepository.save(cloneEditorDocument(source), cloudRevision.current);
+    if (result.status === "ok") {
+      cloudRevision.current = result.draft.revision; cloudSyncedAt.current = result.draft.updatedAt; setCloudStatus("ready"); setNotice("로컬과 클라우드 초안을 동기화했습니다.");
+    } else if (result.status === "conflict") {
+      cloudRevision.current = result.draft.revision; setCloudConflict(result.draft); setCloudStatus("ready"); setNotice("다른 기기의 최신 초안을 확인해 주세요.");
+    } else {
+      setCloudStatus(result.status === "unauthorized" ? "signed-out" : "offline"); setNotice(result.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (cloudStatus !== "ready" || cloudConflict || document.updatedAt <= cloudSyncedAt.current || validateEditorDocument(document).length) return;
+    const timer = window.setTimeout(() => saveCloud(document), 2800);
+    return () => window.clearTimeout(timer);
+  }, [cloudConflict, cloudStatus, document, saveCloud]);
   const pushHistory = useCallback(() => history.current.push(documentRef.current), []);
   const mutateMap = useCallback((mutate: (map: MapDefinition) => void, recordHistory = true) => {
     if (recordHistory) pushHistory();
@@ -96,13 +147,21 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   }, [redo, removeSelection, undo]);
 
   const validate = () => { const next = validateEditorDocument(documentRef.current); setIssues(next); setNotice(next.length ? `${next.length}개 validation 오류를 수정해 주세요.` : "Validation을 통과했습니다."); return next; };
-  const save = () => { if (validate().length) return; repository.save(documentRef.current); setNotice("편집 작업을 저장했습니다."); };
-  const load = () => { const loaded = repository.load(); if (!loaded) { setNotice("불러올 정상 편집 문서가 없습니다."); return; } pushHistory(); replaceDocument(loaded); setMapId(loaded.maps[0].id); setSelection(null); setIssues([]); setNotice("저장된 편집 문서를 불러왔습니다."); };
-  const exportJson = () => {
+  const save = async () => {
     if (validate().length) return;
-    const blob = new Blob([JSON.stringify(documentRef.current, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob); const link = window.document.createElement("a");
-    link.href = url; link.download = "jiwoos-farm-map-editor-v1.json"; link.click(); URL.revokeObjectURL(url); setNotice("JSON을 내보냈습니다.");
+    repository.save(documentRef.current); setNotice("로컬 편집 작업을 저장했습니다.");
+    if (cloudStatus !== "signed-out") await saveCloud(documentRef.current);
+  };
+  const load = () => { const loaded = repository.load(); if (!loaded) { setNotice("불러올 정상 편집 문서가 없습니다."); return; } pushHistory(); replaceDocument(loaded); setMapId(loaded.maps[0].id); setSelection(null); setIssues([]); setNotice("저장된 편집 문서를 불러왔습니다."); };
+  const exportJson = async () => {
+    if (validate().length) return;
+    const file = new File([JSON.stringify(documentRef.current, null, 2)], "jiwoos-farm-map-editor-v1.json", { type: "application/json" });
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ title: "지우네 농장 맵 편집 문서", files: [file] }); setNotice("JSON 파일을 공유했습니다."); return; }
+      catch (error) { if ((error as DOMException).name === "AbortError") return; }
+    }
+    const url = URL.createObjectURL(file); const link = window.document.createElement("a");
+    link.href = url; link.download = file.name; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 500); setNotice("JSON을 내보냈습니다.");
   };
   const importJson = async (file?: File) => {
     if (!file) return;
@@ -135,11 +194,36 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     pushHistory(); const next = cloneEditorDocument(documentRef.current); next.maps = next.maps.filter((entry) => entry.id !== map.id); replaceDocument(next); setMapId("farm"); setSelection(null);
   };
 
+  const refreshCloud = async () => {
+    setCloudStatus("checking");
+    const result = await cloudRepository.load();
+    if (result.status !== "ok") { setCloudStatus(result.status === "unauthorized" ? "signed-out" : "offline"); setNotice(result.message); return; }
+    setCloudStatus("ready");
+    if (!result.draft) { cloudRevision.current = 0; setNotice("아직 저장된 클라우드 초안이 없습니다."); return; }
+    cloudRevision.current = result.draft.revision; cloudSyncedAt.current = result.draft.updatedAt; setCloudConflict(result.draft); setNotice("클라우드 초안을 확인했습니다.");
+  };
+  const useCloudDraft = () => {
+    if (!cloudConflict) return;
+    pushHistory(); replaceDocument(cloneEditorDocument(cloudConflict.document)); setMapId(cloudConflict.document.maps[0]?.id ?? "farm"); setSelection(null);
+    cloudRevision.current = cloudConflict.revision; cloudSyncedAt.current = cloudConflict.updatedAt; repository.save(cloudConflict.document); setCloudConflict(null); setNotice("서버의 최신 초안을 불러왔습니다.");
+  };
+  const keepLocalDraft = () => {
+    if (!cloudConflict) return;
+    cloudRevision.current = cloudConflict.revision; cloudSyncedAt.current = 0; setCloudConflict(null); setNotice("현재 로컬 내용을 유지하고 클라우드에 반영합니다."); void saveCloud(documentRef.current);
+  };
+
+  const selectTool = (nextTool: EditorTool) => {
+    setTool(nextTool); setSelection(null);
+    if (["collision", "farm", "spawn", "warp"].includes(nextTool)) setLayers((current) => ({ ...current, [nextTool]: true }));
+  };
+
   const mapIssues = useMemo(() => issues.filter((issue) => !issue.mapId || issue.mapId === map?.id), [issues, map?.id]);
+  const cloudLabel = cloudStatus === "checking" ? "클라우드 확인 중" : cloudStatus === "saving" ? "클라우드 저장 중" : cloudStatus === "ready" ? "클라우드 연결됨" : cloudStatus === "signed-out" ? "클라우드 로그인 필요" : "오프라인 · 로컬 보관";
   if (!map) return null;
   return <main className="editor-shell">
-    <header className="editor-header"><div><b>지우네 농장 · 개발용 맵 편집기</b><span>Map Editor Document v1</span></div><nav><button onClick={onExit}>플레이</button><button className="primary" onClick={testPlay}>▶ 테스트 플레이</button></nav></header>
-    <section className="editor-actions"><button onClick={undo} disabled={!history.current.canUndo}>↶ Undo</button><button onClick={redo} disabled={!history.current.canRedo}>↷ Redo</button><i /><button onClick={save}>저장</button><button onClick={load}>불러오기</button><button onClick={exportJson}>JSON Export</button><button onClick={() => importRef.current?.click()}>JSON Import</button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={(event) => importJson(event.target.files?.[0])} /><button className="danger-text" onClick={() => setConfirmReset(true)}>기본값 초기화</button></section>
+    <header className="editor-header"><div><b>지우네 농장 · 맵 편집기 0.4</b><span>Map Editor Document v1 · {cloudLabel}</span></div><nav><button onClick={onExit}>플레이</button><button className="primary" onClick={testPlay}>▶ 테스트 플레이</button></nav></header>
+    <section className="editor-actions"><button onClick={undo} disabled={!history.current.canUndo}>↶ Undo</button><button onClick={redo} disabled={!history.current.canRedo}>↷ Redo</button><i /><button onClick={() => void save()}>저장</button><button onClick={load}>로컬 불러오기</button><button onClick={() => void refreshCloud()}>클라우드 불러오기</button>{cloudStatus === "signed-out" && <a className="editor-signin" href="/editor-login" target="_top">클라우드 로그인</a>}<button onClick={() => void exportJson()}>JSON Export / 공유</button><button onClick={() => importRef.current?.click()}>JSON Import</button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={(event) => importJson(event.target.files?.[0])} /><button className="danger-text" onClick={() => setConfirmReset(true)}>기본값 초기화</button></section>
+    <section className="mobile-editor-top"><button onClick={onExit}>플레이</button><select value={map.id} onChange={(event) => { setMapId(event.target.value); setSelection(null); }}>{document.maps.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</select><button onClick={() => void save()}>저장</button><button className="primary" onClick={testPlay}>테스트</button></section>
     <div className="editor-workspace">
       <aside className="editor-sidebar">
         <div className="panel-title"><span>Maps</span><small>{document.maps.length}개</small></div>
@@ -147,7 +231,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
         <label className="map-name-field"><span>맵 이름</span><input value={map.name} onChange={(event) => mutateMap((target) => { target.name = event.target.value; })} /></label>
         <div className="compact-buttons"><button onClick={createBlank}>빈 맵</button><button onClick={duplicateMap}>복제</button><button onClick={deleteMap} disabled={map.id === "farm"}>삭제</button></div>
         <div className="panel-title"><span>Tools</span><small>{tools.find((entry) => entry.id === tool)?.hint}</small></div>
-        <div className="tool-list">{tools.map((entry) => <button key={entry.id} className={tool === entry.id ? "active" : ""} onClick={() => { setTool(entry.id); setSelection(null); if (["collision", "farm", "spawn", "warp"].includes(entry.id)) setLayers((current) => ({ ...current, [entry.id]: true })); }}>{entry.label}</button>)}</div>
+        <div className="tool-list">{tools.map((entry) => <button key={entry.id} className={tool === entry.id ? "active" : ""} onClick={() => selectTool(entry.id)}>{entry.label}</button>)}</div>
         {tool === "terrain" && <div className="palette">{Object.keys(TILE_TYPE_DEFINITIONS).map((id) => <button key={id} className={terrain === id ? "active" : ""} onClick={() => setTerrain(id as TileTypeId)}>{id}</button>)}</div>}
         {tool === "object" && <div className="palette">{Object.keys(WORLD_OBJECT_ASSETS).map((id) => <button key={id} className={objectAssetId === id ? "active" : ""} onClick={() => setObjectAssetId(id as WorldObjectAssetId)}>{id}</button>)}</div>}
         <label className="map-name-field"><span>Snap</span><select value={snapMode} onChange={(event) => setSnapMode(event.target.value as SnapMode)}><option value="tile">1 tile</option><option value="half">0.5 tile</option><option value="free">free</option></select></label>
@@ -155,8 +239,19 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
         <div className="layer-list">{(Object.keys(layerLabels) as EditorLayer[]).map((id) => <label key={id}><input type="checkbox" checked={layers[id]} onChange={() => setLayers((current) => ({ ...current, [id]: !current[id] }))} />{layerLabels[id]}</label>)}</div>
       </aside>
       <section className="editor-center"><EditorCanvas map={map} tool={tool} terrain={terrain} objectAssetId={objectAssetId} layers={layers} snapMode={snapMode} selection={selection} onSelect={setSelection} onCommit={(mutate) => mutateMap(mutate)} onBeginContinuous={pushHistory} onContinuous={(mutate) => mutateMap(mutate, false)} /><footer className="editor-status"><span>{notice}</span><b>{mapIssues.length ? `${mapIssues.length} errors` : "Ready"}</b></footer>{mapIssues.length > 0 && <div className="validation-panel">{mapIssues.slice(0, 8).map((issue, index) => <p key={`${issue.path}-${index}`}><b>{issue.mapId ?? "document"}.{issue.path}</b> {issue.message}</p>)}</div>}</section>
-      <MapInspector map={map} maps={document.maps} selection={selection} update={(mutate) => mutateMap(mutate)} renameId={renameSelectedId} remove={removeSelection} spawnReferences={(spawnId) => referencedSpawnCount(document, map.id, spawnId)} />
+      <MapInspector map={map} maps={document.maps} selection={selection} update={(mutate) => mutateMap(mutate)} renameId={renameSelectedId} remove={removeSelection} spawnReferences={(spawnId) => referencedSpawnCount(document, map.id, spawnId)} onClose={() => setSelection(null)} />
     </div>
+    <section className="mobile-tool-dock">
+      <div className="mobile-tools">{tools.map((entry) => <button key={entry.id} className={tool === entry.id ? "active" : ""} onClick={() => selectTool(entry.id)}>{entry.label.replace(" / 이동", "")}</button>)}</div>
+      <div className="mobile-edit-actions"><button onClick={undo} disabled={!history.current.canUndo}>↶ Undo</button><button onClick={redo} disabled={!history.current.canRedo}>↷ Redo</button><button onClick={removeSelection} disabled={!selection}>삭제</button><details><summary>옵션</summary><div>
+        {tool === "terrain" && <div className="palette">{Object.keys(TILE_TYPE_DEFINITIONS).map((id) => <button key={id} className={terrain === id ? "active" : ""} onClick={() => setTerrain(id as TileTypeId)}>{id}</button>)}</div>}
+        {tool === "object" && <div className="palette">{Object.keys(WORLD_OBJECT_ASSETS).map((id) => <button key={id} className={objectAssetId === id ? "active" : ""} onClick={() => setObjectAssetId(id as WorldObjectAssetId)}>{id}</button>)}</div>}
+        <label>Snap <select value={snapMode} onChange={(event) => setSnapMode(event.target.value as SnapMode)}><option value="tile">1 tile</option><option value="half">0.5 tile</option><option value="free">free</option></select></label>
+        <div className="layer-list">{(Object.keys(layerLabels) as EditorLayer[]).map((id) => <label key={id}><input type="checkbox" checked={layers[id]} onChange={() => setLayers((current) => ({ ...current, [id]: !current[id] }))} />{layerLabels[id]}</label>)}</div>
+        <button onClick={() => importRef.current?.click()}>JSON Import</button><button onClick={() => void exportJson()}>JSON 공유</button><button onClick={() => void refreshCloud()}>클라우드 불러오기</button>{cloudStatus === "signed-out" && <a className="editor-signin" href="/editor-login" target="_top">클라우드 로그인</a>}
+      </div></details></div>
+    </section>
     {confirmReset && <div className="editor-modal" role="dialog" aria-modal="true"><div><b>기본 맵으로 초기화할까요?</b><p>현재 편집 문서는 내장 맵 데이터로 교체됩니다. 필요하면 먼저 JSON Export 하세요.</p><nav><button className="danger-button" onClick={reset}>초기화</button><button onClick={() => setConfirmReset(false)}>취소</button></nav></div></div>}
+    {cloudConflict && <div className="editor-modal" role="dialog" aria-modal="true"><div><b>다른 기기에 더 최신 편집 내용이 있습니다.</b><p>서버 초안: {new Date(cloudConflict.updatedAt).toLocaleString("ko-KR")} · revision {cloudConflict.revision}</p><nav><button className="primary" onClick={useCloudDraft}>서버 버전 불러오기</button><button onClick={keepLocalDraft}>현재 로컬 유지</button></nav></div></div>}
   </main>;
 }
