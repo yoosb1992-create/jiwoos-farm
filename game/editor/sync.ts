@@ -5,3 +5,7 @@ export function compareDraftFreshness(localUpdatedAt: number, cloudUpdatedAt: nu
   if (localUpdatedAt > cloudUpdatedAt) return "local-newer";
   return "same";
 }
+
+export function shouldAdoptCloudDraft(hasLocalDraft: boolean, localUpdatedAt: number, cloudUpdatedAt: number): boolean {
+  return !hasLocalDraft || compareDraftFreshness(localUpdatedAt, cloudUpdatedAt) === "cloud-newer";
+}

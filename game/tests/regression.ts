@@ -8,12 +8,12 @@ import { GAME_CONFIG } from "../config";
 import { MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS, getTileTypeAt, tilePoint } from "../maps/definitions";
 import { collisionRectCenter } from "../rendering/WorldRenderer";
 import { ToolActionSystem } from "../actions/ToolActionSystem";
-import { cloneEditorDocument, createBuiltInEditorDocument, documentToRegistry, LocalMapEditorRepository, parseEditorDocument } from "../editor/document";
+import { cloneEditorDocument, createBuiltInEditorDocument, documentToRegistry, LocalMapEditorRepository, parseEditorDocument, touchEditorDocument } from "../editor/document";
 import { EditorHistory } from "../editor/history";
 import { validateEditorDocument } from "../editor/validation";
 import { MapRegistry } from "../maps/MapRegistry";
 import { facingFromMovement, mergeMovementInput, normalizeMovement } from "../input/MovementInput";
-import { compareDraftFreshness } from "../editor/sync";
+import { compareDraftFreshness, shouldAdoptCloudDraft } from "../editor/sync";
 import { createPinchStart, updatePinchViewport } from "../editor/viewport";
 
 const storage = new Map<string, string>();
@@ -29,6 +29,8 @@ assert.deepEqual(mergeMovementInput({ x: 1, y: 0 }, { x: 0, y: -1 }), { x: 0, y:
 assert.equal(facingFromMovement({ x: -.8, y: -.2 }, "down"), "left");
 assert.equal(compareDraftFreshness(100, 200), "cloud-newer", "서버 updatedAt이 최신이면 충돌 안내가 필요함");
 assert.equal(compareDraftFreshness(300, 200), "local-newer", "오프라인 로컬 편집은 다음 연결 때 업로드 대상이어야 함");
+assert.equal(shouldAdoptCloudDraft(false, 300, 200), true, "새 기기의 임시 기본 문서보다 기존 클라우드 초안을 우선해야 함");
+assert.equal(shouldAdoptCloudDraft(true, 300, 200), false, "실제 로컬 초안이 더 최신이면 자동으로 덮어쓰면 안 됨");
 const pinchStart = createPinchStart({ x: 40, y: 50 }, { x: 80, y: 50 }, { zoom: 1, panX: 0, panY: 0 });
 assert.deepEqual(updatePinchViewport(pinchStart, { x: 20, y: 65 }, { x: 100, y: 65 }), { zoom: 2, panX: 0, panY: 15 }, "두 손가락 간격과 중심 이동이 zoom/pan에 함께 반영되어야 함");
 for (let day = 0; day < CROP_DEFINITIONS.sproutberry.growthDays; day += 1) {
@@ -154,6 +156,10 @@ const editorRepository = new LocalMapEditorRepository();
 editorDocument.maps.find((map) => map.id === "town")!.name = "테스트 햇살마을";
 editorRepository.save(editorDocument);
 assert.equal(editorRepository.load()?.maps.find((map) => map.id === "town")?.name, "테스트 햇살마을", "게임 저장과 별도 key로 편집 문서를 복원해야 함");
+assert.equal(editorRepository.load()?.updatedAt, editorDocument.updatedAt, "로컬 저장 자체가 콘텐츠 수정 시각을 바꾸면 안 됨");
+const previousEditorUpdatedAt = editorDocument.updatedAt;
+touchEditorDocument(editorDocument, previousEditorUpdatedAt);
+assert.equal(editorDocument.updatedAt, previousEditorUpdatedAt + 1, "연속 편집도 항상 더 최신 문서 시각을 가져야 함");
 assert.ok(storage.has(LocalMapEditorRepository.key));
 const registry = new MapRegistry();
 registry.replace(documentToRegistry(editorDocument));

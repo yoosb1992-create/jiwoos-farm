@@ -15,6 +15,11 @@ export const documentToRegistry = (document: MapEditorDocument) =>
 
 export const cloneEditorDocument = (document: MapEditorDocument) => structuredClone(document) as MapEditorDocument;
 
+export const touchEditorDocument = (document: MapEditorDocument, now = Date.now()): MapEditorDocument => {
+  document.updatedAt = Math.max(now, document.updatedAt + 1);
+  return document;
+};
+
 export const parseEditorDocument = (value: unknown) => {
   const issues = validateEditorDocument(value);
   return issues.length ? { document: null, issues } : { document: cloneEditorDocument(value as MapEditorDocument), issues };
@@ -22,7 +27,7 @@ export const parseEditorDocument = (value: unknown) => {
 
 export class LocalMapEditorRepository {
   static readonly key = "jiwoos-farm.map-editor.v1";
-  save(document: MapEditorDocument) { localStorage.setItem(LocalMapEditorRepository.key, JSON.stringify({ ...document, updatedAt: Date.now() })); }
+  save(document: MapEditorDocument) { localStorage.setItem(LocalMapEditorRepository.key, JSON.stringify(document)); }
   load() {
     const stored = localStorage.getItem(LocalMapEditorRepository.key);
     if (!stored) return null;

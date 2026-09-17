@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WORLD_OBJECT_ASSETS, type WorldObjectAssetId } from "@/game/assets/definitions";
-import { cloneEditorDocument, createBuiltInEditorDocument, LocalMapEditorRepository, parseEditorDocument } from "@/game/editor/document";
+import { cloneEditorDocument, createBuiltInEditorDocument, LocalMapEditorRepository, parseEditorDocument, touchEditorDocument } from "@/game/editor/document";
 import { EditorHistory } from "@/game/editor/history";
 import type { EditorLayer, EditorTool, MapEditorDocument, Selection, SnapMode, ValidationIssue } from "@/game/editor/types";
 import { referencedSpawnCount, validateEditorDocument } from "@/game/editor/validation";
@@ -11,7 +11,7 @@ import type { MapDefinition, TileTypeId } from "@/game/maps/types";
 import { EditorCanvas } from "./EditorCanvas";
 import { MapInspector } from "./MapInspector";
 import { CloudMapEditorRepository, type CloudEditorDraft } from "@/game/editor/cloud";
-import { compareDraftFreshness } from "@/game/editor/sync";
+import { shouldAdoptCloudDraft } from "@/game/editor/sync";
 
 const tools: { id: EditorTool; label: string; hint: string }[] = [
   { id: "select", label: "선택 / 이동", hint: "오브젝트를 선택하고 드래그" }, { id: "terrain", label: "지형 타일", hint: "드래그하여 연속 칠하기" },
@@ -25,7 +25,13 @@ const repository = new LocalMapEditorRepository();
 const cloudRepository = new CloudMapEditorRepository();
 
 export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocument, mapId: string) => void; onExit: () => void }) {
-  const [document, setDocument] = useState<MapEditorDocument>(() => repository.load() ?? createBuiltInEditorDocument());
+  const initialDraft = useRef<{ document: MapEditorDocument; fromLocal: boolean } | null>(null);
+  if (!initialDraft.current) {
+    const local = repository.load();
+    initialDraft.current = { document: local ?? createBuiltInEditorDocument(), fromLocal: Boolean(local) };
+  }
+  const [document, setDocument] = useState<MapEditorDocument>(initialDraft.current.document);
+  const hasLocalDraft = useRef(initialDraft.current.fromLocal);
   const [mapId, setMapId] = useState(() => document.maps[0]?.id ?? "farm");
   const [tool, setTool] = useState<EditorTool>("select");
   const [terrain, setTerrain] = useState<TileTypeId>("path");
@@ -47,30 +53,36 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   const map = document.maps.find((entry) => entry.id === mapId) ?? document.maps[0];
 
   useEffect(() => {
-    const timer = window.setTimeout(() => repository.save(document), 450);
+    if (cloudStatus === "checking" && !hasLocalDraft.current) return;
+    const timer = window.setTimeout(() => { repository.save(document); hasLocalDraft.current = true; }, 450);
     return () => window.clearTimeout(timer);
-  }, [document]);
+  }, [cloudStatus, document]);
 
   useEffect(() => {
-    const preserveLocal = () => repository.save(documentRef.current);
+    const preserveLocal = () => { if (hasLocalDraft.current) repository.save(documentRef.current); };
     const visibility = () => { if (window.document.visibilityState === "hidden") preserveLocal(); };
     window.addEventListener("pagehide", preserveLocal);
     window.document.addEventListener("visibilitychange", visibility);
     return () => { window.removeEventListener("pagehide", preserveLocal); window.document.removeEventListener("visibilitychange", visibility); };
   }, []);
 
-  const replaceDocument = useCallback((next: MapEditorDocument) => { documentRef.current = next; setDocument(next); }, []);
+  const replaceDocument = useCallback((next: MapEditorDocument) => { documentRef.current = next; hasLocalDraft.current = true; setDocument(next); }, []);
 
   useEffect(() => {
     let cancelled = false;
     cloudRepository.load().then((result) => {
       if (cancelled) return;
       if (result.status !== "ok") { setCloudStatus(result.status === "unauthorized" ? "signed-out" : "offline"); setNotice(result.message); return; }
-      setCloudStatus("ready");
-      if (!result.draft) { cloudRevision.current = 0; return; }
+      if (!result.draft) { cloudRevision.current = 0; setCloudStatus("ready"); return; }
       cloudRevision.current = result.draft.revision;
       cloudSyncedAt.current = result.draft.updatedAt;
-      if (compareDraftFreshness(documentRef.current.updatedAt, result.draft.updatedAt) === "cloud-newer") {
+      if (!hasLocalDraft.current) {
+        const cloudDocument = cloneEditorDocument(result.draft.document);
+        documentRef.current = cloudDocument; setDocument(cloudDocument); repository.save(cloudDocument); hasLocalDraft.current = true;
+        setCloudStatus("ready"); setNotice("이 기기에 서버의 최신 편집 초안을 불러왔습니다."); return;
+      }
+      setCloudStatus("ready");
+      if (shouldAdoptCloudDraft(true, documentRef.current.updatedAt, result.draft.updatedAt)) {
         setCloudConflict(result.draft);
         setNotice("다른 기기에 더 최신 편집 내용이 있습니다.");
       }
@@ -83,7 +95,10 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     setCloudStatus("saving");
     const result = await cloudRepository.save(cloneEditorDocument(source), cloudRevision.current);
     if (result.status === "ok") {
-      cloudRevision.current = result.draft.revision; cloudSyncedAt.current = result.draft.updatedAt; setCloudStatus("ready"); setNotice("로컬과 클라우드 초안을 동기화했습니다.");
+      const syncedDocument = cloneEditorDocument(result.draft.document);
+      cloudRevision.current = result.draft.revision; cloudSyncedAt.current = result.draft.updatedAt;
+      documentRef.current = syncedDocument; setDocument(syncedDocument); repository.save(syncedDocument); hasLocalDraft.current = true;
+      setCloudStatus("ready"); setNotice("로컬과 클라우드 초안을 동기화했습니다.");
     } else if (result.status === "conflict") {
       cloudRevision.current = result.draft.revision; setCloudConflict(result.draft); setCloudStatus("ready"); setNotice("다른 기기의 최신 초안을 확인해 주세요.");
     } else {
@@ -102,10 +117,10 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     const next = cloneEditorDocument(documentRef.current);
     const target = next.maps.find((entry) => entry.id === mapId);
     if (!target) return;
-    mutate(target); next.updatedAt = Date.now(); replaceDocument(next);
+    mutate(target); replaceDocument(touchEditorDocument(next));
   }, [mapId, pushHistory, replaceDocument]);
-  const undo = useCallback(() => { const next = history.current.undo(documentRef.current); if (next) { replaceDocument(next); setSelection(null); setNotice("실행 취소했습니다."); } }, [replaceDocument]);
-  const redo = useCallback(() => { const next = history.current.redo(documentRef.current); if (next) { replaceDocument(next); setSelection(null); setNotice("다시 실행했습니다."); } }, [replaceDocument]);
+  const undo = useCallback(() => { const next = history.current.undo(documentRef.current); if (next) { replaceDocument(touchEditorDocument(next)); setSelection(null); setNotice("실행 취소했습니다."); } }, [replaceDocument]);
+  const redo = useCallback(() => { const next = history.current.redo(documentRef.current); if (next) { replaceDocument(touchEditorDocument(next)); setSelection(null); setNotice("다시 실행했습니다."); } }, [replaceDocument]);
 
   const removeSelection = useCallback(() => {
     if (!selection || !map) return;
@@ -133,7 +148,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
       target.spawns.find((entry) => entry.id === previous)!.id = nextId;
       for (const entry of next.maps) for (const warp of entry.warps) if (warp.targetMapId === target.id && warp.targetSpawnId === previous) warp.targetSpawnId = nextId;
     }
-    replaceDocument(next); setSelection({ kind, id: nextId });
+    replaceDocument(touchEditorDocument(next)); setSelection({ kind, id: nextId });
   };
 
   useEffect(() => {
@@ -168,7 +183,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     try {
       const parsed = parseEditorDocument(JSON.parse(await file.text()));
       if (!parsed.document) { setIssues(parsed.issues); setNotice(`Import 거부: ${parsed.issues.length}개 오류가 있습니다.`); return; }
-      pushHistory(); replaceDocument(parsed.document); setMapId(parsed.document.maps[0].id); setSelection(null); setIssues([]); setNotice("검증된 JSON 문서를 가져왔습니다.");
+      pushHistory(); replaceDocument(touchEditorDocument(parsed.document)); setMapId(parsed.document.maps[0].id); setSelection(null); setIssues([]); setNotice("검증된 JSON 문서를 가져왔습니다.");
     } catch { setNotice("Import 거부: 올바른 JSON 파일이 아닙니다."); }
     if (importRef.current) importRef.current.value = "";
   };
@@ -179,19 +194,19 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     pushHistory(); const next = cloneEditorDocument(documentRef.current); let id = "new_map", suffix = 2;
     while (next.maps.some((entry) => entry.id === id)) id = `new_map_${suffix++}`;
     next.maps.push({ id, name: "새 맵", width: 20, height: 14, baseTileType: "grass", terrainRegions: [], farmAreas: [], collisionRegions: [], objects: [], spawns: [{ id: "entry", tileX: 10, tileY: 7, facing: "down" }], warps: [], boundary: { enabled: true } });
-    replaceDocument(next); setMapId(id); setSelection(null);
+    replaceDocument(touchEditorDocument(next)); setMapId(id); setSelection(null);
   };
   const duplicateMap = () => {
     if (!map) return; pushHistory(); const next = cloneEditorDocument(documentRef.current); let id = `${map.id}_copy`, suffix = 2;
     while (next.maps.some((entry) => entry.id === id)) id = `${map.id}_copy_${suffix++}`;
     const copy = structuredClone(map); copy.id = id; copy.name = `${map.name} 복사본`; copy.warps.forEach((warp) => { if (warp.targetMapId === map.id) warp.targetMapId = id; });
-    next.maps.push(copy); replaceDocument(next); setMapId(id); setSelection(null);
+    next.maps.push(copy); replaceDocument(touchEditorDocument(next)); setMapId(id); setSelection(null);
   };
   const deleteMap = () => {
     if (!map || map.id === "farm") { setNotice("핵심 farm 맵은 삭제할 수 없습니다."); return; }
     const refs = document.maps.reduce((sum, entry) => sum + entry.warps.filter((warp) => warp.targetMapId === map.id).length, 0);
     if (refs) { setNotice(`${map.name}을 ${refs}개 warp가 참조 중이라 삭제할 수 없습니다.`); return; }
-    pushHistory(); const next = cloneEditorDocument(documentRef.current); next.maps = next.maps.filter((entry) => entry.id !== map.id); replaceDocument(next); setMapId("farm"); setSelection(null);
+    pushHistory(); const next = cloneEditorDocument(documentRef.current); next.maps = next.maps.filter((entry) => entry.id !== map.id); replaceDocument(touchEditorDocument(next)); setMapId("farm"); setSelection(null);
   };
 
   const refreshCloud = async () => {
