@@ -26,26 +26,26 @@ function serializeRow(row: DraftRow | null) {
 
 export async function GET() {
   const user = await getChatGPTUser();
-  if (!user) return json({ message: "authentication required" }, 401);
+  if (!user) return json({ message: "로그인이 필요합니다." }, 401);
   try {
     const row = await database().prepare("SELECT document_json, document_version, revision, updated_at FROM editor_drafts WHERE owner_id = ?")
       .bind(user.userId).first<DraftRow>();
     return json({ draft: serializeRow(row) });
   } catch (error) {
     console.error("editor draft load failed", error);
-    return json({ message: "cloud draft unavailable" }, 503);
+    return json({ message: "클라우드 초안을 사용할 수 없습니다." }, 503);
   }
 }
 
 export async function PUT(request: Request) {
   const user = await getChatGPTUser();
-  if (!user) return json({ message: "authentication required" }, 401);
+  if (!user) return json({ message: "로그인이 필요합니다." }, 401);
   let payload: { document?: unknown; expectedRevision?: unknown };
   try { payload = await request.json(); } catch { return json({ message: "올바른 JSON 요청이 아닙니다." }, 400); }
   const parsed = parseEditorDocument(payload.document);
   if (!parsed.document) return json({ message: `편집 문서에 ${parsed.issues.length}개 검증 오류가 있습니다.`, issues: parsed.issues }, 400);
   const expectedRevision = Number(payload.expectedRevision);
-  if (!Number.isInteger(expectedRevision) || expectedRevision < 0) return json({ message: "revision 값이 올바르지 않습니다." }, 400);
+  if (!Number.isInteger(expectedRevision) || expectedRevision < 0) return json({ message: "클라우드 버전 값이 올바르지 않습니다." }, 400);
 
   const document = parsed.document as MapEditorDocument;
   const updatedAt = Math.max(Date.now(), document.updatedAt);
@@ -54,8 +54,8 @@ export async function PUT(request: Request) {
     const db = database();
     const current = await db.prepare("SELECT document_json, document_version, revision, updated_at FROM editor_drafts WHERE owner_id = ?")
       .bind(user.userId).first<DraftRow>();
-    if (current && current.revision !== expectedRevision) return json({ message: "newer cloud draft", draft: serializeRow(current) }, 409);
-    if (!current && expectedRevision !== 0) return json({ message: "cloud draft was reset", draft: null }, 409);
+    if (current && current.revision !== expectedRevision) return json({ message: "클라우드에 더 최신 초안이 있습니다.", draft: serializeRow(current) }, 409);
+    if (!current && expectedRevision !== 0) return json({ message: "클라우드 초안이 초기화되었습니다.", draft: null }, 409);
 
     const nextRevision = expectedRevision + 1;
     const result = current
@@ -66,11 +66,11 @@ export async function PUT(request: Request) {
     if ((result.meta.changes ?? 0) !== 1) {
       const latest = await db.prepare("SELECT document_json, document_version, revision, updated_at FROM editor_drafts WHERE owner_id = ?")
         .bind(user.userId).first<DraftRow>();
-      return json({ message: "newer cloud draft", draft: serializeRow(latest) }, 409);
+      return json({ message: "클라우드에 더 최신 초안이 있습니다.", draft: serializeRow(latest) }, 409);
     }
     return json({ draft: { document: { ...document, updatedAt }, revision: nextRevision, updatedAt } });
   } catch (error) {
     console.error("editor draft save failed", error);
-    return json({ message: "cloud draft unavailable" }, 503);
+    return json({ message: "클라우드 초안을 사용할 수 없습니다." }, 503);
   }
 }

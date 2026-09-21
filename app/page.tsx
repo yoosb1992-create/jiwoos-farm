@@ -78,7 +78,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
     <main className="game-shell">
       <section className="game-frame" aria-label="지우네 농장 게임">
         <div id="game-canvas" className="game-canvas" />
-        <div className="mode-switch"><button onClick={onOpenEditor}>{testMode ? "← 편집기로 돌아가기" : "🛠 맵 편집"}</button>{testMode && <span>TEST PLAY · 저장 비활성</span>}</div>
+        <div className="mode-switch"><button onClick={onOpenEditor}>{testMode ? "← 편집기로 돌아가기" : "🛠 맵 편집"}</button>{testMode && <span>테스트 플레이 · 저장 비활성</span>}</div>
         <header className="top-hud">
           <div className="brand-plate"><span className="brand-leaf">✦</span><div><strong>지우네 농장</strong><small>우리 가족의 봄날</small></div></div>
           <div className="status-plate"><span>☀ 맑음 · {hud.mapName}</span><b>봄 {hud.day}일</b><strong>{hud.timeText}</strong><em>{hud.money.toLocaleString()} G</em></div>
