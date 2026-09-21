@@ -35,7 +35,18 @@ export type PlayerAnimationName =
   | "walk_down" | "walk_up" | "walk_left" | "walk_right"
   | "tool_down" | "tool_up" | "tool_left" | "tool_right";
 
-type AnimationDefinition = { startFrame: number; endFrame: number; fps: number; repeat: number };
+export type PlayerAnimationDefinition = { startFrame: number; endFrame: number; fps: number; repeat: number };
+
+export const PLAYER_ANIMATION_NAMES = [
+  "idle_down", "idle_up", "idle_left", "idle_right",
+  "walk_down", "walk_up", "walk_left", "walk_right",
+  "tool_down", "tool_up", "tool_left", "tool_right",
+] as const satisfies readonly PlayerAnimationName[];
+
+export const playerAnimationName = (
+  state: "idle" | "walk" | "tool",
+  facing: Facing,
+): PlayerAnimationName => `${state}_${facing}` as PlayerAnimationName;
 
 export const PLAYER_ASSET = {
   assetId: "player_default",
@@ -62,7 +73,7 @@ export const PLAYER_ASSET = {
     tool_up: { startFrame: 0, endFrame: 0, fps: 10, repeat: 0 },
     tool_left: { startFrame: 0, endFrame: 0, fps: 10, repeat: 0 },
     tool_right: { startFrame: 0, endFrame: 0, fps: 10, repeat: 0 },
-  } satisfies Record<PlayerAnimationName, AnimationDefinition>,
+  } satisfies Record<PlayerAnimationName, PlayerAnimationDefinition>,
   fallback: { skin: 0xf2c49b, hair: 0x3c3029, shirt: 0x5a87c9, shadow: 0x3a6d3a },
 } as const;
 

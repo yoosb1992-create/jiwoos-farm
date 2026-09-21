@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale } from "../assets/definitions";
+import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale, playerAnimationName } from "../assets/definitions";
 import { CROP_DEFINITIONS } from "../data/crops";
 import { Inventory, LocalStorageSaveRepository, advanceFarmDay, normalizeSaveData, purchaseInventoryItem, type FarmTileData, type SaveData } from "../domain";
 import { GENERAL_STORE_LISTINGS } from "../data/shop";
@@ -94,11 +94,18 @@ storage.set("jiwoos-farm.save.v4", "{ malformed");
 storage.set("jiwoos-farm.save.v3", JSON.stringify({ ...save, version: 3, player: { x: 120, y: 140, facing: "left" } }));
 assert.equal(repository.load()?.version, 4, "손상된 최신 저장 뒤에 복구 가능한 이전 저장이 있으면 사용해야 함");
 
-const requiredAnimations = [
-  "idle_down", "idle_up", "idle_left", "idle_right", "walk_down", "walk_up", "walk_left", "walk_right",
-  "tool_down", "tool_up", "tool_left", "tool_right",
-];
-assert.deepEqual(Object.keys(PLAYER_ASSET.animations), requiredAnimations);
+assert.deepEqual(Object.keys(PLAYER_ASSET.animations), [...PLAYER_ANIMATION_NAMES]);
+for (const state of ["idle", "walk", "tool"] as const) {
+  for (const facing of ["down", "up", "left", "right"] as const) {
+    const name = playerAnimationName(state, facing);
+    assert.ok(PLAYER_ASSET.animations[name], `${name} 애니메이션 정의가 필요함`);
+  }
+}
+assert.equal(playerAnimationName("idle", facingFromMovement({ x: 0, y: 0 }, "left")), "idle_left", "멈추면 마지막 방향의 대기 상태를 유지해야 함");
+for (const definition of Object.values(PLAYER_ASSET.animations)) {
+  assert.ok(definition.startFrame >= 0 && definition.endFrame >= definition.startFrame, "플레이어 frame 범위가 유효해야 함");
+  assert.ok(definition.fps > 0, "플레이어 animation FPS가 양수여야 함");
+}
 const scaledPlayer = { ...PLAYER_ASSET, displayScale: { x: 2, y: 1.5 } };
 assert.deepEqual(displayedSize(scaledPlayer), { width: 64, height: 54 }, "scale 변경은 표현 크기에만 반영되어야 함");
 const compensatedBox = physicsBoxForScale(PLAYER_ASSET.collisionBox, scaledPlayer.displayScale);

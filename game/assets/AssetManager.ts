@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, type AssetSource } from "./definitions";
+import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, type AssetSource, type PlayerAnimationDefinition } from "./definitions";
 
 const loadSource = (scene: Phaser.Scene, key: string, source: AssetSource) => {
   if (!source) return;
@@ -34,18 +34,29 @@ export class AssetManager {
   }
 
   createPlayerAnimations() {
-    for (const [name, definition] of Object.entries(PLAYER_ASSET.animations)) {
+    for (const name of PLAYER_ANIMATION_NAMES) {
       if (this.scene.anims.exists(name)) continue;
-      const frames = PLAYER_ASSET.source?.kind === "spritesheet"
-        ? this.scene.anims.generateFrameNumbers(PLAYER_ASSET.textureKey, { start: definition.startFrame, end: definition.endFrame })
-        : [{ key: PLAYER_ASSET.textureKey }];
+      const definition = PLAYER_ASSET.animations[name];
       this.scene.anims.create({
         key: name,
-        frames,
+        frames: this.playerFrames(definition),
         frameRate: definition.fps,
         repeat: definition.repeat,
       });
     }
+  }
+
+  private playerFrames(definition: PlayerAnimationDefinition): Phaser.Types.Animations.AnimationFrame[] {
+    if (PLAYER_ASSET.source?.kind !== "spritesheet") return [{ key: PLAYER_ASSET.textureKey }];
+
+    const texture = this.scene.textures.get(PLAYER_ASSET.textureKey);
+    for (let frame = definition.startFrame; frame <= definition.endFrame; frame += 1) {
+      if (!texture.has(frame)) return [{ key: PLAYER_ASSET.textureKey }];
+    }
+    return this.scene.anims.generateFrameNumbers(PLAYER_ASSET.textureKey, {
+      start: definition.startFrame,
+      end: definition.endFrame,
+    });
   }
 
   private createPlayerFallback() {
