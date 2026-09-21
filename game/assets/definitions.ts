@@ -35,18 +35,20 @@ export type PlayerAnimationName =
   | "walk_down" | "walk_up" | "walk_left" | "walk_right"
   | "tool_down" | "tool_up" | "tool_left" | "tool_right";
 
+export type PlayerAnimationState = "idle" | "walk" | "tool";
 export type PlayerAnimationDefinition = { startFrame: number; endFrame: number; fps: number; repeat: number };
+
+export const playerAnimationName = (state: PlayerAnimationState, facing: Facing) =>
+  `${state}_${facing}` as PlayerAnimationName;
+
+export const playerAnimationFrames = (definition: PlayerAnimationDefinition) =>
+  Array.from({ length: definition.endFrame - definition.startFrame + 1 }, (_, index) => definition.startFrame + index);
 
 export const PLAYER_ANIMATION_NAMES = [
   "idle_down", "idle_up", "idle_left", "idle_right",
   "walk_down", "walk_up", "walk_left", "walk_right",
   "tool_down", "tool_up", "tool_left", "tool_right",
 ] as const satisfies readonly PlayerAnimationName[];
-
-export const playerAnimationName = (
-  state: "idle" | "walk" | "tool",
-  facing: Facing,
-): PlayerAnimationName => `${state}_${facing}` as PlayerAnimationName;
 
 export const PLAYER_ASSET = {
   assetId: "player_default",

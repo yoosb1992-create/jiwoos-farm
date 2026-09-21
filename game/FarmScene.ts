@@ -71,7 +71,7 @@ export class FarmScene extends Phaser.Scene {
       .setOrigin(PLAYER_ASSET.origin.x, PLAYER_ASSET.origin.y).setDepth(20).setCollideWorldBounds(true);
     const box = physicsBoxForScale(PLAYER_ASSET.collisionBox, { x: this.player.scaleX, y: this.player.scaleY });
     this.player.body!.setSize(box.width, box.height).setOffset(box.offsetX, box.offsetY);
-    this.playerAnimations = new PlayerAnimationController(this.player); this.toolActions = new ToolActionSystem(this.playerAnimations);
+    this.playerAnimations = new PlayerAnimationController(this.player, this.facing); this.toolActions = new ToolActionSystem(this.playerAnimations);
     this.loadMap(this.currentMapId, undefined, saved ? { x: saved.player.x, y: saved.player.y, facing: saved.player.facing } : undefined);
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys("W,A,S,D,ONE,TWO,THREE,FOUR") as Record<string, Phaser.Input.Keyboard.Key>;

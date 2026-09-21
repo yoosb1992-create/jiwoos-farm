@@ -3,12 +3,12 @@ import { PLAYER_ASSET, playerAnimationName, type Facing } from "../assets/defini
 
 export class PlayerAnimationController {
   private toolAnimationActive = false;
-  private lastFacing: Facing = "down";
+  private lastFacing: Facing;
 
-  constructor(private readonly sprite: Phaser.Physics.Arcade.Sprite) {
+  constructor(private readonly sprite: Phaser.Physics.Arcade.Sprite, initialFacing: Facing = "down") {
+    this.lastFacing = initialFacing;
     this.sprite.on("animationcomplete", () => {
-      if (!this.toolAnimationActive) return;
-      this.finishToolAnimation();
+      if (this.toolAnimationActive) this.finishToolAnimation();
     });
   }
 
@@ -21,11 +21,10 @@ export class PlayerAnimationController {
   playTool(facing: Facing) {
     this.lastFacing = facing;
     this.toolAnimationActive = true;
-    const name = playerAnimationName("tool", facing);
-    this.sprite.play(name, true);
-    if (PLAYER_ASSET.animations[name].startFrame === PLAYER_ASSET.animations[name].endFrame) {
-      this.finishToolAnimation();
-    }
+    this.sprite.play(playerAnimationName("tool", facing), true);
+    // The generated fallback has one frame, so it cannot emit a useful visible
+    // sequence. Release it immediately and preserve normal movement controls.
+    if ((this.sprite.anims.currentAnim?.frames.length ?? 0) <= 1) this.finishToolAnimation();
   }
 
   interactionPoint(facing: Facing) {

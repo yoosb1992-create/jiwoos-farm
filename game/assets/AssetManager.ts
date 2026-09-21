@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, type AssetSource, type PlayerAnimationDefinition } from "./definitions";
+import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, playerAnimationFrames, type AssetSource } from "./definitions";
 
 const loadSource = (scene: Phaser.Scene, key: string, source: AssetSource) => {
   if (!source) return;
@@ -8,6 +8,8 @@ const loadSource = (scene: Phaser.Scene, key: string, source: AssetSource) => {
 };
 
 export class AssetManager {
+  private playerSpritesheetReady = false;
+
   constructor(private readonly scene: Phaser.Scene) {}
 
   preload() {
@@ -19,7 +21,15 @@ export class AssetManager {
   }
 
   createFallbackTextures() {
-    if (!this.scene.textures.exists(PLAYER_ASSET.textureKey)) this.createPlayerFallback();
+    this.playerSpritesheetReady = this.hasValidPlayerSpritesheet();
+    if (!this.playerSpritesheetReady) {
+      // A missing file and a sheet with too few frames are both recoverable. Remove
+      // an incomplete texture before generating the known-safe single-frame fallback.
+      if (PLAYER_ASSET.source?.kind === "spritesheet" && this.scene.textures.exists(PLAYER_ASSET.textureKey)) {
+        this.scene.textures.remove(PLAYER_ASSET.textureKey);
+      }
+      if (!this.scene.textures.exists(PLAYER_ASSET.textureKey)) this.createPlayerFallback();
+    }
     Object.values(TILE_ASSETS).forEach((asset) => {
       if (this.scene.textures.exists(asset.textureKey)) return;
       const size = displayedSize(asset);
@@ -35,28 +45,28 @@ export class AssetManager {
 
   createPlayerAnimations() {
     for (const name of PLAYER_ANIMATION_NAMES) {
-      if (this.scene.anims.exists(name)) continue;
       const definition = PLAYER_ASSET.animations[name];
+      // Phaser's animation manager is shared between scene restarts. Recreate these
+      // stable keys so a previous fallback animation cannot mask a newly loaded sheet.
+      if (this.scene.anims.exists(name)) this.scene.anims.remove(name);
+      const frames = this.playerSpritesheetReady
+        ? this.scene.anims.generateFrameNumbers(PLAYER_ASSET.textureKey, { start: definition.startFrame, end: definition.endFrame })
+        : [{ key: PLAYER_ASSET.textureKey }];
       this.scene.anims.create({
         key: name,
-        frames: this.playerFrames(definition),
+        frames,
         frameRate: definition.fps,
         repeat: definition.repeat,
       });
     }
   }
 
-  private playerFrames(definition: PlayerAnimationDefinition): Phaser.Types.Animations.AnimationFrame[] {
-    if (PLAYER_ASSET.source?.kind !== "spritesheet") return [{ key: PLAYER_ASSET.textureKey }];
-
+  private hasValidPlayerSpritesheet() {
+    if (PLAYER_ASSET.source?.kind !== "spritesheet" || !this.scene.textures.exists(PLAYER_ASSET.textureKey)) return false;
     const texture = this.scene.textures.get(PLAYER_ASSET.textureKey);
-    for (let frame = definition.startFrame; frame <= definition.endFrame; frame += 1) {
-      if (!texture.has(frame)) return [{ key: PLAYER_ASSET.textureKey }];
-    }
-    return this.scene.anims.generateFrameNumbers(PLAYER_ASSET.textureKey, {
-      start: definition.startFrame,
-      end: definition.endFrame,
-    });
+    return Object.values(PLAYER_ASSET.animations)
+      .flatMap(playerAnimationFrames)
+      .every((frame) => texture.has(String(frame)));
   }
 
   private createPlayerFallback() {

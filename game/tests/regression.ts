@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale, playerAnimationName } from "../assets/definitions";
+import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale, playerAnimationFrames, playerAnimationName } from "../assets/definitions";
 import { CROP_DEFINITIONS } from "../data/crops";
 import { Inventory, LocalStorageSaveRepository, advanceFarmDay, normalizeSaveData, purchaseInventoryItem, type FarmTileData, type SaveData } from "../domain";
 import { GENERAL_STORE_LISTINGS } from "../data/shop";
@@ -15,6 +15,7 @@ import { MapRegistry } from "../maps/MapRegistry";
 import { facingFromMovement, mergeMovementInput, normalizeMovement } from "../input/MovementInput";
 import { compareDraftFreshness, shouldAdoptCloudDraft } from "../editor/sync";
 import { createPinchStart, updatePinchViewport } from "../editor/viewport";
+import { PlayerAnimationController } from "../player/PlayerAnimationController";
 
 const storage = new Map<string, string>();
 Object.defineProperty(globalThis, "localStorage", { value: {
@@ -94,18 +95,47 @@ storage.set("jiwoos-farm.save.v4", "{ malformed");
 storage.set("jiwoos-farm.save.v3", JSON.stringify({ ...save, version: 3, player: { x: 120, y: 140, facing: "left" } }));
 assert.equal(repository.load()?.version, 4, "손상된 최신 저장 뒤에 복구 가능한 이전 저장이 있으면 사용해야 함");
 
+const requiredAnimations = [
+  "idle_down", "idle_up", "idle_left", "idle_right", "walk_down", "walk_up", "walk_left", "walk_right",
+  "tool_down", "tool_up", "tool_left", "tool_right",
+];
+assert.deepEqual(Object.keys(PLAYER_ASSET.animations), requiredAnimations);
 assert.deepEqual(Object.keys(PLAYER_ASSET.animations), [...PLAYER_ANIMATION_NAMES]);
-for (const state of ["idle", "walk", "tool"] as const) {
-  for (const facing of ["down", "up", "left", "right"] as const) {
-    const name = playerAnimationName(state, facing);
-    assert.ok(PLAYER_ASSET.animations[name], `${name} 애니메이션 정의가 필요함`);
-  }
-}
-assert.equal(playerAnimationName("idle", facingFromMovement({ x: 0, y: 0 }, "left")), "idle_left", "멈추면 마지막 방향의 대기 상태를 유지해야 함");
+const configuredFrames = Object.values(PLAYER_ASSET.animations).flatMap(playerAnimationFrames);
+assert.equal(new Set(configuredFrames).size, configuredFrames.length, "12개 상태는 서로 겹치지 않는 프레임 범위를 사용해야 함");
 for (const definition of Object.values(PLAYER_ASSET.animations)) {
-  assert.ok(definition.startFrame >= 0 && definition.endFrame >= definition.startFrame, "플레이어 frame 범위가 유효해야 함");
-  assert.ok(definition.fps > 0, "플레이어 animation FPS가 양수여야 함");
+  assert.ok(definition.startFrame >= 0 && definition.endFrame >= definition.startFrame, "animation 프레임 범위가 유효해야 함");
+  assert.ok(definition.fps > 0, "animation FPS는 양수여야 함");
 }
+assert.equal(PLAYER_ASSET.source, null, "최종 PNG가 없을 때는 기존 fallback 캐릭터를 유지해야 함");
+assert.equal(playerAnimationName("walk", facingFromMovement({ x: 1, y: 0 }, "down")), "walk_right");
+assert.equal(playerAnimationName("walk", facingFromMovement(mergeMovementInput({ x: 0, y: 0 }, { x: 1, y: 0 }), "down")), "walk_right", "키보드와 조이스틱은 같은 걷기 animation 이름을 사용해야 함");
+
+type AnimationComplete = () => void;
+const playedAnimations: string[] = [];
+let animationComplete: AnimationComplete = () => undefined;
+const animatedSprite = {
+  x: 100, y: 80,
+  anims: { currentAnim: { frames: [{}, {}] } },
+  on: (_event: string, handler: AnimationComplete) => { animationComplete = handler; return animatedSprite; },
+  play: (key: string) => { playedAnimations.push(key); return animatedSprite; },
+};
+const animationController = new PlayerAnimationController(animatedSprite as never, "down");
+animationController.playMovement("left", true);
+animationController.playMovement("left", false);
+animationController.playTool("up");
+animationComplete();
+assert.deepEqual(playedAnimations, ["walk_left", "idle_left", "tool_up", "idle_up"], "도구 animation 뒤에는 같은 방향 대기로 복귀해야 함");
+
+const fallbackAnimations: string[] = [];
+const fallbackSprite = {
+  x: 0, y: 0,
+  anims: { currentAnim: { frames: [{}] } },
+  on: () => fallbackSprite,
+  play: (key: string) => { fallbackAnimations.push(key); return fallbackSprite; },
+};
+new PlayerAnimationController(fallbackSprite as never).playTool("right");
+assert.deepEqual(fallbackAnimations, ["tool_right", "idle_right"], "단일 프레임 fallback도 도구 상태에 고정되면 안 됨");
 const scaledPlayer = { ...PLAYER_ASSET, displayScale: { x: 2, y: 1.5 } };
 assert.deepEqual(displayedSize(scaledPlayer), { width: 64, height: 54 }, "scale 변경은 표현 크기에만 반영되어야 함");
 const compensatedBox = physicsBoxForScale(PLAYER_ASSET.collisionBox, scaledPlayer.displayScale);
@@ -156,6 +186,14 @@ assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), false,
 now += GAME_CONFIG.toolActionCooldownMs;
 assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), true);
 assert.equal(effects, 2);
+
+const animatedTools: string[] = [];
+const allToolActions = new ToolActionSystem({ playTool: (facing) => animatedTools.push(facing) }, () => now);
+for (const tool of ["hoe", "water", "seed", "hand"] as const) {
+  now += GAME_CONFIG.toolActionCooldownMs;
+  assert.equal(allToolActions.execute(tool, "left", () => undefined), true);
+}
+assert.deepEqual(animatedTools, ["left", "left", "left", "left"], "괭이·물뿌리개·씨앗·손 행동은 모두 현재 방향 도구 animation을 요청해야 함");
 
 const editorDocument = createBuiltInEditorDocument();
 assert.deepEqual(validateEditorDocument(editorDocument), [], "기본 맵은 편집기 schema/참조 검증을 통과해야 함");
