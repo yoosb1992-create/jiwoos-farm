@@ -7,6 +7,7 @@ import type { Selection } from "@/game/editor/types";
 const directions: Facing[] = ["up", "down", "left", "right"];
 const directionLabels: Record<Facing, string> = { up: "위", down: "아래", left: "왼쪽", right: "오른쪽" };
 const actionLabels = { sleep: "잠자기", open_shop: "상점 열기", sell: "판매" } as const;
+const objectLabels: Record<WorldObjectAssetId, string> = { house: "집", shop: "상점", shipping_bin: "출하 상자", fence: "울타리", tree: "나무", pond: "연못", sign: "표지판", rug: "깔개", lamp: "가로등", bench: "벤치" };
 const numberValue = (value: string, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 function NumberField({ label, value, onChange, step = 1 }: { label: string; value: number; onChange: (value: number) => void; step?: number }) {
@@ -40,7 +41,7 @@ export function MapInspector({ map, maps, selection, update, renameId, remove, s
     if (!object) return null;
     return <aside className="editor-inspector mobile-open">{closeButton}<div className="panel-title"><span>오브젝트</span><small>{object.id}</small></div><div className="inspector-form">
       <TextField label="식별자(ID)" value={object.id} onChange={(id) => renameId("object", object.id, id)} />
-      <label><span>에셋 종류</span><select value={object.assetId} onChange={(event) => update((target) => { target.objects.find((entry) => entry.id === object.id)!.assetId = event.target.value as WorldObjectAssetId; })}>{Object.keys(WORLD_OBJECT_ASSETS).map((id) => <option key={id}>{id}</option>)}</select></label>
+      <label><span>에셋 종류</span><select value={object.assetId} onChange={(event) => update((target) => { target.objects.find((entry) => entry.id === object.id)!.assetId = event.target.value as WorldObjectAssetId; })}>{Object.keys(WORLD_OBJECT_ASSETS).map((id) => <option key={id} value={id}>{objectLabels[id as WorldObjectAssetId]}</option>)}</select></label>
       <div className="inspector-grid"><NumberField label="타일 X" step={.5} value={object.position.tileX} onChange={(tileX) => update((target) => { target.objects.find((entry) => entry.id === object.id)!.position.tileX = tileX; })} /><NumberField label="타일 Y" step={.5} value={object.position.tileY} onChange={(tileY) => update((target) => { target.objects.find((entry) => entry.id === object.id)!.position.tileY = tileY; })} /></div>
       <NumberField label="표시 우선순위" value={object.depth ?? 3} onChange={(depth) => update((target) => { target.objects.find((entry) => entry.id === object.id)!.depth = depth; })} />
       <TextField label="표시 이름" value={object.label ?? ""} onChange={(label) => update((target) => { target.objects.find((entry) => entry.id === object.id)!.label = label || undefined; })} />
