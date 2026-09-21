@@ -7,7 +7,7 @@ import type { Selection } from "@/game/editor/types";
 const directions: Facing[] = ["up", "down", "left", "right"];
 const directionLabels: Record<Facing, string> = { up: "위", down: "아래", left: "왼쪽", right: "오른쪽" };
 const actionLabels = { sleep: "잠자기", open_shop: "상점 열기", sell: "판매" } as const;
-const objectLabels: Record<WorldObjectAssetId, string> = { house: "집", shop: "상점", shipping_bin: "출하 상자", fence: "울타리", tree: "나무", pond: "연못", sign: "표지판", rug: "깔개", lamp: "가로등", bench: "벤치" };
+const objectLabels: Record<WorldObjectAssetId, string> = { house: "집", tree: "나무", sell_basket: "판매 바구니", store: "상점", bed: "침대", shop_counter: "상점 계산대" };
 const numberValue = (value: string, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 function NumberField({ label, value, onChange, step = 1 }: { label: string; value: number; onChange: (value: number) => void; step?: number }) {
