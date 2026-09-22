@@ -1,4 +1,4 @@
-import * as Phaser from "phaser";
+import type * as Phaser from "phaser";
 import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, playerAnimationFrames, type AssetSource } from "./definitions";
 
 const loadSource = (scene: Phaser.Scene, key: string, source: AssetSource) => {

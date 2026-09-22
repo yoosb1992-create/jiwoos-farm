@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { readFileSync } from "node:fs";
 import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale, playerAnimationFrames, playerAnimationName } from "../assets/definitions";
 import { CROP_DEFINITIONS } from "../data/crops";
 import { Inventory, LocalStorageSaveRepository, advanceFarmDay, normalizeSaveData, purchaseInventoryItem, type FarmTileData, type SaveData } from "../domain";
@@ -16,6 +17,7 @@ import { facingFromMovement, mergeMovementInput, normalizeMovement } from "../in
 import { compareDraftFreshness, shouldAdoptCloudDraft } from "../editor/sync";
 import { createPinchStart, updatePinchViewport } from "../editor/viewport";
 import { PlayerAnimationController } from "../player/PlayerAnimationController";
+import { AssetManager } from "../assets/AssetManager";
 
 const storage = new Map<string, string>();
 Object.defineProperty(globalThis, "localStorage", { value: {
@@ -107,7 +109,44 @@ for (const definition of Object.values(PLAYER_ASSET.animations)) {
   assert.ok(definition.startFrame >= 0 && definition.endFrame >= definition.startFrame, "animation 프레임 범위가 유효해야 함");
   assert.ok(definition.fps > 0, "animation FPS는 양수여야 함");
 }
-assert.equal(PLAYER_ASSET.source, null, "최종 PNG가 없을 때는 기존 fallback 캐릭터를 유지해야 함");
+assert.equal(PLAYER_ASSET.source?.kind, "spritesheet", "개발용 PNG 시트를 연결해야 함");
+const playerPng = readFileSync(new URL("../../public/assets/player/player-dev.png", import.meta.url));
+assert.equal(playerPng.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+assert.equal(playerPng.readUInt32BE(16), 512);
+assert.equal(playerPng.readUInt32BE(20), 108);
+assert.equal(Math.max(...configuredFrames), 47, "48프레임 시트 범위를 넘지 않아야 함");
+// Exercise the actual loader/fallback registration paths without a DOM renderer.
+for (const availableFrames of [48, 0, 20]) {
+  const textures = new Map<string, number>();
+  if (availableFrames) textures.set(PLAYER_ASSET.textureKey, availableFrames);
+  const registered = new Map<string, { frames: unknown[] }>();
+  const graphics: any = new Proxy({}, { get: (_target, method) => (...args: any[]) => {
+    if (method === "generateTexture") textures.set(args[0], 0);
+    return graphics;
+  } });
+  const scene = {
+    textures: {
+      exists: (key: string) => textures.has(key),
+      remove: (key: string) => textures.delete(key),
+      get: (key: string) => ({ has: (frame: string) => Number(frame) < (textures.get(key) ?? 0) }),
+    },
+    add: { graphics: () => graphics },
+    anims: {
+      exists: (key: string) => registered.has(key),
+      remove: (key: string) => registered.delete(key),
+      generateFrameNumbers: (key: string, range: { start: number; end: number }) =>
+        Array.from({ length: range.end - range.start + 1 }, (_, i) => ({ key, frame: range.start + i })),
+      create: (config: { key: string; frames: unknown[] }) => registered.set(config.key, config),
+    },
+  };
+  const manager = new AssetManager(scene as never);
+  manager.createFallbackTextures();
+  manager.createPlayerAnimations();
+  manager.createPlayerAnimations();
+  assert.equal(registered.size, 12);
+  for (const config of registered.values()) assert.equal(config.frames.length, availableFrames === 48 ? 4 : 1);
+  assert.equal(textures.get(PLAYER_ASSET.textureKey), availableFrames === 48 ? 48 : 0);
+}
 assert.equal(playerAnimationName("walk", facingFromMovement({ x: 1, y: 0 }, "down")), "walk_right");
 assert.equal(playerAnimationName("walk", facingFromMovement(mergeMovementInput({ x: 0, y: 0 }, { x: 1, y: 0 }), "down")), "walk_right", "키보드와 조이스틱은 같은 걷기 animation 이름을 사용해야 함");
 

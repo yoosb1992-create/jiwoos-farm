@@ -50,7 +50,7 @@ working copy를 별도 registry로 주입하며 실제 게임 저장에는 쓰�
 
 ## 0.5 플레이어 spritesheet 규격
 
-현재 `PLAYER_ASSET.source`는 `null`이므로 기존 코드 생성형 캐릭터가 표시된다. PNG가 없거나, 로딩에 실패하거나, 정의된 마지막 프레임까지 들어 있지 않은 시트가 로드되면 `AssetManager`가 불완전한 텍스처를 버리고 같은 fallback으로 복구한다.
+현재 `PLAYER_ASSET.source`는 `/assets/player/player-dev.png`에 연결되어 개발용 캐릭터를 표시한다. 파일은 `public/assets/player/player-dev.png`에 있으며 최종 디자인이 아니다. PNG가 없거나, 로딩에 실패하거나, 정의된 마지막 프레임까지 들어 있지 않은 시트가 로드되면 `AssetManager`가 불완전한 텍스처를 버리고 같은 fallback으로 복구한다.
 
 개발 기준 시트는 투명 배경 PNG, 프레임당 32×36px, 가로 16칸×세로 3줄(전체 512×108px), 왼쪽 위부터 0번인 행 우선 번호를 사용한다. 최종 디자인은 이 크기나 프레임 수에 고정되지 않는다. 다른 규격을 사용할 때 `source.frameWidth/frameHeight`, `frameSize`, `displayScale`, `origin`, `collisionBox`, 그리고 아래 프레임 범위를 함께 조정하면 된다.
 
@@ -76,10 +76,20 @@ working copy를 별도 registry로 주입하며 실제 게임 저장에는 쓰�
 ```ts
 source: {
   kind: "spritesheet",
-  path: "/assets/player/player.png",
+  path: "/assets/player/player-dev.png",
   frameWidth: 32,
   frameHeight: 36,
 },
 ```
 
 대기·걷기·도구의 `startFrame`, `endFrame`, `fps`, `repeat`는 모두 `PLAYER_ASSET.animations`의 데이터로 결정된다. 키보드와 모바일 조이스틱은 공통 이동 벡터와 방향 판정을 거쳐 같은 걷기 애니메이션을 사용한다. 도구는 괭이·물뿌리개·씨앗·손 모두 현재 방향의 `tool_*`을 재생한 뒤 같은 방향의 `idle_*`로 복귀한다.
+
+
+
+### 2단계 연결 검증
+
+개발 PNG는 이미지 생성 도구로 만든 파란 상의 테스트 캐릭터를 셀별로 정렬·최근접 축소한 것이다. 생성 요구: 투명 배경, 정면/후면/좌/우, 대기/걷기/도구 각 4프레임, 최종 아트 아님. 실제 파일은 512×108 RGBA PNG이며 12개 상태 각각 4개 프레임의 픽셀이 서로 다르다.
+
+`frameSize` 32×36, `displayScale` 1×1, `origin` (0.5, 0.5), `collisionBox` 18×22 및 offset (7, 9)를 유지한다. 셀 간 동일한 기준으로 정렬하며 프레임마다 투명 여백을 잘라 크기를 바꾸지 않는다.
+
+회귀 테스트는 PNG 헤더/크기, 48개 프레임 범위, 정상 텍스처 등록, 누락/불완전 텍스처 fallback, 중복 애니메이션 재등록, 이동/도구 후 대기 복귀를 확인한다. 실제 브라우저 검증은 실행환경의 Chromium 다운로드 시간 초과로 수행하지 못했다. 손상 PNG 디코딩 실패 후 게임 실행, 모바일 터치와 키보드의 실제 재생, 벽/나무 충돌은 다음 실사용 확인 항목이다.
