@@ -29,3 +29,12 @@ Built-in image generation 사용. 상용 게임 원본을 입력하거나 복제
 ## 검증
 
 `npm run test:regression`에서 PNG 실제 디코딩, 크기, 투명도, 타일 경계 일치, 전체 환경 preload, 로딩 성공 시 텍스처 보존, 누락 시 fallback 생성을 확인한다. 기존 모바일·맵 편집·저장·농사·플레이어 애니메이션 회귀 테스트도 유지한다. 브라우저 실제 플레이 검증과 자동 회귀 결과는 구분한다.
+
+## B — 월드 오브젝트
+
+`public/assets/objects/`: house.png (192×176), tree.png (44×56), sell-basket.png (90×76), store.png (192×160), bed.png (96×56), shop-counter.png (224×56).
+기존 house/tree/sell_basket/store/bed/shop_counter ID와 크기·배율·origin을 모두 유지했다. collision과 interaction은 기존 맵 문서 값을 그대로 사용한다.
+
+공통 생성 프롬프트: “Original cozy farming game pixel sprite, orthographic slightly top-down front view, earthy moss/teal/cream/brown/terracotta palette, crisp pixel clusters, single complete isolated object, transparent background, no ground shadow, text or commercial game imitation.” 소재는 terracotta roof farmhouse / broadleaf tree / open wicker selling basket / teal roof general store / horizontal wooden bed with terracotta quilt / wide wooden counter. 생성 후 투명 여백을 정리하고 각 기존 frameSize에 최근접 축소·패킹했다.
+
+편집기는 동일 WORLD_OBJECT_ASSETS.source의 PNG를 origin 및 displaySizeOverride에 맞춰 표시한다. 투명 영역도 기존 사각형 선택 대상으로 유지하며 이름표·선택 테두리·충돌 오버레이도 유지한다. PNG 로드 실패 시 기존 색상 도형으로 복귀한다. React 정적 렌더 회귀 검사로 6종 이미지 URL과 타일 패턴이 출력되고 맵 문서가 바뀌지 않는지 확인한다. 실제 브라우저 터치/드래그 검증을 대체하지는 않는다.

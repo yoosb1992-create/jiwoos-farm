@@ -97,12 +97,12 @@ export type TileAssetId = keyof typeof TILE_ASSETS;
 
 /** Assets that may be placed as map objects: buildings, foliage, furniture, and decorations. */
 export const WORLD_OBJECT_ASSETS = {
-  house: { assetId: "house", textureKey: "building-house", source: null, frameSize: { width: 192, height: 176 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { wall: 0xe7bb72, roof: 0xb94e43, trim: 0x8b5c3a, door: 0x6f402d } },
-  tree: { assetId: "tree", textureKey: "world-tree", source: null, frameSize: { width: 44, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { trunk: 0x765033, crown: 0x356c42, highlight: 0x43814c } },
-  sell_basket: { assetId: "sell_basket", textureKey: "building-sell-basket", source: null, frameSize: { width: 90, height: 76 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x9e543b, stroke: 0x673a2a } },
-  store: { assetId: "store", textureKey: "building-store", source: null, frameSize: { width: 192, height: 160 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { wall: 0xe8c47d, roof: 0x558060, trim: 0x7d5136, door: 0x704934 } },
-  bed: { assetId: "bed", textureKey: "furniture-bed", source: null, frameSize: { width: 96, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xefd99d, stroke: 0x8f6047 } },
-  shop_counter: { assetId: "shop_counter", textureKey: "furniture-shop-counter", source: null, frameSize: { width: 224, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x9c6543, stroke: 0x60402f } },
+  house: { assetId: "house", textureKey: "building-house", source: { kind: "image", path: "/assets/objects/house.png" }, frameSize: { width: 192, height: 176 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { wall: 0xe7bb72, roof: 0xb94e43, trim: 0x8b5c3a, door: 0x6f402d } },
+  tree: { assetId: "tree", textureKey: "world-tree", source: { kind: "image", path: "/assets/objects/tree.png" }, frameSize: { width: 44, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { trunk: 0x765033, crown: 0x356c42, highlight: 0x43814c } },
+  sell_basket: { assetId: "sell_basket", textureKey: "building-sell-basket", source: { kind: "image", path: "/assets/objects/sell-basket.png" }, frameSize: { width: 90, height: 76 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x9e543b, stroke: 0x673a2a } },
+  store: { assetId: "store", textureKey: "building-store", source: { kind: "image", path: "/assets/objects/store.png" }, frameSize: { width: 192, height: 160 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { wall: 0xe8c47d, roof: 0x558060, trim: 0x7d5136, door: 0x704934 } },
+  bed: { assetId: "bed", textureKey: "furniture-bed", source: { kind: "image", path: "/assets/objects/bed.png" }, frameSize: { width: 96, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xefd99d, stroke: 0x8f6047 } },
+  shop_counter: { assetId: "shop_counter", textureKey: "furniture-shop-counter", source: { kind: "image", path: "/assets/objects/shop-counter.png" }, frameSize: { width: 224, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x9c6543, stroke: 0x60402f } },
 } as const;
 export type WorldObjectAssetId = keyof typeof WORLD_OBJECT_ASSETS;
 

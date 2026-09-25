@@ -163,11 +163,14 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
     {layers.farm && map.farmAreas.map((region, index) => <rect data-editor-item key={`farm-${index}`} x={region.startX + .06} y={region.startY + .06} width={region.endX - region.startX + .88} height={region.endY - region.startY + .88} fill="#d98c4855" stroke="#f0b25d" strokeWidth=".09" onPointerDown={(event) => { event.stopPropagation(); onSelect({ kind: "farm", index }); }} />)}
     {layers.objects && map.objects.map((object) => {
       const asset = WORLD_OBJECT_ASSETS[object.assetId];
+      const path = asset.source?.kind === "image" ? asset.source.path : null;
+      const showImage = path && !failedImages.has(path);
       const size = object.displaySizeOverride ?? displayedSize(asset);
       const width = size.width / GAME_CONFIG.tileSize, height = size.height / GAME_CONFIG.tileSize;
       return <g data-editor-item key={object.id} transform={`translate(${object.position.tileX} ${object.position.tileY})`} onPointerDown={(event) => startObjectDrag(event, object.id)}>
-        <rect x={-width * asset.origin.x} y={-height * asset.origin.y} width={width} height={height} rx=".14" fill={objectColors[object.assetId] ?? "#8d765c"} stroke={selection?.kind === "object" && selection.id === object.id ? "#fff36a" : "#533928"} strokeWidth={selection?.kind === "object" && selection.id === object.id ? ".15" : ".07"} />
-        <text x="0" y=".08" textAnchor="middle" fontSize=".36" fill="#fff" fontWeight="700">{object.label ?? object.id}</text>
+        <rect x={-width * asset.origin.x} y={-height * asset.origin.y} width={width} height={height} rx=".14" fill={showImage ? "transparent" : objectColors[object.assetId] ?? "#8d765c"} stroke={selection?.kind === "object" && selection.id === object.id ? "#fff36a" : "#533928"} strokeWidth={selection?.kind === "object" && selection.id === object.id ? ".15" : ".07"} />
+        {showImage && <image href={path} x={-width * asset.origin.x} y={-height * asset.origin.y} width={width} height={height} preserveAspectRatio="none" style={{ imageRendering: "pixelated" }} pointerEvents="none" onError={() => markImageFailed(path)} />}
+        <text x="0" y={showImage ? -height * asset.origin.y - .12 : .08} textAnchor="middle" fontSize=".36" fill="#fff" fontWeight="700">{object.label ?? object.id}</text>
       </g>;
     })}
     {layers.collision && map.collisionRegions.map((region, index) => <rect data-editor-item key={`collision-${index}`} x={region.startX} y={region.startY} width={region.endX - region.startX + 1} height={region.endY - region.startY + 1} fill="#e84b4b45" stroke="#ff5d5d" strokeWidth=".11" onPointerDown={(event) => { event.stopPropagation(); onSelect({ kind: "collision", index }); }} />)}

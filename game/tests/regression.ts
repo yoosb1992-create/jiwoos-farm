@@ -1,3 +1,4 @@
+import "./editor-graphics";
 import "./environment-assets";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
