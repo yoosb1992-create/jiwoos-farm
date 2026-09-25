@@ -50,7 +50,7 @@ working copy를 별도 registry로 주입하며 실제 게임 저장에는 쓰�
 
 ## 0.5 플레이어 spritesheet 규격
 
-현재 `PLAYER_ASSET.source`는 `/assets/player/player-dev.png`에 연결되어 개발용 캐릭터를 표시한다. 파일은 `public/assets/player/player-dev.png`에 있으며 최종 디자인이 아니다. PNG가 없거나, 로딩에 실패하거나, 정의된 마지막 프레임까지 들어 있지 않은 시트가 로드되면 `AssetManager`가 불완전한 텍스처를 버리고 같은 fallback으로 복구한다.
+현재 `PLAYER_ASSET.source`는 `/assets/player/player-main.png`에 연결되어 1차 실제 플레이어 캐릭터를 표시한다. 기존 `public/assets/player/player-dev.png`는 비교 및 수동 전환용으로 보존한다. 자동 복구는 기존 생성형 fallback 캐릭터를 사용한다. PNG가 없거나, 로딩에 실패하거나, 정의된 마지막 프레임까지 들어 있지 않은 시트가 로드되면 `AssetManager`가 불완전한 텍스처를 버리고 같은 fallback으로 복구한다.
 
 개발 기준 시트는 투명 배경 PNG, 프레임당 32×36px, 가로 16칸×세로 3줄(전체 512×108px), 왼쪽 위부터 0번인 행 우선 번호를 사용한다. 최종 디자인은 이 크기나 프레임 수에 고정되지 않는다. 다른 규격을 사용할 때 `source.frameWidth/frameHeight`, `frameSize`, `displayScale`, `origin`, `collisionBox`, 그리고 아래 프레임 범위를 함께 조정하면 된다.
 
@@ -76,7 +76,7 @@ working copy를 별도 registry로 주입하며 실제 게임 저장에는 쓰�
 ```ts
 source: {
   kind: "spritesheet",
-  path: "/assets/player/player-dev.png",
+  path: "/assets/player/player-main.png",
   frameWidth: 32,
   frameHeight: 36,
 },
@@ -93,3 +93,14 @@ source: {
 `frameSize` 32×36, `displayScale` 1×1, `origin` (0.5, 0.5), `collisionBox` 18×22 및 offset (7, 9)를 유지한다. 셀 간 동일한 기준으로 정렬하며 프레임마다 투명 여백을 잘라 크기를 바꾸지 않는다.
 
 회귀 테스트는 PNG 헤더/크기, 48개 프레임 범위, 정상 텍스처 등록, 누락/불완전 텍스처 fallback, 중복 애니메이션 재등록, 이동/도구 후 대기 복귀를 확인한다. 실제 브라우저 검증은 실행환경의 Chromium 다운로드 시간 초과로 수행하지 못했다. 손상 PNG 디코딩 실패 후 게임 실행, 모바일 터치와 키보드의 실제 재생, 벽/나무 충돌은 다음 실사용 확인 항목이다.
+
+
+### 3단계 실제 플레이어 그래픽 1차
+
+`public/assets/player/player-main.png`는 이미지 생성 도구로 새로 제작한 독자적인 캐릭터다. 적갈색 짧은 머리, 청록색 작업 조끼, 크림색 소매, 겨자색 목수건, 어두운 자주색 바지와 갈색 부츠를 48프레임에서 공유한다. 상용 게임의 원본 이미지나 캐릭터를 참조하지 않았다.
+
+생성된 시트를 동일 배율로 최근접 축소하고 투명 알파를 정리해 512×108 RGBA PNG에 배치했다. 모든 셀은 32×36이며 발바닥 최하단을 셀의 y=32에 정렬했다. 대기는 미세한 움직임, 걷기는 교차하는 팔·다리, 공통 도구 동작은 준비→들기→숙이기→복귀다. 고정 도구 이미지를 그리지 않아 네 행동에서 같은 시트를 사용할 수 있다.
+
+프레임 배치와 FPS는 위 표 그대로다. `origin`, `displayScale`, `collisionBox`, `interactionPoints` 및 로더·컨트롤러·FarmScene은 변경하지 않았다. 개발용 이미지로 비교하려면 `PLAYER_ASSET.source.path`만 `/assets/player/player-dev.png`로 바꾼다.
+
+검증: 두 PNG의 헤더·크기·RGBA 형식 및 기존 애니메이션/fallback 회귀 테스트. 새 시트는 별도 디코딩 검사로 48개 셀의 비어 있지 않은 픽셀, 셀 내부 여백, 동일한 발 기준선을 확인했다. 실제 플레이에서는 네 방향의 걷기 반복, 정지 후 마지막 방향 대기, 네 도구의 동작 후 복귀, 모바일 조이스틱, 장애물 주변의 발 위치를 확인한다. 브라우저 실플레이 검증은 수행하지 않았다.

@@ -53,7 +53,7 @@ export const PLAYER_ANIMATION_NAMES = [
 export const PLAYER_ASSET = {
   assetId: "player_default",
   textureKey: "player-default",
-  source: { kind: "spritesheet", path: "/assets/player/player-dev.png", frameWidth: 32, frameHeight: 36 } as AssetSource,
+  source: { kind: "spritesheet", path: "/assets/player/player-main.png", frameWidth: 32, frameHeight: 36 } as AssetSource,
   frameSize: { width: 32, height: 36 },
   displayScale: { x: 1, y: 1 },
   origin: { x: 0.5, y: 0.5 },

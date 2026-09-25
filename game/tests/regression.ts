@@ -109,11 +109,15 @@ for (const definition of Object.values(PLAYER_ASSET.animations)) {
   assert.ok(definition.startFrame >= 0 && definition.endFrame >= definition.startFrame, "animation 프레임 범위가 유효해야 함");
   assert.ok(definition.fps > 0, "animation FPS는 양수여야 함");
 }
-assert.equal(PLAYER_ASSET.source?.kind, "spritesheet", "개발용 PNG 시트를 연결해야 함");
-const playerPng = readFileSync(new URL("../../public/assets/player/player-dev.png", import.meta.url));
-assert.equal(playerPng.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
-assert.equal(playerPng.readUInt32BE(16), 512);
-assert.equal(playerPng.readUInt32BE(20), 108);
+assert.equal(PLAYER_ASSET.source?.kind, "spritesheet", "실제 PNG 시트를 연결해야 함");
+assert.equal(PLAYER_ASSET.source?.path, "/assets/player/player-main.png");
+for (const filename of ["player-main.png", "player-dev.png"]) {
+  const playerPng = readFileSync(new URL(`../../public/assets/player/${filename}`, import.meta.url));
+  assert.equal(playerPng.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  assert.equal(playerPng.readUInt32BE(16), 512, `${filename}: 16열`);
+  assert.equal(playerPng.readUInt32BE(20), 108, `${filename}: 3행`);
+  assert.equal(playerPng[25], 6, `${filename}: 투명 RGBA PNG`);
+}
 assert.equal(Math.max(...configuredFrames), 47, "48프레임 시트 범위를 넘지 않아야 함");
 // Exercise the actual loader/fallback registration paths without a DOM renderer.
 for (const availableFrames of [48, 0, 20]) {
