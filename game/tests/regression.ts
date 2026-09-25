@@ -1,3 +1,4 @@
+import "./environment-assets";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale, playerAnimationFrames, playerAnimationName } from "../assets/definitions";

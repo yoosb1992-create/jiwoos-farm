@@ -84,14 +84,14 @@ const tileAsset = (assetId: string, textureKey: string, fallback: { color: numbe
   displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback,
 });
 export const TILE_ASSETS = {
-  tile_grass: tileAsset("tile_grass", "tile-grass", { color: 0x83b85e }),
-  tile_path: tileAsset("tile_path", "tile-path", { color: 0xc9aa71 }),
-  tile_water: tileAsset("tile_water", "tile-water", { color: 0x66a8ca }),
-  tile_farm_empty: tileAsset("tile_farm_empty", "farm-empty", { color: 0xb78a55, alpha: 0.28, stroke: 0x6e8f4a }),
-  tile_farm_tilled: tileAsset("tile_farm_tilled", "farm-tilled", { color: 0x896044, stroke: 0x68442f }),
-  tile_farm_watered: tileAsset("tile_farm_watered", "farm-watered", { color: 0x5e493b, stroke: 0x68442f }),
-  tile_wood_floor: tileAsset("tile_wood_floor", "tile-wood-floor", { color: 0xb77b4c, stroke: 0x8f5d3b }),
-  tile_stone_floor: tileAsset("tile_stone_floor", "tile-stone-floor", { color: 0xc8bd9f, stroke: 0xa89b7d }),
+  tile_grass: tileAsset("tile_grass", "tile-grass", { color: 0x83b85e }, { kind: "image", path: "/assets/tiles/grass.png" }),
+  tile_path: tileAsset("tile_path", "tile-path", { color: 0xc9aa71 }, { kind: "image", path: "/assets/tiles/path.png" }),
+  tile_water: tileAsset("tile_water", "tile-water", { color: 0x66a8ca }, { kind: "image", path: "/assets/tiles/water.png" }),
+  tile_farm_empty: tileAsset("tile_farm_empty", "farm-empty", { color: 0xb78a55, alpha: 0.28, stroke: 0x6e8f4a }, { kind: "image", path: "/assets/tiles/farm-empty.png" }),
+  tile_farm_tilled: tileAsset("tile_farm_tilled", "farm-tilled", { color: 0x896044, stroke: 0x68442f }, { kind: "image", path: "/assets/tiles/farm-tilled.png" }),
+  tile_farm_watered: tileAsset("tile_farm_watered", "farm-watered", { color: 0x5e493b, stroke: 0x68442f }, { kind: "image", path: "/assets/tiles/farm-watered.png" }),
+  tile_wood_floor: tileAsset("tile_wood_floor", "tile-wood-floor", { color: 0xb77b4c, stroke: 0x8f5d3b }, { kind: "image", path: "/assets/tiles/wood-floor.png" }),
+  tile_stone_floor: tileAsset("tile_stone_floor", "tile-stone-floor", { color: 0xc8bd9f, stroke: 0xa89b7d }, { kind: "image", path: "/assets/tiles/stone-floor.png" }),
 } as const;
 export type TileAssetId = keyof typeof TILE_ASSETS;
 

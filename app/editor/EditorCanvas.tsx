@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { displayedSize, WORLD_OBJECT_ASSETS, type WorldObjectAssetId } from "@/game/assets/definitions";
+import { useId, useRef, useState } from "react";
+import { displayedSize, TILE_ASSETS, WORLD_OBJECT_ASSETS, type WorldObjectAssetId } from "@/game/assets/definitions";
 import { GAME_CONFIG } from "@/game/config";
 import { TILE_TYPE_DEFINITIONS } from "@/game/maps/definitions";
 import type { MapDefinition, TileRect, TileTypeId } from "@/game/maps/types";
@@ -33,6 +33,10 @@ interface Props {
 }
 
 export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMode, selection, onSelect, onCommit, onBeginContinuous, onContinuous }: Props) {
+  const patternPrefix = useId().replace(/:/g, "");
+  const [failedImages, setFailedImages] = useState<Set<string>>(() => new Set());
+  const markImageFailed = (path: string) => setFailedImages((previous) => new Set(previous).add(path));
+  const tileFill = (type: TileTypeId) => `url(#${patternPrefix}-${type})`;
   const svgRef = useRef<SVGSVGElement>(null);
   const dragObject = useRef<string | null>(null);
   const painting = useRef(false);
@@ -146,8 +150,16 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
   const resetViewport = () => setViewport({ zoom: 1, panX: 0, panY: 0 });
   return <div className="editor-stage-scroll" onWheel={(event) => { if (!event.ctrlKey && Math.abs(event.deltaY) < 1) return; event.preventDefault(); setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom * (event.deltaY > 0 ? .9 : 1.1)) })); }}>
     <div className="editor-stage-transform" style={{ transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`, aspectRatio: `${map.width}/${map.height}` }}><svg ref={svgRef} className="editor-stage" viewBox={`0 0 ${map.width} ${map.height}`} preserveAspectRatio="none" onPointerDownCapture={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}>
-    <rect width={map.width} height={map.height} fill={tileColors[map.baseTileType]} />
-    {layers.terrain && map.terrainRegions.map((region, index) => <rect key={`terrain-${index}`} x={region.startX} y={region.startY} width={region.endX - region.startX + 1} height={region.endY - region.startY + 1} fill={tileColors[region.tileType]} />)}
+    <defs>{(Object.keys(TILE_TYPE_DEFINITIONS) as TileTypeId[]).map((type) => {
+      const asset = TILE_ASSETS[TILE_TYPE_DEFINITIONS[type].graphicAssetId];
+      const path = asset.source?.kind === "image" ? asset.source.path : null;
+      return <pattern key={type} id={`${patternPrefix}-${type}`} width="1" height="1" patternUnits="userSpaceOnUse">
+        <rect width="1" height="1" fill={tileColors[type]} />
+        {path && !failedImages.has(path) && <image href={path} width="1" height="1" preserveAspectRatio="none" style={{ imageRendering: "pixelated" }} onError={() => markImageFailed(path)} />}
+      </pattern>;
+    })}</defs>
+    <rect width={map.width} height={map.height} fill={tileFill(map.baseTileType)} />
+    {layers.terrain && map.terrainRegions.map((region, index) => <rect key={`terrain-${index}`} x={region.startX} y={region.startY} width={region.endX - region.startX + 1} height={region.endY - region.startY + 1} fill={tileFill(region.tileType)} />)}
     {layers.farm && map.farmAreas.map((region, index) => <rect data-editor-item key={`farm-${index}`} x={region.startX + .06} y={region.startY + .06} width={region.endX - region.startX + .88} height={region.endY - region.startY + .88} fill="#d98c4855" stroke="#f0b25d" strokeWidth=".09" onPointerDown={(event) => { event.stopPropagation(); onSelect({ kind: "farm", index }); }} />)}
     {layers.objects && map.objects.map((object) => {
       const asset = WORLD_OBJECT_ASSETS[object.assetId];
@@ -166,3 +178,4 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
     {layers.grid && <g className="editor-grid" pointerEvents="none">{Array.from({ length: map.width + 1 }, (_, x) => <line key={`x${x}`} x1={x} y1={0} x2={x} y2={map.height} />)}{Array.from({ length: map.height + 1 }, (_, y) => <line key={`y${y}`} x1={0} y1={y} x2={map.width} y2={y} />)}</g>}
   </svg></div><div className="editor-viewport-controls"><button onClick={() => setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom + .25) }))}>＋</button><b>{Math.round(viewport.zoom * 100)}%</b><button onClick={() => setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom - .25) }))}>－</button><button onClick={resetViewport}>초기화</button></div><span className="editor-scale-note">한 손가락 편집 · 두 손가락 이동/확대 · 격자 {GAME_CONFIG.tileSize}px</span></div>;
 }
+
