@@ -1,3 +1,4 @@
+import "./family-rooms";
 import "./editor-graphics";
 import "./environment-assets";
 import { strict as assert } from "node:assert";
