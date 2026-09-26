@@ -111,19 +111,19 @@ const cropAsset = (assetId: string, textureKey: string, size: number, fruit: num
   origin: { x: 0.5, y: 0.5 }, fallback: { size, leaf: 0x416f36, fruit },
 });
 export const CROP_ASSETS = {
-  crop_sproutberry_seed: cropAsset("crop_sproutberry_seed", "crop-sproutberry-0", 3, 0xb9d35b),
-  crop_sproutberry_sprout: cropAsset("crop_sproutberry_sprout", "crop-sproutberry-1", 6, 0x78b64b),
-  crop_sproutberry_growing: cropAsset("crop_sproutberry_growing", "crop-sproutberry-2", 9, 0x3f8b45),
-  crop_sproutberry_mature: cropAsset("crop_sproutberry_mature", "crop-sproutberry-3", 12, 0xe88942),
+  crop_sproutberry_seed: cropAsset("crop_sproutberry_seed", "crop-sproutberry-0", 3, 0xb9d35b, { kind: "image", path: "/assets/crops/sproutberry-seed.png" }),
+  crop_sproutberry_sprout: cropAsset("crop_sproutberry_sprout", "crop-sproutberry-1", 6, 0x78b64b, { kind: "image", path: "/assets/crops/sproutberry-sprout.png" }),
+  crop_sproutberry_growing: cropAsset("crop_sproutberry_growing", "crop-sproutberry-2", 9, 0x3f8b45, { kind: "image", path: "/assets/crops/sproutberry-growing.png" }),
+  crop_sproutberry_mature: cropAsset("crop_sproutberry_mature", "crop-sproutberry-3", 12, 0xe88942, { kind: "image", path: "/assets/crops/sproutberry-mature.png" }),
 } as const;
 export type CropAssetId = keyof typeof CROP_ASSETS;
 
 export interface ItemAssetDefinition { assetId: string; textureKey: string; source: AssetSource; icon: string }
 const itemAsset = (assetId: string, textureKey: string, icon: string, source: AssetSource = null): ItemAssetDefinition => ({ assetId, textureKey, source, icon });
 export const ITEM_ASSETS = {
-  item_hoe: itemAsset("item_hoe", "item-hoe", "⛏"),
-  item_seed: itemAsset("item_seed", "item-seed", "◉"),
-  item_water: itemAsset("item_water", "item-water", "◒"),
-  item_hand: itemAsset("item_hand", "item-hand", "✋"),
-  item_sproutberry: itemAsset("item_sproutberry", "item-sproutberry", "●"),
+  item_hoe: itemAsset("item_hoe", "item-hoe", "⛏", { kind: "image", path: "/assets/items/hoe.png" }),
+  item_seed: itemAsset("item_seed", "item-seed", "◉", { kind: "image", path: "/assets/items/seed.png" }),
+  item_water: itemAsset("item_water", "item-water", "◒", { kind: "image", path: "/assets/items/water.png" }),
+  item_hand: itemAsset("item_hand", "item-hand", "✋", { kind: "image", path: "/assets/items/hand.png" }),
+  item_sproutberry: itemAsset("item_sproutberry", "item-sproutberry", "●", { kind: "image", path: "/assets/items/sproutberry.png" }),
 } as const;

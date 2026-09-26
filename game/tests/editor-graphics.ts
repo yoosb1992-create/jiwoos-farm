@@ -1,9 +1,10 @@
+import { ItemIcon } from "../../app/components/ItemIcon";
 import { strict as assert } from "node:assert";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { EditorCanvas } from "../../app/editor/EditorCanvas";
 import { MAP_DEFINITIONS } from "../maps/definitions";
-import { TILE_ASSETS, WORLD_OBJECT_ASSETS, type WorldObjectAssetId } from "../assets/definitions";
+import { ITEM_ASSETS, TILE_ASSETS, WORLD_OBJECT_ASSETS, type WorldObjectAssetId } from "../assets/definitions";
 
 const map = structuredClone(MAP_DEFINITIONS.farm);
 map.objects = (Object.keys(WORLD_OBJECT_ASSETS) as WorldObjectAssetId[]).map((assetId, i) => ({ id: `test-${i}`, assetId, position: { tileX: i * 3, tileY: 5 } }));
@@ -19,3 +20,12 @@ assert.ok(markup.includes('patternUnits="userSpaceOnUse"'));
 assert.ok(markup.includes('image-rendering:pixelated'));
 assert.equal(JSON.stringify(map), before, "graphics rendering must not modify map documents");
 console.log("Editor graphics: shared tile/object images rendered, map document unchanged");
+
+// Small HUD images retain explicit dimensions and the original glyph when no source exists.
+for (const asset of Object.values(ITEM_ASSETS)) {
+  const icon = renderToStaticMarkup(createElement(ItemIcon, { asset, size: 24 }));
+  assert.ok(icon.includes(`src="${asset.source!.path}"`));
+  assert.ok(icon.includes('width="24"'));
+  const fallback = renderToStaticMarkup(createElement(ItemIcon, { asset: { ...asset, source: null } }));
+  assert.ok(fallback.includes(asset.icon)); assert.ok(!fallback.includes("<img"));
+}

@@ -38,3 +38,24 @@ Built-in image generation 사용. 상용 게임 원본을 입력하거나 복제
 공통 생성 프롬프트: “Original cozy farming game pixel sprite, orthographic slightly top-down front view, earthy moss/teal/cream/brown/terracotta palette, crisp pixel clusters, single complete isolated object, transparent background, no ground shadow, text or commercial game imitation.” 소재는 terracotta roof farmhouse / broadleaf tree / open wicker selling basket / teal roof general store / horizontal wooden bed with terracotta quilt / wide wooden counter. 생성 후 투명 여백을 정리하고 각 기존 frameSize에 최근접 축소·패킹했다.
 
 편집기는 동일 WORLD_OBJECT_ASSETS.source의 PNG를 origin 및 displaySizeOverride에 맞춰 표시한다. 투명 영역도 기존 사각형 선택 대상으로 유지하며 이름표·선택 테두리·충돌 오버레이도 유지한다. PNG 로드 실패 시 기존 색상 도형으로 복귀한다. React 정적 렌더 회귀 검사로 6종 이미지 URL과 타일 패턴이 출력되고 맵 문서가 바뀌지 않는지 확인한다. 실제 브라우저 터치/드래그 검증을 대체하지는 않는다.
+
+
+## C — 작물 및 아이템
+
+작물은 `public/assets/crops/`의 sproutberry-seed.png / sproutberry-sprout.png / sproutberry-growing.png / sproutberry-mature.png다. 모두 29×29 RGBA, 기존 crop_sproutberry_* ID와 중심 origin을 유지한다. 씨앗·새싹·성장·수확의 내용물 크기는 각각 최대 7/12/21/27px이며 아래 기준선은 y=26이다.
+
+아이템은 `public/assets/items/`의 hoe.png / seed.png / water.png / hand.png / sproutberry.png다. 모두 32×32 RGBA, 기존 item_hoe/item_seed/item_water/item_hand/item_sproutberry ID를 유지한다. 퀵바는 28px, 수량 HUD는 18px로 표시한다. ItemIcon은 로드 오류 시 원래 icon 문자를 표시하며, 이미지 크기를 명시해 빈 배경 span이 0px로 줄어드는 문제를 방지한다. 픽셀 이미지는 image-rendering: pixelated로 표시한다.
+
+작물 공통 생성 프롬프트: “Single original farming crop sprite, sproutberry species, oval pointed moss green leaves, orange fruit only at maturity, slightly top-down pixel RPG, restricted earthy palette, transparent background, no soil/pot/shadow/text.” 단계별 소재는 three tan seeds / two-leaf sprout / five-leaf young plant / leafy plant with three ripe orange berries.
+
+아이템 공통 생성 프롬프트: “One original farming inventory icon, native 32×32 readable at24px, clear silhouette, bold pixel clusters, earthy palette, dark brown outline, transparent background, no ground/shadow/border/text.” 소재는 walnut shaft steel hoe / cream seed packet with sprout emblem / teal watering can / open cream gardening glove / orange berry with green leaves. 생성 후 투명 영역을 정리하고 종횡비를 유지해 최근접 축소·패킹했다.
+
+## 범위와 다음 확인
+
+총 23 PNG. PLAYER_ASSET, player-main.png, player-dev.png, FarmScene, WorldRenderer, SaveData, 맵/편집 JSON, D1/API, 농사·경제·시간 로직은 변경하지 않는다. AssetManager 수정 없이 기존 로더와 fallback을 활용한다.
+
+편집기 지형/오브젝트 표시와 플레이 그래픽은 동일한 에셋 정의를 사용한다. 작물 성장 및 밭 상태는 기존 편집 문서에 저장되는 항목이 아니므로 테스트 플레이에서 확인한다.
+
+직접 확인: 넓은 타일 영역의 반복 무늬, 집/상점 입구 이동과 충돌, 나무/가구 주변 이동, 편집기 선택·드래그·확대·저장/불러오기, 파종→물주기→다음 날 성장→수확, 모바일 퀵바의 아이콘 구분. 브라우저의 요청 차단 기능으로 PNG를 막은 뒤 새로고침하면 게임의 생성형 fallback, 편집기의 색상 도형, HUD의 문자 아이콘을 확인할 수 있다.
+
+0.5의 후속 그래픽 후보: 물 애니메이션, 지형 전환/물가 경계 타일과 반복 변형, 도구별 소품/효과 및 수확 효과, 계절 변형, NPC 그래픽. 이번 팩은 정적 환경 그래픽이며 이러한 확장까지 구현하지 않는다.

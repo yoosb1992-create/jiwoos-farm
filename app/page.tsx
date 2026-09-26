@@ -6,6 +6,7 @@ import { gameEvents, type HudState, initialHud, type ToolKey } from "@/game/even
 import { ITEM_ASSETS } from "@/game/assets/definitions";
 import { ITEM_DEFINITIONS } from "@/game/data/items";
 import { GENERAL_STORE_LISTINGS } from "@/game/data/shop";
+import { ItemIcon } from "./components/ItemIcon";
 import { MapEditor } from "./editor/MapEditor";
 import { documentToRegistry } from "@/game/editor/document";
 import type { MapEditorDocument } from "@/game/editor/types";
@@ -93,11 +94,10 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         {hud.sleepPrompt && <div className="modal-shade"><div className="sleep-card" role="dialog" aria-modal="true" aria-label="잠자기 확인"><span>🌙</span><b>오늘 하루를 마치고 잠드시겠습니까?</b><p>물을 준 작물은 잠든 사이 한 단계 자랍니다.</p><div><button onClick={() => command("sleep-confirm")}>확인</button><button onClick={() => command("sleep-cancel")}>취소</button></div></div></div>}
         {hud.shopOpen && <div className="modal-shade"><div className="sleep-card" role="dialog" aria-modal="true" aria-label="새봄 상점"><span>🌱</span><b>새봄 상점</b><p>농사에 필요한 씨앗을 준비했어요.</p>{GENERAL_STORE_LISTINGS.map((listing) => <div key={listing.id}><button onClick={() => command("shop-buy", listing.id)}>{listing.name} · {listing.price} G</button></div>)}<div><button onClick={() => command("shop-close")}>상점 나가기</button></div></div></div>}
         {hud.transitioning && <div className="night-fade"><span>하루를 마무리합니다…</span></div>}
-        <div className="inventory-chip" aria-live="polite"><span>씨앗 <b>{hud.seeds}</b></span><span>새싹열매 <b>{hud.harvest}</b></span></div>
+        <div className="inventory-chip" aria-live="polite"><span><ItemIcon asset={ITEM_ASSETS.item_seed} size={18} /> 씨앗 <b>{hud.seeds}</b></span><span><ItemIcon asset={ITEM_ASSETS.item_sproutberry} size={18} /> 새싹열매 <b>{hud.harvest}</b></span></div>
         <nav className="quickbar" aria-label="도구 선택">
           {tools.map((tool, index) => {
-            const iconPath = tool.visual.source?.kind === "image" ? tool.visual.source.path : null;
-            return <button key={tool.key} className={hud.selectedTool === tool.key ? "selected" : ""} onClick={() => command("tool", tool.key)} title={`${index + 1} · ${tool.toolbarHint}`}><em>{index + 1}</em><span style={iconPath ? { backgroundImage: `url(${iconPath})`, backgroundSize: "contain", backgroundPosition: "center", backgroundRepeat: "no-repeat" } : undefined}>{iconPath ? "" : tool.visual.icon}</span><small>{tool.name}</small></button>;
+            return <button key={tool.key} className={hud.selectedTool === tool.key ? "selected" : ""} onClick={() => command("tool", tool.key)} title={`${index + 1} · ${tool.toolbarHint}`}><em>{index + 1}</em><ItemIcon asset={tool.visual} /><small>{tool.name}</small></button>;
           })}
           <button className="sell-slot" onClick={() => command("sell")} disabled={!hud.harvest}><span>🧺</span><small>전부 판매</small></button>
         </nav>
@@ -114,3 +114,4 @@ export default function Home() {
   if (mode === "editor") return <MapEditor onExit={() => setMode("play")} onPlay={(document: MapEditorDocument, mapId: string) => { setTestSession({ maps: documentToRegistry(document), mapId }); setMode("test"); }} />;
   return <FarmGameView editorMaps={mode === "test" ? testSession?.maps : undefined} initialMapId={mode === "test" ? testSession?.mapId : undefined} testMode={mode === "test"} onOpenEditor={() => setMode("editor")} />;
 }
+
