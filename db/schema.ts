@@ -18,3 +18,8 @@ export const familyMembers = sqliteTable("family_members", {
   userId: text("user_id").notNull(), playerId: text("player_id").notNull().unique(), nickname: text("nickname").notNull(),
   joinedAt: integer("joined_at").notNull(), lastJoinedAt: integer("last_joined_at").notNull(),
 }, (table) => [primaryKey({ columns: [table.roomId, table.userId] }), index("family_members_user").on(table.userId, table.lastJoinedAt)]);
+export const familyState = sqliteTable("family_state", {
+  roomId: text("room_id").primaryKey().references(() => familyRooms.id, { onDelete: "cascade" }),
+  revision: integer("revision").notNull().default(0), worldJson: text("world_json").notNull(),
+  inventoriesJson: text("inventories_json").notNull().default("{}"), updatedAt: integer("updated_at").notNull(),
+});

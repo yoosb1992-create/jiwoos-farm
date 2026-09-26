@@ -2,7 +2,7 @@ import type { FamilyRoom, FamilyRoomDetail } from "../../game/family/types";
 
 export type FamilyDB = Pick<D1Database, "prepare" | "batch">;
 export class FamilyError extends Error {
-  constructor(public readonly status: number, message: string) { super(message); }
+  constructor(public readonly status: number, message: string, public readonly details: Record<string, unknown> = {}) { super(message); }
 }
 export function shortText(value: unknown, max: number, label: string) {
   if (typeof value !== "string" || !value.trim() || value.trim().length > max || /[\u0000-\u001f\u007f]/.test(value)) throw new FamilyError(400, `${label}을(를) 확인해 주세요.`);

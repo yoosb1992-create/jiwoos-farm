@@ -1,3 +1,5 @@
+import { FamilyClient } from "./family/client";
+import type { FamilyPose, FamilySession, FamilySnapshot } from "./family/types";
 import * as Phaser from "phaser";
 import { gameEvents, type HudState, type ToolKey } from "./events";
 import { advanceFarmDay, Inventory, LocalStorageSaveRepository, purchaseInventoryItem, type FarmTileData, type SaveData } from "./domain";
@@ -17,9 +19,11 @@ import { facingFromMovement, mergeMovementInput, type MovementVector } from "./i
 
 export const REAL_MS_PER_GAME_MINUTE = GAME_CONFIG.day.realMsPerGameMinute;
 type Command = { type: string; value?: unknown };
-export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; testMode?: boolean }
+export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; testMode?: boolean; family?: FamilySession }
 
 export class FarmScene extends Phaser.Scene {
+  private family?: FamilyClient;
+  private familyReady = false;
   private player!: Phaser.Physics.Arcade.Sprite;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<string, Phaser.Input.Keyboard.Key>;
@@ -57,6 +61,7 @@ export class FarmScene extends Phaser.Scene {
     this.mapRegistry = options.maps ?? new MapRegistry();
     this.currentMapId = this.mapRegistry.has(options.initialMapId ?? "farm") ? (options.initialMapId ?? "farm") : "farm";
     this.testMode = options.testMode === true;
+    if (options.family && !this.testMode) this.family = new FamilyClient(options.family, (snapshot) => this.applyFamilySnapshot(snapshot), (message) => this.say(message));
   }
   preload() { this.assetManager = new AssetManager(this); this.assetManager.preload(); }
 
@@ -64,7 +69,9 @@ export class FarmScene extends Phaser.Scene {
     this.assetManager ??= new AssetManager(this);
     this.assetManager.createFallbackTextures(); this.assetManager.createPlayerAnimations();
     this.worldRenderer = new WorldRenderer(this, this.mapRegistry); this.buildFarm();
-    const saved = this.testMode ? null : this.repository.load();
+    const saved = this.testMode || this.family ? null : this.repository.load();
+    const personal = this.family?.loadPersonal();
+    if (personal) { this.currentMapId = personal.mapId; this.facing = personal.facing; this.selectedTool = personal.selectedTool; }
     if (saved) this.applySavedState(saved);
     const playerSize = displayedSize(PLAYER_ASSET);
     this.player = this.physics.add.sprite(0, 0, PLAYER_ASSET.textureKey).setDisplaySize(playerSize.width, playerSize.height)
@@ -72,7 +79,7 @@ export class FarmScene extends Phaser.Scene {
     const box = physicsBoxForScale(PLAYER_ASSET.collisionBox, { x: this.player.scaleX, y: this.player.scaleY });
     this.player.body!.setSize(box.width, box.height).setOffset(box.offsetX, box.offsetY);
     this.playerAnimations = new PlayerAnimationController(this.player, this.facing); this.toolActions = new ToolActionSystem(this.playerAnimations);
-    this.loadMap(this.currentMapId, undefined, saved ? { x: saved.player.x, y: saved.player.y, facing: saved.player.facing } : undefined);
+    this.loadMap(this.currentMapId, undefined, personal ?? (saved ? { x: saved.player.x, y: saved.player.y, facing: saved.player.facing } : undefined));
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys("W,A,S,D,ONE,TWO,THREE,FOUR") as Record<string, Phaser.Input.Keyboard.Key>;
     this.actionKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
@@ -80,11 +87,13 @@ export class FarmScene extends Phaser.Scene {
     gameEvents.addEventListener("command", this.commandHandler);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => gameEvents.removeEventListener("command", this.commandHandler));
     this.time.addEvent({ delay: GAME_CONFIG.autoSaveIntervalMs, loop: true, callback: () => this.save(false) });
+    this.family?.start();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.family?.stop());
     this.emitHud();
   }
 
   update(_time: number, delta: number) {
-    if (!this.isPaused()) this.advanceClock(delta);
+    if (!this.family && !this.isPaused()) this.advanceClock(delta);
     if (this.isPaused()) { this.player.setVelocity(0, 0); this.playerAnimations.playMovement(this.facing, false); return; }
     const keyboard = {
       x: (this.cursors.right.isDown || this.wasd.D.isDown ? 1 : 0) - (this.cursors.left.isDown || this.wasd.A.isDown ? 1 : 0),
@@ -102,7 +111,7 @@ export class FarmScene extends Phaser.Scene {
     this.checkWarp();
   }
 
-  private isPaused() { return this.helpOpen || this.sleepPrompt || this.shopOpen || this.transitioning; }
+  private isPaused() { return (Boolean(this.family) && !this.familyReady) || this.helpOpen || this.sleepPrompt || this.shopOpen || this.transitioning; }
   private advanceClock(delta: number) {
     this.timeAccumulator += delta;
     const elapsed = Math.floor(this.timeAccumulator / REAL_MS_PER_GAME_MINUTE);
@@ -158,6 +167,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private useAtWorld(worldX: number, worldY: number) {
+    if (this.family && (this.isPaused() || this.family.busy)) return;
     if (this.currentMapId !== "farm") { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
     const x = Math.floor(worldX / GAME_CONFIG.tileSize), y = Math.floor(worldY / GAME_CONFIG.tileSize);
     if (!TILE_TYPE_DEFINITIONS[getTileTypeInMap(this.mapRegistry.require("farm"), x, y)].farmable) { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
@@ -165,6 +175,10 @@ export class FarmScene extends Phaser.Scene {
     if (!tile) { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
     const center = tilePoint(x + 0.5, y + 0.5);
     if (Phaser.Math.Distance.Between(this.player.x, this.player.y, center.x, center.y) > GAME_CONFIG.farmInteractionDistance) { this.say("조금 더 가까이 가 주세요."); return; }
+    if (this.family) {
+      this.toolActions.execute(this.selectedTool, this.facing, (tool) => { void this.family!.act({ kind: "tool", tool, x, y, pose: this.familyPose() }); });
+      return;
+    }
     const executed = this.toolActions.execute(this.selectedTool, this.facing, (tool) => this.applyTool(tool, tile));
     if (!executed) return;
     this.worldRenderer.renderFarmTile(tile); this.save(false); this.emitHud();
@@ -188,6 +202,10 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
+    if (this.family && (command.type === "save" || command.type === "load")) {
+      this.family.savePersonal(this.familyPose());
+      void this.family.refresh().then(() => this.say("가족 농장 서버 상태를 받았어요.")).catch(() => this.say("서버에 연결할 수 없습니다.")); return;
+    }
     if (this.testMode && (command.type === "save" || command.type === "load")) { this.say("테스트 플레이에서는 실제 게임 저장을 변경하지 않아요."); return; }
     if (command.type === "move") {
       const value = command.value as Partial<MovementVector> | undefined;
@@ -206,6 +224,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private buy(listingId: string) {
+    if (this.family) { void this.family.act({ kind: "buy", listingId, pose: this.familyPose() }); return; }
     const listing = GENERAL_STORE_LISTINGS.find((entry) => entry.id === listingId);
     if (!listing) return;
     const result = purchaseInventoryItem(this.inventory, this.money, listing.itemId, listing.price, listing.quantity);
@@ -214,6 +233,7 @@ export class FarmScene extends Phaser.Scene {
     this.emitHud();
   }
   private sellHarvest() {
+    if (this.family) { void this.family.act({ kind: "sell", pose: this.familyPose() }); return; }
     const crop = getCropDefinition(DEFAULT_CROP_ID);
     if (!this.inventory.count(crop.harvestItemId)) this.say("판매할 수확물이 없어요.");
     else { const { amount, earned } = this.inventory.sellAll(crop.harvestItemId, crop.sellPrice); this.money += earned; this.say(`${amount}개를 팔아 ${earned}G를 얻었어요!`); this.save(false); }
@@ -222,6 +242,15 @@ export class FarmScene extends Phaser.Scene {
   private askToSleep() { if (!this.helpOpen && !this.transitioning) { this.sleepPrompt = true; this.say("오늘 하루를 마치고 잠드시겠습니까?"); } }
   private sleep() {
     if (!this.sleepPrompt || this.transitioning) return;
+    if (this.family) {
+      this.sleepPrompt = false; this.transitioning = true; this.emitHud();
+      void this.family.act({ kind: "sleep", pose: this.familyPose() }).then((ok) => {
+        if (!this.sys.isActive()) return;
+        this.transitioning = false;
+        if (ok) this.loadMap("farmhouse", "bed_wake");
+        this.emitHud();
+      }); return;
+    }
     this.sleepPrompt = false; this.transitioning = true; this.player.setVelocity(0, 0); this.emitHud();
     window.setTimeout(() => {
       const grown = advanceFarmDay([...this.farm.values()]);
@@ -252,9 +281,24 @@ export class FarmScene extends Phaser.Scene {
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));
   }
   private say(message: string) { this.message = message; this.emitHud(); }
+  private familyPose(): FamilyPose {
+    return { mapId: this.currentMapId, x: this.player.x, y: this.player.y, facing: this.facing, selectedTool: this.selectedTool,
+      moving: Boolean(this.player.body?.velocity.x || this.player.body?.velocity.y) };
+  }
+  private applyFamilySnapshot(snapshot: FamilySnapshot) {
+    if (!this.sys.isActive()) return;
+    this.familyReady = true;
+    this.day = snapshot.world.day; this.timeMinutes = snapshot.world.timeMinutes; this.money = snapshot.world.money;
+    this.inventory = new Inventory(snapshot.inventory);
+    for (const remote of snapshot.world.farm) {
+      const tile = this.farm.get(`${remote.x},${remote.y}`);
+      if (tile && JSON.stringify(tile) !== JSON.stringify(remote)) { Object.assign(tile, remote); this.worldRenderer.renderFarmTile(tile); }
+    }
+    this.emitHud();
+  }
   private snapshot(): SaveData { return { version: 4, day: this.day, timeMinutes: this.timeMinutes, money: this.money, selectedTool: this.selectedTool,
     player: { x: this.player.x, y: this.player.y, facing: this.facing, mapId: this.currentMapId }, inventory: this.inventory.serialize(), farm: [...this.farm.values()].map((tile) => ({ ...tile })), savedAt: Date.now() }; }
-  private save(notify: boolean) { if (!this.player || this.testMode) return; this.repository.save(this.snapshot()); if (notify) this.say("이 브라우저에 현재 장소와 농장 상태를 저장했어요."); }
+  private save(notify: boolean) { if (!this.player || this.testMode) return; if (this.family) { this.family.savePersonal(this.familyPose()); return; } this.repository.save(this.snapshot()); if (notify) this.say("이 브라우저에 현재 장소와 농장 상태를 저장했어요."); }
   private applySavedState(data: SaveData) {
     this.day = data.day; this.timeMinutes = data.timeMinutes; this.money = data.money; this.selectedTool = data.selectedTool;
     this.inventory = new Inventory(data.inventory); this.facing = data.player.facing; this.currentMapId = data.player.mapId;
@@ -263,3 +307,4 @@ export class FarmScene extends Phaser.Scene {
   }
   private restore(data: SaveData, notify: boolean) { this.applySavedState(data); this.loadMap(data.player.mapId, undefined, data.player); if (notify) this.say("저장된 장소와 농장을 불러왔어요."); }
 }
+

@@ -9,3 +9,13 @@
 D1 테이블: `family_rooms`, `family_members`. 기존 editor_drafts 및 편집기 JSON 스키마는 변경하지 않는다. SQL: `drizzle/0001_family_rooms.sql`. production에는 적용하지 않았다. API는 no-store이며 멤버십을 확인하고 D1 first-primary 세션으로 읽는다.
 
 자동 테스트는 Node 내장 SQLite 메모리 DB에서 실제 migration과 서비스 SQL을 실행한다. Cloudflare 배포 및 실제 인증 로그인/두 브라우저 플레이 검증과는 별개다.
+
+## 체크포인트 4 — 공유 상태
+
+`family_state` (`0002_family_state.sql`): 방당 revision/world_json/inventories_json/updated_at. world에는 날짜·시간 기준점·농장 타일·공동 자금, inventories에는 playerId별 개인 인벤토리만 저장한다. 응답에는 요청자 자신의 인벤토리만 포함한다. 두 JSON 컬럼을 같은 조건부 UPDATE로 갱신해 밭 변경과 아이템 소비/획득이 원자적으로 처리된다.
+
+`GET /api/family/state?roomId=...`, `POST` `{roomId,expectedRevision,action}`. action은 tool/buy/sell/sleep만 받으며 전체 SaveData나 임의 세계 JSON 업로드는 받지 않는다. 서버가 기존 작물·경제 상수로 결과를 계산한다. 멤버십/위치/범위/인벤토리를 검증하고 `WHERE revision = expectedRevision`으로 경쟁을 막는다. 충돌은409+최신 snapshot. 클라이언트는 자동 재전송하지 않고 상태를 다시 읽은 후 사용자가 다시 행동하도록 한다. 늦게 도착한 낮은 revision 응답은 무시한다.
+
+시간은 서버 시각과 저장된 기준점으로 산출하므로 접속자 수에 따라 빨라지지 않는다. 접속이 없어도 밤의 종료 시각까지 흐르며 자동 날짜 변경은 하지 않는다. 누군가 침대에서 잠들면 모두의 날짜가 바뀌고 물 준 작물이 성장한다. 전원 수면 투표는 미구현이다. 메뉴/도움말은 개인 조작만 멈추고 공유 시간은 멈추지 않는다.
+
+가족 모드에서는 로컬 SaveData를 읽거나 쓰지 않는다. 맵/좌표/방향/도구만 `jiwoos-farm.family-personal.v1:<room>:<player>`에 따로 보관한다. 인벤토리는 서버에 저장한다. 기존 싱글플레이·편집기 테스트 플레이 경로는 유지한다. 가족 방은 기본 맵을 공유하며 사용자 편집 맵을 업로드하지 않는다.

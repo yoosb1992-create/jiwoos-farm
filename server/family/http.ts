@@ -14,7 +14,7 @@ export async function familyRequest(request: Request, action: (db: FamilyDB, use
     if (!env.DB) throw new FamilyError(503, "가족 농장 DB가 준비되지 않았습니다.");
     return familyJson(await action(env.DB.withSession("first-primary"), user.userId));
   } catch (error) {
-    if (error instanceof FamilyError) return familyJson({ message: error.message }, error.status);
+    if (error instanceof FamilyError) return familyJson({ ...error.details, message: error.message }, error.status);
     console.error("family api failed", error);
     return familyJson({ message: "가족 농장 서버를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요." }, 503);
   }
