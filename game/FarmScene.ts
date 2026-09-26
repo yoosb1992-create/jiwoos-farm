@@ -1,3 +1,4 @@
+import { RemotePlayers } from "./family/RemotePlayers";
 import { FamilyClient } from "./family/client";
 import type { FamilyPose, FamilySession, FamilySnapshot } from "./family/types";
 import * as Phaser from "phaser";
@@ -24,6 +25,8 @@ export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; te
 export class FarmScene extends Phaser.Scene {
   private family?: FamilyClient;
   private familyReady = false;
+  private sceneLive = false;
+  private remotePlayers?: RemotePlayers;
   private player!: Phaser.Physics.Arcade.Sprite;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<string, Phaser.Input.Keyboard.Key>;
@@ -66,6 +69,7 @@ export class FarmScene extends Phaser.Scene {
   preload() { this.assetManager = new AssetManager(this); this.assetManager.preload(); }
 
   create() {
+    this.sceneLive = true;
     this.assetManager ??= new AssetManager(this);
     this.assetManager.createFallbackTextures(); this.assetManager.createPlayerAnimations();
     this.worldRenderer = new WorldRenderer(this, this.mapRegistry); this.buildFarm();
@@ -85,14 +89,28 @@ export class FarmScene extends Phaser.Scene {
     this.actionKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.useAtWorld(pointer.worldX, pointer.worldY));
     gameEvents.addEventListener("command", this.commandHandler);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => gameEvents.removeEventListener("command", this.commandHandler));
+    const cleanup = () => {
+      if (!this.sceneLive) return;
+      this.sceneLive = false;
+      gameEvents.removeEventListener("command", this.commandHandler);
+      this.family?.stop(); this.remotePlayers?.destroy();
+    };
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
+    this.events.once(Phaser.Scenes.Events.DESTROY, cleanup);
     this.time.addEvent({ delay: GAME_CONFIG.autoSaveIntervalMs, loop: true, callback: () => this.save(false) });
-    this.family?.start();
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.family?.stop());
+    if (this.family) {
+      this.remotePlayers = new RemotePlayers(this, this.family.session.room.playerId);
+      this.family.setPresence(() => this.familyPose(), (snapshot) => {
+        this.remotePlayers?.receive(snapshot);
+        gameEvents.dispatchEvent(new CustomEvent("family-presence", { detail: snapshot }));
+      });
+      this.family.start();
+    }
     this.emitHud();
   }
 
   update(_time: number, delta: number) {
+    this.remotePlayers?.update(this.currentMapId, delta);
     if (!this.family && !this.isPaused()) this.advanceClock(delta);
     if (this.isPaused()) { this.player.setVelocity(0, 0); this.playerAnimations.playMovement(this.facing, false); return; }
     const keyboard = {
@@ -245,7 +263,7 @@ export class FarmScene extends Phaser.Scene {
     if (this.family) {
       this.sleepPrompt = false; this.transitioning = true; this.emitHud();
       void this.family.act({ kind: "sleep", pose: this.familyPose() }).then((ok) => {
-        if (!this.sys.isActive()) return;
+        if (!this.sceneLive) return;
         this.transitioning = false;
         if (ok) this.loadMap("farmhouse", "bed_wake");
         this.emitHud();
@@ -286,7 +304,7 @@ export class FarmScene extends Phaser.Scene {
       moving: Boolean(this.player.body?.velocity.x || this.player.body?.velocity.y) };
   }
   private applyFamilySnapshot(snapshot: FamilySnapshot) {
-    if (!this.sys.isActive()) return;
+    if (!this.sceneLive) return;
     this.familyReady = true;
     this.day = snapshot.world.day; this.timeMinutes = snapshot.world.timeMinutes; this.money = snapshot.world.money;
     this.inventory = new Inventory(snapshot.inventory);

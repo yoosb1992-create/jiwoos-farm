@@ -1,4 +1,4 @@
-import type { FamilyAction, FamilyPose, FamilySession, FamilySnapshot } from "./types";
+import type { FamilyAction, FamilyPose, FamilySession, FamilySnapshot, FamilyPresenceSnapshot } from "./types";
 import { familyPersonalKey, parseFamilyPose } from "./personal";
 
 export const FAMILY_POLL_MS = 1000;
@@ -15,16 +15,38 @@ export class FamilyClient {
   snapshot?: FamilySnapshot;
   busy = false;
   private live = false;
+  private sessionId = crypto.randomUUID();
+  private pose?: () => FamilyPose;
+  private onPresence?: (snapshot: FamilyPresenceSnapshot) => void;
+  private heartbeatRequest?: Promise<void>;
+  setPresence(pose: () => FamilyPose, onPresence: (snapshot: FamilyPresenceSnapshot) => void) { this.pose = pose; this.onPresence = onPresence; }
+  private async heartbeat() {
+    if (!this.pose || !this.live) return;
+    const snapshot = await familyFetch<FamilyPresenceSnapshot>("/api/family/presence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId, pose: this.pose() }) });
+    if (this.live) this.onPresence?.(snapshot);
+  }
   private timer?: ReturnType<typeof setTimeout>;
   constructor(readonly session: FamilySession, private onSnapshot: (snapshot: FamilySnapshot) => void, private onMessage: (message: string) => void) {}
   private accept(snapshot: FamilySnapshot) {
     if (!this.live || (this.snapshot && (snapshot.revision < this.snapshot.revision || (snapshot.revision === this.snapshot.revision && snapshot.serverNow < this.snapshot.serverNow)))) return;
     this.snapshot = snapshot; this.onSnapshot(snapshot);
   }
-  start() { this.live = true; void this.poll(); }
-  stop() { this.live = false; clearTimeout(this.timer); }
+  start() { if (this.live) return; this.live = true; void this.poll(); }
+  stop() {
+    if (!this.live) return;
+    this.live = false; clearTimeout(this.timer);
+    // Wait for an already-sent heartbeat so leaving cannot be undone by its late response.
+    void (this.heartbeatRequest ?? Promise.resolve()).catch(() => {}).then(() => familyFetch("/api/family/presence", {
+      method: "DELETE", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId }),
+    })).catch(() => {});
+  }
   private async poll() {
-    try { await this.refresh(); } catch (error) { if (this.live) this.onMessage(error instanceof Error ? error.message : "가족 농장 연결이 끊겼습니다."); }
+    try {
+      this.heartbeatRequest = this.heartbeat();
+      const results = await Promise.allSettled([this.refresh(), this.heartbeatRequest]);
+      const failed = results.find((r) => r.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
+    } catch (error) { if (this.live) this.onMessage(error instanceof Error ? error.message : "가족 농장 연결이 끊겼습니다."); }
     finally { if (this.live) this.timer = setTimeout(() => void this.poll(), FAMILY_POLL_MS); }
   }
   async refresh() {
@@ -44,7 +66,12 @@ export class FamilyClient {
       this.onMessage(error instanceof Error ? error.message : "연결을 확인해 주세요. 자동 재전송하지 않습니다.");
       // A timeout may hide a committed action. Read authority before allowing another command.
       this.snapshot = undefined;
-      try { await this.refresh(); } catch { /* Polling will recover; actions stay disabled. */ }
+      try {
+      this.heartbeatRequest = this.heartbeat();
+      const results = await Promise.allSettled([this.refresh(), this.heartbeatRequest]);
+      const failed = results.find((r) => r.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
+    } catch { /* Polling will recover; actions stay disabled. */ }
       return false;
     } finally { this.busy = false; }
   }

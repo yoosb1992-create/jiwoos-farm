@@ -1,4 +1,4 @@
-import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { foreignKey, index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const editorDrafts = sqliteTable("editor_drafts", {
   ownerId: text("owner_id").primaryKey(),
@@ -23,3 +23,10 @@ export const familyState = sqliteTable("family_state", {
   revision: integer("revision").notNull().default(0), worldJson: text("world_json").notNull(),
   inventoriesJson: text("inventories_json").notNull().default("{}"), updatedAt: integer("updated_at").notNull(),
 });
+
+export const familyPresence = sqliteTable("family_presence", {
+  roomId: text("room_id").notNull(), userId: text("user_id").notNull(), sessionId: text("session_id").notNull(),
+  poseJson: text("pose_json").notNull(), lastSeen: integer("last_seen").notNull(),
+}, (table) => [primaryKey({ columns: [table.roomId, table.userId] }),
+  foreignKey({ columns: [table.roomId, table.userId], foreignColumns: [familyMembers.roomId, familyMembers.userId] }).onDelete("cascade"),
+  index("family_presence_recent").on(table.roomId, table.lastSeen)]);
