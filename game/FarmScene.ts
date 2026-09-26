@@ -26,6 +26,7 @@ export class FarmScene extends Phaser.Scene {
   private family?: FamilyClient;
   private familyReady = false;
   private sceneLive = false;
+  private sleepTimer?: number;
   private remotePlayers?: RemotePlayers;
   private player!: Phaser.Physics.Arcade.Sprite;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -91,6 +92,8 @@ export class FarmScene extends Phaser.Scene {
     gameEvents.addEventListener("command", this.commandHandler);
     const cleanup = () => {
       if (!this.sceneLive) return;
+      try { this.save(false); } catch { /* Continue cleanup if local storage is full. */ }
+      if (this.sleepTimer !== undefined) window.clearTimeout(this.sleepTimer);
       this.sceneLive = false;
       gameEvents.removeEventListener("command", this.commandHandler);
       this.family?.stop(); this.remotePlayers?.destroy();
@@ -270,7 +273,7 @@ export class FarmScene extends Phaser.Scene {
       }); return;
     }
     this.sleepPrompt = false; this.transitioning = true; this.player.setVelocity(0, 0); this.emitHud();
-    window.setTimeout(() => {
+    this.sleepTimer = window.setTimeout(() => {
       const grown = advanceFarmDay([...this.farm.values()]);
       this.day = this.day >= GAME_CONFIG.day.daysPerSeason ? 1 : this.day + 1; this.timeMinutes = GAME_CONFIG.day.startMinutes;
       this.timeAccumulator = 0; this.lateNightWarned = false; this.transitioning = false;

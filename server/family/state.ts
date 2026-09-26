@@ -56,7 +56,7 @@ export class FamilyState extends FamilyRooms {
     if (action.kind === "tool") {
       if (pose.mapId !== "farm" || !Number.isInteger(action.x) || !Number.isInteger(action.y) || !["hoe", "seed", "water", "hand"].includes(action.tool)) throw new FamilyError(400, "올바른 농사 행동이 아닙니다.");
       const tile = stored.farm.find((t) => t.x === action.x && t.y === action.y);
-      if (!tile || Math.hypot(pose.x - (tile.x + .5) * 32, pose.y - (tile.y + .5) * 32) > GAME_CONFIG.farmInteractionDistance) throw new FamilyError(400, "밭 가까이에서 행동해 주세요.");
+      if (!tile || Math.hypot(pose.x - (tile.x + .5) * GAME_CONFIG.tileSize, pose.y - (tile.y + .5) * GAME_CONFIG.tileSize) > GAME_CONFIG.farmInteractionDistance) throw new FamilyError(400, "밭 가까이에서 행동해 주세요.");
       if (action.tool === "hoe") tile.tilled = true;
       else if (action.tool === "seed") {
         if (!tile.tilled || tile.cropType) throw new FamilyError(409, "비어 있는 갈아놓은 밭에 심어 주세요.");
