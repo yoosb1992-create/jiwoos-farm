@@ -88,6 +88,12 @@ export class FamilyState extends FamilyRooms {
     const result = await this.db.prepare(`UPDATE family_state SET world_json = ?, inventories_json = ?, revision = revision + 1, updated_at = ? WHERE room_id = ? AND revision = ?`)
       .bind(JSON.stringify(stored), JSON.stringify(inventories), this.now(), roomId, expectedRevision).run();
     if (result.meta.changes !== 1) throw await conflict();
+    if (action.kind === "tool") {
+      const visual = { id: crypto.randomUUID(), tool: action.tool, facing: pose.facing, expiresAt: this.now() + 2500 };
+      // Visual delivery must never turn a committed farm action into a failed command.
+      try { await this.db.prepare("UPDATE family_presence SET pose_json = json_set(pose_json, '$.action', json(?)) WHERE room_id = ? AND user_id = ?")
+        .bind(JSON.stringify(visual), roomId, userId).run(); } catch { /* Presence is best effort. */ }
+    }
     return this.read(userId, roomId);
   }
 }

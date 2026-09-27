@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { FamilyState } from "../../server/family/state";
 import { FamilyRooms } from "../../server/family/rooms";
 import { FamilyPresenceService } from "../../server/family/presence";
 import { familyTestDB } from "./family-db";
@@ -18,6 +19,13 @@ try {
   assert.equal(visibleFamilyPlayers(snapshot, a.room.playerId, "farm")[0].playerId, b.room.playerId);
   assert.equal(visibleFamilyPlayers(snapshot, b.room.playerId, "farm")[0].playerId, a.room.playerId);
   assert.equal(visibleFamilyPlayers(snapshot, a.room.playerId, "town").length, 0);
+  const state = new FamilyState(db, () => now);
+  await state.act("A", a.room.id, 0, { kind: "tool", tool: "hoe", x: 9, y: 8, pose: { ...pose, x: 304, y: 272 } });
+  const acted = await presence.heartbeat("A", a.room.id, { ...pose, action: { id: "spoof" } }, sessionA);
+  const action = acted.players.find(p => p.playerId === a.room.playerId)!.action!;
+  assert.equal(action.tool, "hoe"); assert.notEqual(action.id, "spoof");
+  now += 2501;
+  assert.equal((await presence.read("B", a.room.id)).players.find(p => p.playerId === a.room.playerId)!.action, undefined);
   await assert.rejects(presence.read("outsider", a.room.id));
   await assert.rejects(presence.heartbeat("outsider", a.room.id, pose, sessionA));
   await assert.rejects(presence.heartbeat("A", a.room.id, { ...pose, x: -1 }, sessionA));
@@ -40,6 +48,9 @@ try {
   const renderer = new RemotePlayers({ add: { sprite: () => { sprites++; return makeNode(); }, text: makeNode } } as never, a.room.playerId);
   renderer.receive(snapshot); renderer.update("farm", 16);
   assert.equal(sprites, 1); assert.ok(labels.some((s) => s.includes("아빠") && s.includes("←"))); assert.ok(animations.includes("walk_left"));
+  const remote = { ...snapshot.players.find(p => p.playerId === b.room.playerId)!, action: { ...action, expiresAt: snapshot.serverNow + 2500 } };
+  renderer.receive({ ...snapshot, players: [remote] }); renderer.update("farm", 16); renderer.update("farm", 16);
+  assert.equal(animations.filter(a => a === "tool_left").length, 1, "same action must not restart each frame");
   renderer.update("town", 16); assert.equal(destroyed, 2);
   renderer.destroy();
   console.log("Family presence: authenticated identities, same-map rendering, interpolation, leave and TTL passed");

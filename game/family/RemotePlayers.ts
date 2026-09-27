@@ -5,7 +5,7 @@ import type { FamilyPresence, FamilyPresenceSnapshot } from "./types";
 
 /** Decorative sprites only: remote family members never join Arcade physics/colliders. */
 export class RemotePlayers {
-  private views = new Map<string, { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; target: FamilyPresence }>();
+  private views = new Map<string, { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; target: FamilyPresence; actionId?: string; actionUntil?: number }>();
   private snapshot: FamilyPresenceSnapshot = { players: [], serverNow: 0 };
   private receivedAt = 0;
   constructor(private scene: Phaser.Scene, private ownId: string) {}
@@ -28,7 +28,14 @@ export class RemotePlayers {
       }
       view.target = player;
       const point = interpolateFamilyPosition(view.sprite, player, delta);
-      view.sprite.setPosition(point.x, point.y).play(playerAnimationName(player.moving ? "walk" : "idle", player.facing), true);
+      view.sprite.setPosition(point.x, point.y);
+      const action = player.action;
+      if (action && action.expiresAt > estimated.serverNow && action.id !== view.actionId) {
+        view.actionId = action.id; view.actionUntil = Date.now() + 550;
+        view.sprite.play(playerAnimationName("tool", action.facing), false);
+      } else if (!view.actionUntil || Date.now() >= view.actionUntil) {
+        view.sprite.play(playerAnimationName(player.moving ? "walk" : "idle", player.facing), true);
+      }
       view.label.setText(`${player.nickname} ${{ up: "↑", down: "↓", left: "←", right: "→" }[player.facing]}`).setPosition(point.x, point.y - 22);
     }
   }

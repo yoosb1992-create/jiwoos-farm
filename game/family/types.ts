@@ -12,5 +12,6 @@ export type FamilyAction =
   | { kind: "buy"; listingId: string; pose: FamilyPose }
   | { kind: "sleep" | "sell"; pose: FamilyPose };
 export interface FamilySession { room: FamilyRoom }
-export interface FamilyPresence extends FamilyPose { playerId: string; nickname: string; lastSeen: number }
+export interface FamilyToolAction { id: string; tool: ToolKey; facing: FamilyPose["facing"]; expiresAt: number }
+export interface FamilyPresence extends FamilyPose { action?: FamilyToolAction; playerId: string; nickname: string; lastSeen: number }
 export interface FamilyPresenceSnapshot { players: FamilyPresence[]; serverNow: number }
