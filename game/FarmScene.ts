@@ -24,7 +24,6 @@ export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; te
 
 export class FarmScene extends Phaser.Scene {
   private family?: FamilyClient;
-  private familyReady = false;
   private sceneLive = false;
   private sleepTimer?: number;
   private remotePlayers?: RemotePlayers;
@@ -132,7 +131,7 @@ export class FarmScene extends Phaser.Scene {
     this.checkWarp();
   }
 
-  private isPaused() { return (Boolean(this.family) && !this.familyReady) || this.helpOpen || this.sleepPrompt || this.shopOpen || this.transitioning; }
+  private isPaused() { return this.helpOpen || this.sleepPrompt || this.shopOpen || this.transitioning; }
   private advanceClock(delta: number) {
     this.timeAccumulator += delta;
     const elapsed = Math.floor(this.timeAccumulator / REAL_MS_PER_GAME_MINUTE);
@@ -189,6 +188,7 @@ export class FarmScene extends Phaser.Scene {
 
   private useAtWorld(worldX: number, worldY: number) {
     if (this.family && (this.isPaused() || this.family.busy)) return;
+    if (this.family && !this.family.snapshot) { this.say("가족 농장 상태를 불러오는 중이에요. 이동은 계속할 수 있습니다."); return; }
     if (this.currentMapId !== "farm") { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
     const x = Math.floor(worldX / GAME_CONFIG.tileSize), y = Math.floor(worldY / GAME_CONFIG.tileSize);
     if (!TILE_TYPE_DEFINITIONS[getTileTypeInMap(this.mapRegistry.require("farm"), x, y)].farmable) { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
@@ -308,7 +308,6 @@ export class FarmScene extends Phaser.Scene {
   }
   private applyFamilySnapshot(snapshot: FamilySnapshot) {
     if (!this.sceneLive) return;
-    this.familyReady = true;
     this.day = snapshot.world.day; this.timeMinutes = snapshot.world.timeMinutes; this.money = snapshot.world.money;
     this.inventory = new Inventory(snapshot.inventory);
     for (const remote of snapshot.world.farm) {
