@@ -1,7 +1,11 @@
+import { gameEvents } from "../events";
 import type { FamilyAction, FamilyPose, FamilySession, FamilySnapshot, FamilyPresenceSnapshot } from "./types";
 import { familyPersonalKey, parseFamilyPose } from "./personal";
 
 export const FAMILY_POLL_MS = 1000;
+export type FamilyConnection = "connecting" | "connected" | "reconnecting" | "disconnected" | "syncing";
+export const CONNECTION_LABELS: Record<FamilyConnection, string> = { connecting: "연결 중", connected: "연결됨", reconnecting: "재연결 중", disconnected: "연결 끊김", syncing: "최신 상태 동기화 중" };
+export const familyRetryDelay = (failures: number) => Math.min(16000, FAMILY_POLL_MS * 2 ** Math.min(4, failures));
 export class FamilyAPIError extends Error {
   constructor(public status: number, message: string, public snapshot?: FamilySnapshot) { super(message); }
 }
@@ -14,6 +18,13 @@ export async function familyFetch<T>(path: string, init: RequestInit = {}): Prom
 export class FamilyClient {
   snapshot?: FamilySnapshot;
   busy = false;
+  connection: FamilyConnection = "connecting";
+  private failures = 0;
+  private setConnection(state: FamilyConnection) {
+    if (!this.live) return;
+    this.connection = state;
+    gameEvents.dispatchEvent(new CustomEvent("family-connection", { detail: { roomId: this.session.room.id, state } }));
+  }
   private live = false;
   private sessionId = crypto.randomUUID();
   private pose?: () => FamilyPose;
@@ -41,20 +52,23 @@ export class FamilyClient {
     })).catch(() => {});
   }
   private async poll() {
+    if (this.failures) this.setConnection(this.failures >= 3 ? "disconnected" : "reconnecting");
     try {
       this.heartbeatRequest = this.heartbeat();
       const results = await Promise.allSettled([this.refresh(), this.heartbeatRequest]);
-      const failed = results.find((r) => r.status === "rejected");
-      if (failed?.status === "rejected") throw failed.reason;
-    } catch (error) { if (this.live) this.onMessage(error instanceof Error ? error.message : "가족 농장 연결이 끊겼습니다."); }
-    finally { if (this.live) this.timer = setTimeout(() => void this.poll(), FAMILY_POLL_MS); }
+      if (results.some((r) => r.status === "rejected")) throw new Error("offline");
+      this.failures = 0; this.setConnection("connected");
+    } catch {
+      this.failures++; this.setConnection(this.failures >= 3 ? "disconnected" : "reconnecting");
+    } finally { if (this.live) this.timer = setTimeout(() => void this.poll(), familyRetryDelay(this.failures)); }
   }
   async refresh() {
     if (!this.live) return;
+    if (this.connection !== "connected") this.setConnection("syncing");
     this.accept(await familyFetch<FamilySnapshot>(`/api/family/state?roomId=${encodeURIComponent(this.session.room.id)}`));
   }
   async act(action: FamilyAction): Promise<boolean> {
-    if (!this.live || this.busy || !this.snapshot) return false;
+    if (!this.live || this.busy || !this.snapshot || this.connection !== "connected") { this.onMessage("연결 복구 후 다시 행동해 주세요. 이동은 계속할 수 있어요."); return false; }
     this.busy = true;
     try {
       const snapshot = await familyFetch<FamilySnapshot>("/api/family/state", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, expectedRevision: this.snapshot.revision, action }) });
@@ -62,16 +76,16 @@ export class FamilyClient {
       this.accept(snapshot); this.onMessage("가족 농장에 반영했어요."); return true;
     } catch (error) {
       if (!this.live) return false;
-      if (error instanceof FamilyAPIError && error.snapshot) this.accept(error.snapshot);
-      this.onMessage(error instanceof Error ? error.message : "연결을 확인해 주세요. 자동 재전송하지 않습니다.");
-      // A timeout may hide a committed action. Read authority before allowing another command.
-      this.snapshot = undefined;
-      try {
-      this.heartbeatRequest = this.heartbeat();
-      const results = await Promise.allSettled([this.refresh(), this.heartbeatRequest]);
-      const failed = results.find((r) => r.status === "rejected");
-      if (failed?.status === "rejected") throw failed.reason;
-    } catch { /* Polling will recover; actions stay disabled. */ }
+      if (error instanceof FamilyAPIError && error.snapshot) {
+        this.accept(error.snapshot);
+        this.onMessage("다른 가족의 변경으로 새로고침됐어요. 다시 행동해 주세요.");
+      } else if (error instanceof FamilyAPIError && error.status < 500) {
+        this.onMessage(error.message);
+      } else {
+        this.failures = Math.max(1, this.failures);
+        this.setConnection("reconnecting");
+        this.onMessage("연결이 끊겼어요. 최신 상태를 받은 뒤 다시 행동해 주세요.");
+      }
       return false;
     } finally { this.busy = false; }
   }
