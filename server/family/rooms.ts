@@ -1,3 +1,4 @@
+import { FAMILY_PRESENCE_TTL_MS } from "../../game/family/presence";
 import type { FamilyRoom, FamilyRoomDetail } from "../../game/family/types";
 
 export type FamilyDB = Pick<D1Database, "prepare" | "batch">;
@@ -8,7 +9,7 @@ export function shortText(value: unknown, max: number, label: string) {
   if (typeof value !== "string" || !value.trim() || value.trim().length > max || /[\u0000-\u001f\u007f]/.test(value)) throw new FamilyError(400, `${label}을(를) 확인해 주세요.`);
   return value.trim();
 }
-const roomSelect = `SELECT r.id, r.name, r.invite_code AS inviteCode, m.player_id AS playerId, m.nickname
+const roomSelect = `SELECT r.id, r.name, r.invite_code AS inviteCode, m.player_id AS playerId, m.nickname, (r.owner_id = m.user_id) AS isOwner
   FROM family_rooms r JOIN family_members m ON m.room_id = r.id`;
 const inviteCode = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), (n) => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[n % 32]).join("");
 
@@ -24,8 +25,36 @@ export class FamilyRooms {
   }
   async detail(userId: string, roomId: string): Promise<FamilyRoomDetail> {
     const room = await this.requireMember(userId, roomId);
-    const members = (await this.db.prepare("SELECT player_id AS playerId, nickname FROM family_members WHERE room_id = ? ORDER BY joined_at").bind(roomId).all<{ playerId: string; nickname: string }>()).results;
+    const members = (await this.db.prepare("SELECT m.player_id AS playerId, m.nickname, (COALESCE(p.last_seen, 0) > ?) AS online FROM family_members m LEFT JOIN family_presence p ON p.room_id = m.room_id AND p.user_id = m.user_id WHERE m.room_id = ? ORDER BY m.joined_at").bind(this.now() - FAMILY_PRESENCE_TTL_MS, roomId).all<{ playerId: string; nickname: string; online: boolean }>()).results;
     return { room, members };
+  }
+  async manage(userId: string, roomId: string, action: string, nickname?: unknown) {
+    const member = await this.requireMember(userId, roomId);
+    if (action === "rename") {
+      await this.db.prepare("UPDATE family_members SET nickname = ? WHERE room_id = ? AND user_id = ?").bind(shortText(nickname, 20, "닉네임"), roomId, userId).run();
+      return this.detail(userId, roomId);
+    }
+    if (action === "leave") {
+      if (member.isOwner) throw new FamilyError(409, "방장은 나갈 수 없습니다. 농장을 삭제해 주세요. 소유권 이전은 후속 버전에서 지원합니다.");
+      await this.db.prepare("DELETE FROM family_members WHERE room_id = ? AND user_id = ?").bind(roomId, userId).run();
+      return { left: true };
+    }
+    if (!member.isOwner) throw new FamilyError(403, "방장만 할 수 있습니다.");
+    if (action === "delete") {
+      await this.db.prepare("DELETE FROM family_rooms WHERE id = ? AND owner_id = ?").bind(roomId, userId).run();
+      return { deleted: true };
+    }
+    if (action === "rotate") {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const code = inviteCode(); if (code === member.inviteCode) continue;
+        try {
+          await this.db.prepare("UPDATE family_rooms SET invite_code = ? WHERE id = ? AND owner_id = ?").bind(code, roomId, userId).run();
+          return this.detail(userId, roomId);
+        } catch (error) { if (!String(error).includes("family_rooms.invite_code")) throw error; }
+      }
+      throw new FamilyError(503, "코드 발급에 실패했습니다. 다시 시도해 주세요.");
+    }
+    throw new FamilyError(400, "지원하지 않는 요청입니다.");
   }
   async create(userId: string, rawName: unknown, rawNickname: unknown) {
     const name = shortText(rawName, 40, "농장 이름"), nickname = shortText(rawNickname, 20, "닉네임");

@@ -7,6 +7,7 @@ export const GET = (request: Request) => familyRequest(request, async (db, userI
 });
 export const POST = (request: Request) => familyRequest(request, async (db, userId) => {
   const body = await familyBody(request), rooms = new FamilyRooms(db);
+  if (["rename", "leave", "delete", "rotate"].includes(String(body.action))) return rooms.manage(userId, String(body.roomId ?? ""), String(body.action), body.nickname);
   if (body.action !== "join" && body.action !== "create") throw new FamilyError(400, "지원하지 않는 요청입니다.");
   return body.action === "join" ? rooms.join(userId, body.code, body.nickname) : rooms.create(userId, body.name, body.nickname);
 });

@@ -1,5 +1,5 @@
-export interface FamilyRoom { id: string; name: string; inviteCode: string; playerId: string; nickname: string }
-export interface FamilyMember { playerId: string; nickname: string }
+export interface FamilyRoom { isOwner?: boolean; id: string; name: string; inviteCode: string; playerId: string; nickname: string }
+export interface FamilyMember { online?: boolean; playerId: string; nickname: string }
 export interface FamilyRoomDetail { room: FamilyRoom; members: FamilyMember[] }
 
 import type { FarmTileData, InventoryData, PlayerData } from "../domain";

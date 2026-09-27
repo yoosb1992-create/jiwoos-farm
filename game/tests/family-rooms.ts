@@ -17,5 +17,22 @@ try {
   await assert.rejects(rooms.join("user-b", "BAD", "아빠"));
   await assert.rejects(rooms.create("user-a", "", "지우"));
   assert.ok(!JSON.stringify(b).includes("user-a"), "account IDs must not be exposed");
+  assert.ok(a.room.isOwner); assert.ok(!b.room.isOwner);
+  await assert.rejects(rooms.manage("user-b", a.room.id, "delete"));
+  await assert.rejects(rooms.manage("user-b", a.room.id, "rotate"));
+  await assert.rejects(rooms.manage("user-a", a.room.id, "leave"));
+  const renamed = await rooms.manage("user-b", a.room.id, "rename", "새이름");
+  assert.ok("room" in renamed && renamed.room.nickname === "새이름");
+  const rotated = await rooms.manage("user-a", a.room.id, "rotate");
+  assert.ok("room" in rotated && rotated.room.inviteCode !== a.room.inviteCode);
+  await assert.rejects(rooms.join("user-c", a.room.inviteCode, "옛코드"));
+  await db.prepare("INSERT INTO family_state (room_id, revision, world_json, inventories_json, updated_at) VALUES (?,0,'{}','{}',0)").bind(a.room.id).run();
+  await db.prepare("INSERT INTO family_presence (room_id,user_id,session_id,pose_json,last_seen) VALUES (?,?,'session','{}',?)").bind(a.room.id,"user-b",Date.now()).run();
+  assert.ok((await rooms.detail("user-a", a.room.id)).members.find(m => m.playerId === b.room.playerId)?.online);
+  await rooms.manage("user-b", a.room.id, "leave");
+  await assert.rejects(rooms.detail("user-b", a.room.id));
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM family_presence").first<{n:number}>())!.n,0);
+  await rooms.manage("user-a", a.room.id, "delete");
+  for (const table of ["family_rooms", "family_members", "family_state", "family_presence"]) assert.equal((await db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<{n:number}>())!.n, 0, table);
   console.log("Family rooms: create, invite, join, recent rooms, membership isolation passed");
 } finally { close(); }
