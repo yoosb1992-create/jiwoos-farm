@@ -1,3 +1,4 @@
+import { FAMILY_PRESENCE_TTL_MS } from "../../game/family/presence";
 import { GAME_CONFIG } from "../../game/config";
 import { advanceFarmDay, Inventory, purchaseInventoryItem, type InventoryData } from "../../game/domain";
 import { DEFAULT_CROP_ID, getCropDefinition, isMatureCrop } from "../../game/data/crops";
@@ -8,7 +9,7 @@ import { parseFamilyPose } from "../../game/family/personal";
 import type { FamilyAction, FamilySnapshot, FamilyWorld } from "../../game/family/types";
 import { FamilyError, FamilyRooms } from "./rooms";
 
-interface StoredWorld extends FamilyWorld { clockAnchor: number }
+interface StoredWorld extends FamilyWorld { clockAnchor: number; sleepVotes?: string[]; sleepSessions?: Record<string, string> }
 interface StateRow { revision: number; world_json: string; inventories_json: string }
 export const initialFamilyWorld = (now: number): StoredWorld => ({
   day: 1, timeMinutes: GAME_CONFIG.day.startMinutes, clockAnchor: now, money: GAME_CONFIG.startingMoney,
@@ -31,9 +32,28 @@ export class FamilyState extends FamilyRooms {
     const inventories = JSON.parse(row.inventories_json) as Record<string, InventoryData>;
     return { revision: row.revision, serverNow: this.now(), world: currentWorld(JSON.parse(row.world_json), this.now()), inventory: inventories[playerId] ?? new Inventory().serialize() };
   }
-  async read(userId: string, roomId: string) {
+  private async online(roomId: string) {
+    return (await this.db.prepare(`SELECT m.player_id AS playerId, m.nickname, p.session_id AS sessionId FROM family_members m JOIN family_presence p ON p.room_id = m.room_id AND p.user_id = m.user_id WHERE m.room_id = ? AND p.last_seen > ?`).bind(roomId, this.now() - FAMILY_PRESENCE_TTL_MS).all<{playerId: string; nickname: string; sessionId?: string}>()).results;
+  }
+  private nextDay(stored: StoredWorld) {
+    advanceFarmDay(stored.farm); stored.day = stored.day >= GAME_CONFIG.day.daysPerSeason ? 1 : stored.day + 1;
+    stored.timeMinutes = GAME_CONFIG.day.startMinutes; stored.clockAnchor = this.now(); stored.sleepVotes = []; stored.sleepSessions = {};
+  }
+  async read(userId: string, roomId: string): Promise<FamilySnapshot> {
     const member = await this.requireMember(userId, roomId);
-    return this.snapshot(await this.row(roomId), member.playerId);
+    let row = await this.row(roomId);
+    const online = await this.online(roomId), stored = JSON.parse(row.world_json) as StoredWorld;
+    const votes = (stored.sleepVotes ?? []).filter(id => online.some(p => p.playerId === id && (!stored.sleepSessions?.[id] || stored.sleepSessions[id] === p.sessionId)));
+    if (votes.length !== (stored.sleepVotes ?? []).length || (online.length && votes.length === online.length)) {
+      stored.sleepVotes = votes;
+      if (online.length && votes.length === online.length) this.nextDay(stored);
+      await this.db.prepare("UPDATE family_state SET world_json = ?, revision = revision + 1, updated_at = ? WHERE room_id = ? AND revision = ?")
+        .bind(JSON.stringify(stored), this.now(), roomId, row.revision).run();
+      row = await this.row(roomId);
+    }
+    const current = JSON.parse(row.world_json) as StoredWorld;
+    const waiting = online.filter(p => current.sleepVotes?.includes(p.playerId));
+    return { ...this.snapshot(row, member.playerId), sleep: { waiting: waiting.map(p => p.nickname), agreed: waiting.length, online: online.length, voted: waiting.some(p => p.playerId === member.playerId) } };
   }
   async act(userId: string, roomId: string, expectedRevision: unknown, raw: unknown) {
     const member = await this.requireMember(userId, roomId);
@@ -72,8 +92,13 @@ export class FamilyState extends FamilyRooms {
       }
     } else if (action.kind === "sleep") {
       if (!near("sleep")) throw new FamilyError(400, "농장집 침대에서 잠들어 주세요.");
-      advanceFarmDay(stored.farm); stored.day = stored.day >= GAME_CONFIG.day.daysPerSeason ? 1 : stored.day + 1;
-      stored.timeMinutes = GAME_CONFIG.day.startMinutes; stored.clockAnchor = this.now();
+      const online = await this.online(roomId);
+      if (!online.some(p => p.playerId === member.playerId)) online.push(member);
+      stored.sleepVotes = [...new Set([...(stored.sleepVotes ?? []).filter(id => online.some(p => p.playerId === id && (!stored.sleepSessions?.[id] || stored.sleepSessions[id] === p.sessionId))), member.playerId])];
+      stored.sleepSessions = { ...stored.sleepSessions, [member.playerId]: online.find(p => p.playerId === member.playerId)?.sessionId ?? "" };
+      if (online.every(p => stored.sleepVotes!.includes(p.playerId))) this.nextDay(stored);
+    } else if (action.kind === "sleep-cancel") {
+      stored.sleepVotes = (stored.sleepVotes ?? []).filter(id => id !== member.playerId);
     } else if (action.kind === "buy") {
       if (!near("open_shop")) throw new FamilyError(400, "상점 카운터에서 구매해 주세요.");
       const listing = GENERAL_STORE_LISTINGS.find((l) => l.id === action.listingId);

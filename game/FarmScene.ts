@@ -237,6 +237,7 @@ export class FarmScene extends Phaser.Scene {
     if (command.type === "save") this.save(true);
     if (command.type === "load") { const data = this.repository.load(); if (data) this.restore(data, true); else this.say("아직 저장된 농장이 없어요."); }
     if (command.type === "help") { this.helpOpen = command.value === "open"; this.virtualMovement = { x: 0, y: 0 }; this.emitHud(); }
+    if (command.type === "family-sleep-cancel") { void this.family?.act({ kind: "sleep-cancel", pose: this.familyPose() }); return; }
     if (command.type === "sleep-confirm") this.sleep();
     if (command.type === "sleep-cancel") { this.sleepPrompt = false; this.say("조금 더 둘러보기로 했어요."); }
     if (command.type === "shop-close") { this.shopOpen = false; this.say("다음에 또 들러 주세요."); }
@@ -264,7 +265,7 @@ export class FarmScene extends Phaser.Scene {
   private sleep() {
     if (!this.sleepPrompt || this.transitioning) return;
     if (this.family) {
-      this.sleepPrompt = false; this.transitioning = true; this.emitHud();
+      this.sleepPrompt = false; this.emitHud();
       void this.family.act({ kind: "sleep", pose: this.familyPose() }).then((ok) => {
         if (!this.sceneLive) return;
         this.transitioning = false;
@@ -308,6 +309,7 @@ export class FarmScene extends Phaser.Scene {
   }
   private applyFamilySnapshot(snapshot: FamilySnapshot) {
     if (!this.sceneLive) return;
+    gameEvents.dispatchEvent(new CustomEvent("family-sleep", { detail: snapshot.sleep }));
     this.day = snapshot.world.day; this.timeMinutes = snapshot.world.timeMinutes; this.money = snapshot.world.money;
     this.inventory = new Inventory(snapshot.inventory);
     for (const remote of snapshot.world.farm) {

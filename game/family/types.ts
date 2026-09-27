@@ -6,11 +6,11 @@ import type { FarmTileData, InventoryData, PlayerData } from "../domain";
 import type { ToolKey } from "../events";
 export interface FamilyPose extends PlayerData { selectedTool: ToolKey; moving: boolean }
 export interface FamilyWorld { day: number; timeMinutes: number; money: number; farm: FarmTileData[] }
-export interface FamilySnapshot { revision: number; serverNow: number; world: FamilyWorld; inventory: InventoryData }
+export interface FamilySnapshot { revision: number; serverNow: number; world: FamilyWorld; inventory: InventoryData; sleep?: { waiting: string[]; agreed: number; online: number; voted: boolean } }
 export type FamilyAction =
   | { kind: "tool"; tool: ToolKey; x: number; y: number; pose: FamilyPose }
   | { kind: "buy"; listingId: string; pose: FamilyPose }
-  | { kind: "sleep" | "sell"; pose: FamilyPose };
+  | { kind: "sleep" | "sleep-cancel" | "sell"; pose: FamilyPose };
 export interface FamilySession { room: FamilyRoom }
 export interface FamilyToolAction { id: string; tool: ToolKey; facing: FamilyPose["facing"]; expiresAt: number }
 export interface FamilyPresence extends FamilyPose { action?: FamilyToolAction; playerId: string; nickname: string; lastSeen: number }

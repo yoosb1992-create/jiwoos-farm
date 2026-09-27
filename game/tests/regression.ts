@@ -285,3 +285,5 @@ assert.deepEqual(importedRoundTrip, editorDocument, "Export한 Editor Document�
 assert.equal(createBuiltInEditorDocument().maps.find((map) => map.id === "town")?.name, "햇살마을", "기본값 초기화는 내장 맵의 새 사본을 만들어야 함");
 
 console.log("0.4 mobile input, editor viewport/cloud sync, world, save migration, farming, and asset-swap regression checks: passed");
+
+import "./family-sleep";
