@@ -289,3 +289,5 @@ console.log("0.4 mobile input, editor viewport/cloud sync, world, save migration
 import "./family-sleep";
 
 import "./spring-crops";
+
+import "./npc";
