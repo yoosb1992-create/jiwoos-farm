@@ -1,10 +1,12 @@
+import { QUEST_DEFINITIONS, type QuestStatus } from "../quests/definitions";
+import type { QuestRecord, QuestAction } from "../quests/engine";
 import { NPC_DEFINITIONS, getNpc } from "./definitions";
 import { selectDialogue, type DialogueMemory, type DialogueView } from "./dialogue";
 export const RELATIONSHIP_RULES={dailyTalkPoints:10,maxPoints:1000,levels:[{points:0,name:"처음 보는 사이"},{points:20,name:"아는 사이"},{points:80,name:"친한 사이"},{points:200,name:"좋은 친구"}]} as const;
 export interface NpcRelationship { points:number; lastTalkDay:number|null; dialogue:DialogueMemory }
-export interface PlayerProgress { version:1; relationships:Record<string,NpcRelationship> }
+export interface PlayerProgress { version:1; quests:Record<string,QuestRecord>; relationships:Record<string,NpcRelationship> }
 export interface ProgressSnapshot { revision:number; data:PlayerProgress }
-export type ProgressAction = {kind:"talk";npcId:string};
+export type ProgressAction = {kind:"talk";npcId:string} | QuestAction;
 export interface ProgressResult { progress:ProgressSnapshot; dialogue?:DialogueView; snapshot?:import("../family/types").FamilySnapshot }
 const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==="object"&&!Array.isArray(v);
 export function normalizeProgress(value:unknown):PlayerProgress {
@@ -14,7 +16,12 @@ export function normalizeProgress(value:unknown):PlayerProgress {
   relationships[n.id]={points:typeof v.points==="number"&&Number.isFinite(v.points)?Math.min(RELATIONSHIP_RULES.maxPoints,Math.max(0,Math.floor(v.points))):0,
    lastTalkDay:typeof v.lastTalkDay==="number"&&Number.isSafeInteger(v.lastTalkDay)&&v.lastTalkDay>0?v.lastTalkDay:null,
    dialogue:{met:d.met===true,cursor:typeof d.cursor==="number"&&Number.isSafeInteger(d.cursor)&&d.cursor>=0?d.cursor:0,lastKey:typeof d.lastKey==="string"?d.lastKey.slice(0,80):undefined}};
- }return {version:1,relationships};
+ }
+ const quests:Record<string,QuestRecord>={};const rawQuests=record(value)&&record(value.quests)?value.quests:{};
+ for(const q of QUEST_DEFINITIONS){const v=rawQuests[q.id];if(!record(v)||!["active","completed","rewarded"].includes(String(v.status)))continue;
+  quests[q.id]={status:v.status as QuestStatus,talked:Array.isArray(v.talked)?[...new Set(v.talked.filter((id):id is string=>typeof id==="string"&&!!getNpc(id)))]:[]};
+ }
+ return {version:1,relationships,quests};
 }
 export const relationshipLevel=(points:number)=>RELATIONSHIP_RULES.levels.findLast(l=>points>=l.points)!.name;
 export function talkToNpc(progress:PlayerProgress,npcId:string,day:number,minute:number,daySerial:number):DialogueView {

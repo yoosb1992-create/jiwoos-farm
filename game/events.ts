@@ -1,5 +1,7 @@
 export type ToolKey = "hoe" | "seed" | "water" | "hand";
 export interface HudState {
+  quests?: import("./quests/engine").QuestView[];
+  npcBusy?:boolean;
   dialogue?: import("./npc/dialogue").DialogueView;
   selectedCrop?: import("./data/crops").CropId;
   seedCounts?: Record<string, number>;

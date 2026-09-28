@@ -1,3 +1,4 @@
+import { applyQuestAction, questViews, recordNpcGreeting, type QuestAction } from "./quests/engine";
 import { normalizeProgress, talkToNpc } from "./npc/progress";
 import { nearestNpc, type DialogueView } from "./npc/dialogue";
 import { NpcController } from "./npc/NpcController";
@@ -206,8 +207,19 @@ export class FarmScene extends Phaser.Scene {
     this.npcRequest=true;this.virtualMovement={x:0,y:0};this.player.setVelocity(0,0);
     try {
       if(this.family){const result=await this.family.npcAction({kind:"talk",npcId},this.familyPose());if(!this.sceneLive)return;if(result)this.dialogue=result.dialogue;}
-      else {this.dialogue=talkToNpc(this.playerProgress,npcId,this.day,this.timeMinutes,this.daySerial);this.save(false);}
+      else {this.dialogue=talkToNpc(this.playerProgress,npcId,this.day,this.timeMinutes,this.daySerial);recordNpcGreeting(this.playerProgress,npcId);this.save(false);}
     }finally{this.npcRequest=false;if(this.sceneLive)this.emitHud();}
+  }
+  private async questAction(action:QuestAction) {
+    if(!this.dialogue||this.npcRequest)return;
+    const view=questViews(this.family?.progress?.data??this.playerProgress,this.inventory).find(q=>q.id===action.questId);
+    if(!view||view.giver!==this.dialogue.npcId)return;
+    this.npcRequest=true;
+    try{
+      if(this.family)await this.family.npcAction(action,this.familyPose());
+      else {this.money=applyQuestAction(this.playerProgress,this.inventory,this.money,action);this.save(false);}
+    }catch(error){this.say(error instanceof Error?error.message:"의뢰를 확인해 주세요.");}
+    finally{this.npcRequest=false;if(this.sceneLive)this.emitHud();}
   }
   private performWorldAction(action: MapAction) {
     if (action === "sleep") this.askToSleep();
@@ -253,6 +265,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
+    if(command.type==="quest-action"){void this.questAction(command.value as QuestAction);return;}
     if(command.type==="dialogue-close"||command.type==="dialogue-next") {
       if(this.dialogue && command.type==="dialogue-next" && this.dialogue.index+1<this.dialogue.lines.length) this.dialogue.index++;
       else this.dialogue=undefined;
@@ -335,7 +348,7 @@ export class FarmScene extends Phaser.Scene {
   private formatTime() { const h = Math.floor(this.timeMinutes / 60), m = this.timeMinutes % 60; return `${h < 12 ? "오전" : "오후"} ${h % 12 || 12}:${m.toString().padStart(2, "0")}`; }
   private emitHud() {
     const step = this.getObjective();
-    const hud: HudState = { dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), selectedTool: this.selectedTool,
+    const hud: HudState = { quests:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: this.day, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
       transitioning: this.transitioning, shopOpen: this.shopOpen, mapId: this.currentMapId, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));
