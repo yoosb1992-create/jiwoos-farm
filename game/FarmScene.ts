@@ -71,6 +71,7 @@ export class FarmScene extends Phaser.Scene {
   private readonly mapRegistry: MapRegistry;
   private forestDayInstalled = 0;
   private forestState: ForestState = emptyForestState(1);
+  private sharedForestState: ForestState | null = null;
   private readonly forestScope: string;
   private readonly testMode: boolean;
   private helpOpen = true;
@@ -187,6 +188,7 @@ export class FarmScene extends Phaser.Scene {
     this.currentMapId = mapId;
     const map = this.mapRegistry.require(mapId), width = map.width * GAME_CONFIG.tileSize, height = map.height * GAME_CONFIG.tileSize;
     this.obstacleCollider?.destroy(); this.obstacles = this.worldRenderer.renderMap(mapId, this.farm.values());
+    if (mapId === FAIRY_FOREST_ID) this.worldRenderer.renderForestHits((this.family ? this.sharedForestState : this.forestState)?.hits ?? {});
     this.physics.world.setBounds(0, 0, width, height); this.cameras.main.setBounds(0, 0, width, height);
     this.obstacleCollider = this.physics.add.collider(this.player, this.obstacles);
     const spawn = map.spawns.find((entry) => entry.id === spawnId) ?? map.spawns[0];
@@ -266,7 +268,6 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private useForestResource(worldX: number, worldY: number) {
-    if (this.family) { this.say("가족 숲 자원 채집은 다음 단계에서 지원합니다."); return; }
     const map = this.mapRegistry.require(FAIRY_FOREST_ID);
     const object = findForestResource(map, { x: worldX, y: worldY }, this.player);
     if (!object) { this.say("채집할 나무·작은 돌·들풀 가까이에서 사용해 주세요."); return; }
@@ -274,9 +275,18 @@ export class FarmScene extends Phaser.Scene {
     if (this.selectedTool !== FOREST_RESOURCES[kind].tool) {
       this.say(`${FOREST_RESOURCES[kind].name}: ${FOREST_RESOURCES[kind].tool === "axe" ? "도끼" : "손"}을(를) 사용해 주세요.`); return;
     }
+    if (this.family) {
+      const daySerial = this.family.snapshot?.world.daySerial ?? this.family.snapshot?.world.day;
+      if (!daySerial) { this.say("가족 숲의 최신 상태를 받는 중이에요."); return; }
+      this.toolActions.execute(this.selectedTool, this.facing, tool => {
+        void this.family!.act({ kind: "forest-gather", nodeId: object.id, daySerial, tool, pose: this.familyPose() });
+      });
+      return;
+    }
     this.toolActions.execute(this.selectedTool, this.facing, () => {
       const result = strikeForestNode(this.forestState, object, this.selectedTool);
       this.forestState = result.state;
+      this.worldRenderer.renderForestHits(this.forestState.hits);
       if (result.drop) this.inventory.add(result.drop, result.quantity);
       if (result.remaining === 0) {
         const position = { x: this.player.x, y: this.player.y, facing: this.facing };
@@ -414,11 +424,15 @@ export class FarmScene extends Phaser.Scene {
     gameEvents.dispatchEvent(new CustomEvent("family-sleep", { detail: snapshot.sleep }));
     this.npcMinute = snapshot.npcTimeMinutes ?? snapshot.world.timeMinutes; this.npcClockReceived = performance.now();
     this.daySerial = snapshot.world.daySerial ?? snapshot.world.day;
-    if (this.forestDayInstalled !== this.daySerial) {
+    const nextForestState = normalizeForestState(snapshot.world.forestState, this.daySerial);
+    const depletedChanged = !this.sharedForestState || this.sharedForestState.daySerial !== this.daySerial ||
+      JSON.stringify(this.sharedForestState.depleted) !== JSON.stringify(nextForestState.depleted);
+    this.sharedForestState = nextForestState;
+    if (this.forestDayInstalled !== this.daySerial || depletedChanged) {
       const oldPosition = this.currentMapId === FAIRY_FOREST_ID ? { x: this.player.x, y: this.player.y, facing: this.facing } : undefined;
-      this.syncForest();
+      this.syncForest(depletedChanged);
       if (oldPosition && this.forestDayInstalled === this.daySerial) this.loadMap(FAIRY_FOREST_ID, undefined, oldPosition);
-    }
+    } else if (this.currentMapId === FAIRY_FOREST_ID) this.worldRenderer.renderForestHits(nextForestState.hits);
     this.day = snapshot.world.day; this.timeMinutes = snapshot.world.timeMinutes; this.money = snapshot.world.money;
     this.inventory = new Inventory(snapshot.inventory);
     for (const remote of snapshot.world.farm) {
@@ -432,8 +446,8 @@ export class FarmScene extends Phaser.Scene {
   private save(notify: boolean) { if (!this.player || this.testMode) return; if (this.family) { this.family.savePersonal(this.familyPose(), this.daySerial); return; } this.repository.save(this.snapshot()); if (notify) this.say("이 브라우저에 현재 장소와 농장 상태를 저장했어요."); }
   private syncForest(force = false) {
     if (this.testMode || (!force && this.forestDayInstalled === this.daySerial)) return;
-    if (this.forestState.daySerial !== this.daySerial) this.forestState = emptyForestState(this.daySerial);
-    if (installFairyForest(this.mapRegistry, this.forestScope, this.daySerial, this.family ? undefined : this.forestState)) this.forestDayInstalled = this.daySerial;
+    if (!this.family && this.forestState.daySerial !== this.daySerial) this.forestState = emptyForestState(this.daySerial);
+    if (installFairyForest(this.mapRegistry, this.forestScope, this.daySerial, this.family ? this.sharedForestState ?? undefined : this.forestState)) this.forestDayInstalled = this.daySerial;
   }
   private applySavedState(data: SaveData) {
     this.playerProgress=normalizeProgress(data.playerProgress);this.daySerial=data.daySerial??data.day;

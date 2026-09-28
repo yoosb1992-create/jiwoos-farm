@@ -1,7 +1,12 @@
 import { strict as assert } from "node:assert";
 import { FamilyRooms, FamilyError } from "../../server/family/rooms";
 import { FamilyState } from "../../server/family/state";
+import { FamilyPresenceService } from "../../server/family/presence";
+import { RemotePlayers } from "../family/RemotePlayers";
 import { generateResourceForest, resourceKind } from "../forest/resources";
+import { installFairyForest } from "../forest/registry";
+import { MapRegistry } from "../maps/MapRegistry";
+import { WorldRenderer } from "../rendering/WorldRenderer";
 import { familyTestDB } from "./family-db";
 
 const { db, close } = familyTestDB();
@@ -9,7 +14,7 @@ try {
   const now = () => 100000;
   const rooms = new FamilyRooms(db, now), service = new FamilyState(db, now);
   const a = await rooms.create("A", "가족 숲", "지우");
-  await rooms.join("B", a.room.inviteCode, "수빈");
+  const b = await rooms.join("B", a.room.inviteCode, "수빈");
   const roomId = a.room.id, forest = generateResourceForest(roomId, 1);
   assert.deepEqual(forest.objects, generateResourceForest(roomId, 1).objects, "family A/B have identical node IDs");
   const tree = forest.objects.find(o => resourceKind(o) === "tree")!;
@@ -66,5 +71,47 @@ try {
   assert.deepEqual(slept.world.forestState, { daySerial: 2, depleted: [], hits: {} }, "next day clears shared node progress");
   await expectInvalid(gather(rock, "hand"), 400);
   assert.notDeepEqual(generateResourceForest(roomId, 1).objects, generateResourceForest(roomId, 2).objects);
+  const clientMap = new MapRegistry();
+  installFairyForest(clientMap, roomId, 1, winner.value.world.forestState);
+  assert.ok(!clientMap.require("fairy_forest").objects.some(o => o.id === tree.id), "snapshot removes depleted tree on another client");
+  installFairyForest(clientMap, roomId, 2, slept.world.forestState);
+  assert.deepEqual(clientMap.require("fairy_forest").objects, generateResourceForest(roomId, 2).objects, "new-day snapshot regenerates every node");
+
+  const labels: string[] = []; let removed = 0;
+  const text = () => {
+    const label: any = { setText(value: string) { labels.push(value); return label; }, setOrigin() { return label; }, setDepth() { return label; }, destroy() { removed++; } };
+    return label;
+  };
+  const worldRenderer = new WorldRenderer({ add: { text } } as never, clientMap);
+  (worldRenderer as unknown as { root: { add: (node: unknown) => void } }).root = { add: () => {} };
+  const nextTreeForLabel = clientMap.require("fairy_forest").objects.find(o => resourceKind(o) === "tree")!;
+  worldRenderer.renderForestHits({ [nextTreeForLabel.id]: 1 });
+  worldRenderer.renderForestHits({ [nextTreeForLabel.id]: 2 });
+  assert.deepEqual(labels, ["2/3"], "other family tree hits update an existing label");
+  worldRenderer.renderForestHits({}); assert.equal(removed, 1, "label disappears when hits reset or tree is removed");
+
+  const nextTree = generateResourceForest(roomId, 2).objects.find(o => resourceKind(o) === "tree")!;
+  const presence = new FamilyPresenceService(db, now);
+  const sessionA = crypto.randomUUID(), sessionB = crypto.randomUUID();
+  await presence.heartbeat("A", roomId, poseAt(nextTree), sessionA);
+  await presence.heartbeat("B", roomId, poseAt(nextTree), sessionB);
+  const nextAction = { ...gather(nextTree), daySerial: 2 };
+  const hit = await service.act("A", roomId, slept.revision, nextAction);
+  assert.equal(hit.world.forestState?.hits[nextTree.id], 1);
+  const seen = await presence.read("B", roomId);
+  const actor = seen.players.find(p => p.playerId === a.room.playerId)!;
+  assert.equal(actor.action?.tool, "axe", "committed axe hit produces short-lived presence action");
+  const animations: string[] = [];
+  const node = () => {
+    const proxy: any = new Proxy({ x: 0, y: 0 }, { get(target, key) { return key in target ? target[key as keyof typeof target] : (...args: any[]) => {
+      if (key === "play") animations.push(args[0]);
+      if (key === "setPosition") { target.x = args[0]; target.y = args[1]; }
+      return proxy;
+    }; } }); return proxy;
+  };
+  const remote = new RemotePlayers({ add: { sprite: node, text: node } } as never, b.room.playerId);
+  remote.receive(seen); remote.update("fairy_forest", 16);
+  assert.ok(animations.includes("tool_right"), "remote axe uses existing tool-right player animation");
+  remote.destroy();
   console.log("Family forest: shared hits, concurrent final hit/herb CAS, authority checks, daily reset and private drops passed");
 } finally { close(); }
