@@ -1,5 +1,7 @@
 export type ToolKey = "hoe" | "seed" | "water" | "hand";
 export interface HudState {
+  selectedCrop?: import("./data/crops").CropId;
+  seedCounts?: Record<string, number>;
   money: number;
   seeds: number;
   harvest: number;

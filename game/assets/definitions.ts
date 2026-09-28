@@ -115,6 +115,18 @@ export const CROP_ASSETS = {
   crop_sproutberry_sprout: cropAsset("crop_sproutberry_sprout", "crop-sproutberry-1", 6, 0x78b64b, { kind: "image", path: "/assets/crops/sproutberry-sprout.png" }),
   crop_sproutberry_growing: cropAsset("crop_sproutberry_growing", "crop-sproutberry-2", 9, 0x3f8b45, { kind: "image", path: "/assets/crops/sproutberry-growing.png" }),
   crop_sproutberry_mature: cropAsset("crop_sproutberry_mature", "crop-sproutberry-3", 12, 0xe88942, { kind: "image", path: "/assets/crops/sproutberry-mature.png" }),
+  crop_sunpotato_seed: cropAsset("crop_sunpotato_seed", "crop-sunpotato-seed", 3, 0xe6b443, { kind: "image", path: "/assets/crops/sunpotato-seed.png" }),
+  crop_sunpotato_sprout: cropAsset("crop_sunpotato_sprout", "crop-sunpotato-sprout", 6, 0xe6b443, { kind: "image", path: "/assets/crops/sunpotato-sprout.png" }),
+  crop_sunpotato_growing: cropAsset("crop_sunpotato_growing", "crop-sunpotato-growing", 9, 0xe6b443, { kind: "image", path: "/assets/crops/sunpotato-growing.png" }),
+  crop_sunpotato_mature: cropAsset("crop_sunpotato_mature", "crop-sunpotato-mature", 12, 0xe6b443, { kind: "image", path: "/assets/crops/sunpotato-mature.png" }),
+  crop_heartberry_seed: cropAsset("crop_heartberry_seed", "crop-heartberry-seed", 3, 0xe75c65, { kind: "image", path: "/assets/crops/heartberry-seed.png" }),
+  crop_heartberry_sprout: cropAsset("crop_heartberry_sprout", "crop-heartberry-sprout", 6, 0xe75c65, { kind: "image", path: "/assets/crops/heartberry-sprout.png" }),
+  crop_heartberry_growing: cropAsset("crop_heartberry_growing", "crop-heartberry-growing", 9, 0xe75c65, { kind: "image", path: "/assets/crops/heartberry-growing.png" }),
+  crop_heartberry_mature: cropAsset("crop_heartberry_mature", "crop-heartberry-mature", 12, 0xe75c65, { kind: "image", path: "/assets/crops/heartberry-mature.png" }),
+  crop_morningcarrot_seed: cropAsset("crop_morningcarrot_seed", "crop-morningcarrot-seed", 3, 0xf08b32, { kind: "image", path: "/assets/crops/morningcarrot-seed.png" }),
+  crop_morningcarrot_sprout: cropAsset("crop_morningcarrot_sprout", "crop-morningcarrot-sprout", 6, 0xf08b32, { kind: "image", path: "/assets/crops/morningcarrot-sprout.png" }),
+  crop_morningcarrot_growing: cropAsset("crop_morningcarrot_growing", "crop-morningcarrot-growing", 9, 0xf08b32, { kind: "image", path: "/assets/crops/morningcarrot-growing.png" }),
+  crop_morningcarrot_mature: cropAsset("crop_morningcarrot_mature", "crop-morningcarrot-mature", 12, 0xf08b32, { kind: "image", path: "/assets/crops/morningcarrot-mature.png" }),
 } as const;
 export type CropAssetId = keyof typeof CROP_ASSETS;
 
@@ -126,4 +138,10 @@ export const ITEM_ASSETS = {
   item_water: itemAsset("item_water", "item-water", "◒", { kind: "image", path: "/assets/items/water.png" }),
   item_hand: itemAsset("item_hand", "item-hand", "✋", { kind: "image", path: "/assets/items/hand.png" }),
   item_sproutberry: itemAsset("item_sproutberry", "item-sproutberry", "●", { kind: "image", path: "/assets/items/sproutberry.png" }),
+  item_sunpotato_seed: itemAsset("item_sunpotato_seed", "item-sunpotato_seed", "●", { kind: "image", path: "/assets/items/sunpotato_seed.png" }),
+  item_sunpotato: itemAsset("item_sunpotato", "item-sunpotato", "●", { kind: "image", path: "/assets/items/sunpotato.png" }),
+  item_heartberry_seed: itemAsset("item_heartberry_seed", "item-heartberry_seed", "♥", { kind: "image", path: "/assets/items/heartberry_seed.png" }),
+  item_heartberry: itemAsset("item_heartberry", "item-heartberry", "♥", { kind: "image", path: "/assets/items/heartberry.png" }),
+  item_morningcarrot_seed: itemAsset("item_morningcarrot_seed", "item-morningcarrot_seed", "◆", { kind: "image", path: "/assets/items/morningcarrot_seed.png" }),
+  item_morningcarrot: itemAsset("item_morningcarrot", "item-morningcarrot", "◆", { kind: "image", path: "/assets/items/morningcarrot.png" }),
 } as const;

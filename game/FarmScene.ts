@@ -3,12 +3,12 @@ import { FamilyClient } from "./family/client";
 import type { FamilyPose, FamilySession, FamilySnapshot } from "./family/types";
 import * as Phaser from "phaser";
 import { gameEvents, type HudState, type ToolKey } from "./events";
-import { advanceFarmDay, Inventory, LocalStorageSaveRepository, purchaseInventoryItem, type FarmTileData, type SaveData } from "./domain";
+import { advanceFarmDay, sellAllCrops, Inventory, LocalStorageSaveRepository, purchaseInventoryItem, type FarmTileData, type SaveData } from "./domain";
 import { AssetManager } from "./assets/AssetManager";
 import { PLAYER_ASSET, displayedSize, physicsBoxForScale, type Facing } from "./assets/definitions";
 import { WorldRenderer } from "./rendering/WorldRenderer";
 import { GAME_CONFIG } from "./config";
-import { DEFAULT_CROP_ID, getCropDefinition, isMatureCrop } from "./data/crops";
+import { CROP_DEFINITIONS, DEFAULT_CROP_ID, isCropId, type CropId, getCropDefinition, isMatureCrop } from "./data/crops";
 import { ITEM_DEFINITIONS } from "./data/items";
 import { GENERAL_STORE_LISTINGS } from "./data/shop";
 import { TILE_TYPE_DEFINITIONS, getTileTypeInMap, pointInTileRect, tilePoint } from "./maps/definitions";
@@ -23,6 +23,7 @@ type Command = { type: string; value?: unknown };
 export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; testMode?: boolean; family?: FamilySession }
 
 export class FarmScene extends Phaser.Scene {
+  private selectedCrop: CropId = DEFAULT_CROP_ID;
   private family?: FamilyClient;
   private sceneLive = false;
   private sleepTimer?: number;
@@ -197,7 +198,7 @@ export class FarmScene extends Phaser.Scene {
     const center = tilePoint(x + 0.5, y + 0.5);
     if (Phaser.Math.Distance.Between(this.player.x, this.player.y, center.x, center.y) > GAME_CONFIG.farmInteractionDistance) { this.say("조금 더 가까이 가 주세요."); return; }
     if (this.family) {
-      this.toolActions.execute(this.selectedTool, this.facing, (tool) => { void this.family!.act({ kind: "tool", tool, x, y, pose: this.familyPose() }); });
+      this.toolActions.execute(this.selectedTool, this.facing, (tool) => { void this.family!.act({ kind: "tool", tool, cropId: this.selectedCrop, x, y, pose: this.familyPose() }); });
       return;
     }
     const executed = this.toolActions.execute(this.selectedTool, this.facing, (tool) => this.applyTool(tool, tile));
@@ -206,14 +207,14 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private applyTool(tool: ToolKey, tile: FarmTileData) {
-    const crop = getCropDefinition(DEFAULT_CROP_ID);
+    const crop = getCropDefinition(this.selectedCrop);
     if (tool === "hoe") {
       if (tile.tilled) this.say("이미 잘 갈아 둔 밭이에요."); else { tile.tilled = true; this.say("포슬포슬하게 땅을 갈았어요."); }
     } else if (tool === "seed") {
       if (!tile.tilled) this.say("먼저 괭이로 땅을 갈아야 해요.");
       else if (tile.cropStage !== null) this.say("이미 작물이 자라고 있어요.");
       else if (!this.inventory.consume(crop.seedItemId)) this.say("씨앗이 없어요. 마을 상점에서 살 수 있어요.");
-      else { tile.cropType = DEFAULT_CROP_ID; tile.cropStage = 0; tile.wateredToday = false; tile.plantedDay = this.day; this.say(`${crop.name} 씨앗을 심었어요.`); }
+      else { tile.cropType = this.selectedCrop; tile.cropStage = 0; tile.wateredToday = false; tile.plantedDay = this.day; this.say(`${crop.name} 씨앗을 심었어요.`); }
     } else if (tool === "water") {
       if (tile.cropStage === null) this.say("먼저 씨앗을 심어 주세요.");
       else if (tile.wateredToday) this.say("오늘은 이미 촉촉하게 물을 주었어요.");
@@ -223,6 +224,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
+    if (command.type === "seed-select" && isCropId(command.value)) { this.selectedCrop = command.value; this.selectedTool = "seed"; this.emitHud(); return; }
     if (this.family && (command.type === "save" || command.type === "load")) {
       this.family.savePersonal(this.familyPose());
       void this.family.refresh().then(() => this.say("가족 농장 서버 상태를 받았어요.")).catch(() => this.say("서버에 연결할 수 없습니다.")); return;
@@ -256,9 +258,9 @@ export class FarmScene extends Phaser.Scene {
   }
   private sellHarvest() {
     if (this.family) { void this.family.act({ kind: "sell", pose: this.familyPose() }); return; }
-    const crop = getCropDefinition(DEFAULT_CROP_ID);
-    if (!this.inventory.count(crop.harvestItemId)) this.say("판매할 수확물이 없어요.");
-    else { const { amount, earned } = this.inventory.sellAll(crop.harvestItemId, crop.sellPrice); this.money += earned; this.say(`${amount}개를 팔아 ${earned}G를 얻었어요!`); this.save(false); }
+    const { amount, earned } = sellAllCrops(this.inventory);
+    if (!amount) this.say("판매할 수확물이 없어요.");
+    else { this.money += earned; this.say(`${amount}개를 팔아 ${earned}G를 얻었어요!`); this.save(false); }
     this.emitHud();
   }
   private askToSleep() { if (!this.helpOpen && !this.transitioning) { this.sleepPrompt = true; this.say("오늘 하루를 마치고 잠드시겠습니까?"); } }
@@ -297,7 +299,7 @@ export class FarmScene extends Phaser.Scene {
   private formatTime() { const h = Math.floor(this.timeMinutes / 60), m = this.timeMinutes % 60; return `${h < 12 ? "오전" : "오후"} ${h % 12 || 12}:${m.toString().padStart(2, "0")}`; }
   private emitHud() {
     const step = this.getObjective();
-    const hud: HudState = { money: this.money, seeds: this.inventory.count("sproutberry_seed"), harvest: this.inventory.count("sproutberry"), selectedTool: this.selectedTool,
+    const hud: HudState = { money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: this.day, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
       transitioning: this.transitioning, shopOpen: this.shopOpen, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));

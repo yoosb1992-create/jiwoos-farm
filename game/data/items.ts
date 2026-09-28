@@ -5,6 +5,12 @@ export const ITEM_DEFINITIONS = {
   hand: { id: "hand", name: "손", kind: "tool", assetId: "item_hand", toolbarHint: "수확" },
   sproutberry_seed: { id: "sproutberry_seed", name: "새싹열매 씨앗", kind: "seed", assetId: "item_seed", sellPrice: 0 },
   sproutberry: { id: "sproutberry", name: "새싹열매", kind: "crop", assetId: "item_sproutberry", sellPrice: 35 },
+  sunpotato_seed: { id: "sunpotato_seed", name: "햇살감자 씨앗", kind: "seed", assetId: "item_sunpotato_seed", sellPrice: 0 },
+  sunpotato: { id: "sunpotato", name: "햇살감자", kind: "crop", assetId: "item_sunpotato", sellPrice: 60 },
+  heartberry_seed: { id: "heartberry_seed", name: "하트딸기 씨앗", kind: "seed", assetId: "item_heartberry_seed", sellPrice: 0 },
+  heartberry: { id: "heartberry", name: "하트딸기", kind: "crop", assetId: "item_heartberry", sellPrice: 90 },
+  morningcarrot_seed: { id: "morningcarrot_seed", name: "아침당근 씨앗", kind: "seed", assetId: "item_morningcarrot_seed", sellPrice: 0 },
+  morningcarrot: { id: "morningcarrot", name: "아침당근", kind: "crop", assetId: "item_morningcarrot", sellPrice: 45 },
 } as const;
 
 export type ItemId = keyof typeof ITEM_DEFINITIONS;

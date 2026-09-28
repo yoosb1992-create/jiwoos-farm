@@ -287,3 +287,5 @@ assert.equal(createBuiltInEditorDocument().maps.find((map) => map.id === "town")
 console.log("0.4 mobile input, editor viewport/cloud sync, world, save migration, farming, and asset-swap regression checks: passed");
 
 import "./family-sleep";
+
+import "./spring-crops";

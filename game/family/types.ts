@@ -8,7 +8,7 @@ export interface FamilyPose extends PlayerData { selectedTool: ToolKey; moving: 
 export interface FamilyWorld { day: number; timeMinutes: number; money: number; farm: FarmTileData[] }
 export interface FamilySnapshot { revision: number; serverNow: number; world: FamilyWorld; inventory: InventoryData; sleep?: { waiting: string[]; agreed: number; online: number; voted: boolean } }
 export type FamilyAction =
-  | { kind: "tool"; tool: ToolKey; x: number; y: number; pose: FamilyPose }
+  | { kind: "tool"; tool: ToolKey; cropId?: import("../data/crops").CropId; x: number; y: number; pose: FamilyPose }
   | { kind: "buy"; listingId: string; pose: FamilyPose }
   | { kind: "sleep" | "sleep-cancel" | "sell"; pose: FamilyPose };
 export interface FamilySession { room: FamilyRoom }

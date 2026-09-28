@@ -1,7 +1,7 @@
 import { FAMILY_PRESENCE_TTL_MS } from "../../game/family/presence";
 import { GAME_CONFIG } from "../../game/config";
-import { advanceFarmDay, Inventory, purchaseInventoryItem, type InventoryData } from "../../game/domain";
-import { DEFAULT_CROP_ID, getCropDefinition, isMatureCrop } from "../../game/data/crops";
+import { advanceFarmDay, sellAllCrops, Inventory, purchaseInventoryItem, type InventoryData } from "../../game/domain";
+import { DEFAULT_CROP_ID, isCropId, getCropDefinition, isMatureCrop } from "../../game/data/crops";
 import { GENERAL_STORE_LISTINGS } from "../../game/data/shop";
 import { MAP_DEFINITIONS, pointInTileRect } from "../../game/maps/definitions";
 import { PLAYER_ASSET } from "../../game/assets/definitions";
@@ -67,7 +67,9 @@ export class FamilyState extends FamilyRooms {
     const stored = JSON.parse(row.world_json) as StoredWorld;
     const inventories = JSON.parse(row.inventories_json) as Record<string, InventoryData>;
     const inventory = new Inventory(inventories[member.playerId]);
-    const crop = getCropDefinition(DEFAULT_CROP_ID);
+    const cropId = action.kind === "tool" && action.tool === "seed" ? action.cropId ?? DEFAULT_CROP_ID : DEFAULT_CROP_ID;
+    if (!isCropId(cropId)) throw new FamilyError(400, "없는 씨앗 종류입니다.");
+    const crop = getCropDefinition(cropId);
     const near = (kind: "sleep" | "open_shop") => {
       const offset = PLAYER_ASSET.interactionPoints[pose.facing];
       return MAP_DEFINITIONS[pose.mapId].objects.some((o) => o.interaction?.action === kind &&
@@ -81,7 +83,7 @@ export class FamilyState extends FamilyRooms {
       else if (action.tool === "seed") {
         if (!tile.tilled || tile.cropType) throw new FamilyError(409, "비어 있는 갈아놓은 밭에 심어 주세요.");
         if (!inventory.consume(crop.seedItemId)) throw new FamilyError(409, "씨앗이 없습니다.");
-        Object.assign(tile, { cropType: DEFAULT_CROP_ID, cropStage: 0, plantedDay: stored.day, wateredToday: false });
+        Object.assign(tile, { cropType: cropId, cropStage: 0, plantedDay: stored.day, wateredToday: false });
       } else if (action.tool === "water") {
         if (!tile.cropType) throw new FamilyError(409, "먼저 씨앗을 심어 주세요.");
         tile.wateredToday = true;
@@ -107,7 +109,7 @@ export class FamilyState extends FamilyRooms {
       if (!result.purchased) throw new FamilyError(409, "공동 자금이 부족합니다.");
       stored.money = result.money;
     } else if (action.kind === "sell") {
-      stored.money += inventory.sellAll(crop.harvestItemId, crop.sellPrice).earned;
+      stored.money += sellAllCrops(inventory).earned;
     } else throw new FamilyError(400, "지원하지 않는 행동입니다.");
     inventories[member.playerId] = inventory.serialize();
     const result = await this.db.prepare(`UPDATE family_state SET world_json = ?, inventories_json = ?, revision = revision + 1, updated_at = ? WHERE room_id = ? AND revision = ?`)

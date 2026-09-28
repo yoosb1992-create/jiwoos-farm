@@ -53,6 +53,15 @@ export function purchaseInventoryItem(inventory: Inventory, money: number, itemI
   return { purchased: true, money: money - price };
 }
 
+export function sellAllCrops(inventory: Inventory) {
+  let amount = 0, earned = 0;
+  for (const crop of Object.values(CROP_DEFINITIONS)) {
+    const sold = inventory.sellAll(crop.harvestItemId, crop.sellPrice);
+    amount += sold.amount; earned += sold.earned;
+  }
+  return { amount, earned };
+}
+
 export function advanceFarmDay(farm: FarmTileData[]) {
   let grown = 0;
   for (const tile of farm) {
