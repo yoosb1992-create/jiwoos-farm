@@ -1,3 +1,4 @@
+import type { ProgressAction, ProgressSnapshot, ProgressResult } from "../npc/progress";
 import { gameEvents } from "../events";
 import type { FamilyAction, FamilyPose, FamilySession, FamilySnapshot, FamilyPresenceSnapshot } from "./types";
 import { familyPersonalKey, parseFamilyPose } from "./personal";
@@ -16,6 +17,29 @@ export async function familyFetch<T>(path: string, init: RequestInit = {}): Prom
   return result as T;
 }
 export class FamilyClient {
+  progress?: ProgressSnapshot;
+  async loadProgress() {
+    const progress=await familyFetch<ProgressSnapshot>(`/api/family/progress?roomId=${encodeURIComponent(this.session.room.id)}`);
+    if(this.live && (!this.progress||progress.revision>=this.progress.revision))this.progress=progress;
+    return this.progress;
+  }
+  async npcAction(action:ProgressAction,pose:FamilyPose):Promise<ProgressResult|undefined> {
+    if(!this.live||this.busy||this.connection!=="connected"){this.onMessage("연결 복구 후 다시 이야기해 주세요.");return;}
+    this.busy=true;
+    try {
+      if(!this.progress)await this.loadProgress();
+      if(!this.live||!this.progress)return;
+      const result=await familyFetch<ProgressResult>("/api/family/progress",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({roomId:this.session.room.id,expectedRevision:this.progress.revision,action,pose})});
+      if(!this.live)return;
+      if(result.progress.revision>=this.progress.revision)this.progress=result.progress;
+      if(result.snapshot)this.accept(result.snapshot);
+      return result;
+    }catch(error){
+      if(!this.live)return;
+      if(error instanceof FamilyAPIError&&error.status===409)await this.loadProgress().catch(()=>{});
+      this.onMessage(error instanceof FamilyAPIError&&error.status<500?error.message:"주민 기록에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.");
+    }finally{this.busy=false;}
+  }
   snapshot?: FamilySnapshot;
   busy = false;
   connection: FamilyConnection = "connecting";

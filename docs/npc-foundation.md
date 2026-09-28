@@ -25,3 +25,11 @@ Family snapshots carry fractional `npcTimeMinutes` derived from the shared serve
 ## Dialogue
 
 `game/npc/dialogue.ts` selects data-only scripts independently of the React `NpcDialogue` UI. First meeting has priority, then the time-of-day pool plus general and day-gated lines rotates while avoiding consecutive repeats. Space/mobile action selects the nearest same-map NPC within 64px before object/tool actions. Dialogue freezes only the local actor; Family clock and presence polling continue. Next/close controls are touch-sized. No AI API is connected.
+
+## Personal relationships and storage
+
+Daily first talk grants 10 points, capped at 1000. Levels at 0/20/80/200 are data-owned in `game/npc/progress.ts`. A monotonically increasing optional `daySerial` distinguishes a new spring after day 28; legacy worlds default it to their current day. Repeated dialogue on one day never grants duplicate points.
+
+Single-player SaveData remains v4 with optional `playerProgress` and `daySerial`; old saves normalize to zero relationships. Family progress uses a separate `family_player_progress` table, keyed by membership player ID, with revision CAS and member FK cascade. Read/write APIs retain ChatGPT authentication and room membership checks. Day/world revision is checked when committing dialogue, so a concurrent sleep cannot apply a bonus for the wrong snapshot. The server uses its NPC schedule and checks player proximity (96px server allowance for polling latency). Progress is fetched on interaction, not per-frame. Rejoining the same membership preserves it; leaving the room removes that membership's progress.
+
+`drizzle/0004_player_progress.sql` is prepared for a future staging-only deployment. It has only been applied to ephemeral local SQLite tests. No staging or production migration/deployment is performed in this task.

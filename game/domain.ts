@@ -1,3 +1,4 @@
+import { normalizeProgress, type PlayerProgress } from "./npc/progress";
 import type { ToolKey } from "./events";
 import { CROP_DEFINITIONS, getCropDefinition, type CropId } from "./data/crops";
 import { ITEM_DEFINITIONS, type ItemId } from "./data/items";
@@ -18,6 +19,8 @@ export interface FarmTileData {
 export interface InventoryData { items: Partial<Record<ItemId, number>> }
 export interface PlayerData { x: number; y: number; facing: Facing; mapId: MapId }
 export interface SaveData {
+  playerProgress?: PlayerProgress;
+  daySerial?: number;
   version: 4;
   day: number;
   timeMinutes: number;
@@ -130,6 +133,8 @@ const normalizeV4 = (value: unknown): SaveData | null => {
   };
   return {
     version: 4,
+    playerProgress: normalizeProgress(value.playerProgress),
+    daySerial: Math.max(1, nonNegativeInteger(value.daySerial, nonNegativeInteger(value.day,1))),
     day: Math.min(GAME_CONFIG.day.daysPerSeason, Math.max(1, nonNegativeInteger(value.day, 1))),
     timeMinutes: Math.min(GAME_CONFIG.day.endMinutes, Math.max(GAME_CONFIG.day.startMinutes, nonNegativeInteger(value.timeMinutes, GAME_CONFIG.day.startMinutes))),
     money: nonNegativeInteger(value.money, GAME_CONFIG.startingMoney),

@@ -1,3 +1,4 @@
+import { normalizeProgress } from "../npc/progress";
 import "./family-client";
 import "./family-lobby";
 import "./family-presence";
@@ -67,7 +68,7 @@ const save: SaveData = {
 };
 const repository = new LocalStorageSaveRepository();
 repository.save(save);
-assert.deepEqual(repository.load(), save, "날짜·시간·농장·인벤토리·돈·위치를 동일하게 복원해야 함");
+assert.deepEqual(repository.load(), {...save, daySerial:save.day, playerProgress:normalizeProgress(null)}, "날짜·시간·농장·인벤토리·돈·위치를 동일하게 복원해야 함");
 
 storage.clear();
 storage.set("jiwoos-farm.save.v2", JSON.stringify({
@@ -293,3 +294,5 @@ import "./spring-crops";
 import "./npc";
 
 import "./npc-dialogue";
+
+import "./npc-progress";

@@ -1,4 +1,5 @@
-import { nearestNpc, selectDialogue, type DialogueMemory, type DialogueView } from "./npc/dialogue";
+import { normalizeProgress, talkToNpc } from "./npc/progress";
+import { nearestNpc, type DialogueView } from "./npc/dialogue";
 import { NpcController } from "./npc/NpcController";
 import { NPC_DEFINITIONS } from "./npc/definitions";
 import { NpcRenderer, preloadNpcs, createNpcAssets } from "./npc/NpcRenderer";
@@ -28,7 +29,9 @@ export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; te
 
 export class FarmScene extends Phaser.Scene {
   private dialogue?: DialogueView;
-  private dialogueMemory: Record<string,DialogueMemory> = {};
+  private playerProgress = normalizeProgress(null);
+  private daySerial = 1;
+  private npcRequest = false;
   private npcs!: NpcController;
   private npcRenderer!: NpcRenderer;
   private npcClockReceived = 0;
@@ -146,7 +149,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private npcTime() { return this.family ? Math.min(GAME_CONFIG.day.endMinutes, this.npcMinute + Math.min(2000, Math.max(0, performance.now()-this.npcClockReceived))/REAL_MS_PER_GAME_MINUTE) : this.timeMinutes + this.timeAccumulator/REAL_MS_PER_GAME_MINUTE; }
-  private isPaused() { return !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.transitioning; }
+  private isPaused() { return this.npcRequest || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.transitioning; }
   private advanceClock(delta: number) {
     this.timeAccumulator += delta;
     const elapsed = Math.floor(this.timeAccumulator / REAL_MS_PER_GAME_MINUTE);
@@ -198,12 +201,13 @@ export class FarmScene extends Phaser.Scene {
     this.useAtWorld(point.x, point.y);
   }
 
-  private openNpcDialogue(npcId:string) {
-    const npc=NPC_DEFINITIONS.find(n=>n.id===npcId);if(!npc)return;
-    const selected=selectDialogue(npc,this.day,this.timeMinutes,this.dialogueMemory[npcId]??{met:false,cursor:0});
-    this.dialogueMemory[npcId]=selected.memory;
-    this.dialogue={npcId,name:npc.name,image:npc.asset.source?.path??"",lines:selected.lines,index:0};
-    this.virtualMovement={x:0,y:0};this.player.setVelocity(0,0);this.emitHud();
+  private async openNpcDialogue(npcId:string) {
+    if(this.npcRequest)return;
+    this.npcRequest=true;this.virtualMovement={x:0,y:0};this.player.setVelocity(0,0);
+    try {
+      if(this.family){const result=await this.family.npcAction({kind:"talk",npcId},this.familyPose());if(!this.sceneLive)return;if(result)this.dialogue=result.dialogue;}
+      else {this.dialogue=talkToNpc(this.playerProgress,npcId,this.day,this.timeMinutes,this.daySerial);this.save(false);}
+    }finally{this.npcRequest=false;if(this.sceneLive)this.emitHud();}
   }
   private performWorldAction(action: MapAction) {
     if (action === "sleep") this.askToSleep();
@@ -309,6 +313,7 @@ export class FarmScene extends Phaser.Scene {
     this.sleepPrompt = false; this.transitioning = true; this.player.setVelocity(0, 0); this.emitHud();
     this.sleepTimer = window.setTimeout(() => {
       const grown = advanceFarmDay([...this.farm.values()]);
+      this.daySerial++;
       this.day = this.day >= GAME_CONFIG.day.daysPerSeason ? 1 : this.day + 1; this.timeMinutes = GAME_CONFIG.day.startMinutes;
       this.timeAccumulator = 0; this.lateNightWarned = false; this.transitioning = false;
       this.loadMap("farmhouse", "bed_wake");
@@ -344,6 +349,7 @@ export class FarmScene extends Phaser.Scene {
     if (!this.sceneLive) return;
     gameEvents.dispatchEvent(new CustomEvent("family-sleep", { detail: snapshot.sleep }));
     this.npcMinute = snapshot.npcTimeMinutes ?? snapshot.world.timeMinutes; this.npcClockReceived = performance.now();
+    this.daySerial = snapshot.world.daySerial ?? snapshot.world.day;
     this.day = snapshot.world.day; this.timeMinutes = snapshot.world.timeMinutes; this.money = snapshot.world.money;
     this.inventory = new Inventory(snapshot.inventory);
     for (const remote of snapshot.world.farm) {
@@ -352,10 +358,11 @@ export class FarmScene extends Phaser.Scene {
     }
     this.emitHud();
   }
-  private snapshot(): SaveData { return { version: 4, day: this.day, timeMinutes: this.timeMinutes, money: this.money, selectedTool: this.selectedTool,
+  private snapshot(): SaveData { return { version: 4, playerProgress:this.playerProgress, daySerial:this.daySerial, day: this.day, timeMinutes: this.timeMinutes, money: this.money, selectedTool: this.selectedTool,
     player: { x: this.player.x, y: this.player.y, facing: this.facing, mapId: this.currentMapId }, inventory: this.inventory.serialize(), farm: [...this.farm.values()].map((tile) => ({ ...tile })), savedAt: Date.now() }; }
   private save(notify: boolean) { if (!this.player || this.testMode) return; if (this.family) { this.family.savePersonal(this.familyPose()); return; } this.repository.save(this.snapshot()); if (notify) this.say("이 브라우저에 현재 장소와 농장 상태를 저장했어요."); }
   private applySavedState(data: SaveData) {
+    this.playerProgress=normalizeProgress(data.playerProgress);this.daySerial=data.daySerial??data.day;
     this.day = data.day; this.timeMinutes = data.timeMinutes; this.money = data.money; this.selectedTool = data.selectedTool;
     this.inventory = new Inventory(data.inventory); this.facing = data.player.facing; this.currentMapId = data.player.mapId;
     for (const saved of data.farm) { const tile = this.farm.get(`${saved.x},${saved.y}`); if (tile) Object.assign(tile, saved); }
