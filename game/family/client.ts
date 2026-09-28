@@ -113,10 +113,14 @@ export class FamilyClient {
       return false;
     } finally { this.busy = false; }
   }
-  loadPersonal(): FamilyPose | null {
-    try { return parseFamilyPose(JSON.parse(localStorage.getItem(familyPersonalKey(this.session.room.id, this.session.room.playerId)) ?? "null")); } catch { return null; }
+  loadPersonal(): (FamilyPose & { forestDaySerial?: number }) | null {
+    try {
+      const value = JSON.parse(localStorage.getItem(familyPersonalKey(this.session.room.id, this.session.room.playerId)) ?? "null");
+      const pose = parseFamilyPose(value);
+      return pose && Number.isSafeInteger(value.forestDaySerial) && value.forestDaySerial > 0 ? { ...pose, forestDaySerial: value.forestDaySerial } : pose;
+    } catch { return null; }
   }
-  savePersonal(pose: FamilyPose) {
-    try { localStorage.setItem(familyPersonalKey(this.session.room.id, this.session.room.playerId), JSON.stringify(pose)); } catch { /* Server state remains authoritative. */ }
+  savePersonal(pose: FamilyPose, forestDaySerial?: number) {
+    try { localStorage.setItem(familyPersonalKey(this.session.room.id, this.session.room.playerId), JSON.stringify({ ...pose, forestDaySerial })); } catch { /* Server state remains authoritative. */ }
   }
 }

@@ -19,6 +19,13 @@ try {
   assert.equal(visibleFamilyPlayers(snapshot, a.room.playerId, "farm")[0].playerId, b.room.playerId);
   assert.equal(visibleFamilyPlayers(snapshot, b.room.playerId, "farm")[0].playerId, a.room.playerId);
   assert.equal(visibleFamilyPlayers(snapshot, a.room.playerId, "town").length, 0);
+  const forestPose = { ...pose, mapId: "fairy_forest", x: 496, y: 656 };
+  await presence.heartbeat("A", a.room.id, forestPose, sessionA);
+  const forestSnapshot = await presence.heartbeat("B", a.room.id, { ...forestPose, x: 504 }, sessionB);
+  assert.equal(visibleFamilyPlayers(forestSnapshot, a.room.playerId, "fairy_forest").length, 1, "same forest shows family players");
+  assert.equal(visibleFamilyPlayers(forestSnapshot, a.room.playerId, "farm").length, 0, "other maps stay hidden");
+  await presence.heartbeat("A", a.room.id, pose, sessionA);
+  await presence.heartbeat("B", a.room.id, pose, sessionB);
   const state = new FamilyState(db, () => now);
   await state.act("A", a.room.id, 0, { kind: "tool", tool: "hoe", x: 9, y: 8, pose: { ...pose, x: 304, y: 272 } });
   const acted = await presence.heartbeat("A", a.room.id, { ...pose, action: { id: "spoof" } }, sessionA);

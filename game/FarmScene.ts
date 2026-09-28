@@ -20,6 +20,8 @@ import { GENERAL_STORE_LISTINGS } from "./data/shop";
 import { TILE_TYPE_DEFINITIONS, getTileTypeInMap, pointInTileRect, tilePoint } from "./maps/definitions";
 import type { MapAction, MapId } from "./maps/types";
 import { MapRegistry } from "./maps/MapRegistry";
+import { FAIRY_FOREST_ID, recoverForestPosition } from "./forest/generation";
+import { installFairyForest } from "./forest/registry";
 import { PlayerAnimationController } from "./player/PlayerAnimationController";
 import { ToolActionSystem } from "./actions/ToolActionSystem";
 import { facingFromMovement, mergeMovementInput, type MovementVector } from "./input/MovementInput";
@@ -65,6 +67,8 @@ export class FarmScene extends Phaser.Scene {
   private virtualMovement: MovementVector = { x: 0, y: 0 };
   private currentMapId: MapId;
   private readonly mapRegistry: MapRegistry;
+  private forestDayInstalled = 0;
+  private readonly forestScope: string;
   private readonly testMode: boolean;
   private helpOpen = true;
   private sleepPrompt = false;
@@ -78,8 +82,10 @@ export class FarmScene extends Phaser.Scene {
   constructor(options: FarmSceneOptions = {}) {
     super("FarmScene");
     this.mapRegistry = options.maps ?? new MapRegistry();
-    this.currentMapId = this.mapRegistry.has(options.initialMapId ?? "farm") ? (options.initialMapId ?? "farm") : "farm";
     this.testMode = options.testMode === true;
+    this.forestScope = options.family?.room.id ?? "single";
+    if (!this.testMode) this.syncForest();
+    this.currentMapId = this.mapRegistry.has(options.initialMapId ?? "farm") ? (options.initialMapId ?? "farm") : "farm";
     if (options.family && !this.testMode) this.family = new FamilyClient(options.family, (snapshot) => this.applyFamilySnapshot(snapshot), (message) => this.say(message));
   }
   preload() { this.assetManager = new AssetManager(this); this.assetManager.preload(); preloadNpcs(this); }
@@ -95,6 +101,8 @@ export class FarmScene extends Phaser.Scene {
     const personal = this.family?.loadPersonal();
     if (personal) { this.currentMapId = personal.mapId; this.facing = personal.facing; this.selectedTool = personal.selectedTool; }
     if (saved) this.applySavedState(saved);
+    if (personal?.forestDaySerial && personal.mapId === FAIRY_FOREST_ID) this.daySerial = personal.forestDaySerial;
+    this.syncForest();
     const playerSize = displayedSize(PLAYER_ASSET);
     this.player = this.physics.add.sprite(0, 0, PLAYER_ASSET.textureKey).setDisplaySize(playerSize.width, playerSize.height)
       .setOrigin(PLAYER_ASSET.origin.x, PLAYER_ASSET.origin.y).setDepth(20).setCollideWorldBounds(true);
@@ -171,6 +179,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private loadMap(mapId: MapId, spawnId?: string, position?: { x: number; y: number; facing: Facing }) {
+    if (mapId === FAIRY_FOREST_ID) this.syncForest();
     this.currentMapId = mapId;
     const map = this.mapRegistry.require(mapId), width = map.width * GAME_CONFIG.tileSize, height = map.height * GAME_CONFIG.tileSize;
     this.obstacleCollider?.destroy(); this.obstacles = this.worldRenderer.renderMap(mapId, this.farm.values());
@@ -178,7 +187,8 @@ export class FarmScene extends Phaser.Scene {
     this.obstacleCollider = this.physics.add.collider(this.player, this.obstacles);
     const spawn = map.spawns.find((entry) => entry.id === spawnId) ?? map.spawns[0];
     if (position) {
-      this.player.setPosition(Phaser.Math.Clamp(position.x, GAME_CONFIG.tileSize, width - GAME_CONFIG.tileSize), Phaser.Math.Clamp(position.y, GAME_CONFIG.tileSize, height - GAME_CONFIG.tileSize));
+      const safe = mapId === FAIRY_FOREST_ID ? recoverForestPosition(map, position) : position;
+      this.player.setPosition(Phaser.Math.Clamp(safe.x, GAME_CONFIG.tileSize, width - GAME_CONFIG.tileSize), Phaser.Math.Clamp(safe.y, GAME_CONFIG.tileSize, height - GAME_CONFIG.tileSize));
       this.facing = position.facing;
     }
     else { const point = tilePoint(spawn.tileX, spawn.tileY); this.player.setPosition(point.x, point.y); this.facing = spawn.facing; }
@@ -282,7 +292,7 @@ export class FarmScene extends Phaser.Scene {
     if((this.dialogue||this.journalOpen||this.npcRequest) && !["move","save"].includes(command.type))return;
     if (command.type === "seed-select" && isCropId(command.value)) { this.selectedCrop = command.value; this.selectedTool = "seed"; this.emitHud(); return; }
     if (this.family && (command.type === "save" || command.type === "load")) {
-      this.family.savePersonal(this.familyPose());
+      this.family.savePersonal(this.familyPose(), this.daySerial);
       void this.family.refresh().then(() => this.say("가족 농장 서버 상태를 받았어요.")).catch(() => this.say("서버에 연결할 수 없습니다.")); return;
     }
     if (this.testMode && (command.type === "save" || command.type === "load")) { this.say("테스트 플레이에서는 실제 게임 저장을 변경하지 않아요."); return; }
@@ -335,6 +345,7 @@ export class FarmScene extends Phaser.Scene {
     this.sleepTimer = window.setTimeout(() => {
       const grown = advanceFarmDay([...this.farm.values()]);
       this.daySerial++;
+      this.syncForest();
       this.day = this.day >= GAME_CONFIG.day.daysPerSeason ? 1 : this.day + 1; this.timeMinutes = GAME_CONFIG.day.startMinutes;
       this.timeAccumulator = 0; this.lateNightWarned = false; this.transitioning = false;
       this.loadMap("farmhouse", "bed_wake");
@@ -375,6 +386,11 @@ export class FarmScene extends Phaser.Scene {
     gameEvents.dispatchEvent(new CustomEvent("family-sleep", { detail: snapshot.sleep }));
     this.npcMinute = snapshot.npcTimeMinutes ?? snapshot.world.timeMinutes; this.npcClockReceived = performance.now();
     this.daySerial = snapshot.world.daySerial ?? snapshot.world.day;
+    if (this.forestDayInstalled !== this.daySerial) {
+      const oldPosition = this.currentMapId === FAIRY_FOREST_ID ? { x: this.player.x, y: this.player.y, facing: this.facing } : undefined;
+      this.syncForest();
+      if (oldPosition && this.forestDayInstalled === this.daySerial) this.loadMap(FAIRY_FOREST_ID, undefined, oldPosition);
+    }
     this.day = snapshot.world.day; this.timeMinutes = snapshot.world.timeMinutes; this.money = snapshot.world.money;
     this.inventory = new Inventory(snapshot.inventory);
     for (const remote of snapshot.world.farm) {
@@ -385,7 +401,11 @@ export class FarmScene extends Phaser.Scene {
   }
   private snapshot(): SaveData { return { version: 4, playerProgress:this.playerProgress, daySerial:this.daySerial, day: this.day, timeMinutes: this.timeMinutes, money: this.money, selectedTool: this.selectedTool,
     player: { x: this.player.x, y: this.player.y, facing: this.facing, mapId: this.currentMapId }, inventory: this.inventory.serialize(), farm: [...this.farm.values()].map((tile) => ({ ...tile })), savedAt: Date.now() }; }
-  private save(notify: boolean) { if (!this.player || this.testMode) return; if (this.family) { this.family.savePersonal(this.familyPose()); return; } this.repository.save(this.snapshot()); if (notify) this.say("이 브라우저에 현재 장소와 농장 상태를 저장했어요."); }
+  private save(notify: boolean) { if (!this.player || this.testMode) return; if (this.family) { this.family.savePersonal(this.familyPose(), this.daySerial); return; } this.repository.save(this.snapshot()); if (notify) this.say("이 브라우저에 현재 장소와 농장 상태를 저장했어요."); }
+  private syncForest() {
+    if (this.testMode || this.forestDayInstalled === this.daySerial) return;
+    if (installFairyForest(this.mapRegistry, this.forestScope, this.daySerial)) this.forestDayInstalled = this.daySerial;
+  }
   private applySavedState(data: SaveData) {
     this.playerProgress=normalizeProgress(data.playerProgress);this.daySerial=data.daySerial??data.day;
     this.day = data.day; this.timeMinutes = data.timeMinutes; this.money = data.money; this.selectedTool = data.selectedTool;
@@ -393,6 +413,5 @@ export class FarmScene extends Phaser.Scene {
     for (const saved of data.farm) { const tile = this.farm.get(`${saved.x},${saved.y}`); if (tile) Object.assign(tile, saved); }
     this.lateNightWarned = this.timeMinutes >= GAME_CONFIG.day.lateNightMinutes;
   }
-  private restore(data: SaveData, notify: boolean) { this.applySavedState(data); this.loadMap(data.player.mapId, undefined, data.player); if (notify) this.say("저장된 장소와 농장을 불러왔어요."); }
+  private restore(data: SaveData, notify: boolean) { this.applySavedState(data); this.syncForest(); this.loadMap(data.player.mapId, undefined, data.player); if (notify) this.say("저장된 장소와 농장을 불러왔어요."); }
 }
-

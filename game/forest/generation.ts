@@ -1,4 +1,5 @@
 import { GAME_CONFIG } from "../config";
+import { PLAYER_ASSET } from "../assets/definitions";
 import { TILE_TYPE_DEFINITIONS, getTileTypeInMap } from "../maps/definitions";
 import type { MapDefinition, MapObjectDefinition, TileRect } from "../maps/types";
 
@@ -48,16 +49,22 @@ export function forestReachable(map: MapDefinition, start: { x: number; y: numbe
 
 /** A player-size rectangle must fit; tile-centre checks alone can leave restored players inside trunks. */
 export function safeForestPosition(map: MapDefinition, x: number, y: number): boolean {
-  const halfWidth = 9, top = 9, bottom = 13; // PLAYER_ASSET 18×22 collision, centered at (x,y+2)
-  if (!Number.isFinite(x) || !Number.isFinite(y) || x - halfWidth < 16 || x + halfWidth > map.width * GAME_CONFIG.tileSize - 16 ||
-      y - top < 16 || y + bottom > map.height * GAME_CONFIG.tileSize - 16) return false;
-  const left = x - halfWidth, right = x + halfWidth, upper = y - top, lower = y + bottom;
+  const { frameSize, origin, collisionBox } = PLAYER_ASSET;
+  const left = x - frameSize.width * origin.x + collisionBox.offsetX, right = left + collisionBox.width;
+  const upper = y - frameSize.height * origin.y + collisionBox.offsetY, lower = upper + collisionBox.height;
+  if (!Number.isFinite(x) || !Number.isFinite(y) || left < 16 || right > map.width * GAME_CONFIG.tileSize - 16 ||
+      upper < 16 || lower > map.height * GAME_CONFIG.tileSize - 16) return false;
   const overlaps = (a: { x: number; y: number; width: number; height: number }) => left < a.x + a.width && right > a.x && upper < a.y + a.height && lower > a.y;
   const size = GAME_CONFIG.tileSize;
   for (const rect of map.collisionRegions) if (overlaps({ x: rect.startX * size, y: rect.startY * size, width: (rect.endX - rect.startX + 1) * size, height: (rect.endY - rect.startY + 1) * size })) return false;
   for (const object of map.objects) if (object.collision && overlaps({ x: object.position.tileX * size + object.collision.x, y: object.position.tileY * size + object.collision.y, width: object.collision.width, height: object.collision.height })) return false;
   for (const px of [left, right]) for (const py of [upper, lower]) if (!TILE_TYPE_DEFINITIONS[getTileTypeInMap(map, Math.floor(px / size), Math.floor(py / size))].walkable) return false;
   return true;
+}
+
+export function recoverForestPosition(map: MapDefinition, position: { x: number; y: number } | undefined) {
+  if (position && safeForestPosition(map, position.x, position.y)) return position;
+  return { x: FOREST_ENTRY.tileX * GAME_CONFIG.tileSize, y: FOREST_ENTRY.tileY * GAME_CONFIG.tileSize };
 }
 
 /** The reserved two-tile corridors and clearings precede obstacle placement. */

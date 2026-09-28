@@ -74,7 +74,7 @@ export class FamilyState extends FamilyRooms {
     const crop = getCropDefinition(cropId);
     const near = (kind: "sleep" | "open_shop") => {
       const offset = PLAYER_ASSET.interactionPoints[pose.facing];
-      return MAP_DEFINITIONS[pose.mapId].objects.some((o) => o.interaction?.action === kind &&
+      return (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).some((o) => o.interaction?.action === kind &&
         (pointInTileRect(pose.x, pose.y, o.interaction.area) || pointInTileRect(pose.x + offset.x, pose.y + offset.y, o.interaction.area)));
     };
     if (action.kind === "tool") {

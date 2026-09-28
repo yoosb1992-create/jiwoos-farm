@@ -6,6 +6,7 @@ import type { Facing } from "./assets/definitions";
 import { GAME_CONFIG } from "./config";
 import type { MapId } from "./maps/types";
 import { MAP_DEFINITIONS } from "./maps/definitions";
+import { FAIRY_FOREST_ID, FOREST_ENTRY } from "./forest/generation";
 
 export interface FarmTileData {
   x: number;
@@ -85,12 +86,12 @@ const finiteNumber = (value: unknown, fallback: number) => typeof value === "num
 const nonNegativeInteger = (value: unknown, fallback: number) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
 const isFacing = (value: unknown): value is Facing => value === "up" || value === "down" || value === "left" || value === "right";
 const isTool = (value: unknown): value is ToolKey => value === "hoe" || value === "seed" || value === "water" || value === "hand";
-const isMapId = (value: unknown): value is MapId => typeof value === "string" && Object.hasOwn(MAP_DEFINITIONS, value);
+const isMapId = (value: unknown): value is MapId => typeof value === "string" && (value === FAIRY_FOREST_ID || Object.hasOwn(MAP_DEFINITIONS, value));
 const isItemId = (value: string): value is ItemId => Object.hasOwn(ITEM_DEFINITIONS, value);
 const isCropId = (value: unknown): value is CropId => typeof value === "string" && Object.hasOwn(CROP_DEFINITIONS, value);
 
 const defaultPlayer = (mapId: MapId): PlayerData => {
-  const spawn = MAP_DEFINITIONS[mapId].spawns[0];
+  const spawn = mapId === FAIRY_FOREST_ID ? FOREST_ENTRY : MAP_DEFINITIONS[mapId].spawns[0];
   return { x: spawn.tileX * GAME_CONFIG.tileSize, y: spawn.tileY * GAME_CONFIG.tileSize, facing: spawn.facing, mapId };
 };
 
