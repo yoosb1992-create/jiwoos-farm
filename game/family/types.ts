@@ -6,7 +6,7 @@ import type { FarmTileData, InventoryData, PlayerData } from "../domain";
 import type { ToolKey } from "../events";
 export interface FamilyPose extends PlayerData { selectedTool: ToolKey; moving: boolean }
 export interface FamilyWorld { day: number; timeMinutes: number; money: number; farm: FarmTileData[] }
-export interface FamilySnapshot { revision: number; serverNow: number; world: FamilyWorld; inventory: InventoryData; sleep?: { waiting: string[]; agreed: number; online: number; voted: boolean } }
+export interface FamilySnapshot { npcTimeMinutes?: number; revision: number; serverNow: number; world: FamilyWorld; inventory: InventoryData; sleep?: { waiting: string[]; agreed: number; online: number; voted: boolean } }
 export type FamilyAction =
   | { kind: "tool"; tool: ToolKey; cropId?: import("../data/crops").CropId; x: number; y: number; pose: FamilyPose }
   | { kind: "buy"; listingId: string; pose: FamilyPose }

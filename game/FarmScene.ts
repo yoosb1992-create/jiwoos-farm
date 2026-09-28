@@ -1,3 +1,6 @@
+import { NpcController } from "./npc/NpcController";
+import { NPC_DEFINITIONS } from "./npc/definitions";
+import { NpcRenderer, preloadNpcs, createNpcAssets } from "./npc/NpcRenderer";
 import { RemotePlayers } from "./family/RemotePlayers";
 import { FamilyClient } from "./family/client";
 import type { FamilyPose, FamilySession, FamilySnapshot } from "./family/types";
@@ -23,6 +26,10 @@ type Command = { type: string; value?: unknown };
 export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; testMode?: boolean; family?: FamilySession }
 
 export class FarmScene extends Phaser.Scene {
+  private npcs!: NpcController;
+  private npcRenderer!: NpcRenderer;
+  private npcClockReceived = 0;
+  private npcMinute = 360;
   private selectedCrop: CropId = DEFAULT_CROP_ID;
   private family?: FamilyClient;
   private sceneLive = false;
@@ -67,10 +74,12 @@ export class FarmScene extends Phaser.Scene {
     this.testMode = options.testMode === true;
     if (options.family && !this.testMode) this.family = new FamilyClient(options.family, (snapshot) => this.applyFamilySnapshot(snapshot), (message) => this.say(message));
   }
-  preload() { this.assetManager = new AssetManager(this); this.assetManager.preload(); }
+  preload() { this.assetManager = new AssetManager(this); this.assetManager.preload(); preloadNpcs(this); }
 
   create() {
     this.sceneLive = true;
+    this.npcs = new NpcController(NPC_DEFINITIONS, this.mapRegistry);
+    createNpcAssets(this); this.npcRenderer = new NpcRenderer(this);
     this.assetManager ??= new AssetManager(this);
     this.assetManager.createFallbackTextures(); this.assetManager.createPlayerAnimations();
     this.worldRenderer = new WorldRenderer(this, this.mapRegistry); this.buildFarm();
@@ -96,7 +105,7 @@ export class FarmScene extends Phaser.Scene {
       if (this.sleepTimer !== undefined) window.clearTimeout(this.sleepTimer);
       this.sceneLive = false;
       gameEvents.removeEventListener("command", this.commandHandler);
-      this.family?.stop(); this.remotePlayers?.destroy();
+      this.family?.stop(); this.remotePlayers?.destroy(); this.npcRenderer.destroy();
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
     this.events.once(Phaser.Scenes.Events.DESTROY, cleanup);
@@ -115,6 +124,7 @@ export class FarmScene extends Phaser.Scene {
   update(_time: number, delta: number) {
     this.remotePlayers?.update(this.currentMapId, delta);
     if (!this.family && !this.isPaused()) this.advanceClock(delta);
+    this.npcRenderer.update(this.npcs.sample(this.day, this.npcTime()), this.currentMapId);
     if (this.isPaused()) { this.player.setVelocity(0, 0); this.playerAnimations.playMovement(this.facing, false); return; }
     const keyboard = {
       x: (this.cursors.right.isDown || this.wasd.D.isDown ? 1 : 0) - (this.cursors.left.isDown || this.wasd.A.isDown ? 1 : 0),
@@ -132,6 +142,7 @@ export class FarmScene extends Phaser.Scene {
     this.checkWarp();
   }
 
+  private npcTime() { return this.family ? Math.min(GAME_CONFIG.day.endMinutes, this.npcMinute + Math.min(2000, Math.max(0, performance.now()-this.npcClockReceived))/REAL_MS_PER_GAME_MINUTE) : this.timeMinutes + this.timeAccumulator/REAL_MS_PER_GAME_MINUTE; }
   private isPaused() { return this.helpOpen || this.sleepPrompt || this.shopOpen || this.transitioning; }
   private advanceClock(delta: number) {
     this.timeAccumulator += delta;
@@ -312,6 +323,7 @@ export class FarmScene extends Phaser.Scene {
   private applyFamilySnapshot(snapshot: FamilySnapshot) {
     if (!this.sceneLive) return;
     gameEvents.dispatchEvent(new CustomEvent("family-sleep", { detail: snapshot.sleep }));
+    this.npcMinute = snapshot.npcTimeMinutes ?? snapshot.world.timeMinutes; this.npcClockReceived = performance.now();
     this.day = snapshot.world.day; this.timeMinutes = snapshot.world.timeMinutes; this.money = snapshot.world.money;
     this.inventory = new Inventory(snapshot.inventory);
     for (const remote of snapshot.world.farm) {

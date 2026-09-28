@@ -30,7 +30,8 @@ export class FamilyState extends FamilyRooms {
   }
   private snapshot(row: StateRow, playerId: string): FamilySnapshot {
     const inventories = JSON.parse(row.inventories_json) as Record<string, InventoryData>;
-    return { revision: row.revision, serverNow: this.now(), world: currentWorld(JSON.parse(row.world_json), this.now()), inventory: inventories[playerId] ?? new Inventory().serialize() };
+    const clock = JSON.parse(row.world_json) as StoredWorld;
+    return { npcTimeMinutes: Math.min(GAME_CONFIG.day.endMinutes, clock.timeMinutes + Math.max(0, this.now()-clock.clockAnchor)/GAME_CONFIG.day.realMsPerGameMinute), revision: row.revision, serverNow: this.now(), world: currentWorld(JSON.parse(row.world_json), this.now()), inventory: inventories[playerId] ?? new Inventory().serialize() };
   }
   private async online(roomId: string) {
     return (await this.db.prepare(`SELECT m.player_id AS playerId, m.nickname, p.session_id AS sessionId FROM family_members m JOIN family_presence p ON p.room_id = m.room_id AND p.user_id = m.user_id WHERE m.room_id = ? AND p.last_seen > ?`).bind(roomId, this.now() - FAMILY_PRESENCE_TTL_MS).all<{playerId: string; nickname: string; sessionId?: string}>()).results;
