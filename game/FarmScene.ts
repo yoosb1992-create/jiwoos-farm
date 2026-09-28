@@ -1,3 +1,4 @@
+import { nearestNpc, selectDialogue, type DialogueMemory, type DialogueView } from "./npc/dialogue";
 import { NpcController } from "./npc/NpcController";
 import { NPC_DEFINITIONS } from "./npc/definitions";
 import { NpcRenderer, preloadNpcs, createNpcAssets } from "./npc/NpcRenderer";
@@ -26,6 +27,8 @@ type Command = { type: string; value?: unknown };
 export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; testMode?: boolean; family?: FamilySession }
 
 export class FarmScene extends Phaser.Scene {
+  private dialogue?: DialogueView;
+  private dialogueMemory: Record<string,DialogueMemory> = {};
   private npcs!: NpcController;
   private npcRenderer!: NpcRenderer;
   private npcClockReceived = 0;
@@ -143,7 +146,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private npcTime() { return this.family ? Math.min(GAME_CONFIG.day.endMinutes, this.npcMinute + Math.min(2000, Math.max(0, performance.now()-this.npcClockReceived))/REAL_MS_PER_GAME_MINUTE) : this.timeMinutes + this.timeAccumulator/REAL_MS_PER_GAME_MINUTE; }
-  private isPaused() { return this.helpOpen || this.sleepPrompt || this.shopOpen || this.transitioning; }
+  private isPaused() { return !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.transitioning; }
   private advanceClock(delta: number) {
     this.timeAccumulator += delta;
     const elapsed = Math.floor(this.timeAccumulator / REAL_MS_PER_GAME_MINUTE);
@@ -186,12 +189,22 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private useFacingTile() {
+    if(this.isPaused()) return;
+    const npc=nearestNpc(this.npcs.sample(this.day,this.npcTime()),this.familyPose());
+    if(npc) { this.openNpcDialogue(npc.npcId); return; }
     const point = this.playerAnimations.interactionPoint(this.facing);
     const object = this.mapRegistry.require(this.currentMapId).objects.find((entry) => entry.interaction && pointInTileRect(point.x, point.y, entry.interaction.area));
     if (object?.interaction) { this.performWorldAction(object.interaction.action); return; }
     this.useAtWorld(point.x, point.y);
   }
 
+  private openNpcDialogue(npcId:string) {
+    const npc=NPC_DEFINITIONS.find(n=>n.id===npcId);if(!npc)return;
+    const selected=selectDialogue(npc,this.day,this.timeMinutes,this.dialogueMemory[npcId]??{met:false,cursor:0});
+    this.dialogueMemory[npcId]=selected.memory;
+    this.dialogue={npcId,name:npc.name,image:npc.asset.source?.path??"",lines:selected.lines,index:0};
+    this.virtualMovement={x:0,y:0};this.player.setVelocity(0,0);this.emitHud();
+  }
   private performWorldAction(action: MapAction) {
     if (action === "sleep") this.askToSleep();
     else if (action === "open_shop") { this.shopOpen = true; this.say("새봄 상점입니다. 필요한 씨앗을 골라 보세요."); }
@@ -199,6 +212,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private useAtWorld(worldX: number, worldY: number) {
+    if(this.isPaused()) return;
     if (this.family && (this.isPaused() || this.family.busy)) return;
     if (this.family && !this.family.snapshot) { this.say("가족 농장 상태를 불러오는 중이에요. 이동은 계속할 수 있습니다."); return; }
     if (this.currentMapId !== "farm") { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
@@ -235,6 +249,12 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
+    if(command.type==="dialogue-close"||command.type==="dialogue-next") {
+      if(this.dialogue && command.type==="dialogue-next" && this.dialogue.index+1<this.dialogue.lines.length) this.dialogue.index++;
+      else this.dialogue=undefined;
+      this.virtualMovement={x:0,y:0};this.emitHud();return;
+    }
+    if(this.dialogue && !["move","save"].includes(command.type))return;
     if (command.type === "seed-select" && isCropId(command.value)) { this.selectedCrop = command.value; this.selectedTool = "seed"; this.emitHud(); return; }
     if (this.family && (command.type === "save" || command.type === "load")) {
       this.family.savePersonal(this.familyPose());
@@ -310,7 +330,7 @@ export class FarmScene extends Phaser.Scene {
   private formatTime() { const h = Math.floor(this.timeMinutes / 60), m = this.timeMinutes % 60; return `${h < 12 ? "오전" : "오후"} ${h % 12 || 12}:${m.toString().padStart(2, "0")}`; }
   private emitHud() {
     const step = this.getObjective();
-    const hud: HudState = { money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), selectedTool: this.selectedTool,
+    const hud: HudState = { dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: this.day, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
       transitioning: this.transitioning, shopOpen: this.shopOpen, mapId: this.currentMapId, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));

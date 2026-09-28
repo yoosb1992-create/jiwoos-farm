@@ -291,3 +291,5 @@ import "./family-sleep";
 import "./spring-crops";
 
 import "./npc";
+
+import "./npc-dialogue";

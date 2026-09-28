@@ -21,3 +21,7 @@ Validation and sampling tests run with the existing regression suite. Map editor
 Built-in imagegen generated each original atlas. Prompt set: original cozy farming NPC pixel art, true transparent background, 8×4 equal cells, down/up/left/right rows, four subtle idle plus four alternating contact/passing walking poses, aligned feet, dark outline/earth palette, no text/grid/commercial-game copies. Character variants: Daon short teal hair, cream shirt, terracotta apron; Boram auburn braid, mustard headscarf, sage overalls; Soli brown bob, mint leaf cap, blue jacket, cream shorts, tan backpack. Atlases were packaged into exact engine cells with nearest-neighbour scaling and a common scale per character.
 
 Family snapshots carry fractional `npcTimeMinutes` derived from the shared server clock. Clients interpolate this clock for at most two seconds between snapshots, then freeze NPCs until recovery. This adds no NPC polling or stored movement. Local mode uses its local game clock. Small network latency differences remain possible; identical day/minute always resolves to the same pose.
+
+## Dialogue
+
+`game/npc/dialogue.ts` selects data-only scripts independently of the React `NpcDialogue` UI. First meeting has priority, then the time-of-day pool plus general and day-gated lines rotates while avoiding consecutive repeats. Space/mobile action selects the nearest same-map NPC within 64px before object/tool actions. Dialogue freezes only the local actor; Family clock and presence polling continue. Next/close controls are touch-sized. No AI API is connected.

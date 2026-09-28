@@ -1,5 +1,6 @@
 export type ToolKey = "hoe" | "seed" | "water" | "hand";
 export interface HudState {
+  dialogue?: import("./npc/dialogue").DialogueView;
   selectedCrop?: import("./data/crops").CropId;
   seedCounts?: Record<string, number>;
   money: number;

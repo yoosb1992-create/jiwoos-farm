@@ -104,3 +104,10 @@ button { font:inherit; touch-action:manipulation; }
  .family-status{top:max(58px,calc(env(safe-area-inset-top) + 50px));width:260px}
  .family-status .family-panel-body{max-height:110px}.family-playing .quest-card{display:none}
 }
+
+.npc-dialogue-shade{position:absolute;inset:0;z-index:80;background:#15291a30;display:flex;align-items:center;justify-content:center;padding:16px;touch-action:manipulation}
+.npc-dialogue{width:min(540px,100%);max-height:75dvh;overflow:auto;background:#fff4d5;color:#443328;border:3px solid #7b583d;border-radius:16px;padding:18px;box-shadow:0 8px 24px #13201866}
+.npc-dialogue header{display:flex;align-items:center;gap:12px}.npc-dialogue header small{display:block}.npc-dialogue p{line-height:1.7;font-size:17px;min-height:3em}
+.npc-portrait{display:block;flex:none;width:64px;height:72px;background-size:512px 288px;background-repeat:no-repeat;image-rendering:pixelated}
+.npc-dialogue footer{display:flex;gap:8px;align-items:center;justify-content:flex-end}.npc-dialogue button{min-height:44px;padding:8px 14px;border:1px solid #8f6c42;border-radius:8px;background:#efda9a;color:#382b1e;font:inherit;cursor:pointer}
+@media(max-height:430px){.npc-dialogue{max-height:90dvh;padding:10px}.npc-dialogue p{margin:4px 0}.npc-portrait{width:32px;height:36px;background-size:256px 144px}}
