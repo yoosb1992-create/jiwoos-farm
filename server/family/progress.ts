@@ -1,3 +1,5 @@
+import { npcLineClear } from "../../game/npc/navigation";
+import { MAP_DEFINITIONS } from "../../game/maps/definitions";
 import { Inventory, type InventoryData } from "../../game/domain";
 import { getQuest } from "../../game/quests/definitions";
 import { applyQuestAction, recordNpcGreeting } from "../../game/quests/engine";
@@ -29,7 +31,7 @@ export class FamilyProgress extends FamilyRooms {
   if(progress.revision!==expectedRevision)throw conflict();
   const state=new FamilyState(this.db,this.now),snapshot=await state.read(userId,roomId);
   const npc=npcs.sample(snapshot.world.day,snapshot.npcTimeMinutes??snapshot.world.timeMinutes).find(n=>n.npcId===npcId);
-  if(!npc||npc.mapId!==pose.mapId||Math.hypot(npc.x-pose.x,npc.y-pose.y)>96)throw new FamilyError(400,"주민 가까이에서 이야기해 주세요.");
+  if(!npc||npc.mapId!==pose.mapId||Math.hypot(npc.x-pose.x,npc.y-pose.y)>96||!npcLineClear(MAP_DEFINITIONS[pose.mapId],pose,npc))throw new FamilyError(400,"주민 가까이에서 이야기해 주세요.");
   const row=await this.db.prepare("SELECT world_json,inventories_json FROM family_state WHERE room_id=? AND revision=?").bind(roomId,snapshot.revision).first<{world_json:string;inventories_json:string}>();
   if(!row)throw conflict();
   const world=JSON.parse(row.world_json),inventories=JSON.parse(row.inventories_json) as Record<string,InventoryData>;

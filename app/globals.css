@@ -113,3 +113,6 @@ button { font:inherit; touch-action:manipulation; }
 @media(max-height:430px){.npc-dialogue{max-height:90dvh;padding:10px}.npc-dialogue p{margin:4px 0}.npc-portrait{width:32px;height:36px;background-size:256px 144px}}
 
 .npc-quests article{border-top:1px solid #b7a17b;padding:8px 0}.npc-quests p{font-size:14px;min-height:0;margin:4px 0}.npc-quests small{display:block}.npc-quests button{margin-top:6px}.npc-quests button:disabled{opacity:.5}
+
+.village-journal header{justify-content:space-between}.village-journal ul{list-style:none;padding:0}.village-journal li,.village-journal article{border-top:1px solid #b7a17b;padding:8px 0}.village-journal small{display:block}.village-journal p{font-size:14px;min-height:0;margin:5px 0}.village-journal .journal-note{color:#645240}.npc-dialogue-shade button:focus-visible{outline:3px solid #37688c;outline-offset:2px}
+@media(max-width:700px),(pointer:coarse){.npc-dialogue{max-height:68dvh;padding:12px}.npc-dialogue-shade{padding:10px}.npc-dialogue footer{flex-wrap:wrap}.village-journal{max-height:72dvh}}

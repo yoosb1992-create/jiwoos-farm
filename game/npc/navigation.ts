@@ -34,3 +34,14 @@ export function npcRoute(map: MapDefinition, from: NpcPoint, to: NpcPoint): NpcP
   }
   return [npcCellCenter(from)];
 }
+
+/** Check a short interaction ray against actual terrain/obstacle bounds, independent of rendering. */
+export function npcLineClear(map:MapDefinition,a:NpcPoint,b:NpcPoint):boolean {
+ const count=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/4));
+ for(let i=0;i<=count;i++){
+  const x=a.x+(b.x-a.x)*i/count,y=a.y+(b.y-a.y)*i/count,cx=Math.floor(x/size),cy=Math.floor(y/size);
+  if(cx<0||cy<0||cx>=map.width||cy>=map.height||!TILE_TYPE_DEFINITIONS[getTileTypeInMap(map,cx,cy)].walkable)return false;
+  if(map.collisionRegions.some(r=>cx>=r.startX&&cx<=r.endX&&cy>=r.startY&&cy<=r.endY))return false;
+  if(map.objects.some(o=>o.collision&&x>=o.position.tileX*size+o.collision.x&&x<=o.position.tileX*size+o.collision.x+o.collision.width&&y>=o.position.tileY*size+o.collision.y&&y<=o.position.tileY*size+o.collision.y+o.collision.height))return false;
+ }return true;
+}

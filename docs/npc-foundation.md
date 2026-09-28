@@ -39,3 +39,29 @@ Single-player SaveData remains v4 with optional `playerProgress` and `daySerial`
 Definitions in `game/quests/definitions.ts` own prerequisites, NPC giver, objective and reward. `engine.ts` computes locked/available/active/completed/rewarded states and applies transitions. Three starter quests: greet all three residents after accepting Boram's request; deliver one sproutberry to Daon; deliver one morningcarrot to Soli. Delivery consumes the item before completion, claiming is separate and can occur only once. Greetings and deliveries are personal. Money rewards enter the family treasury; seed and relationship rewards belong to the claimant.
 
 Family quest delivery/reward changes use one D1 batch transaction with progress and world revision checks plus a unique mutation receipt. The server ignores client reward quantities/prices and reads its own definitions. Local SQLite tests exercise duplicate claims, stale revisions, member isolation and forced second-statement failure to confirm transaction rollback. No additional quest migration beyond 0004 is needed.
+
+## Village UX and future editor integration
+
+NPC names render over their sprites. `!` means an available quest; `★` means a delivery or reward is ready. A nearby unobstructed resident shows `대화 ⋯`. Client selection and server interaction checks both reject rays through solid terrain/objects. Actors are non-physics views whose deterministic paths avoid fixed map obstacles; they do not block family players. Open `주민·의뢰` in the game menu for current resident locations, relationship levels and quest status. The journal/dialogue blocks only local movement, with no Family time pause. Panels are scrollable and closed during normal movement.
+
+NPC schedules/spawns remain a separate data model from MapEditorDocument. The editor schema is unchanged; a future NPC editor can edit these definitions through an independent document adapter. Custom maps with missing or blocked NPC destinations safely omit those NPCs instead of altering editor data.
+
+## Verification and manual staging checklist
+
+Automated tests cover definition validity, day/time selection, map transitions, deterministic sampling, route collision masks, spritesheet dimensions/frames/fallback, first/period/progress dialogue selection, per-day relationship points and day-28 rollover, v1/v4 save compatibility, Family membership/privacy/reconnect/CAS/cascade, quest transitions/rewards/rollback, UI markup, existing Family Beta, spring crops and map editor regression. Rendering tests use a narrow Phaser scene double; UI tests render React markup. They are not two real accounts or a real mobile browser session.
+
+A subsequent explicitly requested staging deployment must apply migration 0004 once to the existing isolated Family staging D1 before serving this branch. Do not recreate tables, reapply 0000–0003, or use production. This task prepares source only: the live staging remains Family Beta.
+
+After that deployment:
+
+1. Log in as A and B on separate devices, join the same farm and close help. Visit Boram near the farm's western path, then Daon/Soli in town. Compare their positions at the same shared time, including schedule map transitions.
+2. Check walking/idle direction, stable feet, name labels, `!`/`★` and proximity speech indicator. NPCs should avoid buildings, water and warp trigger cells.
+3. Open dialogue with Space/mobile action. Confirm next/close, repeated line rotation, morning/afternoon/evening lines, and day-gated lines. Only the talking player stops; B and shared time continue.
+4. Talk twice on one day: only +10 once. Check A/B relationship isolation, reconnect persistence, and a fresh bonus after sleeping on the next day.
+5. Accept Boram's greeting quest, then greet all three (including Boram again), return and claim. Verify a second claim is unavailable. A's journal progresses independently of B's.
+6. Accept Daon's sproutberry delivery and Soli's carrot delivery. Grow/harvest the required crop, deliver once, then claim. Check personal item consumption/seeds and shared money on both clients.
+7. If the NPC walks away or changes maps during a long conversation, close it and approach again before delivering or claiming; the server always rechecks current proximity.
+8. Interrupt connectivity during an interaction, then reopen the journal after recovery. A response lost after a successful commit must not grant a duplicate reward on retry.
+9. On phone/tablet portrait and landscape, check scrolling, button hit targets, readable text and closing panels before using the joystick. Recheck existing family tools/sleep/management, local save/load and editor test-play/return/undo/export.
+
+Remaining: no AI dialogue, gifting, NPC editor UI, dynamic avoidance between actors or complete continuous routes across maps. Schedule changes explicitly relocate to safe map cells. Network latency can produce small visual phase differences; disconnected clients freeze NPC extrapolation after two seconds. Personal records refresh on interaction or opening the journal, without additional recurring polling. Visual playtesting and two-account authentication must be performed by real users after the separate staging deployment.

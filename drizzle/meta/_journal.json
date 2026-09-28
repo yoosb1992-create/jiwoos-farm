@@ -29,6 +29,13 @@
       "when": 1790410200000,
       "tag": "0003_family_presence",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790577518092,
+      "tag": "0004_player_progress",
+      "breakpoints": true
     }
   ]
 }

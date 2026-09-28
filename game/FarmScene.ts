@@ -1,5 +1,5 @@
 import { applyQuestAction, questViews, recordNpcGreeting, type QuestAction } from "./quests/engine";
-import { normalizeProgress, talkToNpc } from "./npc/progress";
+import { normalizeProgress, talkToNpc, relationshipLevel } from "./npc/progress";
 import { nearestNpc, type DialogueView } from "./npc/dialogue";
 import { NpcController } from "./npc/NpcController";
 import { NPC_DEFINITIONS } from "./npc/definitions";
@@ -29,6 +29,7 @@ type Command = { type: string; value?: unknown };
 export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; testMode?: boolean; family?: FamilySession }
 
 export class FarmScene extends Phaser.Scene {
+  private journalOpen = false;
   private dialogue?: DialogueView;
   private playerProgress = normalizeProgress(null);
   private daySerial = 1;
@@ -131,7 +132,7 @@ export class FarmScene extends Phaser.Scene {
   update(_time: number, delta: number) {
     this.remotePlayers?.update(this.currentMapId, delta);
     if (!this.family && !this.isPaused()) this.advanceClock(delta);
-    this.npcRenderer.update(this.npcs.sample(this.day, this.npcTime()), this.currentMapId);
+    this.npcRenderer.update(this.npcs.sample(this.day, this.npcTime()), this.currentMapId, this.familyPose(), questViews(this.family?.progress?.data??this.playerProgress,this.inventory), this.mapRegistry.require(this.currentMapId));
     if (this.isPaused()) { this.player.setVelocity(0, 0); this.playerAnimations.playMovement(this.facing, false); return; }
     const keyboard = {
       x: (this.cursors.right.isDown || this.wasd.D.isDown ? 1 : 0) - (this.cursors.left.isDown || this.wasd.A.isDown ? 1 : 0),
@@ -150,7 +151,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private npcTime() { return this.family ? Math.min(GAME_CONFIG.day.endMinutes, this.npcMinute + Math.min(2000, Math.max(0, performance.now()-this.npcClockReceived))/REAL_MS_PER_GAME_MINUTE) : this.timeMinutes + this.timeAccumulator/REAL_MS_PER_GAME_MINUTE; }
-  private isPaused() { return this.npcRequest || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.transitioning; }
+  private isPaused() { return this.journalOpen || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.transitioning; }
   private advanceClock(delta: number) {
     this.timeAccumulator += delta;
     const elapsed = Math.floor(this.timeAccumulator / REAL_MS_PER_GAME_MINUTE);
@@ -193,8 +194,8 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private useFacingTile() {
-    if(this.isPaused()) return;
-    const npc=nearestNpc(this.npcs.sample(this.day,this.npcTime()),this.familyPose());
+    if(this.isPaused()||this.npcRequest) return;
+    const npc=nearestNpc(this.npcs.sample(this.day,this.npcTime()),this.familyPose(),this.mapRegistry.require(this.currentMapId));
     if(npc) { this.openNpcDialogue(npc.npcId); return; }
     const point = this.playerAnimations.interactionPoint(this.facing);
     const object = this.mapRegistry.require(this.currentMapId).objects.find((entry) => entry.interaction && pointInTileRect(point.x, point.y, entry.interaction.area));
@@ -204,7 +205,7 @@ export class FarmScene extends Phaser.Scene {
 
   private async openNpcDialogue(npcId:string) {
     if(this.npcRequest)return;
-    this.npcRequest=true;this.virtualMovement={x:0,y:0};this.player.setVelocity(0,0);
+    this.npcRequest=true;this.virtualMovement={x:0,y:0};this.player.setVelocity(0,0);this.emitHud();
     try {
       if(this.family){const result=await this.family.npcAction({kind:"talk",npcId},this.familyPose());if(!this.sceneLive)return;if(result)this.dialogue=result.dialogue;}
       else {this.dialogue=talkToNpc(this.playerProgress,npcId,this.day,this.timeMinutes,this.daySerial);recordNpcGreeting(this.playerProgress,npcId);this.save(false);}
@@ -214,9 +215,9 @@ export class FarmScene extends Phaser.Scene {
     if(!this.dialogue||this.npcRequest)return;
     const view=questViews(this.family?.progress?.data??this.playerProgress,this.inventory).find(q=>q.id===action.questId);
     if(!view||view.giver!==this.dialogue.npcId)return;
-    this.npcRequest=true;
+    this.npcRequest=true;this.dialogue.notice=undefined;this.emitHud();
     try{
-      if(this.family)await this.family.npcAction(action,this.familyPose());
+      if(this.family){const result=await this.family.npcAction(action,this.familyPose());if(result&&this.sceneLive)this.say("의뢰 기록을 반영했어요.");}
       else {this.money=applyQuestAction(this.playerProgress,this.inventory,this.money,action);this.save(false);}
     }catch(error){this.say(error instanceof Error?error.message:"의뢰를 확인해 주세요.");}
     finally{this.npcRequest=false;if(this.sceneLive)this.emitHud();}
@@ -265,13 +266,19 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
+    if(command.type==="village-open"){
+      if(this.dialogue||this.npcRequest)return;
+      this.journalOpen=command.value===true;this.virtualMovement={x:0,y:0};
+      if(this.journalOpen&&this.family)void this.family.loadProgress().then(()=>{if(this.sceneLive)this.emitHud();}).catch(()=>{if(this.sceneLive)this.say("주민 기록을 불러올 수 없어요. 연결 후 다시 열어 주세요.");});
+      this.emitHud();return;
+    }
     if(command.type==="quest-action"){void this.questAction(command.value as QuestAction);return;}
     if(command.type==="dialogue-close"||command.type==="dialogue-next") {
       if(this.dialogue && command.type==="dialogue-next" && this.dialogue.index+1<this.dialogue.lines.length) this.dialogue.index++;
       else this.dialogue=undefined;
       this.virtualMovement={x:0,y:0};this.emitHud();return;
     }
-    if(this.dialogue && !["move","save"].includes(command.type))return;
+    if((this.dialogue||this.journalOpen||this.npcRequest) && !["move","save"].includes(command.type))return;
     if (command.type === "seed-select" && isCropId(command.value)) { this.selectedCrop = command.value; this.selectedTool = "seed"; this.emitHud(); return; }
     if (this.family && (command.type === "save" || command.type === "load")) {
       this.family.savePersonal(this.familyPose());
@@ -347,13 +354,17 @@ export class FarmScene extends Phaser.Scene {
   }
   private formatTime() { const h = Math.floor(this.timeMinutes / 60), m = this.timeMinutes % 60; return `${h < 12 ? "오전" : "오후"} ${h % 12 || 12}:${m.toString().padStart(2, "0")}`; }
   private emitHud() {
+    const personal=this.family?.progress?.data??this.playerProgress;
+    if(this.dialogue){const rel=personal.relationships[this.dialogue.npcId];if(rel)this.dialogue.relationship=`${relationshipLevel(rel.points)} · 호감도 ${rel.points}`;}
+    const npcPoses=this.npcs?.sample(this.day,this.npcTime())??[];
+    const villagers=NPC_DEFINITIONS.map(n=>{const p=npcPoses.find(p=>p.npcId===n.id),points=personal.relationships[n.id].points;return {id:n.id,name:n.name,points,level:relationshipLevel(points),location:p?this.mapRegistry.get(p.mapId)?.name??"다른 장소":"다른 장소",activity:p?.activity??"휴식"};});
     const step = this.getObjective();
-    const hud: HudState = { quests:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), selectedTool: this.selectedTool,
+    const hud: HudState = { villageOpen:this.journalOpen,villagers,quests:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: this.day, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
       transitioning: this.transitioning, shopOpen: this.shopOpen, mapId: this.currentMapId, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));
   }
-  private say(message: string) { this.message = message; this.emitHud(); }
+  private say(message: string) { if(this.dialogue)this.dialogue.notice=message; this.message = message; this.emitHud(); }
   private familyPose(): FamilyPose {
     return { mapId: this.currentMapId, x: this.player.x, y: this.player.y, facing: this.facing, selectedTool: this.selectedTool,
       moving: Boolean(this.player.body?.velocity.x || this.player.body?.velocity.y) };

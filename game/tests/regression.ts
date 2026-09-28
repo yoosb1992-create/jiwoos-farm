@@ -298,3 +298,5 @@ import "./npc-dialogue";
 import "./npc-progress";
 
 import "./npc-quests";
+
+import "./npc-ux";

@@ -1,8 +1,7 @@
--- Apply only to the existing staging DB during a separately authorized deployment.
--- Player progress belongs to one membership, never to the shared world JSON.
-CREATE TABLE family_player_progress (
-  player_id TEXT PRIMARY KEY NOT NULL REFERENCES family_members(player_id) ON DELETE CASCADE,
-  revision INTEGER NOT NULL DEFAULT 0,
-  progress_json TEXT NOT NULL,
-  updated_at INTEGER NOT NULL
+CREATE TABLE `family_player_progress` (
+	`player_id` text PRIMARY KEY NOT NULL,
+	`revision` integer DEFAULT 0 NOT NULL,
+	`progress_json` text NOT NULL,
+	`updated_at` integer NOT NULL,
+	FOREIGN KEY (`player_id`) REFERENCES `family_members`(`player_id`) ON UPDATE no action ON DELETE cascade
 );

@@ -30,3 +30,11 @@ export const familyPresence = sqliteTable("family_presence", {
 }, (table) => [primaryKey({ columns: [table.roomId, table.userId] }),
   foreignKey({ columns: [table.roomId, table.userId], foreignColumns: [familyMembers.roomId, familyMembers.userId] }).onDelete("cascade"),
   index("family_presence_recent").on(table.roomId, table.lastSeen)]);
+
+/** Personal NPC relationships/dialogue/quests, scoped to a family membership. */
+export const familyPlayerProgress = sqliteTable("family_player_progress", {
+  playerId: text("player_id").primaryKey().notNull().references(() => familyMembers.playerId, { onDelete: "cascade" }),
+  revision: integer("revision").notNull().default(0),
+  progressJson: text("progress_json").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});

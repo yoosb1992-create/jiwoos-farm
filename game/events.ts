@@ -1,5 +1,7 @@
 export type ToolKey = "hoe" | "seed" | "water" | "hand";
 export interface HudState {
+  villageOpen?:boolean;
+  villagers?:{id:string;name:string;points:number;level:string;location:string;activity:string}[];
   quests?: import("./quests/engine").QuestView[];
   npcBusy?:boolean;
   dialogue?: import("./npc/dialogue").DialogueView;

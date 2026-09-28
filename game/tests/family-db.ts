@@ -1,3 +1,4 @@
+import { strict as assert } from "node:assert";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { readFileSync, readdirSync } from "node:fs";
 import type { FamilyDB } from "../../server/family/rooms";
@@ -6,7 +7,10 @@ import type { FamilyDB } from "../../server/family/rooms";
 export function familyTestDB() {
   const sqlite = new DatabaseSync(":memory:"); sqlite.exec("PRAGMA foreign_keys = ON");
   const dir = new URL("../../drizzle/", import.meta.url);
-  for (const name of readdirSync(dir).filter((n) => /^\d+.*\.sql$/.test(n)).sort()) sqlite.exec(readFileSync(new URL(name, dir), "utf8"));
+  const journal = JSON.parse(readFileSync(new URL("meta/_journal.json", dir), "utf8")) as { entries: { tag: string }[] };
+  const migrations = journal.entries.map(entry => `${entry.tag}.sql`);
+  assert.deepEqual(migrations, readdirSync(dir).filter(n => /^\d+.*\.sql$/.test(n)).sort(), "every migration must be registered exactly once in deployment order");
+  for (const name of migrations) sqlite.exec(readFileSync(new URL(name, dir), "utf8"));
   class Statement {
     private values: SQLInputValue[] = [];
     constructor(private sql: string) {}
