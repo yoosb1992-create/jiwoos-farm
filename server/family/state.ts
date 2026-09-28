@@ -8,7 +8,7 @@ import { PLAYER_ASSET } from "../../game/assets/definitions";
 import { parseFamilyPose } from "../../game/family/personal";
 import type { FamilyAction, FamilySnapshot, FamilyWorld } from "../../game/family/types";
 import { FamilyError, FamilyRooms } from "./rooms";
-import { emptyForestState, normalizeForestState } from "../../game/forest/resources";
+import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeForestState, resourceKind, strikeForestNode } from "../../game/forest/resources";
 
 interface StoredWorld extends FamilyWorld { clockAnchor: number; sleepVotes?: string[]; sleepSessions?: Record<string, string> }
 interface StateRow { revision: number; world_json: string; inventories_json: string }
@@ -97,6 +97,20 @@ export class FamilyState extends FamilyRooms {
         inventory.add(getCropDefinition(tile.cropType).harvestItemId);
         Object.assign(tile, { cropType: null, cropStage: null, plantedDay: null, wateredToday: false });
       }
+    } else if (action.kind === "forest-gather") {
+      const daySerial = stored.daySerial ?? stored.day;
+      if (pose.mapId !== "fairy_forest" || !Number.isSafeInteger(action.daySerial) || action.daySerial !== daySerial) throw new FamilyError(400, "현재 날짜의 요정의 숲에서 채집해 주세요.");
+      if (typeof action.nodeId !== "string" || !/^(tree|rock|herb)-\d+-\d+$/.test(action.nodeId) || action.nodeId.length > 40) throw new FamilyError(400, "없는 숲 자원입니다.");
+      const forest = generateResourceForest(roomId, daySerial);
+      const node = forest.objects.find(o => o.id === action.nodeId), kind = node && resourceKind(node);
+      if (!node || !kind) throw new FamilyError(400, "현재 숲에 없는 자원입니다.");
+      if (Math.hypot(pose.x - node.position.tileX * GAME_CONFIG.tileSize, pose.y - node.position.tileY * GAME_CONFIG.tileSize) > 58) throw new FamilyError(400, "숲 자원 가까이에서 사용해 주세요.");
+      if (action.tool !== FOREST_RESOURCES[kind].tool || pose.selectedTool !== action.tool) throw new FamilyError(400, "해당 자원에 맞는 도구를 선택해 주세요.");
+      const forestState = normalizeForestState(stored.forestState, daySerial, new Set(forest.objects.map(o => o.id)));
+      if (forestState.depleted.includes(node.id)) throw await conflict();
+      const result = strikeForestNode(forestState, node, action.tool);
+      stored.forestState = result.state;
+      if (result.drop) inventory.add(result.drop, result.quantity);
     } else if (action.kind === "sleep") {
       if (!near("sleep")) throw new FamilyError(400, "농장집 침대에서 잠들어 주세요.");
       const online = await this.online(roomId);

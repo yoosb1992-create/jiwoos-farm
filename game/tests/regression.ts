@@ -290,6 +290,7 @@ console.log("0.4 mobile input, editor viewport/cloud sync, world, save migration
 import "./family-sleep";
 import "./fairy-forest";
 import "./forest-resources";
+import "./family-forest";
 
 import "./spring-crops";
 

@@ -1,13 +1,12 @@
 import type { MapRegistry } from "../maps/MapRegistry";
-import { FAIRY_FOREST_ID, generateFairyForest } from "./generation";
-import { herbObjects, normalizeForestState, type ForestState } from "./resources";
+import { FAIRY_FOREST_ID } from "./generation";
+import { generateResourceForest, normalizeForestState, type ForestState } from "./resources";
 
 /** Keeps procedural content in the runtime registry, outside authored maps and editor documents. */
 export function installFairyForest(registry: MapRegistry, scope: string, daySerial: number, progress?: ForestState) {
   if (!registry.has("road")) return false;
   const maps = registry.snapshot();
-  const forest = generateFairyForest(scope, daySerial);
-  forest.objects.push(...herbObjects(forest, scope, daySerial));
+  const forest = generateResourceForest(scope, daySerial);
   const state = normalizeForestState(progress, daySerial, new Set(forest.objects.map(object => object.id)));
   forest.objects = forest.objects.filter(object => !state.depleted.includes(object.id));
   maps[FAIRY_FOREST_ID] = forest;

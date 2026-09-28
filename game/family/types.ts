@@ -10,6 +10,7 @@ export interface FamilyWorld { daySerial?:number; forestState?: ForestState; day
 export interface FamilySnapshot { npcTimeMinutes?: number; revision: number; serverNow: number; world: FamilyWorld; inventory: InventoryData; sleep?: { waiting: string[]; agreed: number; online: number; voted: boolean } }
 export type FamilyAction =
   | { kind: "tool"; tool: ToolKey; cropId?: import("../data/crops").CropId; x: number; y: number; pose: FamilyPose }
+  | { kind: "forest-gather"; nodeId: string; daySerial: number; tool: ToolKey; pose: FamilyPose }
   | { kind: "buy"; listingId: string; pose: FamilyPose }
   | { kind: "sleep" | "sleep-cancel" | "sell"; pose: FamilyPose };
 export interface FamilySession { room: FamilyRoom }

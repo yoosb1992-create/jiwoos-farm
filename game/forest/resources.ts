@@ -2,7 +2,7 @@ import { GAME_CONFIG } from "../config";
 import type { ItemId } from "../data/items";
 import type { ToolKey } from "../events";
 import type { MapDefinition, MapObjectDefinition } from "../maps/types";
-import { forestSeed, safeForestPosition } from "./generation";
+import { forestSeed, generateFairyForest, safeForestPosition } from "./generation";
 
 export type ForestResourceId = "tree" | "rock" | "herb";
 export const FOREST_RESOURCES: Record<ForestResourceId, { id: ForestResourceId; name: string; tool: ToolKey; hits: number; drop: ItemId; quantity: number }> = {
@@ -47,6 +47,13 @@ export function herbObjects(map: MapDefinition, scope: string, daySerial: number
     result.push({ id: `herb-${x}-${y}`, assetId: "forest_herb", position: { tileX: x + .5, tileY: y + .5 }, depth: 3 });
   }
   return result;
+}
+
+/** Both client registry and family server derive precisely the same canonical node set. */
+export function generateResourceForest(scope: string, daySerial: number): MapDefinition {
+  const map = generateFairyForest(scope, daySerial);
+  map.objects.push(...herbObjects(map, scope, daySerial));
+  return map;
 }
 
 export const resourceKind = (object: MapObjectDefinition): ForestResourceId | null =>
