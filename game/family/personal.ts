@@ -9,7 +9,7 @@ export function parseFamilyPose(value: unknown): FamilyPose | null {
   if (typeof p.mapId !== "string" || (p.mapId !== FAIRY_FOREST_ID && !Object.hasOwn(MAP_DEFINITIONS, p.mapId))) return null;
   const map = p.mapId === FAIRY_FOREST_ID ? { width: FOREST_WIDTH, height: FOREST_HEIGHT } : MAP_DEFINITIONS[p.mapId];
   if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || p.x < 0 || p.y < 0 || p.x > map.width * GAME_CONFIG.tileSize || p.y > map.height * GAME_CONFIG.tileSize) return null;
-  if (!["up", "down", "left", "right"].includes(p.facing) || !["hoe", "seed", "water", "hand"].includes(p.selectedTool) || typeof p.moving !== "boolean") return null;
+  if (!["up", "down", "left", "right"].includes(p.facing) || !["hoe", "seed", "water", "hand", "axe"].includes(p.selectedTool) || typeof p.moving !== "boolean") return null;
   return { mapId: p.mapId, x: p.x, y: p.y, facing: p.facing, selectedTool: p.selectedTool, moving: p.moving };
 }
 export const familyPersonalKey = (roomId: string, playerId: string) => `jiwoos-farm.family-personal.v1:${roomId}:${playerId}`;

@@ -24,6 +24,7 @@ import { FAIRY_FOREST_ID, recoverForestPosition } from "./forest/generation";
 import { installFairyForest } from "./forest/registry";
 import { PlayerAnimationController } from "./player/PlayerAnimationController";
 import { ToolActionSystem } from "./actions/ToolActionSystem";
+import { TOOL_ACTION_DEFINITIONS } from "./actions/toolActionDefinitions";
 import { facingFromMovement, mergeMovementInput, type MovementVector } from "./input/MovementInput";
 
 export const REAL_MS_PER_GAME_MINUTE = GAME_CONFIG.day.realMsPerGameMinute;
@@ -111,7 +112,7 @@ export class FarmScene extends Phaser.Scene {
     this.playerAnimations = new PlayerAnimationController(this.player, this.facing); this.toolActions = new ToolActionSystem(this.playerAnimations);
     this.loadMap(this.currentMapId, undefined, personal ?? (saved ? { x: saved.player.x, y: saved.player.y, facing: saved.player.facing } : undefined));
     this.cursors = this.input.keyboard!.createCursorKeys();
-    this.wasd = this.input.keyboard!.addKeys("W,A,S,D,ONE,TWO,THREE,FOUR") as Record<string, Phaser.Input.Keyboard.Key>;
+    this.wasd = this.input.keyboard!.addKeys("W,A,S,D,ONE,TWO,THREE,FOUR,FIVE") as Record<string, Phaser.Input.Keyboard.Key>;
     this.actionKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.useAtWorld(pointer.worldX, pointer.worldY));
     gameEvents.addEventListener("command", this.commandHandler);
@@ -156,6 +157,7 @@ export class FarmScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.wasd.TWO)) this.selectTool("seed");
     if (Phaser.Input.Keyboard.JustDown(this.wasd.THREE)) this.selectTool("water");
     if (Phaser.Input.Keyboard.JustDown(this.wasd.FOUR)) this.selectTool("hand");
+    if (Phaser.Input.Keyboard.JustDown(this.wasd.FIVE)) this.selectTool("axe");
     this.checkWarp();
   }
 
@@ -300,7 +302,7 @@ export class FarmScene extends Phaser.Scene {
       const value = command.value as Partial<MovementVector> | undefined;
       this.virtualMovement = { x: Number(value?.x) || 0, y: Number(value?.y) || 0 };
     }
-    if (command.type === "tool" && typeof command.value === "string") this.selectTool(command.value as ToolKey);
+    if (command.type === "tool" && typeof command.value === "string" && Object.hasOwn(TOOL_ACTION_DEFINITIONS, command.value)) this.selectTool(command.value as ToolKey);
     if (command.type === "action") this.useFacingTile();
     if (command.type === "save") this.save(true);
     if (command.type === "load") { const data = this.repository.load(); if (data) this.restore(data, true); else this.say("아직 저장된 농장이 없어요."); }

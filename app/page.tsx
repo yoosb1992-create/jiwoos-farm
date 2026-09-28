@@ -19,7 +19,7 @@ import { documentToRegistry } from "@/game/editor/document";
 import type { MapEditorDocument } from "@/game/editor/types";
 import type { MapDefinition } from "@/game/maps/types";
 
-const toolKeys: ToolKey[] = ["hoe", "seed", "water", "hand"];
+const toolKeys: ToolKey[] = ["hoe", "seed", "water", "hand", "axe"];
 const tools = toolKeys.map((key) => {
   const item = ITEM_DEFINITIONS[key];
   return { key, ...item, visual: ITEM_ASSETS[item.assetId] };

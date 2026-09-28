@@ -1,4 +1,4 @@
-export type ToolKey = "hoe" | "seed" | "water" | "hand";
+export type ToolKey = "hoe" | "seed" | "water" | "hand" | "axe";
 export interface HudState {
   villageOpen?:boolean;
   villagers?:{id:string;name:string;points:number;level:string;location:string;activity:string}[];

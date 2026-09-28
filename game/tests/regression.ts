@@ -83,7 +83,7 @@ assert.equal(migrated?.inventory.items.sproutberry, 2);
 
 storage.clear();
 storage.set("jiwoos-farm.save.v4", JSON.stringify({
-  version: 4, day: -8, timeMinutes: "broken", money: -50, selectedTool: "axe",
+  version: 4, day: -8, timeMinutes: "broken", money: -50, selectedTool: "broken_tool",
   player: { x: "NaN", y: null, facing: "sideways", mapId: "deleted_map" },
   inventory: { items: { sproutberry_seed: 3, unknown_item: 99 } },
   farm: [{ x: 9, y: 8, tilled: true, wateredToday: true, cropType: "missing_crop", cropStage: 99 }],
@@ -240,11 +240,11 @@ assert.equal(effects, 2);
 
 const animatedTools: string[] = [];
 const allToolActions = new ToolActionSystem({ playTool: (facing) => animatedTools.push(facing) }, () => now);
-for (const tool of ["hoe", "water", "seed", "hand"] as const) {
+for (const tool of ["hoe", "water", "seed", "hand", "axe"] as const) {
   now += GAME_CONFIG.toolActionCooldownMs;
   assert.equal(allToolActions.execute(tool, "left", () => undefined), true);
 }
-assert.deepEqual(animatedTools, ["left", "left", "left", "left"], "괭이·물뿌리개·씨앗·손 행동은 모두 현재 방향 도구 animation을 요청해야 함");
+assert.deepEqual(animatedTools, ["left", "left", "left", "left", "left"], "괭이·물뿌리개·씨앗·손·도끼는 모두 현재 방향 도구 animation을 요청해야 함");
 
 const editorDocument = createBuiltInEditorDocument();
 assert.deepEqual(validateEditorDocument(editorDocument), [], "기본 맵은 편집기 schema/참조 검증을 통과해야 함");
