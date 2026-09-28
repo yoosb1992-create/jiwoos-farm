@@ -10,6 +10,7 @@ export interface HudState {
   money: number;
   seeds: number;
   harvest: number;
+  resources?: { wood: number; stone: number; wild_herb: number };
   selectedTool: ToolKey;
   objective: string;
   message: string;

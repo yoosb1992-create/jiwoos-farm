@@ -100,6 +100,12 @@ export class AssetManager {
       g.fillStyle(f.stroke).fillEllipse(16, 23, 28, 16).fillStyle(f.fill).fillEllipse(16, 19, 26, 19)
         .generateTexture(rock.textureKey, rock.frameSize.width, rock.frameSize.height).destroy();
     }
+    const herb = WORLD_OBJECT_ASSETS.forest_herb;
+    if (!this.scene.textures.exists(herb.textureKey)) {
+      const g = this.scene.add.graphics(); const f = herb.fallback;
+      g.fillStyle(f.stem).fillRect(15, 15, 3, 13).fillStyle(f.leaf).fillEllipse(11, 16, 13, 9).fillEllipse(22, 18, 12, 9)
+        .generateTexture(herb.textureKey, herb.frameSize.width, herb.frameSize.height).destroy();
+    }
     const basket = WORLD_OBJECT_ASSETS.sell_basket;
     if (!this.scene.textures.exists(basket.textureKey)) {
       const g = this.scene.add.graphics(); const f = basket.fallback;

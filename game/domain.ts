@@ -7,6 +7,7 @@ import { GAME_CONFIG } from "./config";
 import type { MapId } from "./maps/types";
 import { MAP_DEFINITIONS } from "./maps/definitions";
 import { FAIRY_FOREST_ID, FOREST_ENTRY } from "./forest/generation";
+import { normalizeForestState, type ForestState } from "./forest/resources";
 
 export interface FarmTileData {
   x: number;
@@ -20,6 +21,7 @@ export interface FarmTileData {
 export interface InventoryData { items: Partial<Record<ItemId, number>> }
 export interface PlayerData { x: number; y: number; facing: Facing; mapId: MapId }
 export interface SaveData {
+  forestState?: ForestState;
   playerProgress?: PlayerProgress;
   daySerial?: number;
   version: 4;
@@ -126,6 +128,7 @@ const normalizeV4 = (value: unknown): SaveData | null => {
   const mapId: MapId = isMapId(rawPlayer.mapId) ? rawPlayer.mapId : "farm";
   const fallbackPlayer = defaultPlayer(mapId);
   const invalidMap = !isMapId(rawPlayer.mapId);
+  const daySerial = Math.max(1, nonNegativeInteger(value.daySerial, nonNegativeInteger(value.day, 1)));
   const player = invalidMap ? fallbackPlayer : {
     mapId,
     x: finiteNumber(rawPlayer.x, fallbackPlayer.x),
@@ -135,7 +138,8 @@ const normalizeV4 = (value: unknown): SaveData | null => {
   return {
     version: 4,
     playerProgress: normalizeProgress(value.playerProgress),
-    daySerial: Math.max(1, nonNegativeInteger(value.daySerial, nonNegativeInteger(value.day,1))),
+    daySerial,
+    ...(Object.hasOwn(value, "forestState") ? { forestState: normalizeForestState(value.forestState, daySerial) } : {}),
     day: Math.min(GAME_CONFIG.day.daysPerSeason, Math.max(1, nonNegativeInteger(value.day, 1))),
     timeMinutes: Math.min(GAME_CONFIG.day.endMinutes, Math.max(GAME_CONFIG.day.startMinutes, nonNegativeInteger(value.timeMinutes, GAME_CONFIG.day.startMinutes))),
     money: nonNegativeInteger(value.money, GAME_CONFIG.startingMoney),
