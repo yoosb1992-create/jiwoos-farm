@@ -106,6 +106,13 @@ export class AssetManager {
       g.fillStyle(f.stem).fillRect(15, 15, 3, 13).fillStyle(f.leaf).fillEllipse(11, 16, 13, 9).fillEllipse(22, 18, 12, 9)
         .generateTexture(herb.textureKey, herb.frameSize.width, herb.frameSize.height).destroy();
     }
+    for (const asset of [WORLD_OBJECT_ASSETS.forest_moon_mushroom, WORLD_OBJECT_ASSETS.forest_fairy_bloom]) {
+      if (this.scene.textures.exists(asset.textureKey)) continue;
+      const g = this.scene.add.graphics();
+      if (asset.assetId === "forest_moon_mushroom") g.fillStyle(0x9ed4ce).fillRect(14, 17, 5, 11).fillStyle(0x665f9d).fillEllipse(16, 16, 20, 12);
+      else g.fillStyle(0x4a824b).fillRect(15, 16, 3, 12).fillStyle(0xf3b9d7).fillCircle(16, 14, 9);
+      g.generateTexture(asset.textureKey, 32, 32).destroy();
+    }
     const basket = WORLD_OBJECT_ASSETS.sell_basket;
     if (!this.scene.textures.exists(basket.textureKey)) {
       const g = this.scene.add.graphics(); const f = basket.fallback;

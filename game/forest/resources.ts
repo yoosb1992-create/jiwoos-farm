@@ -4,22 +4,24 @@ import type { ToolKey } from "../events";
 import type { MapDefinition, MapObjectDefinition } from "../maps/types";
 import { forestSeed, generateFairyForest, safeForestPosition } from "./generation";
 
-export type ForestResourceId = "tree" | "rock" | "herb";
+export type ForestResourceId = "tree" | "rock" | "herb" | "moon_mushroom" | "fairy_bloom";
 export const FOREST_RESOURCES: Record<ForestResourceId, { id: ForestResourceId; name: string; tool: ToolKey; hits: number; drop: ItemId; quantity: number }> = {
   tree: { id: "tree", name: "나무", tool: "axe", hits: 3, drop: "wood", quantity: 3 },
   rock: { id: "rock", name: "작은 돌", tool: "hand", hits: 1, drop: "stone", quantity: 1 },
   herb: { id: "herb", name: "들풀", tool: "hand", hits: 1, drop: "wild_herb", quantity: 1 },
+  moon_mushroom: { id: "moon_mushroom", name: "달빛버섯", tool: "hand", hits: 1, drop: "moon_mushroom", quantity: 1 },
+  fairy_bloom: { id: "fairy_bloom", name: "요정꽃", tool: "hand", hits: 1, drop: "fairy_bloom", quantity: 1 },
 };
 
 export interface ForestState { daySerial: number; depleted: string[]; hits: Record<string, number> }
 export const emptyForestState = (daySerial: number): ForestState => ({ daySerial, depleted: [], hits: {} });
-const validId = (id: string) => /^(tree|rock|herb)-\d+-\d+$/.test(id);
+export const validForestNodeId = (id: string) => /^(tree|rock|herb|moon_mushroom|fairy_bloom)-\d+-\d+$/.test(id) && id.length <= 48;
 
 /** Unknown/old node IDs and previous-day progress never carry into a fresh layout. */
 export function normalizeForestState(value: unknown, daySerial: number, knownIds?: Set<string>): ForestState {
   if (!value || typeof value !== "object" || (value as ForestState).daySerial !== daySerial) return emptyForestState(daySerial);
   const raw = value as ForestState;
-  const allowed = (id: string) => validId(id) && (!knownIds || knownIds.has(id));
+  const allowed = (id: string) => validForestNodeId(id) && (!knownIds || knownIds.has(id));
   const depleted = Array.isArray(raw.depleted) ? [...new Set(raw.depleted.filter((id): id is string => typeof id === "string" && allowed(id)))].slice(0, 1024) : [];
   const hits: Record<string, number> = {};
   if (raw.hits && typeof raw.hits === "object" && !Array.isArray(raw.hits)) for (const [id, count] of Object.entries(raw.hits)) {
@@ -49,17 +51,46 @@ export function herbObjects(map: MapDefinition, scope: string, daySerial: number
   return result;
 }
 
+/** Separate streams and free cells preserve all preexisting tree, rock and herb IDs and positions. */
+export function rareForageObjects(map: MapDefinition, scope: string, daySerial: number): MapObjectDefinition[] {
+  const occupied = new Set(map.objects.map(o => `${o.position.tileX},${o.position.tileY}`));
+  const positions: Array<{ x: number; y: number }> = [];
+  for (let y = 2; y < map.height - 2; y++) for (let x = 2; x < map.width - 2; x++) {
+    const px = (x + .5) * GAME_CONFIG.tileSize, py = (y + .5) * GAME_CONFIG.tileSize;
+    if (safeForestPosition(map, px, py) && !occupied.has(`${x + .5},${y + .5}`) && !(x >= 13 && x <= 18 && y >= 19)) positions.push({ x, y });
+  }
+  const result: MapObjectDefinition[] = [];
+  for (const [kind, min, spread, assetId] of [
+    ["moon_mushroom", 2, 4, "forest_moon_mushroom"], ["fairy_bloom", 1, 3, "forest_fairy_bloom"],
+  ] as const) {
+    let state = forestSeed(`${scope}:rare:${kind}:v1`, daySerial) || 1;
+    const next = () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return state >>> 0; };
+    const count = min + next() % spread;
+    const available = positions.filter(p => !occupied.has(`${p.x + .5},${p.y + .5}`));
+    for (let i = 0; i < Math.min(count, available.length); i++) {
+      const j = i + next() % (available.length - i);
+      [available[i], available[j]] = [available[j], available[i]];
+      const { x, y } = available[i]; occupied.add(`${x + .5},${y + .5}`);
+      result.push({ id: `${kind}-${x}-${y}`, assetId, position: { tileX: x + .5, tileY: y + .5 }, depth: 3 });
+    }
+  }
+  return result;
+}
+
 /** Both client registry and family server derive precisely the same canonical node set. */
 export function generateResourceForest(scope: string, daySerial: number): MapDefinition {
   const map = generateFairyForest(scope, daySerial);
   map.objects.push(...herbObjects(map, scope, daySerial));
+  map.objects.push(...rareForageObjects(map, scope, daySerial));
   return map;
 }
 
 export const resourceKind = (object: MapObjectDefinition): ForestResourceId | null =>
   object.id.startsWith("tree-") && object.assetId === "tree" ? "tree" :
   object.id.startsWith("rock-") && object.assetId === "forest_rock" ? "rock" :
-  object.id.startsWith("herb-") && object.assetId === "forest_herb" ? "herb" : null;
+  object.id.startsWith("herb-") && object.assetId === "forest_herb" ? "herb" :
+  object.id.startsWith("moon_mushroom-") && object.assetId === "forest_moon_mushroom" ? "moon_mushroom" :
+  object.id.startsWith("fairy_bloom-") && object.assetId === "forest_fairy_bloom" ? "fairy_bloom" : null;
 
 export function findForestResource(map: MapDefinition, target: { x: number; y: number }, player: { x: number; y: number }) {
   return map.objects.filter(o => resourceKind(o))

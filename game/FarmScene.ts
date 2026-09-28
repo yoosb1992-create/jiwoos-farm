@@ -274,7 +274,7 @@ export class FarmScene extends Phaser.Scene {
   private useForestResource(worldX: number, worldY: number) {
     const map = this.mapRegistry.require(FAIRY_FOREST_ID);
     const object = findForestResource(map, { x: worldX, y: worldY }, this.player);
-    if (!object) { this.say("채집할 나무·작은 돌·들풀 가까이에서 사용해 주세요."); return; }
+    if (!object) { this.say("채집할 숲 자원 가까이에서 사용해 주세요."); return; }
     const kind = resourceKind(object)!;
     if (this.selectedTool !== FOREST_RESOURCES[kind].tool) {
       this.say(`${FOREST_RESOURCES[kind].name}: ${FOREST_RESOURCES[kind].tool === "axe" ? "도끼" : "손"}을(를) 사용해 주세요.`); return;
@@ -424,7 +424,7 @@ export class FarmScene extends Phaser.Scene {
     const npcPoses=this.npcs?.sample(this.day,this.npcTime())??[];
     const villagers=NPC_DEFINITIONS.map(n=>{const p=npcPoses.find(p=>p.npcId===n.id),points=personal.relationships[n.id].points;return {id:n.id,name:n.name,points,level:relationshipLevel(points),location:p?this.mapRegistry.get(p.mapId)?.name??"다른 장소":"다른 장소",activity:p?.activity??"휴식"};});
     const step = this.getObjective();
-    const hud: HudState = { villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb") }, selectedTool: this.selectedTool,
+    const hud: HudState = { villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: this.day, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
       transitioning: this.transitioning, shopOpen: this.shopOpen, mapId: this.currentMapId, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));

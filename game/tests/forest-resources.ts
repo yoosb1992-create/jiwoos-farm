@@ -2,19 +2,28 @@ import { strict as assert } from "node:assert";
 import { Inventory, normalizeSaveData } from "../domain";
 import { generateFairyForest } from "../forest/generation";
 import { installFairyForest } from "../forest/registry";
-import { emptyForestState, findForestResource, FOREST_RESOURCES, normalizeForestState, resourceKind, strikeForestNode } from "../forest/resources";
+import { emptyForestState, findForestResource, FOREST_RESOURCES, generateResourceForest, herbObjects, normalizeForestState, resourceKind, strikeForestNode } from "../forest/resources";
 import { MapRegistry } from "../maps/MapRegistry";
 
 const registry = new MapRegistry();
 installFairyForest(registry, "single", 4);
 const forest = registry.require("fairy_forest");
 const original = generateFairyForest("single", 4);
-assert.deepEqual(forest.objects.filter(o => o.assetId !== "forest_herb"), original.objects, "existing tree and rock layout stays unchanged");
+const originalNodes = [...original.objects, ...herbObjects(original, "single", 4)];
+assert.deepEqual(forest.objects.slice(0, originalNodes.length), originalNodes, "rare resources preserve original tree, rock and herb layout, IDs and order");
 assert.ok(forest.objects.some(o => o.assetId === "forest_herb"));
 const same = new MapRegistry(); installFairyForest(same, "single", 4);
 assert.deepEqual(same.require("fairy_forest").objects, forest.objects, "same day produces identical resource node IDs and positions");
 const next = new MapRegistry(); installFairyForest(next, "single", 5);
 assert.notDeepEqual(next.require("fairy_forest").objects, forest.objects, "new day regenerates nodes");
+for (const [kind, min, max] of [["moon_mushroom", 2, 5], ["fairy_bloom", 1, 3]] as const) {
+  const rare = forest.objects.filter(o => resourceKind(o) === kind);
+  assert.ok(rare.length >= min && rare.length <= max, `${kind} daily spawn limit`);
+  assert.deepEqual(rare, generateResourceForest("single", 4).objects.filter(o => resourceKind(o) === kind), "identical scope/day yields same rare positions and IDs");
+  assert.notDeepEqual(rare, generateResourceForest("single", 5).objects.filter(o => resourceKind(o) === kind), "new day changes rare positions");
+  assert.equal(FOREST_RESOURCES[kind].tool, "hand");
+  assert.equal(FOREST_RESOURCES[kind].drop, kind);
+}
 
 const tree = forest.objects.find(o => resourceKind(o) === "tree")!;
 const herb = forest.objects.find(o => resourceKind(o) === "herb")!;
@@ -46,11 +55,21 @@ assert.equal(pebble.drop, "stone"); progress = pebble.state;
 const inventory = new Inventory();
 inventory.add(chopped.drop, chopped.quantity); inventory.add(picked.drop!, picked.quantity); inventory.add(pebble.drop!, pebble.quantity);
 assert.deepEqual([inventory.count("wood"), inventory.count("wild_herb"), inventory.count("stone")], [3, 1, 1]);
+const rareNodes = forest.objects.filter(o => ["moon_mushroom", "fairy_bloom"].includes(resourceKind(o) ?? ""));
+for (const node of rareNodes.slice(0, 2).concat(rareNodes.find(o => resourceKind(o) === "fairy_bloom")!)) {
+  const result = strikeForestNode(progress, node, "hand");
+  assert.equal(result.drop, resourceKind(node));
+  inventory.add(result.drop!, result.quantity); progress = result.state;
+}
+assert.equal(inventory.count("moon_mushroom"), 2);
+assert.equal(inventory.count("fairy_bloom"), 1);
 
 const save = normalizeSaveData({ version: 4, day: 4, daySerial: 4, selectedTool: "axe", player: { mapId: "fairy_forest", x: 496, y: 656, facing: "up" }, inventory: inventory.serialize(), forestState: progress });
 assert.equal(save?.selectedTool, "axe"); assert.deepEqual(save?.forestState, progress);
+assert.equal(save?.inventory.items.moon_mushroom, 2); assert.equal(save?.inventory.items.fairy_bloom, 1);
 const restored = new MapRegistry(); installFairyForest(restored, "single", 4, save?.forestState);
 for (const node of [tree, herb, rock]) assert.ok(!restored.require("fairy_forest").objects.some(o => o.id === node.id), "same-day reconnect retains collection");
+for (const node of rareNodes.slice(0, 2).concat(rareNodes.find(o => resourceKind(o) === "fairy_bloom")!)) assert.ok(!restored.require("fairy_forest").objects.some(o => o.id === node.id), "rare nodes stay collected across reconnect");
 assert.deepEqual(normalizeForestState(undefined, 4), emptyForestState(4), "legacy SaveData starts with empty forest progress");
 assert.deepEqual(normalizeForestState(progress, 5), emptyForestState(5), "next day clears harvested nodes and partial hits");
 const tomorrow = new MapRegistry(); installFairyForest(tomorrow, "single", 5, progress);

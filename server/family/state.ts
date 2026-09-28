@@ -8,7 +8,7 @@ import { PLAYER_ASSET } from "../../game/assets/definitions";
 import { parseFamilyPose } from "../../game/family/personal";
 import type { FamilyAction, FamilySnapshot, FamilyWorld } from "../../game/family/types";
 import { FamilyError, FamilyRooms } from "./rooms";
-import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeForestState, resourceKind, strikeForestNode } from "../../game/forest/resources";
+import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeForestState, resourceKind, strikeForestNode, validForestNodeId } from "../../game/forest/resources";
 
 interface StoredWorld extends FamilyWorld { clockAnchor: number; sleepVotes?: string[]; sleepSessions?: Record<string, string> }
 interface StateRow { revision: number; world_json: string; inventories_json: string }
@@ -100,7 +100,7 @@ export class FamilyState extends FamilyRooms {
     } else if (action.kind === "forest-gather") {
       const daySerial = stored.daySerial ?? stored.day;
       if (pose.mapId !== "fairy_forest" || !Number.isSafeInteger(action.daySerial) || action.daySerial !== daySerial) throw new FamilyError(400, "현재 날짜의 요정의 숲에서 채집해 주세요.");
-      if (typeof action.nodeId !== "string" || !/^(tree|rock|herb)-\d+-\d+$/.test(action.nodeId) || action.nodeId.length > 40) throw new FamilyError(400, "없는 숲 자원입니다.");
+      if (typeof action.nodeId !== "string" || !validForestNodeId(action.nodeId)) throw new FamilyError(400, "없는 숲 자원입니다.");
       const forest = generateResourceForest(roomId, daySerial);
       const node = forest.objects.find(o => o.id === action.nodeId), kind = node && resourceKind(node);
       if (!node || !kind) throw new FamilyError(400, "현재 숲에 없는 자원입니다.");

@@ -20,6 +20,9 @@ try {
   const tree = forest.objects.find(o => resourceKind(o) === "tree")!;
   const herb = forest.objects.find(o => resourceKind(o) === "herb")!;
   const rock = forest.objects.find(o => resourceKind(o) === "rock")!;
+  const mushroom = forest.objects.find(o => resourceKind(o) === "moon_mushroom")!;
+  const bloom = forest.objects.find(o => resourceKind(o) === "fairy_bloom")!;
+  assert.deepEqual([mushroom, bloom], [mushroom, bloom].map(o => generateResourceForest(roomId, 1).objects.find(n => n.id === o.id)), "A/B see identical rare nodes");
   const poseAt = (node: typeof tree, tool: "axe" | "hand" = "axe") => ({ mapId: "fairy_forest", x: node.position.tileX * 32 - 35, y: node.position.tileY * 32, facing: "right", moving: false, selectedTool: tool });
   const gather = (node: typeof tree, tool: "axe" | "hand" = "axe") => ({ kind: "forest-gather", nodeId: node.id, daySerial: 1, tool, pose: poseAt(node, tool) });
   const before = await service.read("A", roomId);
@@ -52,6 +55,18 @@ try {
   const pebble = await service.read("A", roomId);
   const stone = await service.act("B", roomId, pebble.revision, gather(rock, "hand"));
   assert.equal(stone.inventory.items.stone, 1);
+  const rareBefore = await service.read("A", roomId);
+  const race = await Promise.allSettled([
+    service.act("A", roomId, rareBefore.revision, gather(mushroom, "hand")),
+    service.act("B", roomId, rareBefore.revision, gather(mushroom, "hand")),
+  ]);
+  assert.equal(race.filter(r => r.status === "fulfilled").length, 1, "rare forage CAS prevents duplicate rewards");
+  assert.ok((await service.read("B", roomId)).world.forestState?.depleted.includes(mushroom.id));
+  assert.equal(((await service.read("A", roomId)).inventory.items.moon_mushroom ?? 0) + ((await service.read("B", roomId)).inventory.items.moon_mushroom ?? 0), 1);
+  const bloomBefore = await service.read("B", roomId);
+  await service.act("B", roomId, bloomBefore.revision, gather(bloom, "hand"));
+  assert.equal((await service.read("B", roomId)).inventory.items.fairy_bloom, 1, "rare inventory persists on reconnect");
+  assert.ok((await service.read("A", roomId)).world.forestState?.depleted.includes(bloom.id), "A sees B's gathered bloom disappear");
 
   const expectInvalid = async (action: unknown, status = 400) => {
     const latest = await service.read("A", roomId);
@@ -64,6 +79,8 @@ try {
   await expectInvalid({ ...gather(rock, "hand"), pose: { ...poseAt(rock, "hand"), x: 0, y: 0 } });
   await expectInvalid({ ...gather(rock, "hand"), tool: "axe", pose: poseAt(rock) });
   await expectInvalid({ ...gather(tree), nodeId: "herb-999-999", drop: "wood", quantity: 999 });
+  await expectInvalid({ ...gather(mushroom, "hand"), nodeId: "moon_mushroom-999-999" });
+  await expectInvalid({ ...gather(bloom, "hand"), nodeId: "fairy_bloom-999-999" });
   const latest = await service.read("A", roomId);
   await assert.rejects(service.act("outsider", roomId, latest.revision, gather(rock, "hand")), (e: unknown) => e instanceof FamilyError);
   const slept = await service.act("A", roomId, latest.revision, { kind: "sleep", pose: { mapId: "farmhouse", x: 304, y: 224, facing: "down", selectedTool: "hand", moving: false } });
