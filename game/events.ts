@@ -14,6 +14,7 @@ export interface HudState {
   sleepPrompt: boolean;
   transitioning: boolean;
   shopOpen: boolean;
+  mapId?: string;
   mapName: string;
 }
 export const initialHud: HudState = {

@@ -288,10 +288,10 @@ export class FarmScene extends Phaser.Scene {
 
   private selectTool(tool: ToolKey) { this.selectedTool = tool; this.say(`${ITEM_DEFINITIONS[tool].name}을(를) 선택했어요.`); }
   private getObjective() {
-    const tiles = [...this.farm.values()]; const crop = getCropDefinition(DEFAULT_CROP_ID);
-    if (this.inventory.count(crop.harvestItemId) > 0) return { objective: "수확물을 판매해 보세요", progress: 95 };
+    const tiles = [...this.farm.values()];
+    if (Object.values(CROP_DEFINITIONS).some(c => this.inventory.count(c.harvestItemId) > 0)) return { objective: "수확물을 판매해 보세요", progress: 95 };
     if (!tiles.some((tile) => tile.tilled)) return { objective: "첫 밭을 갈아 보세요", progress: 5 };
-    if (!tiles.some((tile) => tile.cropStage !== null)) return { objective: "새싹열매 씨앗을 심으세요", progress: 25 };
+    if (!tiles.some((tile) => tile.cropStage !== null)) return { objective: "선택한 씨앗을 심으세요", progress: 25 };
     if (tiles.some((tile) => tile.cropType && tile.cropStage !== null && isMatureCrop(tile.cropType, tile.cropStage))) return { objective: "다 자란 작물을 수확하세요", progress: 80 };
     if (!tiles.some((tile) => tile.wateredToday)) return { objective: "작물에 오늘의 물을 주세요", progress: 45 };
     return { objective: "농장집 침대에서 잠드세요", progress: 65 };
@@ -301,7 +301,7 @@ export class FarmScene extends Phaser.Scene {
     const step = this.getObjective();
     const hud: HudState = { money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: this.day, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
-      transitioning: this.transitioning, shopOpen: this.shopOpen, mapName: this.mapRegistry.require(this.currentMapId).name };
+      transitioning: this.transitioning, shopOpen: this.shopOpen, mapId: this.currentMapId, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));
   }
   private say(message: string) { this.message = message; this.emitHud(); }

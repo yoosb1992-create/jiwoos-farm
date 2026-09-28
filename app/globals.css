@@ -78,3 +78,29 @@ button { font:inherit; touch-action:manipulation; }
 @media(max-width:600px){.family-forms{grid-template-columns:1fr;gap:0}.family-screen{align-items:flex-start}.family-status{top:max(58px,calc(env(safe-area-inset-top) + 54px));right:8px;font-size:11px;max-width:60vw}.family-playing .mode-switch{left:8px;top:max(8px,env(safe-area-inset-top));transform:none}.family-card{padding:18px}}
 
 .family-card input{user-select:text;-webkit-user-select:text}
+
+/* Beta: compact closed summary; expanded content stays above movement controls. */
+.family-status{width:290px;max-width:calc(100% - 32px);padding:0;font-size:14px}
+.family-status summary{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;min-height:44px;padding:8px 10px}
+.family-status summary::before{content:"▸"}.family-status[open] summary::before{content:"▾"}
+.family-panel-body{max-height:min(32dvh,240px);overflow-y:auto;overscroll-behavior:contain;padding:0 10px 10px}
+.family-status button,.family-management button{min-height:44px;padding:6px 10px;border:1px solid #725c3a;border-radius:6px;background:#fff9e9;color:#42321f;cursor:pointer}
+.family-status button:disabled{opacity:.5}.family-roster{padding:0;list-style:none;margin:4px 0}
+.family-roster li{display:flex;justify-content:space-between;gap:10px;padding:4px 0}.family-roster span{overflow-wrap:anywhere}.family-roster small{white-space:nowrap;font-size:12px}
+.family-management{margin-top:16px;border-top:1px solid #7d916b;padding-top:12px}.family-management button{margin:4px}.family-room-list li{flex-wrap:wrap}
+.inventory-chip label{display:flex;align-items:center;gap:5px}.inventory-chip select{font:inherit;font-size:14px;min-height:36px;max-width:165px;border:1px solid #846745;border-radius:6px;background:#fff9e7;color:#42321f}
+@media(max-width:700px),(pointer:coarse){
+ .family-playing .brand-plate{display:none}.family-playing .top-hud{justify-content:flex-end}
+ .family-playing .mode-switch{left:8px;top:max(8px,env(safe-area-inset-top));transform:none}
+ .family-status{top:max(112px,calc(env(safe-area-inset-top) + 104px));left:8px;right:auto;width:calc(100% - 16px);max-width:360px;font-size:13px}
+ .family-status .family-panel-body{max-height:min(28dvh,200px)}
+ .family-playing .quest-card{top:max(165px,calc(env(safe-area-inset-top) + 157px))}
+ .family-status[open] ~ .quest-card{visibility:hidden}
+ .inventory-chip{max-width:calc(100% - 150px);gap:4px;flex-wrap:wrap;padding:4px 6px}
+ .inventory-chip select{max-width:130px;min-height:44px}.inventory-chip span{font-size:12px}
+ .action-button{bottom:max(142px,calc(env(safe-area-inset-bottom) + 134px))}
+}
+@media(max-height:430px) and (orientation:landscape){
+ .family-status{top:max(58px,calc(env(safe-area-inset-top) + 50px));width:260px}
+ .family-status .family-panel-body{max-height:110px}.family-playing .quest-card{display:none}
+}
