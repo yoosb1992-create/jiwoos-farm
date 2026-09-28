@@ -8,16 +8,18 @@ import { PLAYER_ASSET } from "../../game/assets/definitions";
 import { parseFamilyPose } from "../../game/family/personal";
 import type { FamilyAction, FamilySnapshot, FamilyWorld } from "../../game/family/types";
 import { FamilyError, FamilyRooms } from "./rooms";
+import { emptyForestState, normalizeForestState } from "../../game/forest/resources";
 
 interface StoredWorld extends FamilyWorld { clockAnchor: number; sleepVotes?: string[]; sleepSessions?: Record<string, string> }
 interface StateRow { revision: number; world_json: string; inventories_json: string }
 export const initialFamilyWorld = (now: number): StoredWorld => ({
   day: 1, daySerial: 1, timeMinutes: GAME_CONFIG.day.startMinutes, clockAnchor: now, money: GAME_CONFIG.startingMoney,
+  forestState: emptyForestState(1),
   farm: MAP_DEFINITIONS.farm.farmAreas.flatMap((area) => Array.from({ length: area.endY - area.startY + 1 }, (_, j) =>
     Array.from({ length: area.endX - area.startX + 1 }, (_, i) => ({ x: area.startX + i, y: area.startY + j, tilled: false, wateredToday: false, cropType: null, cropStage: null, plantedDay: null }))).flat()),
 });
 function currentWorld(stored: StoredWorld, now: number): FamilyWorld {
-  return { day: stored.day, daySerial: stored.daySerial ?? stored.day, money: stored.money, farm: stored.farm,
+  return { day: stored.day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), money: stored.money, farm: stored.farm,
     timeMinutes: Math.min(GAME_CONFIG.day.endMinutes, stored.timeMinutes + Math.floor(Math.max(0, now - stored.clockAnchor) / GAME_CONFIG.day.realMsPerGameMinute)) };
 }
 export class FamilyState extends FamilyRooms {
@@ -38,6 +40,7 @@ export class FamilyState extends FamilyRooms {
   }
   private nextDay(stored: StoredWorld) {
     stored.daySerial = (stored.daySerial ?? stored.day) + 1;
+    stored.forestState = emptyForestState(stored.daySerial);
     advanceFarmDay(stored.farm); stored.day = stored.day >= GAME_CONFIG.day.daysPerSeason ? 1 : stored.day + 1;
     stored.timeMinutes = GAME_CONFIG.day.startMinutes; stored.clockAnchor = this.now(); stored.sleepVotes = []; stored.sleepSessions = {};
   }

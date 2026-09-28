@@ -12,6 +12,7 @@ try {
   const other = await rooms.create("C", "다른 농장", "엄마");
   const pose: FamilyPose = { mapId: "farm", x: 304, y: 272, facing: "down", selectedTool: "hoe", moving: false };
   const roomId = a.room.id, initial = await state.read("A", roomId);
+  assert.deepEqual(initial.world.forestState, { daySerial: 1, depleted: [], hits: {} });
   assert.deepEqual(initial.world, (await state.read("B", roomId)).world);
   const hoe = { kind: "tool", tool: "hoe", x: 9, y: 8, pose };
   const results = await Promise.allSettled([state.act("A", roomId, 0, hoe), state.act("B", roomId, 0, hoe)]);
@@ -29,11 +30,14 @@ try {
     revision = sleep.revision;
   }
   const mature = await state.read("B", roomId); assert.equal(mature.world.farm[0].cropStage, 3); assert.equal(mature.world.day, 4);
+  assert.deepEqual(mature.world.forestState, { daySerial: 4, depleted: [], hits: {} }, "sleep resets shared forest day");
   const harvest = await state.act("B", roomId, revision, { ...hoe, tool: "hand" });
   assert.equal(harvest.inventory.items.sproutberry, 1); assert.equal((await state.read("A", roomId)).inventory.items.sproutberry, 0);
   const sold = await state.act("B", roomId, harvest.revision, { kind: "sell", pose });
   assert.equal(sold.world.money, 155); assert.equal((await state.read("A", roomId)).world.money, 155);
   assert.equal((await state.read("C", other.room.id)).world.farm[0].tilled, false);
+  await db.prepare("UPDATE family_state SET world_json=json_remove(world_json, '$.forestState') WHERE room_id=?").bind(other.room.id).run();
+  assert.deepEqual((await state.read("C", other.room.id)).world.forestState, { daySerial: 1, depleted: [], hits: {} }, "legacy room JSON reads without a migration");
   await assert.rejects(state.read("C", roomId)); await assert.rejects(state.act("C", roomId, sold.revision, hoe));
   await assert.rejects(state.act("A", roomId, sold.revision, { ...hoe, pose: { ...pose, x: NaN } }));
   await assert.rejects(state.act("A", roomId, sold.revision, { kind: "replace", world: initial.world, pose }));
