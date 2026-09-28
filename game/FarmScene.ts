@@ -13,6 +13,8 @@ import { advanceFarmDay, sellAllCrops, Inventory, LocalStorageSaveRepository, pu
 import { AssetManager } from "./assets/AssetManager";
 import { PLAYER_ASSET, displayedSize, physicsBoxForScale, type Facing } from "./assets/definitions";
 import { WorldRenderer } from "./rendering/WorldRenderer";
+import { ForestGatheringEffects } from "./rendering/ForestGatheringEffects";
+import { forestFeedback } from "./forest/feedback";
 import { GAME_CONFIG } from "./config";
 import { CROP_DEFINITIONS, DEFAULT_CROP_ID, isCropId, type CropId, getCropDefinition, isMatureCrop } from "./data/crops";
 import { ITEM_DEFINITIONS } from "./data/items";
@@ -56,6 +58,7 @@ export class FarmScene extends Phaser.Scene {
   private farm = new Map<string, FarmTileData>();
   private assetManager!: AssetManager;
   private worldRenderer!: WorldRenderer;
+  private forestEffects!: ForestGatheringEffects;
   private playerAnimations!: PlayerAnimationController;
   private toolActions!: ToolActionSystem;
   private inventory = new Inventory();
@@ -101,6 +104,7 @@ export class FarmScene extends Phaser.Scene {
     this.assetManager ??= new AssetManager(this);
     this.assetManager.createFallbackTextures(); this.assetManager.createPlayerAnimations();
     this.worldRenderer = new WorldRenderer(this, this.mapRegistry); this.buildFarm();
+    this.forestEffects = new ForestGatheringEffects(this);
     const saved = this.testMode || this.family ? null : this.repository.load();
     const personal = this.family?.loadPersonal();
     if (personal) { this.currentMapId = personal.mapId; this.facing = personal.facing; this.selectedTool = personal.selectedTool; }
@@ -279,11 +283,20 @@ export class FarmScene extends Phaser.Scene {
       const daySerial = this.family.snapshot?.world.daySerial ?? this.family.snapshot?.world.day;
       if (!daySerial) { this.say("가족 숲의 최신 상태를 받는 중이에요."); return; }
       this.toolActions.execute(this.selectedTool, this.facing, tool => {
-        void this.family!.act({ kind: "forest-gather", nodeId: object.id, daySerial, tool, pose: this.familyPose() });
+        const before = this.sharedForestState;
+        const priorCount = this.inventory.count(FOREST_RESOURCES[kind].drop);
+        void this.family!.act({ kind: "forest-gather", nodeId: object.id, daySerial, tool, pose: this.familyPose() }).then(accepted => {
+          if (!accepted || !this.sceneLive || this.currentMapId !== FAIRY_FOREST_ID) return;
+          const definition = FOREST_RESOURCES[kind];
+          const delta = this.inventory.count(definition.drop) - priorCount;
+          const feedback = forestFeedback(object, before, this.sharedForestState, definition.drop, delta);
+          if (feedback) this.forestEffects.play(object, feedback);
+        });
       });
       return;
     }
     this.toolActions.execute(this.selectedTool, this.facing, () => {
+      const before = this.forestState;
       const result = strikeForestNode(this.forestState, object, this.selectedTool);
       this.forestState = result.state;
       this.worldRenderer.renderForestHits(this.forestState.hits);
@@ -292,6 +305,8 @@ export class FarmScene extends Phaser.Scene {
         const position = { x: this.player.x, y: this.player.y, facing: this.facing };
         this.syncForest(true); this.loadMap(FAIRY_FOREST_ID, undefined, position);
       }
+      const feedback = forestFeedback(object, before, this.forestState, result.drop, result.quantity);
+      if (feedback) this.forestEffects.play(object, feedback);
       this.say(result.message);
       this.save(false);
     });
