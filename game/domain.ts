@@ -4,7 +4,7 @@ import { CROP_DEFINITIONS, getCropDefinition, type CropId } from "./data/crops";
 import { ITEM_DEFINITIONS, type ItemId } from "./data/items";
 import type { Facing } from "./assets/definitions";
 import { GAME_CONFIG } from "./config";
-import { calendarDate } from "./world/calendar";
+import { calendarDate, worldMinute } from "./world/calendar";
 import type { MapId } from "./maps/types";
 import { MAP_DEFINITIONS } from "./maps/definitions";
 import { FAIRY_FOREST_ID, FOREST_ENTRY } from "./forest/generation";
@@ -14,6 +14,8 @@ import type { ToolProgression } from "./tools/types";
 import { normalizePlayerStats, type PlayerStats } from "./player/stats";
 import { normalizeStorage } from "./storage/container";
 import type { StorageData } from "./storage/types";
+import { normalizePlaceables } from "./placeables/system";
+import type { PlaceablesData } from "./placeables/types";
 
 export interface FarmTileData {
   x: number;
@@ -27,6 +29,7 @@ export interface FarmTileData {
 export interface InventoryData { items: Partial<Record<ItemId, number>> }
 export interface PlayerData { x: number; y: number; facing: Facing; mapId: MapId }
 export interface SaveData {
+  placeables?: PlaceablesData;
   storage?: StorageData;
   stats?: PlayerStats;
   toolProgression?: ToolProgression;
@@ -139,6 +142,7 @@ const normalizeV4 = (value: unknown): SaveData | null => {
   const invalidMap = !isMapId(rawPlayer.mapId);
   const legacyDay = Math.min(GAME_CONFIG.day.daysPerSeason, Math.max(1, nonNegativeInteger(value.day, 1)));
   const daySerial = Number.isSafeInteger(value.daySerial) && (value.daySerial as number) >= 1 ? value.daySerial as number : legacyDay;
+  const timeMinutes = Math.min(GAME_CONFIG.day.endMinutes, Math.max(GAME_CONFIG.day.startMinutes, nonNegativeInteger(value.timeMinutes, GAME_CONFIG.day.startMinutes)));
   const player = invalidMap ? fallbackPlayer : {
     mapId,
     x: finiteNumber(rawPlayer.x, fallbackPlayer.x),
@@ -149,12 +153,13 @@ const normalizeV4 = (value: unknown): SaveData | null => {
     version: 4,
     stats: normalizePlayerStats(value.stats),
     storage: normalizeStorage(value.storage),
+    placeables: normalizePlaceables(value.placeables, worldMinute(daySerial, timeMinutes)),
     ...(Object.hasOwn(value, "toolProgression") ? { toolProgression: normalizeToolProgression(value.toolProgression) } : {}),
     playerProgress: normalizeProgress(value.playerProgress),
     daySerial,
     ...(Object.hasOwn(value, "forestState") ? { forestState: normalizeForestState(value.forestState, daySerial) } : {}),
     day: calendarDate(daySerial).day,
-    timeMinutes: Math.min(GAME_CONFIG.day.endMinutes, Math.max(GAME_CONFIG.day.startMinutes, nonNegativeInteger(value.timeMinutes, GAME_CONFIG.day.startMinutes))),
+    timeMinutes,
     money: nonNegativeInteger(value.money, GAME_CONFIG.startingMoney),
     selectedTool: isTool(value.selectedTool) ? value.selectedTool : "hoe",
     player,

@@ -127,7 +127,7 @@ export class AssetManager {
         .lineStyle(6, f.trim).strokeRect(4, 48, width - 8, height - 52).fillStyle(f.door).fillRect(width / 2 - 18, height - 54, 36, 54)
         .generateTexture(store.textureKey, width, height).destroy();
     }
-    for (const asset of [WORLD_OBJECT_ASSETS.bed, WORLD_OBJECT_ASSETS.shop_counter, WORLD_OBJECT_ASSETS.crafting_table, WORLD_OBJECT_ASSETS.storage_chest]) {
+    for (const asset of [WORLD_OBJECT_ASSETS.bed, WORLD_OBJECT_ASSETS.shop_counter, WORLD_OBJECT_ASSETS.crafting_table, WORLD_OBJECT_ASSETS.storage_chest, WORLD_OBJECT_ASSETS.wood_processor]) {
       if (this.scene.textures.exists(asset.textureKey)) continue;
       const g = this.scene.add.graphics(); const f = asset.fallback; const { width, height } = displayedSize(asset);
       g.fillStyle(f.fill).fillRoundedRect(2, 2, width - 4, height - 4, 7).lineStyle(4, f.stroke).strokeRoundedRect(2, 2, width - 4, height - 4, 7);

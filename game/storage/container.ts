@@ -5,7 +5,7 @@ import type { ContainerData, ContainerId, StorageData } from "./types";
 
 export const isStorableItemId = (value: unknown): value is ItemId =>
   typeof value === "string" && Object.hasOwn(ITEM_DEFINITIONS, value) &&
-  ["seed", "crop", "resource", "material"].includes(ITEM_DEFINITIONS[value as ItemId].kind) && value !== "seed";
+  ["seed", "crop", "resource", "material", "placeable"].includes(ITEM_DEFINITIONS[value as ItemId].kind) && value !== "seed";
 
 export function initialStorage(): StorageData {
   return { containers: Object.fromEntries(Object.keys(CONTAINER_DEFINITIONS).map(id => [id, { id, items: {} }])) as StorageData["containers"] };

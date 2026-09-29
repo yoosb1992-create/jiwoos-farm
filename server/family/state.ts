@@ -1,6 +1,6 @@
 import { FAMILY_PRESENCE_TTL_MS } from "../../game/family/presence";
 import { GAME_CONFIG } from "../../game/config";
-import { calendarDate } from "../../game/world/calendar";
+import { calendarDate, worldMinute } from "../../game/world/calendar";
 import { waterFarmForRain, weatherFor } from "../../game/weather/system";
 import { advanceFarmDay, sellAllCrops, Inventory, purchaseInventoryItem, type InventoryData } from "../../game/domain";
 import { DEFAULT_CROP_ID, isCropId, getCropDefinition, isMatureCrop } from "../../game/data/crops";
@@ -17,6 +17,8 @@ import { getToolUpgrade } from "../../game/tools/definitions";
 import type { ToolProgression } from "../../game/tools/types";
 import { canPerformAction, normalizePlayerStats, recordSuccessfulAction, restoreStamina, type PlayerStats } from "../../game/player/stats";
 import { initialStorage, normalizeStorage, transferItem } from "../../game/storage/container";
+import { initialPlaceables, normalizePlaceables, placeObject, removeObject } from "../../game/placeables/system";
+import { startMachine, collectMachine } from "../../game/machines/system";
 import { FamilyError, FamilyRooms } from "./rooms";
 import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeForestState, resourceKind, strikeForestNode, validForestNodeId } from "../../game/forest/resources";
 
@@ -27,14 +29,16 @@ export const initialFamilyWorld = (now: number): StoredWorld => ({
   day: 1, daySerial: 1, timeMinutes: GAME_CONFIG.day.startMinutes, clockAnchor: now, money: GAME_CONFIG.startingMoney,
   forestState: emptyForestState(1),
   storage: initialStorage(),
+  placeables: initialPlaceables(),
   farm: MAP_DEFINITIONS.farm.farmAreas.flatMap((area) => Array.from({ length: area.endY - area.startY + 1 }, (_, j) =>
     Array.from({ length: area.endX - area.startX + 1 }, (_, i) => ({ x: area.startX + i, y: area.startY + j, tilled: false, wateredToday: false, cropType: null, cropStage: null, plantedDay: null }))).flat()),
 });
 function currentWorld(stored: StoredWorld, now: number, roomId: string): FamilyWorld {
   // Older room JSON has no weather field; derive rain for the current day on read.
   waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
-  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), storage: normalizeStorage(stored.storage), money: stored.money, farm: stored.farm,
-    timeMinutes: Math.min(GAME_CONFIG.day.endMinutes, stored.timeMinutes + Math.floor(Math.max(0, now - stored.clockAnchor) / GAME_CONFIG.day.realMsPerGameMinute)) };
+  const timeMinutes = Math.min(GAME_CONFIG.day.endMinutes, stored.timeMinutes + Math.floor(Math.max(0, now - stored.clockAnchor) / GAME_CONFIG.day.realMsPerGameMinute));
+  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), money: stored.money, farm: stored.farm,
+    timeMinutes };
 }
 export class FamilyState extends FamilyRooms {
   private async row(roomId: string): Promise<StateRow> {
@@ -57,6 +61,7 @@ export class FamilyState extends FamilyRooms {
     advanceFarmDay(stored.farm);
     stored.daySerial = (stored.daySerial ?? stored.day) + 1;
     stored.day = calendarDate(stored.daySerial).day;
+    stored.placeables = normalizePlaceables(stored.placeables, worldMinute(stored.daySerial, GAME_CONFIG.day.startMinutes));
     waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial));
     stored.forestState = emptyForestState(stored.daySerial);
     stored.timeMinutes = GAME_CONFIG.day.startMinutes; stored.clockAnchor = this.now(); stored.sleepVotes = []; stored.sleepSessions = {};
@@ -193,6 +198,28 @@ export class FamilyState extends FamilyRooms {
       const error = transferItem(inventory, storage, action.containerId, action.direction, action.itemId, action.quantity);
       if (error) throw new FamilyError(409, error);
       stored.storage = storage;
+    } else if (action.kind === "place" || action.kind === "place-remove" || action.kind === "machine-start" || action.kind === "machine-collect") {
+      const time = currentWorld(stored, this.now(), roomId).timeMinutes;
+      const now = worldMinute(stored.daySerial ?? stored.day, time);
+      const placeables = normalizePlaceables(stored.placeables, now);
+      if (action.kind === "place") {
+        if (pose.mapId !== "farm" || !Number.isSafeInteger(action.tileX) || !Number.isSafeInteger(action.tileY) ||
+            Math.hypot(pose.x - (action.tileX + .5) * GAME_CONFIG.tileSize, pose.y - (action.tileY + .5) * GAME_CONFIG.tileSize) > 90)
+          throw new FamilyError(400, "농장 가까운 칸에 배치해 주세요.");
+        const nearby = await this.db.prepare("SELECT pose_json FROM family_presence WHERE room_id=? AND last_seen>?").bind(roomId, this.now() - FAMILY_PRESENCE_TTL_MS).all<{ pose_json: string }>();
+        const players = [pose, ...nearby.results.flatMap(row => { try { const p = parseFamilyPose(JSON.parse(row.pose_json)); return p ? [p] : []; } catch { return []; } })];
+        const error = placeObject(placeables, inventory, action.definitionId, MAP_DEFINITIONS.farm, action.tileX, action.tileY, players, crypto.randomUUID());
+        if (error) throw new FamilyError(409, error);
+      } else {
+        const instance = placeables.instances.find(p => p.id === action.instanceId && p.mapId === pose.mapId);
+        if (!instance || Math.hypot(pose.x - (instance.tileX + .5) * GAME_CONFIG.tileSize, pose.y - (instance.tileY + .5) * GAME_CONFIG.tileSize) > 70)
+          throw new FamilyError(400, "기계 가까이에서 이용해 주세요.");
+        const error = action.kind === "place-remove" ? removeObject(placeables, inventory, action.instanceId, pose) :
+          action.kind === "machine-start" ? startMachine(instance.state.machine, inventory, action.processId, now) :
+          collectMachine(instance.state.machine, inventory, now);
+        if (error) throw new FamilyError(409, error);
+      }
+      stored.placeables = placeables;
     } else throw new FamilyError(400, "지원하지 않는 행동입니다.");
     inventories[member.playerId] = { ...inventory.serialize(), toolProgression, stats };
     const result = await this.db.prepare(`UPDATE family_state SET world_json = ?, inventories_json = ?, revision = revision + 1, updated_at = ? WHERE room_id = ? AND revision = ?`)

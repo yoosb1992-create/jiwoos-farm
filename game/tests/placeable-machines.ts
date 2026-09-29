@@ -1,0 +1,142 @@
+import { strict as assert } from "node:assert";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { MachinePanel } from "../../app/components/MachinePanel";
+import { Inventory, normalizeSaveData } from "../domain";
+import { MAP_DEFINITIONS } from "../maps/definitions";
+import { initialPlaceables, normalizePlaceables, placementError, placeObject, removeObject } from "../placeables/system";
+import { idleMachine, advanceMachine, startMachine, collectMachine } from "../machines/system";
+import { worldMinute } from "../world/calendar";
+import { initialStorage } from "../storage/container";
+import { initialPlayerStats } from "../player/stats";
+import { FamilyRooms, FamilyError } from "../../server/family/rooms";
+import { FamilyState } from "../../server/family/state";
+import { familyTestDB } from "./family-db";
+
+const map = MAP_DEFINITIONS.farm, data = initialPlaceables();
+const bag = new Inventory({ items: { wood_processor: 1, wood: 5 } });
+const player = { x: 208, y: 432, mapId: "farm" };
+assert.equal(placeObject(data, bag, "wood_processor", map, 7, 13, [player], "test-1"), null);
+assert.deepEqual([data.instances.length, bag.count("wood_processor"), data.instances[0].state.machine], [1, 0, idleMachine()]);
+for (const [x, y, message] of [[-1, 13, /맵/], [map.width, 13, /맵/], [5, 5, /오브젝트/], [7, 13, /겹/], [5, 8, /출입구/], [6, 13, /플레이어/], [10, 10, /농지/]] as const) {
+  const before = [structuredClone(data), bag.serialize()];
+  assert.match(placementError(data, "wood_processor", map, x, y, [player])!, message);
+  assert.ok(placeObject(data, bag, "wood_processor", map, x, y, [player], "invalid"));
+  assert.deepEqual([data, bag.serialize()], before, "invalid placement preserves object and item");
+}
+const instance = data.instances[0], clock = worldMinute(1, 360);
+assert.equal(startMachine(instance.state.machine, bag, "saw_wood", clock), null);
+assert.equal(bag.count("wood"), 3);
+assert.equal(instance.state.machine.status, "processing");
+const inProgress = [structuredClone(data), bag.serialize()];
+assert.ok(startMachine(instance.state.machine, bag, "saw_wood", clock + 1));
+assert.ok(collectMachine(instance.state.machine, bag, clock + 119));
+assert.ok(removeObject(data, bag, instance.id, player));
+assert.deepEqual([data, bag.serialize()], inProgress, "failed machine actions never consume or duplicate items");
+advanceMachine(instance.state.machine, clock + 120);
+assert.equal(instance.state.machine.status, "ready");
+assert.equal(collectMachine(instance.state.machine, bag, clock + 120), null);
+assert.equal(bag.count("wood_plank"), 1); assert.equal(instance.state.machine.status, "idle");
+assert.ok(collectMachine(instance.state.machine, bag, clock + 120));
+assert.equal(bag.count("wood_plank"), 1, "result cannot be claimed twice");
+assert.equal(startMachine(instance.state.machine, bag, "saw_wood", clock + 130), null);
+assert.equal(normalizePlaceables(data, worldMinute(2, 360)).instances[0].state.machine.status, "ready", "sleep can complete work");
+assert.ok(removeObject(data, bag, instance.id, player), "ready machine cannot be removed");
+const saved = { version: 4, day: 1, daySerial: 1, timeMinutes: 490, money: 70, selectedTool: "hoe", player: { ...player, facing: "down" },
+  inventory: bag.serialize(), storage: initialStorage(), stats: { ...initialPlayerStats(), stamina: 43 }, toolProgression: { axe: 2, pickaxe: 1 },
+  placeables: data, farm: [], savedAt: 5 };
+const restored = normalizeSaveData(JSON.parse(JSON.stringify(saved)))!;
+assert.deepEqual(restored.placeables, normalizePlaceables(data, worldMinute(1, 490)));
+assert.equal(restored.placeables?.instances[0].tileX, 7);
+assert.equal(restored.placeables?.instances[0].state.machine.status, "processing");
+assert.equal(normalizeSaveData({ ...saved, daySerial: 2, timeMinutes: 360 })?.placeables?.instances[0].state.machine.status, "ready");
+assert.deepEqual(restored.stats, saved.stats); assert.deepEqual(restored.storage, saved.storage);
+assert.deepEqual(restored.toolProgression, saved.toolProgression); assert.deepEqual(restored.inventory, saved.inventory);
+for (const version of [1, 2, 3, 4]) assert.deepEqual(normalizeSaveData({ ...saved, version, placeables: undefined })?.placeables, initialPlaceables());
+assert.equal(collectMachine(instance.state.machine, bag, worldMinute(2, 360)), null);
+assert.equal(removeObject(data, bag, instance.id, player), null);
+assert.deepEqual([data.instances.length, bag.count("wood_processor")], [0, 1]);
+assert.ok(placeObject(data, new Inventory({ items: {} }), "wood_processor", map, 7, 13, [player], "missing"));
+assert.equal(data.instances.length, 0);
+const poorBag = new Inventory({ items: { wood: 1 } }), unused = idleMachine();
+assert.ok(startMachine(unused, poorBag, "saw_wood", clock));
+assert.deepEqual([poorBag.count("wood"), unused], [1, idleMachine()], "insufficient input leaves both states unchanged");
+const ui = renderToStaticMarkup(createElement(MachinePanel, { instance, now: clock + 140, items: bag.serialize().items, busy: false, onStart: () => {}, onCollect: () => {}, onRemove: () => {}, onClose: () => {} }));
+assert.ok(ui.includes("목재 가공기") && ui.includes("재료 넣기") && ui.includes("기계 회수"));
+
+const { db, close } = familyTestDB();
+try {
+  let current = 100000;
+  const rooms = new FamilyRooms(db, () => current), state = new FamilyState(db, () => current);
+  const a = await rooms.create("machine-A", "기계 공유", "A"), b = await rooms.join("machine-B", a.room.inviteCode, "B"), roomId = a.room.id;
+  await state.read("machine-A", roomId);
+  const stats = { ...initialPlayerStats(), stamina: 61 };
+  await db.prepare("UPDATE family_state SET inventories_json=? WHERE room_id=?").bind(JSON.stringify({
+    [a.room.playerId]: { items: { wood_processor: 2, wood: 4 }, stats }, [b.room.playerId]: { items: { wood_processor: 1 } },
+  }), roomId).run();
+  const pose = { mapId: "farm", x: 208, y: 432, facing: "right", selectedTool: "hand", moving: false };
+  const action = (kind: string, extra: object = {}) => ({ kind, pose, ...extra });
+  const act = async (user: string, value: object) => state.act(user, roomId, (await state.read(user, roomId)).revision, value);
+  const placed = await act("machine-A", action("place", { definitionId: "wood_processor", tileX: 7, tileY: 13 }));
+  assert.equal(placed.inventory.items.wood_processor, 1);
+  const objectId = placed.world.placeables!.instances[0].id;
+  assert.equal((await state.read("machine-B", roomId)).world.placeables?.instances[0].id, objectId);
+  const started = await act("machine-A", action("machine-start", { instanceId: objectId, processId: "saw_wood" }));
+  assert.equal(started.inventory.items.wood, 2);
+  assert.equal((await state.read("machine-B", roomId)).world.placeables?.instances[0].state.machine.status, "processing");
+  const deny = async (user: string, value: object) => {
+    const beforeA = await state.read("machine-A", roomId), beforeB = await state.read("machine-B", roomId);
+    await assert.rejects(act(user, value), (e: unknown) => e instanceof FamilyError && [400, 409].includes(e.status));
+    assert.deepEqual(await state.read("machine-A", roomId), beforeA);
+    assert.deepEqual(await state.read("machine-B", roomId), beforeB);
+  };
+  await deny("machine-A", action("machine-start", { instanceId: objectId, processId: "saw_wood" }));
+  await deny("machine-B", action("machine-collect", { instanceId: objectId }));
+  await deny("machine-B", action("place-remove", { instanceId: objectId }));
+  await deny("machine-A", action("place", { definitionId: "wood_processor", tileX: 7, tileY: 13 }));
+  await deny("machine-A", action("place", { definitionId: "wood_processor", tileX: 10, tileY: 10 }));
+  await deny("machine-A", action("place", { definitionId: "wood_processor", tileX: 33, tileY: 7 }));
+  current += 120 * 500;
+  const ready = await state.read("machine-B", roomId);
+  assert.equal(ready.world.placeables?.instances[0].state.machine.status, "ready");
+  const received = await act("machine-B", action("machine-collect", { instanceId: objectId }));
+  assert.equal(received.inventory.items.wood_plank, 1);
+  assert.equal(received.world.placeables?.instances[0].state.machine.status, "idle");
+  assert.equal((await state.read("machine-A", roomId)).inventory.items.wood_plank ?? 0, 0);
+  await deny("machine-A", action("machine-collect", { instanceId: objectId }));
+  const again = await act("machine-A", action("machine-start", { instanceId: objectId, processId: "saw_wood" }));
+  current += 120 * 500;
+  const revision = (await state.read("machine-A", roomId)).revision;
+  const collect = action("machine-collect", { instanceId: objectId });
+  const race = await Promise.allSettled([state.act("machine-A", roomId, revision, collect), state.act("machine-B", roomId, revision, collect)]);
+  assert.equal(race.filter(r => r.status === "fulfilled").length, 1);
+  const failed = race.find(r => r.status === "rejected") as PromiseRejectedResult;
+  assert.ok(failed.reason instanceof FamilyError && failed.reason.status === 409 && failed.reason.details.snapshot);
+  const endA = await state.read("machine-A", roomId), endB = await state.read("machine-B", roomId);
+  assert.equal((endA.inventory.items.wood_plank ?? 0) + (endB.inventory.items.wood_plank ?? 0), 2);
+  assert.equal(endA.stats?.stamina, 61); assert.equal(endB.stats?.stamina, 100);
+  assert.equal(endA.stats?.skills.farming.experience, 0);
+  const placeRevision = endA.revision, sameTile = action("place", { definitionId: "wood_processor", tileX: 8, tileY: 13 });
+  const placeRace = await Promise.allSettled([state.act("machine-A", roomId, placeRevision, sameTile), state.act("machine-B", roomId, placeRevision, sameTile)]);
+  assert.equal(placeRace.filter(r => r.status === "fulfilled").length, 1);
+  assert.equal((await state.read("machine-A", roomId)).world.placeables?.instances.length, 2);
+  assert.equal(((await state.read("machine-B", roomId)).inventory.items.wood_processor ?? 0) + ((await state.read("machine-A", roomId)).inventory.items.wood_processor ?? 0), 1);
+  assert.equal(again.world.daySerial, endA.world.daySerial);
+  const sleeper = await rooms.create("machine-sleeper", "하룻밤 가공", "S");
+  await state.read("machine-sleeper", sleeper.room.id);
+  await db.prepare("UPDATE family_state SET inventories_json=? WHERE room_id=?").bind(JSON.stringify({
+    [sleeper.room.playerId]: { items: { wood_processor: 1, wood: 2 } },
+  }), sleeper.room.id).run();
+  const sleepRoom = sleeper.room.id;
+  const sleepAct = async (value: object) => state.act("machine-sleeper", sleepRoom, (await state.read("machine-sleeper", sleepRoom)).revision, value);
+  const sleepPlaced = await sleepAct(action("place", { definitionId: "wood_processor", tileX: 7, tileY: 13 }));
+  const sleepId = sleepPlaced.world.placeables!.instances[0].id;
+  await sleepAct(action("machine-start", { instanceId: sleepId, processId: "saw_wood" }));
+  const bedPose = { ...pose, mapId: "farmhouse", x: 304, y: 224, facing: "down" };
+  const morning = await sleepAct({ kind: "sleep", pose: bedPose });
+  assert.equal(morning.world.daySerial, 2);
+  assert.equal(morning.world.placeables?.instances[0].state.machine.status, "ready", "authoritative sleep advances processing");
+  const claimed = await sleepAct(action("machine-collect", { instanceId: sleepId }));
+  assert.equal(claimed.inventory.items.wood_plank, 1);
+  console.log("Placeable machines: placement, recovery, game time, saves, Family sharing and CAS races passed");
+} finally { close(); }

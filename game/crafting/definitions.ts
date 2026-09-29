@@ -14,6 +14,10 @@ export const CRAFTING_RECIPES = {
     ingredients: [{ itemId: "wild_herb", quantity: 2 }, { itemId: "fairy_bloom", quantity: 1 }],
     output: { itemId: "fairy_thread", quantity: 1 },
   },
+  wood_processor: {
+    id: "wood_processor", name: "목재 가공기", description: "농장에 배치해 나무를 목재판으로 가공합니다.",
+    ingredients: [{ itemId: "wood_plank", quantity: 2 }, { itemId: "stone_block", quantity: 1 }], output: { itemId: "wood_processor", quantity: 1 },
+  },
 } as const satisfies Record<string, CraftingRecipe>;
 
 export type RecipeId = keyof typeof CRAFTING_RECIPES;

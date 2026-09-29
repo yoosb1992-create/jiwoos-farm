@@ -17,6 +17,7 @@ import { ItemIcon } from "./components/ItemIcon";
 import { CraftingPanel } from "./components/CraftingPanel";
 import { InventoryPanel } from "./components/InventoryPanel";
 import { StoragePanel } from "./components/StoragePanel";
+import { MachinePanel } from "./components/MachinePanel";
 import { FamilyLobby } from "./family/FamilyLobby";
 import { FamilyStatus } from "./family/FamilyStatus";
 import type { FamilySession } from "@/game/family/types";
@@ -103,7 +104,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
           <div className="quest-details"><div className="growth-track"><i style={{ width: `${hud.progress}%` }} /></div><small>{hud.message}</small></div>
         </aside>
         <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen((open) => !open)} aria-label="게임 메뉴">☰</button>
-        <div className={`save-row ${mobileMenuOpen ? "open" : ""}`}><button onClick={() => { command("save"); setMobileMenuOpen(false); }}>{family ? "동기화" : "저장"}</button><button onClick={() => { command("load"); setMobileMenuOpen(false); }}>{family ? "새로고침" : "불러오기"}</button><button onClick={() => { command("inventory-open"); setMobileMenuOpen(false); }}>🎒 가방</button><button onClick={()=>{command("village-open",true);setMobileMenuOpen(false);}}>주민·의뢰</button><button onClick={toggleHelp}>?</button></div>
+        <div className={`save-row ${mobileMenuOpen ? "open" : ""}`}><button onClick={() => { command("save"); setMobileMenuOpen(false); }}>{family ? "동기화" : "저장"}</button><button onClick={() => { command("load"); setMobileMenuOpen(false); }}>{family ? "새로고침" : "불러오기"}</button><button onClick={() => { command("inventory-open"); setMobileMenuOpen(false); }}>🎒 가방</button>{(hud.craftingItems?.wood_processor || hud.placing) && <button onClick={() => { command("place-mode"); setMobileMenuOpen(false); }}>{hud.placing ? "배치 취소" : `⚙ 배치 ×${hud.craftingItems?.wood_processor ?? 0}`}</button>}<button onClick={()=>{command("village-open",true);setMobileMenuOpen(false);}}>주민·의뢰</button><button onClick={toggleHelp}>?</button></div>
         {showHelp && <div className="modal-shade"><div className="help-card"><button aria-label="도움말 닫기" onClick={toggleHelp}>×</button><b>농사와 마을 생활</b><p><kbd>WASD</kbd> / 방향키로 이동 · 가까운 밭을 클릭하거나 <kbd>Space</kbd>로 행동</p><p>괭이 → 씨앗 → 물 → 잠자기 → 다음 날 물 주기 순서로 키워 보세요.</p><p>집 안 침대에서 잠들고, 농장 남쪽 길을 따라 마을 상점에 갈 수 있어요. 주민 가까이에서 행동하면 대화합니다. 메뉴의 주민·의뢰에서 개인 기록을 확인하세요.</p></div></div>}
         {hud.villageOpen && <VillageJournal hud={hud} onClose={()=>command("village-open",false)} />}
         {hud.dialogue && <NpcDialogue dialogue={hud.dialogue} onNext={()=>command("dialogue-next")} onClose={()=>command("dialogue-close")}><NpcQuests quests={(hud.quests??[]).filter(q=>q.giver===hud.dialogue!.npcId)} busy={hud.npcBusy} onAction={action=>command("quest-action",action)} /></NpcDialogue>}
@@ -113,6 +114,8 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         {hud.toolNotice && !hud.craftingOpen && <div className="tool-toast" role="status">{hud.toolNotice}</div>}
         {hud.inventoryOpen && <InventoryPanel items={hud.craftingItems ?? {}} stats={hud.stats} onClose={() => command("inventory-close")} />}
         {hud.storageOpen && hud.storage && <StoragePanel containerId={hud.storageOpen} storage={hud.storage} items={hud.craftingItems ?? {}} busy={hud.storageBusy ?? false} notice={hud.message} onTransfer={(direction, itemId, quantity) => command("storage-transfer", { direction, itemId, quantity })} onClose={() => command("storage-close")} />}
+        {hud.machineOpen && hud.placeables?.instances.find(p => p.id === hud.machineOpen) && <MachinePanel instance={hud.placeables.instances.find(p => p.id === hud.machineOpen)!} now={hud.worldTimeMinute ?? 0} items={hud.craftingItems ?? {}} busy={hud.machineBusy ?? false} notice={hud.message} onStart={() => command("machine-start")} onCollect={() => command("machine-collect")} onRemove={() => command("machine-remove")} onClose={() => command("machine-close")} />}
+        {hud.placing && <div className="place-hint" role="status">⚙ 가까운 빈 땅을 누르거나 행동 버튼으로 배치 · {hud.message}</div>}
         {hud.transitioning && <div className="night-fade"><span>하루를 마무리합니다…</span></div>}
         <div className="inventory-chip" aria-live="polite"><label>씨앗 <select aria-label="심을 씨앗 종류" value={hud.selectedCrop ?? DEFAULT_CROP_ID} onChange={e => command("seed-select", e.target.value)}>{Object.values(CROP_DEFINITIONS).map(c => <option key={c.id} value={c.id}>{c.name} · {hud.seedCounts?.[c.id] ?? (c.id === DEFAULT_CROP_ID ? hud.seeds : 0)}개</option>)}</select></label><span>수확물 <b>{hud.harvest}</b></span>{hud.mapId === "fairy_forest" && <span>나무 {hud.resources?.wood ?? 0} · 돌 {hud.resources?.stone ?? 0} · 들풀 {hud.resources?.wild_herb ?? 0} · 달빛버섯 {hud.resources?.moon_mushroom ?? 0} · 요정꽃 {hud.resources?.fairy_bloom ?? 0}</span>}</div>
         <nav className="quickbar" aria-label="도구 선택">

@@ -7,6 +7,8 @@ import { TILE_TYPE_DEFINITIONS, tilePoint } from "../maps/definitions";
 import type { MapDefinition, MapId, TileRect } from "../maps/types";
 import type { MapRegistry } from "../maps/MapRegistry";
 import { FOREST_RESOURCES, resourceKind } from "../forest/resources";
+import { PLACEABLE_DEFINITIONS } from "../placeables/definitions";
+import type { PlaceableInstance } from "../placeables/types";
 
 const farmKey = (tile: Pick<FarmTileData, "x" | "y">) => `${tile.x},${tile.y}`;
 
@@ -20,11 +22,15 @@ export class WorldRenderer {
   private obstacles?: Phaser.Physics.Arcade.StaticGroup;
   private readonly farmViews = new Map<string, Phaser.GameObjects.Container>();
   private readonly forestHitLabels = new Map<string, Phaser.GameObjects.Text>();
+  private readonly placeableViews = new Map<string, { image: Phaser.GameObjects.Image; obstacle?: Phaser.GameObjects.Rectangle }>();
+  private placeableSignature = "";
+  private currentMapId?: MapId;
   constructor(private readonly scene: Phaser.Scene, private readonly maps: MapRegistry) {}
 
   renderMap(mapId: MapId, farm: Iterable<FarmTileData>) {
     this.destroy();
     const map = this.maps.require(mapId);
+    this.currentMapId = mapId;
     this.root = this.scene.add.container(0, 0);
     this.obstacles = this.scene.physics.add.staticGroup();
     const size = GAME_CONFIG.tileSize, width = map.width * size, height = map.height * size;
@@ -40,8 +46,30 @@ export class WorldRenderer {
   }
 
   destroy() {
-    this.farmViews.clear(); this.forestHitLabels.clear(); this.root?.destroy(true); this.root = undefined;
+    this.farmViews.clear(); this.forestHitLabels.clear(); this.placeableViews.clear(); this.placeableSignature = ""; this.root?.destroy(true); this.root = undefined;
     this.obstacles?.clear(true, true); this.obstacles = undefined;
+  }
+
+  renderPlaceables(instances: PlaceableInstance[]) {
+    if (!this.root || !this.obstacles || !this.currentMapId) return;
+    const current = instances.filter(p => p.mapId === this.currentMapId);
+    const signature = JSON.stringify(current.map(p => [p.id, p.definitionId, p.tileX, p.tileY]));
+    if (signature === this.placeableSignature) return;
+    for (const { image, obstacle } of this.placeableViews.values()) {
+      this.root.remove(image, true);
+      if (obstacle) { this.root.remove(obstacle); this.obstacles.remove(obstacle, true, true); }
+    }
+    this.placeableViews.clear(); this.placeableSignature = signature;
+    for (const instance of current) {
+      const definition = PLACEABLE_DEFINITIONS[instance.definitionId], asset = WORLD_OBJECT_ASSETS[definition.assetId];
+      const x = (instance.tileX + definition.footprint.width / 2) * GAME_CONFIG.tileSize;
+      const y = (instance.tileY + definition.footprint.height / 2) * GAME_CONFIG.tileSize;
+      const image = this.makeImage(x, y, asset).setDepth(7);
+      this.root.add(image);
+      const obstacle = definition.collision ? this.addObstacle(x, y, definition.footprint.width * GAME_CONFIG.tileSize - 4, definition.footprint.height * GAME_CONFIG.tileSize - 4) : undefined;
+      this.placeableViews.set(instance.id, { image, obstacle });
+    }
+    this.obstacles.refresh();
   }
 
   renderForestHits(hits: Record<string, number>) {
@@ -135,5 +163,6 @@ export class WorldRenderer {
   private addObstacle(x: number, y: number, width: number, height: number) {
     const obstacle = this.scene.add.rectangle(x, y, width, height, 0, 0);
     this.scene.physics.add.existing(obstacle, true); this.obstacles!.add(obstacle); this.root!.add(obstacle);
+    return obstacle;
   }
 }

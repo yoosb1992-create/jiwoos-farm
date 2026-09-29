@@ -1,5 +1,10 @@
 export type ToolKey = "hoe" | "seed" | "water" | "hand" | "axe" | "pickaxe";
 export interface HudState {
+  placeables?: import("./placeables/types").PlaceablesData;
+  placing?: boolean;
+  machineOpen?: string;
+  machineBusy?: boolean;
+  worldTimeMinute?: number;
   storageOpen?: import("./storage/types").ContainerId;
   storage?: import("./storage/types").StorageData;
   storageBusy?: boolean;

@@ -109,6 +109,7 @@ export const WORLD_OBJECT_ASSETS = {
   bed: { assetId: "bed", textureKey: "furniture-bed", source: { kind: "image", path: "/assets/objects/bed.png" }, frameSize: { width: 96, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xefd99d, stroke: 0x8f6047 } },
   crafting_table: { assetId: "crafting_table", textureKey: "furniture-crafting-table", source: { kind: "image", path: "/assets/objects/crafting-table.png" }, frameSize: { width: 64, height: 48 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xae7951, stroke: 0x694635 } },
   storage_chest: { assetId: "storage_chest", textureKey: "furniture-storage-chest", source: { kind: "image", path: "/assets/objects/storage-chest.png" }, frameSize: { width: 64, height: 48 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xb77843, stroke: 0x38261f } },
+  wood_processor: { assetId: "wood_processor", textureKey: "world-wood-processor", source: { kind: "image", path: "/assets/objects/wood-processor.png" }, frameSize: { width: 40, height: 42 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xa87543, stroke: 0x41352b } },
   shop_counter: { assetId: "shop_counter", textureKey: "furniture-shop-counter", source: { kind: "image", path: "/assets/objects/shop-counter.png" }, frameSize: { width: 224, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x9c6543, stroke: 0x60402f } },
 } as const;
 export type WorldObjectAssetId = keyof typeof WORLD_OBJECT_ASSETS;
@@ -154,6 +155,7 @@ export const ITEM_ASSETS = {
   item_wood_plank: itemAsset("item_wood_plank", "item-wood-plank", "▤", { kind: "image", path: "/assets/items/wood-plank.png" }),
   item_stone_block: itemAsset("item_stone_block", "item-stone-block", "▣", { kind: "image", path: "/assets/items/stone-block.png" }),
   item_fairy_thread: itemAsset("item_fairy_thread", "item-fairy-thread", "✧", { kind: "image", path: "/assets/items/fairy-thread.png" }),
+  item_wood_processor: itemAsset("item_wood_processor", "item-wood-processor", "▣", { kind: "image", path: "/assets/items/wood-processor.png" }),
   item_sproutberry: itemAsset("item_sproutberry", "item-sproutberry", "●", { kind: "image", path: "/assets/items/sproutberry.png" }),
   item_sunpotato_seed: itemAsset("item_sunpotato_seed", "item-sunpotato_seed", "●", { kind: "image", path: "/assets/items/sunpotato_seed.png" }),
   item_sunpotato: itemAsset("item_sunpotato", "item-sunpotato", "●", { kind: "image", path: "/assets/items/sunpotato.png" }),
