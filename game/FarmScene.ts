@@ -342,7 +342,12 @@ export class FarmScene extends Phaser.Scene {
     }
     if (this.currentMapId !== "farm" || !["hoe", "seed", "water", "hand"].includes(this.selectedTool)) return false;
     const x = Math.floor(worldX / GAME_CONFIG.tileSize), y = Math.floor(worldY / GAME_CONFIG.tileSize);
-    return this.farm.has(`${x},${y}`);
+    const tile = this.farm.get(`${x},${y}`);
+    if (!tile) return false;
+    if (this.selectedTool === "hoe") return !tile.tilled;
+    if (this.selectedTool === "seed") return tile.tilled && tile.cropStage === null;
+    if (this.selectedTool === "water") return tile.cropStage !== null && !tile.wateredToday;
+    return Boolean(tile.cropType && tile.cropStage !== null && isMatureCrop(tile.cropType, tile.cropStage));
   }
 
   private async openNpcDialogue(npcId:string) {
