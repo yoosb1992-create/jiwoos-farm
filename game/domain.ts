@@ -27,6 +27,7 @@ import { normalizeFishingProgress } from "./fishing/system";
 import type { FishingProgress } from "./fishing/types";
 import { normalizeRanchState } from "./animals/system";
 import type { RanchState } from "./animals/types";
+import { normalizeWateringCan, type WateringCanState } from "./tools/wateringCan";
 
 export interface FarmTileData {
   x: number;
@@ -40,6 +41,7 @@ export interface FarmTileData {
 export interface InventoryData { items: Partial<Record<ItemId, number>> }
 export interface PlayerData { x: number; y: number; facing: Facing; mapId: MapId }
 export interface SaveData {
+  wateringCan?: WateringCanState;
   ranchState?: RanchState;
   fishingProgress?: FishingProgress;
   mineProgress?: MineProgress;
@@ -169,6 +171,7 @@ const normalizeV4 = (value: unknown): SaveData | null => {
   const buildings = normalizeBuildings(value.buildings, daySerial);
   return {
     version: 4,
+    wateringCan: normalizeWateringCan(value.wateringCan),
     stats: normalizePlayerStats(value.stats),
     fishingProgress: normalizeFishingProgress(value.fishingProgress),
     storage: normalizeStorage(value.storage),
