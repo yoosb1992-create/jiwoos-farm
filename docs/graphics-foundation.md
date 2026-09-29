@@ -85,3 +85,5 @@ life stage는 `spriteProfileId`와 분리되고 body, hair, outfit, accessory ID
 - 후속 성장용 child·teen 48프레임 spritesheet와 선택적 portrait
 
 모든 새 에셋은 기존 ID와 논리 tile 32×32를 유지한 채 path와 visual profile 값만 교체한다.
+
+Graphics Foundation 1.0은 구조와 교체 계약까지만 다루며 production publish, DB, D1 migration은 범위 밖이다.
