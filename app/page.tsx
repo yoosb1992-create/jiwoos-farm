@@ -16,6 +16,7 @@ import { NpcDialogue } from "./components/NpcDialogue";
 import { ItemIcon } from "./components/ItemIcon";
 import { CraftingPanel } from "./components/CraftingPanel";
 import { InventoryPanel } from "./components/InventoryPanel";
+import { StoragePanel } from "./components/StoragePanel";
 import { FamilyLobby } from "./family/FamilyLobby";
 import { FamilyStatus } from "./family/FamilyStatus";
 import type { FamilySession } from "@/game/family/types";
@@ -111,6 +112,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         {hud.craftingOpen && <CraftingPanel items={hud.craftingItems ?? {}} progression={hud.toolProgression} notice={hud.toolNotice} busy={hud.craftingBusy ?? false} onCraft={id => command("craft", id)} onUpgrade={id => command("tool-upgrade", id)} onClose={() => command("craft-close")} />}
         {hud.toolNotice && !hud.craftingOpen && <div className="tool-toast" role="status">{hud.toolNotice}</div>}
         {hud.inventoryOpen && <InventoryPanel items={hud.craftingItems ?? {}} stats={hud.stats} onClose={() => command("inventory-close")} />}
+        {hud.storageOpen && hud.storage && <StoragePanel containerId={hud.storageOpen} storage={hud.storage} items={hud.craftingItems ?? {}} busy={hud.storageBusy ?? false} notice={hud.message} onTransfer={(direction, itemId, quantity) => command("storage-transfer", { direction, itemId, quantity })} onClose={() => command("storage-close")} />}
         {hud.transitioning && <div className="night-fade"><span>하루를 마무리합니다…</span></div>}
         <div className="inventory-chip" aria-live="polite"><label>씨앗 <select aria-label="심을 씨앗 종류" value={hud.selectedCrop ?? DEFAULT_CROP_ID} onChange={e => command("seed-select", e.target.value)}>{Object.values(CROP_DEFINITIONS).map(c => <option key={c.id} value={c.id}>{c.name} · {hud.seedCounts?.[c.id] ?? (c.id === DEFAULT_CROP_ID ? hud.seeds : 0)}개</option>)}</select></label><span>수확물 <b>{hud.harvest}</b></span>{hud.mapId === "fairy_forest" && <span>나무 {hud.resources?.wood ?? 0} · 돌 {hud.resources?.stone ?? 0} · 들풀 {hud.resources?.wild_herb ?? 0} · 달빛버섯 {hud.resources?.moon_mushroom ?? 0} · 요정꽃 {hud.resources?.fairy_bloom ?? 0}</span>}</div>
         <nav className="quickbar" aria-label="도구 선택">

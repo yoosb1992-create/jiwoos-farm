@@ -1,5 +1,8 @@
 export type ToolKey = "hoe" | "seed" | "water" | "hand" | "axe" | "pickaxe";
 export interface HudState {
+  storageOpen?: import("./storage/types").ContainerId;
+  storage?: import("./storage/types").StorageData;
+  storageBusy?: boolean;
   inventoryOpen?: boolean;
   toolNotice?: string;
   toolProgression?: import("./tools/types").ToolProgression;

@@ -12,6 +12,8 @@ import { normalizeForestState, type ForestState } from "./forest/resources";
 import { normalizeToolProgression } from "./tools/progression";
 import type { ToolProgression } from "./tools/types";
 import { normalizePlayerStats, type PlayerStats } from "./player/stats";
+import { normalizeStorage } from "./storage/container";
+import type { StorageData } from "./storage/types";
 
 export interface FarmTileData {
   x: number;
@@ -25,6 +27,7 @@ export interface FarmTileData {
 export interface InventoryData { items: Partial<Record<ItemId, number>> }
 export interface PlayerData { x: number; y: number; facing: Facing; mapId: MapId }
 export interface SaveData {
+  storage?: StorageData;
   stats?: PlayerStats;
   toolProgression?: ToolProgression;
   forestState?: ForestState;
@@ -145,6 +148,7 @@ const normalizeV4 = (value: unknown): SaveData | null => {
   return {
     version: 4,
     stats: normalizePlayerStats(value.stats),
+    storage: normalizeStorage(value.storage),
     ...(Object.hasOwn(value, "toolProgression") ? { toolProgression: normalizeToolProgression(value.toolProgression) } : {}),
     playerProgress: normalizeProgress(value.playerProgress),
     daySerial,

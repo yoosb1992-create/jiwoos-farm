@@ -27,6 +27,10 @@ import { normalizeToolProgression, upgradeTool } from "./tools/progression";
 import type { ToolProgression } from "./tools/types";
 import { canPerformAction, initialPlayerStats, normalizePlayerStats, recordSuccessfulAction, restoreStamina } from "./player/stats";
 import type { PlayerStats } from "./player/stats";
+import { initialStorage, normalizeStorage, transferItem } from "./storage/container";
+import { isContainerId } from "./storage/definitions";
+import type { ContainerId, StorageData, StorageDirection } from "./storage/types";
+import type { ItemId } from "./data/items";
 import { GENERAL_STORE_LISTINGS } from "./data/shop";
 import { TILE_TYPE_DEFINITIONS, getTileTypeInMap, pointInTileRect, tilePoint } from "./maps/definitions";
 import type { MapAction, MapId } from "./maps/types";
@@ -73,6 +77,9 @@ export class FarmScene extends Phaser.Scene {
   private inventory = new Inventory();
   private toolProgression: ToolProgression = normalizeToolProgression(undefined);
   private stats: PlayerStats = initialPlayerStats();
+  private storage: StorageData = initialStorage();
+  private storageOpen?: ContainerId;
+  private storageBusy = false;
   private repository = new LocalStorageSaveRepository();
   private selectedTool: ToolKey = "hoe";
   private money: number = GAME_CONFIG.startingMoney;
@@ -194,7 +201,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private npcTime() { return this.family ? Math.min(GAME_CONFIG.day.endMinutes, this.npcMinute + Math.min(2000, Math.max(0, performance.now()-this.npcClockReceived))/REAL_MS_PER_GAME_MINUTE) : this.timeMinutes + this.timeAccumulator/REAL_MS_PER_GAME_MINUTE; }
-  private isPaused() { return this.inventoryOpen || this.journalOpen || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.craftingOpen || this.transitioning; }
+  private isPaused() { return this.inventoryOpen || !!this.storageOpen || this.journalOpen || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.craftingOpen || this.transitioning; }
   private advanceClock(delta: number) {
     this.timeAccumulator += delta;
     const elapsed = Math.floor(this.timeAccumulator / REAL_MS_PER_GAME_MINUTE);
@@ -245,7 +252,7 @@ export class FarmScene extends Phaser.Scene {
     if(npc) { this.openNpcDialogue(npc.npcId); return; }
     const point = this.playerAnimations.interactionPoint(this.facing);
     const object = this.mapRegistry.require(this.currentMapId).objects.find((entry) => entry.interaction && pointInTileRect(point.x, point.y, entry.interaction.area));
-    if (object?.interaction) { this.performWorldAction(object.interaction.action); return; }
+    if (object?.interaction) { this.performWorldAction(object.interaction.action, object.interaction.containerId); return; }
     this.useAtWorld(point.x, point.y);
   }
 
@@ -268,10 +275,11 @@ export class FarmScene extends Phaser.Scene {
     }catch(error){this.say(error instanceof Error?error.message:"의뢰를 확인해 주세요.");}
     finally{this.npcRequest=false;if(this.sceneLive)this.emitHud();}
   }
-  private performWorldAction(action: MapAction) {
+  private performWorldAction(action: MapAction, containerId?: ContainerId) {
     if (action === "sleep") this.askToSleep();
     else if (action === "open_shop") { this.shopOpen = true; this.say("새봄 상점입니다. 필요한 씨앗을 골라 보세요."); }
     else if (action === "craft") { this.craftingOpen = true; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); this.say("제작대에서 재료를 가공할 수 있어요."); }
+    else if (action === "storage" && containerId && isContainerId(containerId)) { this.storageOpen = containerId; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); this.say("가방과 보관함 사이에서 아이템을 옮길 수 있어요."); }
     else if (action === "sell") this.sellHarvest();
   }
 
@@ -366,6 +374,8 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
+    if (command.type === "storage-close") { if (!this.storageBusy) { this.storageOpen = undefined; this.emitHud(); } return; }
+    if (command.type === "storage-transfer") { this.transferStorage(command.value); return; }
     if (command.type === "inventory-close") { this.inventoryOpen = false; this.virtualMovement = { x: 0, y: 0 }; this.emitHud(); return; }
     if (command.type === "inventory-open") {
       if (this.isPaused()) return;
@@ -409,6 +419,20 @@ export class FarmScene extends Phaser.Scene {
     if (command.type === "craft" && typeof command.value === "string") this.craftRecipe(command.value);
     if (command.type === "tool-upgrade" && typeof command.value === "string") this.upgradeToolAtTable(command.value);
     if (command.type === "sell") this.sellHarvest();
+  }
+
+  private transferStorage(value: unknown) {
+    if (!this.storageOpen || this.storageBusy || !value || typeof value !== "object") return;
+    const { direction, itemId, quantity } = value as { direction: StorageDirection; itemId: ItemId; quantity: number };
+    if (this.family) {
+      this.storageBusy = true; this.emitHud();
+      void this.family.act({ kind: "storage", containerId: this.storageOpen, direction, itemId, quantity, pose: this.familyPose() })
+        .finally(() => { if (this.sceneLive) { this.storageBusy = false; this.emitHud(); } });
+      return;
+    }
+    const error = transferItem(this.inventory, this.storage, this.storageOpen, direction, itemId, quantity);
+    if (error) { this.say(error); return; }
+    this.save(false); this.say("아이템을 옮겼어요.");
   }
 
   private craftRecipe(recipeId: string) {
@@ -506,7 +530,7 @@ export class FarmScene extends Phaser.Scene {
     const villagers=NPC_DEFINITIONS.map(n=>{const p=npcPoses.find(p=>p.npcId===n.id),points=personal.relationships[n.id].points;return {id:n.id,name:n.name,points,level:relationshipLevel(points),location:p?this.mapRegistry.get(p.mapId)?.name??"다른 장소":"다른 장소",activity:p?.activity??"휴식"};});
     const step = this.getObjective();
     const date = calendarDate(this.daySerial);
-    const hud: HudState = { stats: normalizePlayerStats(this.stats), toolNotice:this.toolNotice, inventoryOpen:this.inventoryOpen, toolProgression: { ...this.toolProgression }, craftingOpen:this.craftingOpen,craftingBusy:this.craftingBusy,craftingItems:this.inventory.serialize().items,villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
+    const hud: HudState = { storageOpen:this.storageOpen, storageBusy:this.storageBusy, storage:normalizeStorage(this.storage), stats: normalizePlayerStats(this.stats), toolNotice:this.toolNotice, inventoryOpen:this.inventoryOpen, toolProgression: { ...this.toolProgression }, craftingOpen:this.craftingOpen,craftingBusy:this.craftingBusy,craftingItems:this.inventory.serialize().items,villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: date.day, year: date.year, season: date.season, weather: weatherFor(this.forestScope, this.daySerial).id, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
       transitioning: this.transitioning, shopOpen: this.shopOpen, mapId: this.currentMapId, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));
@@ -534,6 +558,7 @@ export class FarmScene extends Phaser.Scene {
     this.inventory = new Inventory(snapshot.inventory);
     this.toolProgression = normalizeToolProgression(snapshot.toolProgression);
     this.stats = normalizePlayerStats(snapshot.stats);
+    this.storage = normalizeStorage(snapshot.world.storage);
     if (this.selectedTool === "pickaxe" && !this.toolProgression.pickaxe) this.selectedTool = "hand";
     for (const remote of snapshot.world.farm) {
       const tile = this.farm.get(`${remote.x},${remote.y}`);
@@ -541,7 +566,7 @@ export class FarmScene extends Phaser.Scene {
     }
     this.emitHud();
   }
-  private snapshot(): SaveData { return { version: 4, stats:this.stats, playerProgress:this.playerProgress, toolProgression:this.toolProgression, forestState:this.forestState, daySerial:this.daySerial, day: this.day, timeMinutes: this.timeMinutes, money: this.money, selectedTool: this.selectedTool,
+  private snapshot(): SaveData { return { version: 4, storage:this.storage, stats:this.stats, playerProgress:this.playerProgress, toolProgression:this.toolProgression, forestState:this.forestState, daySerial:this.daySerial, day: this.day, timeMinutes: this.timeMinutes, money: this.money, selectedTool: this.selectedTool,
     player: { x: this.player.x, y: this.player.y, facing: this.facing, mapId: this.currentMapId }, inventory: this.inventory.serialize(), farm: [...this.farm.values()].map((tile) => ({ ...tile })), savedAt: Date.now() }; }
   private save(notify: boolean) { if (!this.player || this.testMode) return; if (this.family) { this.family.savePersonal(this.familyPose(), this.daySerial); return; } this.repository.save(this.snapshot()); if (notify) this.say("이 브라우저에 현재 장소와 농장 상태를 저장했어요."); }
   private syncForest(force = false) {
@@ -553,7 +578,7 @@ export class FarmScene extends Phaser.Scene {
     this.playerProgress=normalizeProgress(data.playerProgress);this.daySerial=data.daySerial??data.day;
     this.forestState=normalizeForestState(data.forestState,this.daySerial);
     this.forestDayInstalled=0;
-    this.day = calendarDate(this.daySerial).day; this.timeMinutes = data.timeMinutes; this.money = data.money; this.toolProgression = normalizeToolProgression(data.toolProgression); this.stats = normalizePlayerStats(data.stats); this.selectedTool = data.selectedTool === "pickaxe" && !this.toolProgression.pickaxe ? "hand" : data.selectedTool;
+    this.day = calendarDate(this.daySerial).day; this.timeMinutes = data.timeMinutes; this.money = data.money; this.toolProgression = normalizeToolProgression(data.toolProgression); this.stats = normalizePlayerStats(data.stats); this.storage = normalizeStorage(data.storage); this.selectedTool = data.selectedTool === "pickaxe" && !this.toolProgression.pickaxe ? "hand" : data.selectedTool;
     this.inventory = new Inventory(data.inventory); this.facing = data.player.facing; this.currentMapId = data.player.mapId;
     for (const saved of data.farm) { const tile = this.farm.get(`${saved.x},${saved.y}`); if (tile) Object.assign(tile, saved); }
     waterFarmForRain(this.farm.values(), weatherFor(this.forestScope, this.daySerial));

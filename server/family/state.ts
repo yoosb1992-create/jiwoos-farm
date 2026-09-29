@@ -16,6 +16,7 @@ import { upgradeTool } from "../../game/tools/progression";
 import { getToolUpgrade } from "../../game/tools/definitions";
 import type { ToolProgression } from "../../game/tools/types";
 import { canPerformAction, normalizePlayerStats, recordSuccessfulAction, restoreStamina, type PlayerStats } from "../../game/player/stats";
+import { initialStorage, normalizeStorage, transferItem } from "../../game/storage/container";
 import { FamilyError, FamilyRooms } from "./rooms";
 import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeForestState, resourceKind, strikeForestNode, validForestNodeId } from "../../game/forest/resources";
 
@@ -25,13 +26,14 @@ type FamilyInventory = InventoryData & { toolProgression?: ToolProgression; stat
 export const initialFamilyWorld = (now: number): StoredWorld => ({
   day: 1, daySerial: 1, timeMinutes: GAME_CONFIG.day.startMinutes, clockAnchor: now, money: GAME_CONFIG.startingMoney,
   forestState: emptyForestState(1),
+  storage: initialStorage(),
   farm: MAP_DEFINITIONS.farm.farmAreas.flatMap((area) => Array.from({ length: area.endY - area.startY + 1 }, (_, j) =>
     Array.from({ length: area.endX - area.startX + 1 }, (_, i) => ({ x: area.startX + i, y: area.startY + j, tilled: false, wateredToday: false, cropType: null, cropStage: null, plantedDay: null }))).flat()),
 });
 function currentWorld(stored: StoredWorld, now: number, roomId: string): FamilyWorld {
   // Older room JSON has no weather field; derive rain for the current day on read.
   waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
-  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), money: stored.money, farm: stored.farm,
+  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), storage: normalizeStorage(stored.storage), money: stored.money, farm: stored.farm,
     timeMinutes: Math.min(GAME_CONFIG.day.endMinutes, stored.timeMinutes + Math.floor(Math.max(0, now - stored.clockAnchor) / GAME_CONFIG.day.realMsPerGameMinute)) };
 }
 export class FamilyState extends FamilyRooms {
@@ -180,6 +182,17 @@ export class FamilyState extends FamilyRooms {
       }
     } else if (action.kind === "sell") {
       stored.money += sellAllCrops(inventory).earned;
+    } else if (action.kind === "storage") {
+      const chest = (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).find(o => o.interaction?.action === "storage" && o.interaction.containerId === action.containerId);
+      const offset = PLAYER_ASSET.interactionPoints[pose.facing];
+      if (!chest || !chest.interaction ||
+          !(pointInTileRect(pose.x, pose.y, chest.interaction.area) || pointInTileRect(pose.x + offset.x, pose.y + offset.y, chest.interaction.area)) ||
+          Math.hypot(pose.x - chest.position.tileX * GAME_CONFIG.tileSize, pose.y - chest.position.tileY * GAME_CONFIG.tileSize) > 90)
+        throw new FamilyError(400, "보관함 가까이에서 이용해 주세요.");
+      const storage = normalizeStorage(stored.storage);
+      const error = transferItem(inventory, storage, action.containerId, action.direction, action.itemId, action.quantity);
+      if (error) throw new FamilyError(409, error);
+      stored.storage = storage;
     } else throw new FamilyError(400, "지원하지 않는 행동입니다.");
     inventories[member.playerId] = { ...inventory.serialize(), toolProgression, stats };
     const result = await this.db.prepare(`UPDATE family_state SET world_json = ?, inventories_json = ?, revision = revision + 1, updated_at = ? WHERE room_id = ? AND revision = ?`)

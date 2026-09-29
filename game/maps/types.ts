@@ -4,7 +4,7 @@ import type { WorldObjectAssetId } from "../assets/definitions";
 /** Map ids are data-owned so editor-created maps do not require a TypeScript change. */
 export type MapId = string;
 export type TileTypeId = "grass" | "path" | "water" | "farm" | "wood_floor" | "stone_floor";
-export type MapAction = "sleep" | "open_shop" | "sell" | "craft";
+export type MapAction = "sleep" | "open_shop" | "sell" | "craft" | "storage";
 
 export interface TileRect { startX: number; endX: number; startY: number; endY: number }
 export interface PixelRect { x: number; y: number; width: number; height: number }
@@ -22,7 +22,7 @@ export interface MapObjectDefinition {
   position: { tileX: number; tileY: number };
   displaySizeOverride?: { width: number; height: number };
   collision?: PixelRect;
-  interaction?: { action: MapAction; area: TileRect };
+  interaction?: { action: MapAction; area: TileRect; containerId?: import("../storage/types").ContainerId };
   label?: string;
   depth?: number;
 }
