@@ -294,6 +294,7 @@ import "./forest-feedback";
 import "./family-forest";
 import "./crafting";
 import "./crafting-interface";
+import "./family-crafting";
 
 import "./spring-crops";
 

@@ -7,6 +7,8 @@ import { MAP_DEFINITIONS, pointInTileRect } from "../../game/maps/definitions";
 import { PLAYER_ASSET } from "../../game/assets/definitions";
 import { parseFamilyPose } from "../../game/family/personal";
 import type { FamilyAction, FamilySnapshot, FamilyWorld } from "../../game/family/types";
+import { getRecipe } from "../../game/crafting/definitions";
+import { craft } from "../../game/crafting/engine";
 import { FamilyError, FamilyRooms } from "./rooms";
 import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeForestState, resourceKind, strikeForestNode, validForestNodeId } from "../../game/forest/resources";
 
@@ -75,7 +77,7 @@ export class FamilyState extends FamilyRooms {
     const cropId = action.kind === "tool" && action.tool === "seed" ? action.cropId ?? DEFAULT_CROP_ID : DEFAULT_CROP_ID;
     if (!isCropId(cropId)) throw new FamilyError(400, "없는 씨앗 종류입니다.");
     const crop = getCropDefinition(cropId);
-    const near = (kind: "sleep" | "open_shop") => {
+    const near = (kind: "sleep" | "open_shop" | "craft") => {
       const offset = PLAYER_ASSET.interactionPoints[pose.facing];
       return (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).some((o) => o.interaction?.action === kind &&
         (pointInTileRect(pose.x, pose.y, o.interaction.area) || pointInTileRect(pose.x + offset.x, pose.y + offset.y, o.interaction.area)));
@@ -127,6 +129,13 @@ export class FamilyState extends FamilyRooms {
       const result = purchaseInventoryItem(inventory, stored.money, listing.itemId, listing.price, listing.quantity);
       if (!result.purchased) throw new FamilyError(409, "공동 자금이 부족합니다.");
       stored.money = result.money;
+    } else if (action.kind === "craft") {
+      const recipe = getRecipe(action.recipeId);
+      if (!recipe) throw new FamilyError(400, "없는 제작법이에요.");
+      const table = (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).find(o => o.interaction?.action === "craft");
+      if (!table || !near("craft") || Math.hypot(pose.x - table.position.tileX * GAME_CONFIG.tileSize, pose.y - table.position.tileY * GAME_CONFIG.tileSize) > 90)
+        throw new FamilyError(400, "제작대 가까이에서 제작해 주세요.");
+      if (!craft(inventory, recipe)) throw new FamilyError(409, "제작 재료가 부족해요.");
     } else if (action.kind === "sell") {
       stored.money += sellAllCrops(inventory).earned;
     } else throw new FamilyError(400, "지원하지 않는 행동입니다.");

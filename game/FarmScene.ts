@@ -377,7 +377,13 @@ export class FarmScene extends Phaser.Scene {
     if (!this.craftingOpen || this.craftingBusy) return;
     const recipe = getRecipe(recipeId);
     if (!recipe) { this.say("없는 제작법이에요."); return; }
-    if (this.family) { this.say("가족 제작 상태를 확인하고 다시 시도해 주세요."); return; }
+    if (this.family) {
+      this.craftingBusy = true; this.emitHud();
+      void this.family.act({ kind: "craft", recipeId, pose: this.familyPose() }).then(ok => {
+        if (ok && this.sceneLive) this.say(`${recipe.name} ${recipe.output.quantity}개를 만들었어요.`);
+      }).finally(() => { if (this.sceneLive) { this.craftingBusy = false; this.emitHud(); } });
+      return;
+    }
     if (!craft(this.inventory, recipe)) { this.say("재료가 부족해요."); return; }
     this.say(`${recipe.name} ${recipe.output.quantity}개를 만들었어요.`);
     this.save(false);
