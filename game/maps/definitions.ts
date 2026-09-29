@@ -1,13 +1,15 @@
 import { GAME_CONFIG } from "../config";
 import type { MapDefinition, MapId, TileRect, TileTypeId } from "./types";
 
-export const TILE_TYPE_DEFINITIONS: Record<TileTypeId, { walkable: boolean; farmable: boolean; graphicAssetId: "tile_grass" | "tile_path" | "tile_water" | "tile_farm_empty" | "tile_wood_floor" | "tile_stone_floor" }> = {
+export const TILE_TYPE_DEFINITIONS: Record<TileTypeId, { walkable: boolean; farmable: boolean; graphicAssetId: "tile_grass" | "tile_path" | "tile_water" | "tile_farm_empty" | "tile_wood_floor" | "tile_stone_floor" | "tile_mine_floor" | "tile_mine_wall" }> = {
   grass: { walkable: true, farmable: false, graphicAssetId: "tile_grass" },
   path: { walkable: true, farmable: false, graphicAssetId: "tile_path" },
   water: { walkable: false, farmable: false, graphicAssetId: "tile_water" },
   farm: { walkable: true, farmable: true, graphicAssetId: "tile_farm_empty" },
   wood_floor: { walkable: true, farmable: false, graphicAssetId: "tile_wood_floor" },
   stone_floor: { walkable: true, farmable: false, graphicAssetId: "tile_stone_floor" },
+  mine_floor: { walkable: true, farmable: false, graphicAssetId: "tile_mine_floor" },
+  mine_wall: { walkable: false, farmable: false, graphicAssetId: "tile_mine_wall" },
 };
 
 const area = (startX: number, endX: number, startY: number, endY: number): TileRect => ({ startX, endX, startY, endY });

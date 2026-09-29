@@ -92,6 +92,8 @@ export const TILE_ASSETS = {
   tile_farm_watered: tileAsset("tile_farm_watered", "farm-watered", { color: 0x5e493b, stroke: 0x68442f }, { kind: "image", path: "/assets/tiles/farm-watered.png" }),
   tile_wood_floor: tileAsset("tile_wood_floor", "tile-wood-floor", { color: 0xb77b4c, stroke: 0x8f5d3b }, { kind: "image", path: "/assets/tiles/wood-floor.png" }),
   tile_stone_floor: tileAsset("tile_stone_floor", "tile-stone-floor", { color: 0xc8bd9f, stroke: 0xa89b7d }, { kind: "image", path: "/assets/tiles/stone-floor.png" }),
+  tile_mine_floor: tileAsset("tile_mine_floor", "tile-mine-floor", { color: 0x56565d }, { kind: "image", path: "/assets/tiles/mine-floor.png" }),
+  tile_mine_wall: tileAsset("tile_mine_wall", "tile-mine-wall", { color: 0x303138 }, { kind: "image", path: "/assets/tiles/mine-wall.png" }),
 } as const;
 export type TileAssetId = keyof typeof TILE_ASSETS;
 
@@ -101,6 +103,10 @@ export const WORLD_OBJECT_ASSETS = {
   tree: { assetId: "tree", textureKey: "world-tree", source: { kind: "image", path: "/assets/objects/tree.png" }, frameSize: { width: 44, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { trunk: 0x765033, crown: 0x356c42, highlight: 0x43814c } },
   forest_rock: { assetId: "forest_rock", textureKey: "forest-rock", source: { kind: "image", path: "/assets/objects/forest-rock.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x929586, stroke: 0x515d58 } },
   forest_ore: { assetId: "forest_ore", textureKey: "forest-ore", source: { kind: "image", path: "/assets/objects/forest-ore.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x69747e, stroke: 0x38434a } },
+  mine_stone: { assetId: "mine_stone", textureKey: "mine-stone", source: { kind: "image", path: "/assets/objects/mine-stone.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x898992, stroke: 0x3c3c49 } },
+  mine_copper: { assetId: "mine_copper", textureKey: "mine-copper", source: { kind: "image", path: "/assets/objects/mine-copper.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xb4774d, stroke: 0x654632 } },
+  mine_ladder: { assetId: "mine_ladder", textureKey: "mine-ladder", source: { kind: "image", path: "/assets/objects/mine-ladder.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x866043, stroke: 0x4b3024 } },
+  mine_entrance: { assetId: "mine_entrance", textureKey: "mine-entrance", source: { kind: "image", path: "/assets/objects/mine-entrance.png" }, frameSize: { width: 48, height: 48 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x4c4b52, stroke: 0x282830 } },
   forest_herb: { assetId: "forest_herb", textureKey: "forest-herb", source: { kind: "image", path: "/assets/objects/forest-herb.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { stem: 0x426d42, leaf: 0x80ad60 } },
   forest_moon_mushroom: { assetId: "forest_moon_mushroom", textureKey: "forest-moon-mushroom", source: { kind: "image", path: "/assets/objects/forest-moon-mushroom.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { stem: 0x9ed4ce, cap: 0x665f9d } },
   forest_fairy_bloom: { assetId: "forest_fairy_bloom", textureKey: "forest-fairy-bloom", source: { kind: "image", path: "/assets/objects/forest-fairy-bloom.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { stem: 0x4a824b, petal: 0xf3b9d7 } },
@@ -150,6 +156,7 @@ export const ITEM_ASSETS = {
   item_pickaxe: itemAsset("item_pickaxe", "item-pickaxe", "⛏", { kind: "image", path: "/assets/items/pickaxe.png" }),
   item_wood: itemAsset("item_wood", "item-wood", "▰", { kind: "image", path: "/assets/items/wood.png" }),
   item_stone: itemAsset("item_stone", "item-stone", "◆", { kind: "image", path: "/assets/items/stone.png" }),
+  item_copper_ore: itemAsset("item_copper_ore", "item-copper-ore", "◆", { kind: "image", path: "/assets/items/copper-ore.png" }),
   item_wild_herb: itemAsset("item_wild_herb", "item-wild-herb", "❧", { kind: "image", path: "/assets/items/wild-herb.png" }),
   item_moon_mushroom: itemAsset("item_moon_mushroom", "item-moon-mushroom", "☾", { kind: "image", path: "/assets/items/moon-mushroom.png" }),
   item_fairy_bloom: itemAsset("item_fairy_bloom", "item-fairy-bloom", "✿", { kind: "image", path: "/assets/items/fairy-bloom.png" }),

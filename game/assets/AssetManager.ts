@@ -94,7 +94,7 @@ export class AssetManager {
       g.fillStyle(f.trunk).fillRect(18, 29, 8, 22).fillStyle(f.crown).fillCircle(22, 17, 19)
         .fillStyle(f.highlight).fillCircle(13, 22, 11).generateTexture(tree.textureKey, displayedSize(tree).width, displayedSize(tree).height).destroy();
     }
-    for (const rock of [WORLD_OBJECT_ASSETS.forest_rock, WORLD_OBJECT_ASSETS.forest_ore]) {
+    for (const rock of [WORLD_OBJECT_ASSETS.forest_rock, WORLD_OBJECT_ASSETS.forest_ore, WORLD_OBJECT_ASSETS.mine_stone, WORLD_OBJECT_ASSETS.mine_copper, WORLD_OBJECT_ASSETS.mine_ladder, WORLD_OBJECT_ASSETS.mine_entrance]) {
       if (this.scene.textures.exists(rock.textureKey)) continue;
       const g = this.scene.add.graphics(); const f = rock.fallback;
       g.fillStyle(f.stroke).fillEllipse(16, 23, 28, 16).fillStyle(f.fill).fillEllipse(16, 19, 26, 19)

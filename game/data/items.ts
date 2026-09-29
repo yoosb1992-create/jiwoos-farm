@@ -7,6 +7,7 @@ export const ITEM_DEFINITIONS = {
   pickaxe: { id: "pickaxe", name: "곡괭이", kind: "tool", assetId: "item_pickaxe", toolbarHint: "숲에서 채광" },
   wood: { id: "wood", name: "나무", kind: "resource", assetId: "item_wood", sellPrice: 0 },
   stone: { id: "stone", name: "돌", kind: "resource", assetId: "item_stone", sellPrice: 0 },
+  copper_ore: { id: "copper_ore", name: "구리 광석", kind: "resource", assetId: "item_copper_ore", sellPrice: 0 },
   wild_herb: { id: "wild_herb", name: "들풀", kind: "resource", assetId: "item_wild_herb", sellPrice: 0 },
   moon_mushroom: { id: "moon_mushroom", name: "달빛버섯", kind: "resource", assetId: "item_moon_mushroom", sellPrice: 0 },
   fairy_bloom: { id: "fairy_bloom", name: "요정꽃", kind: "resource", assetId: "item_fairy_bloom", sellPrice: 0 },

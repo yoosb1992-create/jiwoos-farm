@@ -20,6 +20,9 @@ import { normalizeBuildings } from "./buildings/system";
 import type { BuildingsData } from "./buildings/types";
 import { normalizeFarmProgress } from "./farm/expansions";
 import type { FarmProgress } from "./farm/expansions";
+import { MINE_ENTRY, mineFloorFromMapId } from "./mine/generation";
+import { normalizeMineDaily, normalizeMineProgress } from "./mine/resources";
+import type { MineDailyState, MineProgress } from "./mine/types";
 
 export interface FarmTileData {
   x: number;
@@ -33,6 +36,8 @@ export interface FarmTileData {
 export interface InventoryData { items: Partial<Record<ItemId, number>> }
 export interface PlayerData { x: number; y: number; facing: Facing; mapId: MapId }
 export interface SaveData {
+  mineProgress?: MineProgress;
+  mineDaily?: MineDailyState;
   buildings?: BuildingsData;
   farmProgress?: FarmProgress;
   placeables?: PlaceablesData;
@@ -106,12 +111,12 @@ const finiteNumber = (value: unknown, fallback: number) => typeof value === "num
 const nonNegativeInteger = (value: unknown, fallback: number) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
 const isFacing = (value: unknown): value is Facing => value === "up" || value === "down" || value === "left" || value === "right";
 const isTool = (value: unknown): value is ToolKey => value === "hoe" || value === "seed" || value === "water" || value === "hand" || value === "axe" || value === "pickaxe";
-const isMapId = (value: unknown): value is MapId => typeof value === "string" && (value === FAIRY_FOREST_ID || Object.hasOwn(MAP_DEFINITIONS, value));
+const isMapId = (value: unknown): value is MapId => typeof value === "string" && (value === FAIRY_FOREST_ID || mineFloorFromMapId(value) !== null || Object.hasOwn(MAP_DEFINITIONS, value));
 const isItemId = (value: string): value is ItemId => Object.hasOwn(ITEM_DEFINITIONS, value);
 const isCropId = (value: unknown): value is CropId => typeof value === "string" && Object.hasOwn(CROP_DEFINITIONS, value);
 
 const defaultPlayer = (mapId: MapId): PlayerData => {
-  const spawn = mapId === FAIRY_FOREST_ID ? FOREST_ENTRY : MAP_DEFINITIONS[mapId].spawns[0];
+  const spawn = mapId === FAIRY_FOREST_ID ? FOREST_ENTRY : mineFloorFromMapId(mapId) !== null ? MINE_ENTRY : MAP_DEFINITIONS[mapId].spawns[0];
   return { x: spawn.tileX * GAME_CONFIG.tileSize, y: spawn.tileY * GAME_CONFIG.tileSize, facing: spawn.facing, mapId };
 };
 
@@ -162,6 +167,8 @@ const normalizeV4 = (value: unknown): SaveData | null => {
     placeables: normalizePlaceables(value.placeables, worldMinute(daySerial, timeMinutes)),
     buildings: normalizeBuildings(value.buildings, daySerial),
     farmProgress: normalizeFarmProgress(value.farmProgress),
+    mineProgress: normalizeMineProgress(value.mineProgress),
+    mineDaily: normalizeMineDaily(value.mineDaily, daySerial, "single"),
     ...(Object.hasOwn(value, "toolProgression") ? { toolProgression: normalizeToolProgression(value.toolProgression) } : {}),
     playerProgress: normalizeProgress(value.playerProgress),
     daySerial,

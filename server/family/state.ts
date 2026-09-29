@@ -24,6 +24,8 @@ import { BUILDING_DEFINITIONS } from "../../game/buildings/definitions";
 import { FARM_EXPANSIONS, initialFarmProgress, normalizeFarmProgress, unlockExpansion } from "../../game/farm/expansions";
 import { FamilyError, FamilyRooms } from "./rooms";
 import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeForestState, resourceKind, strikeForestNode, validForestNodeId } from "../../game/forest/resources";
+import { generateMineFloor, MINE_PLAYABLE_FLOORS, mineMapId } from "../../game/mine/generation";
+import { emptyMineDaily, initialMineProgress, mineResourceKind, normalizeMineDaily, normalizeMineProgress, strikeMineNode } from "../../game/mine/resources";
 
 interface StoredWorld extends FamilyWorld { clockAnchor: number; sleepVotes?: string[]; sleepSessions?: Record<string, string> }
 interface StateRow { revision: number; world_json: string; inventories_json: string }
@@ -31,6 +33,7 @@ type FamilyInventory = InventoryData & { toolProgression?: ToolProgression; stat
 export const initialFamilyWorld = (now: number): StoredWorld => ({
   day: 1, daySerial: 1, timeMinutes: GAME_CONFIG.day.startMinutes, clockAnchor: now, money: GAME_CONFIG.startingMoney,
   forestState: emptyForestState(1),
+  mineProgress: initialMineProgress(), mineDaily: emptyMineDaily(1),
   storage: initialStorage(),
   placeables: initialPlaceables(),
   buildings: initialBuildings(), farmProgress: initialFarmProgress(),
@@ -41,7 +44,7 @@ function currentWorld(stored: StoredWorld, now: number, roomId: string): FamilyW
   // Older room JSON has no weather field; derive rain for the current day on read.
   waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
   const timeMinutes = Math.min(GAME_CONFIG.day.endMinutes, stored.timeMinutes + Math.floor(Math.max(0, now - stored.clockAnchor) / GAME_CONFIG.day.realMsPerGameMinute));
-  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), buildings: normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day), farmProgress: normalizeFarmProgress(stored.farmProgress), money: stored.money, farm: stored.farm,
+  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), mineProgress: normalizeMineProgress(stored.mineProgress), mineDaily: normalizeMineDaily(stored.mineDaily, stored.daySerial ?? stored.day, roomId), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), buildings: normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day), farmProgress: normalizeFarmProgress(stored.farmProgress), money: stored.money, farm: stored.farm,
     timeMinutes };
 }
 export class FamilyState extends FamilyRooms {
@@ -69,6 +72,7 @@ export class FamilyState extends FamilyRooms {
     stored.placeables = normalizePlaceables(stored.placeables, worldMinute(stored.daySerial, GAME_CONFIG.day.startMinutes));
     waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial));
     stored.forestState = emptyForestState(stored.daySerial);
+    stored.mineDaily = emptyMineDaily(stored.daySerial);
     stored.timeMinutes = GAME_CONFIG.day.startMinutes; stored.clockAnchor = this.now(); stored.sleepVotes = []; stored.sleepSessions = {};
     for (const personal of Object.values(inventories)) {
       const stats = normalizePlayerStats(personal.stats);
@@ -161,6 +165,33 @@ export class FamilyState extends FamilyRooms {
       stored.forestState = result.state;
       if (result.drop) inventory.add(result.drop, result.quantity);
       recordSuccessfulAction(stats, skillAction);
+    } else if (action.kind === "mine-hit") {
+      const daySerial = stored.daySerial ?? stored.day;
+      const progress = normalizeMineProgress(stored.mineProgress);
+      if (!Number.isSafeInteger(action.floor) || action.floor < 1 || action.floor > MINE_PLAYABLE_FLOORS || action.floor > progress.deepestUnlockedFloor ||
+          pose.mapId !== mineMapId(action.floor) || action.daySerial !== daySerial) throw new FamilyError(400, "현재 접근 가능한 광산 층과 날짜를 확인해 주세요.");
+      if (action.tool !== "pickaxe" || pose.selectedTool !== "pickaxe" || !toolProgression.pickaxe) throw new FamilyError(400, "곡괭이를 해금하고 선택해 주세요.");
+      const presence = await this.db.prepare("SELECT pose_json, last_seen FROM family_presence WHERE room_id = ? AND user_id = ?")
+        .bind(roomId, userId).first<{ pose_json: string; last_seen: number }>();
+      let observed = null;
+      try { observed = presence ? parseFamilyPose(JSON.parse(presence.pose_json)) : null; } catch { /* Invalid presence cannot authorize a hit. */ }
+      const age = presence ? this.now() - presence.last_seen : Infinity;
+      if (!observed || age < 0 || age > FAMILY_PRESENCE_TTL_MS || observed.mapId !== pose.mapId ||
+          Math.hypot(observed.x - pose.x, observed.y - pose.y) > GAME_CONFIG.playerSpeed * Math.min(2.5, age / 1000 + .5))
+        throw new FamilyError(400, "현재 광산 위치를 동기화한 뒤 가까이에서 채광해 주세요.");
+      if (typeof action.nodeId !== "string" || action.nodeId.length > 48) throw new FamilyError(400, "올바른 광산 자원이 아닙니다.");
+      const floorMap = generateMineFloor(roomId, daySerial, action.floor);
+      const node = floorMap.objects.find(o => o.id === action.nodeId && mineResourceKind(o));
+      if (!node) throw new FamilyError(400, "현재 층에 없는 자원입니다.");
+      if (Math.hypot(pose.x - node.position.tileX * GAME_CONFIG.tileSize, pose.y - node.position.tileY * GAME_CONFIG.tileSize) > 58) throw new FamilyError(400, "광석 가까이에서 곡괭이를 사용해 주세요.");
+      const daily = normalizeMineDaily(stored.mineDaily, daySerial, roomId);
+      if (daily.floors[action.floor]?.depleted.includes(node.id)) throw await conflict();
+      if (!canPerformAction(stats, "pickaxe")) throw new FamilyError(409, "체력이 부족합니다. 잠을 자고 회복하세요.");
+      const result = strikeMineNode(daily, progress, action.floor, node, toolProgression);
+      if (!result) throw await conflict();
+      stored.mineDaily = result.daily; stored.mineProgress = result.progress;
+      if (result.drop) inventory.add(result.drop, result.quantity);
+      recordSuccessfulAction(stats, "pickaxe");
     } else if (action.kind === "sleep") {
       if (!near("sleep")) throw new FamilyError(400, "농장집 침대에서 잠들어 주세요.");
       const online = await this.online(roomId);
@@ -253,7 +284,7 @@ export class FamilyState extends FamilyRooms {
     const result = await this.db.prepare(`UPDATE family_state SET world_json = ?, inventories_json = ?, revision = revision + 1, updated_at = ? WHERE room_id = ? AND revision = ?`)
       .bind(JSON.stringify(stored), JSON.stringify(inventories), this.now(), roomId, expectedRevision).run();
     if (result.meta.changes !== 1) throw await conflict();
-    if (action.kind === "tool" || action.kind === "forest-gather") {
+    if (action.kind === "tool" || action.kind === "forest-gather" || action.kind === "mine-hit") {
       const visual = { id: crypto.randomUUID(), tool: action.tool, facing: pose.facing, expiresAt: this.now() + 2500 };
       // Visual delivery must never turn a committed farm action into a failed command.
       try { await this.db.prepare("UPDATE family_presence SET pose_json = json_set(pose_json, '$.action', json(?)) WHERE room_id = ? AND user_id = ?")

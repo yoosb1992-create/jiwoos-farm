@@ -9,7 +9,7 @@ import type { EditorLayer, EditorTool, Selection, SnapMode } from "@/game/editor
 import { clampEditorZoom, createPinchStart, updatePinchViewport, type PinchStart } from "@/game/editor/viewport";
 
 const tileColors: Record<TileTypeId, string> = {
-  grass: "#83b85e", path: "#c9aa71", water: "#66a8ca", farm: "#9b7049", wood_floor: "#b77b4c", stone_floor: "#c8bd9f",
+  grass: "#83b85e", path: "#c9aa71", water: "#66a8ca", farm: "#9b7049", wood_floor: "#b77b4c", stone_floor: "#c8bd9f", mine_floor: "#56565d", mine_wall: "#303138",
 };
 const objectColors: Record<string, string> = { house: "#d18b54", tree: "#3f7e4a", sell_basket: "#ad6545", store: "#d5a65c", bed: "#efd99d", shop_counter: "#9c6543" };
 const snap = (value: number, mode: SnapMode) => mode === "tile" ? Math.round(value) : mode === "half" ? Math.round(value * 2) / 2 : Math.round(value * 20) / 20;
@@ -181,4 +181,3 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
     {layers.grid && <g className="editor-grid" pointerEvents="none">{Array.from({ length: map.width + 1 }, (_, x) => <line key={`x${x}`} x1={x} y1={0} x2={x} y2={map.height} />)}{Array.from({ length: map.height + 1 }, (_, y) => <line key={`y${y}`} x1={0} y1={y} x2={map.width} y2={y} />)}</g>}
   </svg></div><div className="editor-viewport-controls"><button onClick={() => setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom + .25) }))}>＋</button><b>{Math.round(viewport.zoom * 100)}%</b><button onClick={() => setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom - .25) }))}>－</button><button onClick={resetViewport}>초기화</button></div><span className="editor-scale-note">한 손가락 편집 · 두 손가락 이동/확대 · 격자 {GAME_CONFIG.tileSize}px</span></div>;
 }
-

@@ -7,6 +7,8 @@ import { TILE_TYPE_DEFINITIONS, tilePoint } from "../maps/definitions";
 import type { MapDefinition, MapId, TileRect } from "../maps/types";
 import type { MapRegistry } from "../maps/MapRegistry";
 import { FOREST_RESOURCES, resourceKind } from "../forest/resources";
+import { mineResourceKind, MINE_RESOURCES } from "../mine/resources";
+import { mineFloorFromMapId } from "../mine/generation";
 import { PLACEABLE_DEFINITIONS } from "../placeables/definitions";
 import type { PlaceableInstance } from "../placeables/types";
 import { BUILDING_DEFINITIONS } from "../buildings/definitions";
@@ -113,6 +115,28 @@ export class WorldRenderer {
       else {
         const position = tilePoint(object.position.tileX, object.position.tileY);
         const label = this.scene.add.text(position.x, position.y - 27, `${count}/${FOREST_RESOURCES[kind].hits}`, {
+          fontFamily: "sans-serif", fontSize: "12px", color: "#fff8d3", backgroundColor: "#493727dd", padding: { x: 3, y: 1 },
+        }).setOrigin(.5).setDepth(9);
+        this.root.add(label); this.forestHitLabels.set(object.id, label);
+      }
+    }
+    for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { label.destroy(); this.forestHitLabels.delete(id); }
+  }
+
+  renderMineHits(hits: Record<string, number>) {
+    if (!this.root || !this.currentMapId || mineFloorFromMapId(this.currentMapId) === null) return;
+    const map = this.maps.get(this.currentMapId);
+    if (!map) return;
+    const active = new Set<string>();
+    for (const object of map.objects) {
+      const kind = mineResourceKind(object), count = hits[object.id];
+      if (!kind || !Number.isInteger(count) || count <= 0 || count >= MINE_RESOURCES[kind].hits) continue;
+      active.add(object.id);
+      const existing = this.forestHitLabels.get(object.id);
+      if (existing) existing.setText(`${count}/${MINE_RESOURCES[kind].hits}`);
+      else {
+        const position = tilePoint(object.position.tileX, object.position.tileY);
+        const label = this.scene.add.text(position.x, position.y - 27, `${count}/${MINE_RESOURCES[kind].hits}`, {
           fontFamily: "sans-serif", fontSize: "12px", color: "#fff8d3", backgroundColor: "#493727dd", padding: { x: 3, y: 1 },
         }).setOrigin(.5).setDepth(9);
         this.root.add(label); this.forestHitLabels.set(object.id, label);

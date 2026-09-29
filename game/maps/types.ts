@@ -3,7 +3,7 @@ import type { WorldObjectAssetId } from "../assets/definitions";
 
 /** Map ids are data-owned so editor-created maps do not require a TypeScript change. */
 export type MapId = string;
-export type TileTypeId = "grass" | "path" | "water" | "farm" | "wood_floor" | "stone_floor";
+export type TileTypeId = "grass" | "path" | "water" | "farm" | "wood_floor" | "stone_floor" | "mine_floor" | "mine_wall";
 export type MapAction = "sleep" | "open_shop" | "sell" | "craft" | "storage";
 
 export interface TileRect { startX: number; endX: number; startY: number; endY: number }
