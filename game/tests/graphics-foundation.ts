@@ -39,7 +39,13 @@ assert.notEqual(CHARACTER_VISUAL_PROFILES.child.asset, CHARACTER_VISUAL_PROFILES
 
 const tree = WORLD_OBJECT_ASSETS.tree;
 const originalCollision = { ...tree.defaultCollisionBox };
-const oversizedTree = { ...tree, frameSize: { width: 96, height: 128 }, displayScale: { x: 1.5, y: 1.5 } };
+const oversizedTree = {
+  ...tree,
+  frameSize: { width: 96, height: 128 },
+  displayScale: { x: 1.5, y: 1.5 },
+  origin: { x: .5, y: .5 },
+  groundAnchor: { x: .5, y: .92 },
+};
 assert.deepEqual(tree.defaultCollisionBox, originalCollision);
 assert.deepEqual(oversizedTree.defaultCollisionBox, originalCollision, "visual growth must not expand collision");
 assert.deepEqual(displayedSize(oversizedTree), { width: 144, height: 192 });

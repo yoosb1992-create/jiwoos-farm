@@ -10,6 +10,8 @@ export interface VisualAssetDefinition {
   textureKey: string;
   source: AssetSource;
   frameSize: { width: number; height: number };
+  /** Decoded PNG size when a repeating texture is larger than one logical tile. */
+  textureSize?: { width: number; height: number };
   displayScale: { x: number; y: number };
   origin: { x: number; y: number };
   /** Optional authored bounds for visual composition only. Never used for physics. */
@@ -152,17 +154,23 @@ export const resolveCharacterVisualProfile = (lifeStage: string | null | undefin
 /** Backwards-compatible alias used by current gameplay, Family and forest code. */
 export const PLAYER_ASSET = DEFAULT_CHARACTER_VISUAL_PROFILE.asset;
 
-const tileAsset = (assetId: string, textureKey: string, fallback: { color: number; alpha?: number; stroke?: number }, source: AssetSource = null) => ({
+const tileAsset = (
+  assetId: string,
+  textureKey: string,
+  fallback: { color: number; alpha?: number; stroke?: number },
+  source: AssetSource = null,
+  textureSize = { width: GAME_CONFIG.tileSize, height: GAME_CONFIG.tileSize },
+) => ({
   assetId, textureKey, source, frameSize: { width: GAME_CONFIG.tileSize, height: GAME_CONFIG.tileSize },
-  displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback,
+  textureSize, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback,
 });
 export const TILE_ASSETS = {
-  tile_grass: tileAsset("tile_grass", "tile-grass", { color: 0x83b85e }, { kind: "image", path: "/assets/tiles/grass.png" }),
-  tile_path: tileAsset("tile_path", "tile-path", { color: 0xc9aa71 }, { kind: "image", path: "/assets/tiles/path.png" }),
-  tile_water: tileAsset("tile_water", "tile-water", { color: 0x66a8ca }, { kind: "image", path: "/assets/tiles/water.png" }),
-  tile_farm_empty: tileAsset("tile_farm_empty", "farm-empty", { color: 0xb78a55, alpha: 0.28, stroke: 0x6e8f4a }, { kind: "image", path: "/assets/tiles/farm-empty.png" }),
-  tile_farm_tilled: tileAsset("tile_farm_tilled", "farm-tilled", { color: 0x896044, stroke: 0x68442f }, { kind: "image", path: "/assets/tiles/farm-tilled.png" }),
-  tile_farm_watered: tileAsset("tile_farm_watered", "farm-watered", { color: 0x5e493b, stroke: 0x68442f }, { kind: "image", path: "/assets/tiles/farm-watered.png" }),
+  tile_grass: tileAsset("tile_grass", "tile-grass", { color: 0x83b85e }, { kind: "image", path: "/assets/graphics-first-pass/tiles/grass.png" }, { width: 128, height: 128 }),
+  tile_path: tileAsset("tile_path", "tile-path", { color: 0xc9aa71 }, { kind: "image", path: "/assets/graphics-first-pass/tiles/path.png" }, { width: 128, height: 128 }),
+  tile_water: tileAsset("tile_water", "tile-water", { color: 0x66a8ca }, { kind: "image", path: "/assets/graphics-first-pass/tiles/water.png" }, { width: 128, height: 128 }),
+  tile_farm_empty: tileAsset("tile_farm_empty", "farm-empty", { color: 0xb78a55, alpha: 0.28, stroke: 0x6e8f4a }, { kind: "image", path: "/assets/graphics-first-pass/tiles/farm-empty.png" }),
+  tile_farm_tilled: tileAsset("tile_farm_tilled", "farm-tilled", { color: 0x896044, stroke: 0x68442f }, { kind: "image", path: "/assets/graphics-first-pass/tiles/farm-tilled.png" }),
+  tile_farm_watered: tileAsset("tile_farm_watered", "farm-watered", { color: 0x5e493b, stroke: 0x68442f }, { kind: "image", path: "/assets/graphics-first-pass/tiles/farm-watered.png" }),
   tile_wood_floor: tileAsset("tile_wood_floor", "tile-wood-floor", { color: 0xb77b4c, stroke: 0x8f5d3b }, { kind: "image", path: "/assets/tiles/wood-floor.png" }),
   tile_stone_floor: tileAsset("tile_stone_floor", "tile-stone-floor", { color: 0xc8bd9f, stroke: 0xa89b7d }, { kind: "image", path: "/assets/tiles/stone-floor.png" }),
   tile_mine_floor: tileAsset("tile_mine_floor", "tile-mine-floor", { color: 0x56565d }, { kind: "image", path: "/assets/tiles/mine-floor.png" }),
@@ -172,8 +180,8 @@ export type TileAssetId = keyof typeof TILE_ASSETS;
 
 /** Assets that may be placed as map objects: buildings, foliage, furniture, and decorations. */
 export const WORLD_OBJECT_ASSETS = {
-  house: { assetId: "house", textureKey: "building-house", source: { kind: "image", path: "/assets/objects/house.png" }, frameSize: { width: 192, height: 176 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, visualFootprint: { width: 192, height: 176 }, groundAnchor: { x: 0.5, y: 0.88 }, shadow: { anchor: { x: 0.5, y: 0.88 }, width: 148, height: 30, alpha: 0.22 }, defaultCollisionBox: { x: -96, y: -80, width: 192, height: 135 }, fallback: { wall: 0xe7bb72, roof: 0xb94e43, trim: 0x8b5c3a, door: 0x6f402d } },
-  tree: { assetId: "tree", textureKey: "world-tree", source: { kind: "image", path: "/assets/objects/tree.png" }, frameSize: { width: 44, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, visualFootprint: { width: 44, height: 56 }, groundAnchor: { x: 0.5, y: 0.86 }, shadow: { anchor: { x: 0.5, y: 0.86 }, width: 24, height: 9, alpha: 0.2 }, defaultCollisionBox: { x: -11, y: -9, width: 22, height: 18 }, fallback: { trunk: 0x765033, crown: 0x356c42, highlight: 0x43814c } },
+  house: { assetId: "house", textureKey: "building-house", source: { kind: "image", path: "/assets/graphics-first-pass/objects/farm-house.png" }, frameSize: { width: 224, height: 192 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, visualFootprint: { width: 224, height: 192 }, groundAnchor: { x: 0.5, y: 0.96 }, shadow: { anchor: { x: 0.5, y: 0.96 }, width: 168, height: 30, alpha: 0.2 }, defaultCollisionBox: { x: -96, y: -80, width: 192, height: 135 }, fallback: { wall: 0xe7bb72, roof: 0xb94e43, trim: 0x8b5c3a, door: 0x6f402d } },
+  tree: { assetId: "tree", textureKey: "world-tree", source: { kind: "image", path: "/assets/graphics-first-pass/objects/tree.png" }, frameSize: { width: 128, height: 160 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.92 }, visualFootprint: { width: 128, height: 160 }, groundAnchor: { x: 0.5, y: 0.92 }, shadow: { anchor: { x: 0.5, y: 0.92 }, width: 42, height: 13, alpha: 0.18 }, defaultCollisionBox: { x: -11, y: -9, width: 22, height: 18 }, fallback: { trunk: 0x765033, crown: 0x356c42, highlight: 0x43814c } },
   forest_rock: { assetId: "forest_rock", textureKey: "forest-rock", source: { kind: "image", path: "/assets/objects/forest-rock.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x929586, stroke: 0x515d58 } },
   forest_ore: { assetId: "forest_ore", textureKey: "forest-ore", source: { kind: "image", path: "/assets/objects/forest-ore.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x69747e, stroke: 0x38434a } },
   mine_stone: { assetId: "mine_stone", textureKey: "mine-stone", source: { kind: "image", path: "/assets/objects/mine-stone.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x898992, stroke: 0x3c3c49 } },
@@ -202,10 +210,10 @@ const cropAsset = (assetId: string, textureKey: string, size: number, fruit: num
   origin: { x: 0.5, y: 0.5 }, fallback: { size, leaf: 0x416f36, fruit },
 });
 export const CROP_ASSETS = {
-  crop_sproutberry_seed: cropAsset("crop_sproutberry_seed", "crop-sproutberry-0", 3, 0xb9d35b, { kind: "image", path: "/assets/crops/sproutberry-seed.png" }),
-  crop_sproutberry_sprout: cropAsset("crop_sproutberry_sprout", "crop-sproutberry-1", 6, 0x78b64b, { kind: "image", path: "/assets/crops/sproutberry-sprout.png" }),
-  crop_sproutberry_growing: cropAsset("crop_sproutberry_growing", "crop-sproutberry-2", 9, 0x3f8b45, { kind: "image", path: "/assets/crops/sproutberry-growing.png" }),
-  crop_sproutberry_mature: cropAsset("crop_sproutberry_mature", "crop-sproutberry-3", 12, 0xe88942, { kind: "image", path: "/assets/crops/sproutberry-mature.png" }),
+  crop_sproutberry_seed: cropAsset("crop_sproutberry_seed", "crop-sproutberry-0", 3, 0xb9d35b, { kind: "image", path: "/assets/graphics-first-pass/crops/sproutberry-seed.png" }),
+  crop_sproutberry_sprout: cropAsset("crop_sproutberry_sprout", "crop-sproutberry-1", 6, 0x78b64b, { kind: "image", path: "/assets/graphics-first-pass/crops/sproutberry-sprout.png" }),
+  crop_sproutberry_growing: cropAsset("crop_sproutberry_growing", "crop-sproutberry-2", 9, 0x3f8b45, { kind: "image", path: "/assets/graphics-first-pass/crops/sproutberry-growing.png" }),
+  crop_sproutberry_mature: cropAsset("crop_sproutberry_mature", "crop-sproutberry-3", 12, 0xe88942, { kind: "image", path: "/assets/graphics-first-pass/crops/sproutberry-mature.png" }),
   crop_sunpotato_seed: cropAsset("crop_sunpotato_seed", "crop-sunpotato-seed", 3, 0xe6b443, { kind: "image", path: "/assets/crops/sunpotato-seed.png" }),
   crop_sunpotato_sprout: cropAsset("crop_sunpotato_sprout", "crop-sunpotato-sprout", 6, 0xe6b443, { kind: "image", path: "/assets/crops/sunpotato-sprout.png" }),
   crop_sunpotato_growing: cropAsset("crop_sunpotato_growing", "crop-sunpotato-growing", 9, 0xe6b443, { kind: "image", path: "/assets/crops/sunpotato-growing.png" }),

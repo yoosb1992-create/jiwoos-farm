@@ -7,16 +7,18 @@ const visuals = [...Object.values(TILE_ASSETS), ...Object.values(WORLD_OBJECT_AS
 const active = [...visuals, ...Object.values(ITEM_ASSETS)].filter((asset) => asset.source?.kind === "image");
 for (const asset of active) {
   const png = readAssetPng(asset.source!.path);
-  const size = "frameSize" in asset ? asset.frameSize : { width: 32, height: 32 };
+  const size = "textureSize" in asset ? asset.textureSize : "frameSize" in asset ? asset.frameSize : { width: 32, height: 32 };
   assert.equal(png.width, size.width, asset.assetId); assert.equal(png.height, size.height, asset.assetId);
   const alpha = png.pixels.filter((_, index) => index % 4 === 3);
   assert.ok(alpha.some((value) => value > 0), `${asset.assetId}: nonempty`);
   if (asset.assetId.startsWith("tile_")) {
     assert.ok(alpha.every((value) => value === 255));
     const pixel = (x: number, y: number) => png.pixels.subarray((y * png.width + x) * 4, (y * png.width + x) * 4 + 4);
-    for (let i = 0; i < 32; i++) {
-      assert.deepEqual(pixel(0, i), pixel(31, i), `${asset.assetId}: horizontal seam`);
-      assert.deepEqual(pixel(i, 0), pixel(i, 31), `${asset.assetId}: vertical seam`);
+    for (let i = 0; i < png.height; i++) {
+      assert.deepEqual(pixel(0, i), pixel(png.width - 1, i), `${asset.assetId}: horizontal seam`);
+    }
+    for (let i = 0; i < png.width; i++) {
+      assert.deepEqual(pixel(i, 0), pixel(i, png.height - 1), `${asset.assetId}: vertical seam`);
     }
   } else assert.ok(alpha.some((value) => value === 0), `${asset.assetId}: transparent background`);
 }

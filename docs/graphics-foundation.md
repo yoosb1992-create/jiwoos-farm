@@ -87,3 +87,23 @@ life stage는 `spriteProfileId`와 분리되고 body, hair, outfit, accessory ID
 모든 새 에셋은 기존 ID와 논리 tile 32×32를 유지한 채 path와 visual profile 값만 교체한다.
 
 Graphics Foundation 1.0은 구조와 교체 계약까지만 다루며 production publish, DB, D1 migration은 범위 밖이다.
+
+## Graphics Foundation 1.1 — First Visual Pass
+
+첫 시각 교체본은 `public/assets/graphics-first-pass/` 아래에 별도 보관한다. Foundation 1.0의 기존 PNG는 삭제하지 않았으며, 활성 definitions의 source path만 새 파일로 전환했다. 첨부 기준 이미지는 색감·밀도·3/4 시점 참고에만 사용했고 배경 crop이나 원본 조각은 포함하지 않았다.
+
+| 역할 | PNG 규격 | 적용 원칙 |
+| --- | --- | --- |
+| grass | 128×128 RGBA | 저대비 warm green base, 꽃·돌 제외, 네 변 seamless |
+| path | 128×128 RGBA | 밝은 황갈색 흙과 작은 돌, edge/corner는 후속 슬롯으로 유지 |
+| farm empty | 32×32 RGBA | 조용한 마른 공용 토양 |
+| farm tilled | 32×32 RGBA | 같은 토양의 얕은 수평 고랑 |
+| farm watered | 32×32 RGBA | 같은 고랑, 더 어두운 습윤 명도, 물방울 아이콘 없음 |
+| water center | 128×128 RGBA | 파랑·청록 깊이와 부드러운 하이라이트, bank 장식 없음 |
+| tree | 128×160 RGBA | `origin = groundAnchor = (0.5, 0.92)`, 128×160 visual footprint, 기존 22×18 collision 유지 |
+| farm house | 224×192 RGBA | 중앙 origin, `groundAnchor = (0.5, 0.96)`, 기존 collision·현관 warp 유지 |
+| sproutberry 4단계 | 각 29×29 RGBA | seed → sprout → growing → mature의 실루엣 증가와 coral-orange 수확 신호 |
+
+논리 타일은 계속 32×32다. grass/path/water의 `frameSize`는 32×32 그대로 두고, 실제 반복 PNG 규격만 `textureSize = 128×128`로 분리해 32px 체크무늬 인상을 낮춘다. farm 3종은 한 칸 단위 상태 표시이므로 32×32를 유지한다. 현행 tile ID와 단일 center 렌더를 유지하므로 맵 JSON을 바꾸지 않는다. tree와 house는 frameSize·visualFootprint·origin·groundAnchor만 교체하고 map object의 collision, interaction, warp, depth는 변경하지 않는다. Map Editor도 런타임과 같은 definitions를 읽어 새 PNG와 표시 크기를 사용하며 문서 schema는 그대로다.
+
+이번 단계에서 플레이어, terrain decoration, water edge/corner/bank, 맵 배치와 게임 시스템은 변경하지 않는다. 다음 단계는 작은 꽃·잡초·돌·낙엽·나뭇가지·작은 풀을 별도 `terrain-decoration` 에셋으로 제작하고, 실제 맵 화면을 기준으로 밀도를 조정하는 작업이다.
