@@ -1,6 +1,7 @@
 export type ToolKey = "hoe" | "seed" | "water" | "hand" | "axe" | "pickaxe";
 export interface HudState {
   inventoryOpen?: boolean;
+  toolNotice?: string;
   toolProgression?: import("./tools/types").ToolProgression;
   craftingOpen?: boolean;
   craftingBusy?: boolean;

@@ -36,7 +36,7 @@ assert.deepEqual(upgraded, { axe: 2, pickaxe: 1 });
 assert.equal(supplies.count("wood_plank"), 0); assert.equal(supplies.count("stone_block"), 0);
 assert.equal(upgradeTool(supplies, upgraded, TOOL_UPGRADES.axe_2), false, "중복 강화 거부");
 const panel = renderToStaticMarkup(createElement(CraftingPanel, { items: { wood_plank: 2, stone_block: 1 }, busy: false, onCraft() {}, onUpgrade() {}, onClose() {} }));
-assert.ok(panel.includes("곡괭이 해금") && panel.includes("해금·강화") && panel.includes("곡괭이") && panel.includes("2/2"));
+assert.ok(panel.includes("곡괭이 해금") && panel.includes("해금·강화") && panel.includes("곡괭이") && panel.includes("보유 2 / 필요 2") && panel.includes("도끼") && panel.includes("잠김"));
 
 const { db, close } = familyTestDB();
 try {

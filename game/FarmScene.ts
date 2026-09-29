@@ -88,6 +88,9 @@ export class FarmScene extends Phaser.Scene {
   private shopOpen = false;
   private craftingOpen = false;
   private inventoryOpen = false;
+  private toolNotice = "";
+  private toolNoticeUntil = 0;
+  private oreHintShown = false;
   private craftingBusy = false;
   private transitioning = false;
   private lateNightWarned = false;
@@ -157,9 +160,15 @@ export class FarmScene extends Phaser.Scene {
 
   update(_time: number, delta: number) {
     this.remotePlayers?.update(this.currentMapId, delta);
+    if (this.toolNotice && performance.now() >= this.toolNoticeUntil) { this.toolNotice = ""; this.emitHud(); }
     if (!this.family && !this.isPaused()) this.advanceClock(delta);
     this.npcRenderer.update(this.npcs.sample(this.day, this.npcTime()), this.currentMapId, this.familyPose(), this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), this.mapRegistry.require(this.currentMapId));
     if (this.isPaused()) { this.player.setVelocity(0, 0); this.playerAnimations.playMovement(this.facing, false); return; }
+    if (!this.oreHintShown && !this.toolProgression.pickaxe && this.currentMapId === FAIRY_FOREST_ID) {
+      const nearOre = this.mapRegistry.require(FAIRY_FOREST_ID).objects.some(o =>
+        resourceKind(o) === "ore" && Math.hypot(o.position.tileX * GAME_CONFIG.tileSize - this.player.x, o.position.tileY * GAME_CONFIG.tileSize - this.player.y) <= 60);
+      if (nearOre) { this.oreHintShown = true; this.announceTool("채광 바위에는 곡괭이가 필요해요. 집의 제작대에서 해금하세요."); }
+    }
     const keyboard = {
       x: (this.cursors.right.isDown || this.wasd.D.isDown ? 1 : 0) - (this.cursors.left.isDown || this.wasd.A.isDown ? 1 : 0),
       y: (this.cursors.down.isDown || this.wasd.S.isDown ? 1 : 0) - (this.cursors.up.isDown || this.wasd.W.isDown ? 1 : 0),
@@ -410,13 +419,15 @@ export class FarmScene extends Phaser.Scene {
     if (this.family) {
       this.craftingBusy = true; this.emitHud();
       void this.family.act({ kind: "tool-upgrade", upgradeId, pose: this.familyPose() }).then(ok => {
-        if (ok && this.sceneLive) this.say(`${upgrade.name}을(를) 마쳤어요.`);
+        if (ok && this.sceneLive) this.announceTool(upgrade.tool === "axe" ? "튼튼한 도끼로 강화했습니다!" : "곡괭이를 해금했습니다! 이제 채광할 수 있어요.");
       }).finally(() => { if (this.sceneLive) { this.craftingBusy = false; this.emitHud(); } });
       return;
     }
     if (!upgradeTool(this.inventory, this.toolProgression, upgrade)) { this.say("도구 단계나 재료를 확인해 주세요."); return; }
-    this.save(false); this.say(`${upgrade.name}을(를) 마쳤어요.`);
+    this.save(false); this.announceTool(upgrade.tool === "axe" ? "튼튼한 도끼로 강화했습니다!" : "곡괭이를 해금했습니다! 이제 채광할 수 있어요.");
   }
+
+  private announceTool(message: string) { this.toolNotice = message; this.toolNoticeUntil = performance.now() + 5000; this.say(message); }
 
   private buy(listingId: string) {
     if (this.family) { void this.family.act({ kind: "buy", listingId, pose: this.familyPose() }); return; }
@@ -476,7 +487,7 @@ export class FarmScene extends Phaser.Scene {
     const npcPoses=this.npcs?.sample(this.day,this.npcTime())??[];
     const villagers=NPC_DEFINITIONS.map(n=>{const p=npcPoses.find(p=>p.npcId===n.id),points=personal.relationships[n.id].points;return {id:n.id,name:n.name,points,level:relationshipLevel(points),location:p?this.mapRegistry.get(p.mapId)?.name??"다른 장소":"다른 장소",activity:p?.activity??"휴식"};});
     const step = this.getObjective();
-    const hud: HudState = { inventoryOpen:this.inventoryOpen, toolProgression: { ...this.toolProgression }, craftingOpen:this.craftingOpen,craftingBusy:this.craftingBusy,craftingItems:this.inventory.serialize().items,villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
+    const hud: HudState = { toolNotice:this.toolNotice, inventoryOpen:this.inventoryOpen, toolProgression: { ...this.toolProgression }, craftingOpen:this.craftingOpen,craftingBusy:this.craftingBusy,craftingItems:this.inventory.serialize().items,villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: this.day, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
       transitioning: this.transitioning, shopOpen: this.shopOpen, mapId: this.currentMapId, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));
