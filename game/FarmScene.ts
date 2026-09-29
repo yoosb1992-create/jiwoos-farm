@@ -16,7 +16,7 @@ import { FISH_DEFINITIONS } from "./fishing/definitions";
 import { beginFishing, fishingSpotError, fishingStage, initialFishingProgress, normalizeFishingProgress, reelFishing } from "./fishing/system";
 import type { FishingCast, FishingProgress } from "./fishing/types";
 import { AssetManager } from "./assets/AssetManager";
-import { PLAYER_ASSET, displayedSize, physicsBoxForScale, type Facing } from "./assets/definitions";
+import { DEFAULT_CHARACTER_VISUAL_PROFILE, displayedSize, physicsBoxForScale, type CharacterVisualProfile, type Facing } from "./assets/definitions";
 import { WorldRenderer } from "./rendering/WorldRenderer";
 import { ForestGatheringEffects } from "./rendering/ForestGatheringEffects";
 import { forestFeedback } from "./forest/feedback";
@@ -69,7 +69,7 @@ import { initialWateringCan, normalizeWateringCan, refillWateringCan, waterCrop,
 
 export const REAL_MS_PER_GAME_MINUTE = GAME_CONFIG.day.realMsPerGameMinute;
 type Command = { type: string; value?: unknown };
-export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; testMode?: boolean; family?: FamilySession }
+export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; testMode?: boolean; family?: FamilySession; playerVisualProfile?: CharacterVisualProfile }
 
 export class FarmScene extends Phaser.Scene {
   private journalOpen = false;
@@ -142,6 +142,7 @@ export class FarmScene extends Phaser.Scene {
   private mineDayInstalled = 0;
   private readonly forestScope: string;
   private readonly testMode: boolean;
+  private readonly playerVisualProfile: CharacterVisualProfile;
   private helpOpen = true;
   private sleepPrompt = false;
   private shopOpen = false;
@@ -161,18 +162,19 @@ export class FarmScene extends Phaser.Scene {
     super("FarmScene");
     this.mapRegistry = options.maps ?? new MapRegistry();
     this.testMode = options.testMode === true;
+    this.playerVisualProfile = options.playerVisualProfile ?? DEFAULT_CHARACTER_VISUAL_PROFILE;
     this.forestScope = options.family?.room.id ?? "single";
     if (!this.testMode) { this.syncForest(); this.syncMine(); }
     this.currentMapId = this.mapRegistry.has(options.initialMapId ?? "farm") ? (options.initialMapId ?? "farm") : "farm";
     if (options.family && !this.testMode) this.family = new FamilyClient(options.family, (snapshot) => this.applyFamilySnapshot(snapshot), (message) => this.say(message));
   }
-  preload() { this.assetManager = new AssetManager(this); this.assetManager.preload(); preloadNpcs(this); }
+  preload() { this.assetManager = new AssetManager(this, this.playerVisualProfile); this.assetManager.preload(); preloadNpcs(this); }
 
   create() {
     this.sceneLive = true;
     this.npcs = new NpcController(NPC_DEFINITIONS, this.mapRegistry);
     createNpcAssets(this); this.npcRenderer = new NpcRenderer(this);
-    this.assetManager ??= new AssetManager(this);
+    this.assetManager ??= new AssetManager(this, this.playerVisualProfile);
     this.assetManager.createFallbackTextures(); this.assetManager.createPlayerAnimations();
     this.worldRenderer = new WorldRenderer(this, this.mapRegistry); this.buildFarm();
     this.forestEffects = new ForestGatheringEffects(this);
@@ -184,12 +186,13 @@ export class FarmScene extends Phaser.Scene {
     if (personal?.forestDaySerial && personal.mapId === FAIRY_FOREST_ID) this.daySerial = personal.forestDaySerial;
     this.syncForest();
     this.syncMine();
-    const playerSize = displayedSize(PLAYER_ASSET);
-    this.player = this.physics.add.sprite(0, 0, PLAYER_ASSET.textureKey).setDisplaySize(playerSize.width, playerSize.height)
-      .setOrigin(PLAYER_ASSET.origin.x, PLAYER_ASSET.origin.y).setDepth(20).setCollideWorldBounds(true);
-    const box = physicsBoxForScale(PLAYER_ASSET.collisionBox, { x: this.player.scaleX, y: this.player.scaleY });
+    const playerAsset = this.playerVisualProfile.asset;
+    const playerSize = displayedSize(playerAsset);
+    this.player = this.physics.add.sprite(0, 0, playerAsset.textureKey).setDisplaySize(playerSize.width, playerSize.height)
+      .setOrigin(playerAsset.origin.x, playerAsset.origin.y).setDepth(20).setCollideWorldBounds(true);
+    const box = physicsBoxForScale(playerAsset.collisionBox, { x: this.player.scaleX, y: this.player.scaleY });
     this.player.body!.setSize(box.width, box.height).setOffset(box.offsetX, box.offsetY);
-    this.playerAnimations = new PlayerAnimationController(this.player, this.facing); this.toolActions = new ToolActionSystem(this.playerAnimations);
+    this.playerAnimations = new PlayerAnimationController(this.player, this.facing, this.playerVisualProfile); this.toolActions = new ToolActionSystem(this.playerAnimations);
     this.loadMap(this.currentMapId, undefined, personal?.mapId === this.currentMapId ? personal : saved?.player.mapId === this.currentMapId ? saved.player : undefined);
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys("W,A,S,D,ONE,TWO,THREE,FOUR,FIVE,SIX,SEVEN") as Record<string, Phaser.Input.Keyboard.Key>;

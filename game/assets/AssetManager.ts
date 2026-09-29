@@ -1,5 +1,5 @@
 import type * as Phaser from "phaser";
-import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, playerAnimationFrames, type AssetSource } from "./definitions";
+import { CROP_ASSETS, DEFAULT_CHARACTER_VISUAL_PROFILE, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, playerAnimationFrames, type AssetSource, type CharacterVisualProfile } from "./definitions";
 
 const loadSource = (scene: Phaser.Scene, key: string, source: AssetSource) => {
   if (!source) return;
@@ -10,10 +10,12 @@ const loadSource = (scene: Phaser.Scene, key: string, source: AssetSource) => {
 export class AssetManager {
   private playerSpritesheetReady = false;
 
-  constructor(private readonly scene: Phaser.Scene) {}
+  constructor(private readonly scene: Phaser.Scene, readonly playerProfile: CharacterVisualProfile = DEFAULT_CHARACTER_VISUAL_PROFILE) {}
+
+  private get playerAsset() { return this.playerProfile.asset; }
 
   preload() {
-    loadSource(this.scene, PLAYER_ASSET.textureKey, PLAYER_ASSET.source);
+    loadSource(this.scene, this.playerAsset.textureKey, this.playerAsset.source);
     Object.values(TILE_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
     Object.values(WORLD_OBJECT_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
     Object.values(CROP_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
@@ -25,10 +27,10 @@ export class AssetManager {
     if (!this.playerSpritesheetReady) {
       // A missing file and a sheet with too few frames are both recoverable. Remove
       // an incomplete texture before generating the known-safe single-frame fallback.
-      if (PLAYER_ASSET.source?.kind === "spritesheet" && this.scene.textures.exists(PLAYER_ASSET.textureKey)) {
-        this.scene.textures.remove(PLAYER_ASSET.textureKey);
+      if (this.playerAsset.source?.kind === "spritesheet" && this.scene.textures.exists(this.playerAsset.textureKey)) {
+        this.scene.textures.remove(this.playerAsset.textureKey);
       }
-      if (!this.scene.textures.exists(PLAYER_ASSET.textureKey)) this.createPlayerFallback();
+      if (!this.scene.textures.exists(this.playerAsset.textureKey)) this.createPlayerFallback();
     }
     Object.values(TILE_ASSETS).forEach((asset) => {
       if (this.scene.textures.exists(asset.textureKey)) return;
@@ -45,13 +47,13 @@ export class AssetManager {
 
   createPlayerAnimations() {
     for (const name of PLAYER_ANIMATION_NAMES) {
-      const definition = PLAYER_ASSET.animations[name];
+      const definition = this.playerAsset.animations[name];
       // Phaser's animation manager is shared between scene restarts. Recreate these
       // stable keys so a previous fallback animation cannot mask a newly loaded sheet.
       if (this.scene.anims.exists(name)) this.scene.anims.remove(name);
       const frames = this.playerSpritesheetReady
-        ? this.scene.anims.generateFrameNumbers(PLAYER_ASSET.textureKey, { start: definition.startFrame, end: definition.endFrame })
-        : [{ key: PLAYER_ASSET.textureKey }];
+        ? this.scene.anims.generateFrameNumbers(this.playerAsset.textureKey, { start: definition.startFrame, end: definition.endFrame })
+        : [{ key: this.playerAsset.textureKey }];
       this.scene.anims.create({
         key: name,
         frames,
@@ -62,21 +64,21 @@ export class AssetManager {
   }
 
   private hasValidPlayerSpritesheet() {
-    if (PLAYER_ASSET.source?.kind !== "spritesheet" || !this.scene.textures.exists(PLAYER_ASSET.textureKey)) return false;
-    const texture = this.scene.textures.get(PLAYER_ASSET.textureKey);
-    return Object.values(PLAYER_ASSET.animations)
+    if (this.playerAsset.source?.kind !== "spritesheet" || !this.scene.textures.exists(this.playerAsset.textureKey)) return false;
+    const texture = this.scene.textures.get(this.playerAsset.textureKey);
+    return Object.values(this.playerAsset.animations)
       .flatMap(playerAnimationFrames)
       .every((frame) => texture.has(String(frame)));
   }
 
   private createPlayerFallback() {
-    const { frameSize, fallback } = PLAYER_ASSET;
+    const { frameSize, fallback, textureKey } = this.playerAsset;
     const graphics = this.scene.add.graphics();
     graphics.fillStyle(fallback.shadow).fillRoundedRect(4, 15, 24, 18, 5)
       .fillStyle(fallback.skin).fillCircle(16, 12, 9)
       .fillStyle(fallback.hair).fillRect(8, 5, 16, 5)
       .fillStyle(fallback.shirt).fillRect(8, 16, 16, 11)
-      .generateTexture(PLAYER_ASSET.textureKey, frameSize.width, frameSize.height).destroy();
+      .generateTexture(textureKey, frameSize.width, frameSize.height).destroy();
   }
 
   private createBuildingFallbacks() {

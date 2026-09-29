@@ -12,12 +12,41 @@ export interface VisualAssetDefinition {
   frameSize: { width: number; height: number };
   displayScale: { x: number; y: number };
   origin: { x: number; y: number };
+  /** Optional authored bounds for visual composition only. Never used for physics. */
+  visualFootprint?: { width: number; height: number };
+  /** Normalized point inside the displayed frame where the sprite touches the ground. */
+  groundAnchor?: { x: number; y: number };
+  /** Optional visual shadow placement. Never expands collision or interaction areas. */
+  shadow?: { anchor: { x: number; y: number }; width: number; height: number; alpha: number };
 }
 
 export const displayedSize = (asset: VisualAssetDefinition) => ({
   width: asset.frameSize.width * asset.displayScale.x,
   height: asset.frameSize.height * asset.displayScale.y,
 });
+
+export const visualFootprint = (asset: VisualAssetDefinition) => asset.visualFootprint ?? displayedSize(asset);
+
+export const groundAnchorPoint = (
+  position: { x: number; y: number },
+  asset: VisualAssetDefinition,
+  displaySize = displayedSize(asset),
+) => {
+  const anchor = asset.groundAnchor ?? asset.origin;
+  return {
+    x: position.x - displaySize.width * asset.origin.x + displaySize.width * anchor.x,
+    y: position.y - displaySize.height * asset.origin.y + displaySize.height * anchor.y,
+  };
+};
+
+/** Shared y-sort contract for oversized objects and actors. Existing explicit
+ * depths remain valid; renderers can opt into this without changing map data. */
+export const depthFromGroundAnchor = (
+  position: { x: number; y: number },
+  asset: VisualAssetDefinition,
+  displaySize = displayedSize(asset),
+  layerBase = 10,
+) => layerBase + groundAnchorPoint(position, asset, displaySize).y / 10_000;
 
 export const physicsBoxForScale = (
   box: { width: number; height: number; offsetX: number; offsetY: number },
@@ -38,6 +67,26 @@ export type PlayerAnimationName =
 export type PlayerAnimationState = "idle" | "walk" | "tool";
 export type PlayerAnimationDefinition = { startFrame: number; endFrame: number; fps: number; repeat: number };
 
+export type CharacterLifeStage = "child" | "teen" | "adult";
+export interface CharacterVisualProfile {
+  id: string;
+  lifeStage: CharacterLifeStage;
+  /** Life stage and appearance parts stay independent from the chosen sheet. */
+  spriteProfileId: string;
+  bodyProfileId: string;
+  hairProfileId: string;
+  outfitProfileId: string;
+  accessoryProfileId?: string;
+  asset: VisualAssetDefinition & {
+    collisionBox: { width: number; height: number; offsetX: number; offsetY: number };
+    animations: Record<PlayerAnimationName, PlayerAnimationDefinition>;
+    fallback: { skin: number; hair: number; shirt: number; shadow: number };
+  };
+  /** Authored frame-space point used for lower-body interaction targeting. */
+  interactionAnchor: { x: number; y: number };
+  portraitSource?: Extract<AssetSource, { kind: "image" }>;
+}
+
 export const playerAnimationName = (state: PlayerAnimationState, facing: Facing) =>
   `${state}_${facing}` as PlayerAnimationName;
 
@@ -50,30 +99,58 @@ export const PLAYER_ANIMATION_NAMES = [
   "tool_down", "tool_up", "tool_left", "tool_right",
 ] as const satisfies readonly PlayerAnimationName[];
 
-export const PLAYER_ASSET = {
-  assetId: "player_default",
-  textureKey: "player-default",
-  source: { kind: "spritesheet", path: "/assets/player/player-main.png", frameWidth: 32, frameHeight: 36 } as AssetSource,
-  frameSize: { width: 32, height: 36 },
-  displayScale: { x: 1, y: 1 },
-  origin: { x: 0.5, y: 0.5 },
-  collisionBox: { width: 18, height: 22, offsetX: 7, offsetY: 9 },
-  animations: {
-    idle_down: { startFrame: 0, endFrame: 3, fps: 1, repeat: -1 },
-    idle_up: { startFrame: 4, endFrame: 7, fps: 1, repeat: -1 },
-    idle_left: { startFrame: 8, endFrame: 11, fps: 1, repeat: -1 },
-    idle_right: { startFrame: 12, endFrame: 15, fps: 1, repeat: -1 },
-    walk_down: { startFrame: 16, endFrame: 19, fps: 8, repeat: -1 },
-    walk_up: { startFrame: 20, endFrame: 23, fps: 8, repeat: -1 },
-    walk_left: { startFrame: 24, endFrame: 27, fps: 8, repeat: -1 },
-    walk_right: { startFrame: 28, endFrame: 31, fps: 8, repeat: -1 },
-    tool_down: { startFrame: 32, endFrame: 35, fps: 10, repeat: 0 },
-    tool_up: { startFrame: 36, endFrame: 39, fps: 10, repeat: 0 },
-    tool_left: { startFrame: 40, endFrame: 43, fps: 10, repeat: 0 },
-    tool_right: { startFrame: 44, endFrame: 47, fps: 10, repeat: 0 },
-  } satisfies Record<PlayerAnimationName, PlayerAnimationDefinition>,
-  fallback: { skin: 0xf2c49b, hair: 0x3c3029, shirt: 0x5a87c9, shadow: 0x3a6d3a },
-} as const;
+const PLAYER_ANIMATIONS = {
+  idle_down: { startFrame: 0, endFrame: 3, fps: 1, repeat: -1 },
+  idle_up: { startFrame: 4, endFrame: 7, fps: 1, repeat: -1 },
+  idle_left: { startFrame: 8, endFrame: 11, fps: 1, repeat: -1 },
+  idle_right: { startFrame: 12, endFrame: 15, fps: 1, repeat: -1 },
+  walk_down: { startFrame: 16, endFrame: 19, fps: 8, repeat: -1 },
+  walk_up: { startFrame: 20, endFrame: 23, fps: 8, repeat: -1 },
+  walk_left: { startFrame: 24, endFrame: 27, fps: 8, repeat: -1 },
+  walk_right: { startFrame: 28, endFrame: 31, fps: 8, repeat: -1 },
+  tool_down: { startFrame: 32, endFrame: 35, fps: 10, repeat: 0 },
+  tool_up: { startFrame: 36, endFrame: 39, fps: 10, repeat: 0 },
+  tool_left: { startFrame: 40, endFrame: 43, fps: 10, repeat: 0 },
+  tool_right: { startFrame: 44, endFrame: 47, fps: 10, repeat: 0 },
+} satisfies Record<PlayerAnimationName, PlayerAnimationDefinition>;
+
+const characterProfile = (lifeStage: CharacterLifeStage, textureKey: string): CharacterVisualProfile => ({
+  id: `${lifeStage}-default`, lifeStage, spriteProfileId: `${lifeStage}-default`,
+  bodyProfileId: "body-default", hairProfileId: "hair-default", outfitProfileId: "outfit-default",
+  interactionAnchor: { x: 16, y: 23.3 },
+  asset: {
+    assetId: lifeStage === "adult" ? "player_default" : `player_${lifeStage}_default`,
+    textureKey,
+    source: { kind: "spritesheet", path: "/assets/player/player-main.png", frameWidth: 32, frameHeight: 36 } as AssetSource,
+    frameSize: { width: 32, height: 36 },
+    displayScale: { x: 1, y: 1 },
+    origin: { x: 0.5, y: 0.5 },
+    visualFootprint: { width: 32, height: 36 },
+    groundAnchor: { x: 0.5, y: 31 / 36 },
+    shadow: { anchor: { x: 0.5, y: 31 / 36 }, width: 22, height: 8, alpha: 0.24 },
+    collisionBox: { width: 18, height: 22, offsetX: 7, offsetY: 9 },
+    animations: { ...PLAYER_ANIMATIONS },
+    fallback: { skin: 0xf2c49b, hair: 0x3c3029, shirt: 0x5a87c9, shadow: 0x3a6d3a },
+  },
+});
+
+/** Child and teen intentionally use the proven current sheet until their own PNGs
+ * arrive. Each profile is independently replaceable without a save migration. */
+export const CHARACTER_VISUAL_PROFILES = {
+  child: characterProfile("child", "player-child-default"),
+  teen: characterProfile("teen", "player-teen-default"),
+  adult: characterProfile("adult", "player-default"),
+} as const satisfies Record<CharacterLifeStage, CharacterVisualProfile>;
+
+export const DEFAULT_CHARACTER_LIFE_STAGE: CharacterLifeStage = "adult";
+export const DEFAULT_CHARACTER_VISUAL_PROFILE = CHARACTER_VISUAL_PROFILES[DEFAULT_CHARACTER_LIFE_STAGE];
+export const resolveCharacterVisualProfile = (lifeStage: string | null | undefined): CharacterVisualProfile =>
+  lifeStage && Object.hasOwn(CHARACTER_VISUAL_PROFILES, lifeStage)
+    ? CHARACTER_VISUAL_PROFILES[lifeStage as CharacterLifeStage]
+    : DEFAULT_CHARACTER_VISUAL_PROFILE;
+
+/** Backwards-compatible alias used by current gameplay, Family and forest code. */
+export const PLAYER_ASSET = DEFAULT_CHARACTER_VISUAL_PROFILE.asset;
 
 const tileAsset = (assetId: string, textureKey: string, fallback: { color: number; alpha?: number; stroke?: number }, source: AssetSource = null) => ({
   assetId, textureKey, source, frameSize: { width: GAME_CONFIG.tileSize, height: GAME_CONFIG.tileSize },
@@ -95,8 +172,8 @@ export type TileAssetId = keyof typeof TILE_ASSETS;
 
 /** Assets that may be placed as map objects: buildings, foliage, furniture, and decorations. */
 export const WORLD_OBJECT_ASSETS = {
-  house: { assetId: "house", textureKey: "building-house", source: { kind: "image", path: "/assets/objects/house.png" }, frameSize: { width: 192, height: 176 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { wall: 0xe7bb72, roof: 0xb94e43, trim: 0x8b5c3a, door: 0x6f402d } },
-  tree: { assetId: "tree", textureKey: "world-tree", source: { kind: "image", path: "/assets/objects/tree.png" }, frameSize: { width: 44, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { trunk: 0x765033, crown: 0x356c42, highlight: 0x43814c } },
+  house: { assetId: "house", textureKey: "building-house", source: { kind: "image", path: "/assets/objects/house.png" }, frameSize: { width: 192, height: 176 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, visualFootprint: { width: 192, height: 176 }, groundAnchor: { x: 0.5, y: 0.88 }, shadow: { anchor: { x: 0.5, y: 0.88 }, width: 148, height: 30, alpha: 0.22 }, defaultCollisionBox: { x: -96, y: -80, width: 192, height: 135 }, fallback: { wall: 0xe7bb72, roof: 0xb94e43, trim: 0x8b5c3a, door: 0x6f402d } },
+  tree: { assetId: "tree", textureKey: "world-tree", source: { kind: "image", path: "/assets/objects/tree.png" }, frameSize: { width: 44, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, visualFootprint: { width: 44, height: 56 }, groundAnchor: { x: 0.5, y: 0.86 }, shadow: { anchor: { x: 0.5, y: 0.86 }, width: 24, height: 9, alpha: 0.2 }, defaultCollisionBox: { x: -11, y: -9, width: 22, height: 18 }, fallback: { trunk: 0x765033, crown: 0x356c42, highlight: 0x43814c } },
   forest_rock: { assetId: "forest_rock", textureKey: "forest-rock", source: { kind: "image", path: "/assets/objects/forest-rock.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x929586, stroke: 0x515d58 } },
   forest_ore: { assetId: "forest_ore", textureKey: "forest-ore", source: { kind: "image", path: "/assets/objects/forest-ore.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x69747e, stroke: 0x38434a } },
   mine_stone: { assetId: "mine_stone", textureKey: "mine-stone", source: { kind: "image", path: "/assets/objects/mine-stone.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x898992, stroke: 0x3c3c49 } },

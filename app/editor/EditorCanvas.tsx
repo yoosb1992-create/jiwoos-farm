@@ -63,7 +63,9 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
     const base = objectAssetId.replace(/[^a-z0-9_]/gi, "_");
     let id = base, suffix = 2;
     while (target.objects.some((entry) => entry.id === id)) id = `${base}_${suffix++}`;
-    target.objects.push({ id, assetId: objectAssetId, position: { tileX: snap(p.x, snapMode), tileY: snap(p.y, snapMode) }, depth: 3 });
+    const asset = WORLD_OBJECT_ASSETS[objectAssetId];
+    const collision = "defaultCollisionBox" in asset ? { ...asset.defaultCollisionBox } : undefined;
+    target.objects.push({ id, assetId: objectAssetId, position: { tileX: snap(p.x, snapMode), tileY: snap(p.y, snapMode) }, collision, depth: 3 });
   });
   const placeSpawn = (p: { x: number; y: number }) => onCommit((target) => {
     let id = "spawn", suffix = 2;
