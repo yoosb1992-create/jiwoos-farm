@@ -109,18 +109,37 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
     <main className={`game-shell${family ? " family-playing" : ""}`}>
       <section className="game-frame" aria-label="지우네 농장 게임">
         <div id="game-canvas" className="game-canvas" />
-        <div className="mode-switch">{!family && <button onClick={onOpenEditor}>{testMode ? "← 편집기로 돌아가기" : "🛠 맵 편집"}</button>}<button onClick={onHome}>{family ? "농장 나가기" : "처음으로"}</button>{testMode && <span>테스트 플레이 · 저장 비활성</span>}</div>
-        {family && <FamilyStatus session={family} mapId={hud.mapId} />}
+        <div className="desktop-left-ui">
+          <div className="mode-switch">{!family && <button onClick={onOpenEditor}>{testMode ? "← 편집기로 돌아가기" : "🛠 맵 편집"}</button>}<button onClick={onHome}>{family ? "농장 나가기" : "처음으로"}</button>{testMode && <span>테스트 플레이 · 저장 비활성</span>}</div>
+          {family && <FamilyStatus session={family} mapId={hud.mapId} />}
+        </div>
         <header className="top-hud">
           <div className="brand-plate"><span className="brand-leaf">✦</span><div><strong>지우네 농장</strong><small>우리 가족의 봄날</small></div></div>
           <div className="status-plate"><span>{WEATHER_DEFINITIONS[hud.weather].icon} {hud.mapName}</span><b>{hud.year}년차 · {SEASON_NAMES[hud.season]} {hud.day}일 · {WEATHER_DEFINITIONS[hud.weather].name}</b><strong>{hud.timeText}</strong><em>{hud.money.toLocaleString()} G <small>체력 {hud.stats.stamina} / {hud.stats.maxStamina}</small></em></div>
         </header>
-        <aside className={`quest-card ${questOpen ? "expanded" : ""}`} onClick={() => setQuestOpen((open) => !open)}>
-          <span className="quest-kicker">오늘 할 일 <i>▾</i></span><strong>{hud.objective}</strong>
-          <div className="quest-details"><div className="growth-track"><i style={{ width: `${hud.progress}%` }} /></div><small>{hud.message}</small></div>
-        </aside>
+        <div className="desktop-left-ui">
+          <aside className={`quest-card ${questOpen ? "expanded" : ""}`} onClick={() => setQuestOpen((open) => !open)}>
+            <span className="quest-kicker">오늘 할 일 <i>▾</i></span><strong>{hud.objective}</strong>
+            <div className="quest-details"><div className="growth-track"><i style={{ width: `${hud.progress}%` }} /></div><small>{hud.message}</small></div>
+          </aside>
+        </div>
         <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen((open) => !open)} aria-label="게임 메뉴">☰</button>
-        <div className={`save-row ${mobileMenuOpen ? "open" : ""}`}><button onClick={() => { command("save"); setMobileMenuOpen(false); }}>{family ? "동기화" : "저장"}</button><button onClick={() => { command("load"); setMobileMenuOpen(false); }}>{family ? "새로고침" : "불러오기"}</button><button onClick={() => { command("inventory-open"); setMobileMenuOpen(false); }}>🎒 가방</button>{(hud.craftingItems?.wood_processor || hud.placing) && <button onClick={() => { command("place-mode"); setMobileMenuOpen(false); }}>{hud.placing ? "배치 취소" : `⚙ 배치 ×${hud.craftingItems?.wood_processor ?? 0}`}</button>}<button onClick={() => { command(hud.buildingMode ? "building-mode" : "building-open"); setMobileMenuOpen(false); }}>{hud.buildingMode ? "건설 취소" : "🏠 건설·확장"}</button><button onClick={()=>{command("village-open",true);setMobileMenuOpen(false);}}>주민·의뢰</button><button onClick={toggleHelp}>?</button></div>
+        <div className={`save-row ${mobileMenuOpen ? "open" : ""}`}>
+          {mobileMenuOpen && <div className="mobile-menu-summary mobile-menu-only">
+            <section className="mobile-menu-objective"><b>오늘 할 일</b><strong>{hud.objective}</strong><div className="growth-track"><i style={{ width: `${hud.progress}%` }} /></div><small>{hud.message}</small></section>
+            {family && <FamilyStatus session={family} mapId={hud.mapId} />}
+            {testMode && <small className="mobile-test-note">테스트 플레이 · 저장 비활성</small>}
+          </div>}
+          <button onClick={() => { command("save"); setMobileMenuOpen(false); }}>{family ? "동기화" : "저장"}</button>
+          <button onClick={() => { command("load"); setMobileMenuOpen(false); }}>{family ? "새로고침" : "불러오기"}</button>
+          <button onClick={() => { command("inventory-open"); setMobileMenuOpen(false); }}>🎒 가방</button>
+          {(hud.craftingItems?.wood_processor || hud.placing) && <button onClick={() => { command("place-mode"); setMobileMenuOpen(false); }}>{hud.placing ? "배치 취소" : `⚙ 배치 ×${hud.craftingItems?.wood_processor ?? 0}`}</button>}
+          <button onClick={() => { command(hud.buildingMode ? "building-mode" : "building-open"); setMobileMenuOpen(false); }}>{hud.buildingMode ? "건설 취소" : "🏠 건설·확장"}</button>
+          <button onClick={()=>{command("village-open",true);setMobileMenuOpen(false);}}>주민·의뢰</button>
+          {!family && <button className="mobile-menu-only" onClick={() => { setMobileMenuOpen(false); onOpenEditor(); }}>{testMode ? "← 편집기로 돌아가기" : "🛠 맵 편집"}</button>}
+          <button className="mobile-menu-only" onClick={() => { setMobileMenuOpen(false); onHome(); }}>{family ? "농장 나가기" : "처음으로"}</button>
+          <button onClick={toggleHelp}>?</button>
+        </div>
         {showHelp && <div className="modal-shade"><div className="help-card"><button aria-label="도움말 닫기" onClick={toggleHelp}>×</button><b>농사와 마을 생활</b><p><kbd>WASD</kbd> / 방향키로 이동 · 가까운 밭을 클릭하거나 <kbd>Space</kbd>로 행동</p><p>괭이 → 씨앗 → 물 → 잠자기 → 다음 날 물 주기 순서로 키워 보세요.</p><p>집 안 침대에서 잠들고, 농장 남쪽 길을 따라 마을 상점에 갈 수 있어요. 주민 가까이에서 행동하면 대화합니다. 메뉴의 주민·의뢰에서 개인 기록을 확인하세요.</p></div></div>}
         {hud.villageOpen && <VillageJournal hud={hud} onClose={()=>command("village-open",false)} />}
         {hud.dialogue && <NpcDialogue dialogue={hud.dialogue} onNext={()=>command("dialogue-next")} onClose={()=>command("dialogue-close")}>{!hud.dialogue.eventId && <><NpcRelationshipActions items={hud.craftingItems??{}} eventOptions={hud.relationshipEvents??[]} busy={hud.npcBusy??false} onGift={itemId=>command("npc-gift",itemId)} onEvent={eventId=>command("relationship-event-start",eventId)} /><NpcQuests quests={(hud.quests??[]).filter(q=>q.giver===hud.dialogue!.npcId)} busy={hud.npcBusy} onAction={action=>command("quest-action",action)} /></>}</NpcDialogue>}
@@ -145,6 +164,10 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
           })}
           <button className="sell-slot" onClick={() => command("sell")} disabled={!hud.marketCount}><span>🧺</span><small>전부 판매</small></button>
         </nav>
+        <button className="run-button" aria-label="달리기"
+          onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); command("run", true); }}
+          onPointerUp={() => command("run", false)} onPointerCancel={() => command("run", false)}
+          onLostPointerCapture={() => command("run", false)}>달리기</button>
         <button className="action-button" onClick={() => command("action")}>행동</button>
         <VirtualJoystick onMove={(x, y) => command("move", { x, y })} />
       </section>
