@@ -114,9 +114,10 @@ export class FamilyState extends FamilyRooms {
       if (!node || !kind) throw new FamilyError(400, "현재 숲에 없는 자원입니다.");
       if (Math.hypot(pose.x - node.position.tileX * GAME_CONFIG.tileSize, pose.y - node.position.tileY * GAME_CONFIG.tileSize) > 58) throw new FamilyError(400, "숲 자원 가까이에서 사용해 주세요.");
       if (action.tool !== FOREST_RESOURCES[kind].tool || pose.selectedTool !== action.tool) throw new FamilyError(400, "해당 자원에 맞는 도구를 선택해 주세요.");
+      if (kind === "ore" && toolProgression.pickaxe < 1) throw new FamilyError(400, "먼저 곡괭이를 해금해 주세요.");
       const forestState = normalizeForestState(stored.forestState, daySerial, new Set(forest.objects.map(o => o.id)));
       if (forestState.depleted.includes(node.id)) throw await conflict();
-      const result = strikeForestNode(forestState, node, action.tool);
+      const result = strikeForestNode(forestState, node, action.tool, toolProgression);
       stored.forestState = result.state;
       if (result.drop) inventory.add(result.drop, result.quantity);
     } else if (action.kind === "sleep") {

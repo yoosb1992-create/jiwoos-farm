@@ -287,8 +287,9 @@ export class FarmScene extends Phaser.Scene {
     if (!object) { this.say("채집할 숲 자원 가까이에서 사용해 주세요."); return; }
     const kind = resourceKind(object)!;
     if (this.selectedTool !== FOREST_RESOURCES[kind].tool) {
-      this.say(`${FOREST_RESOURCES[kind].name}: ${FOREST_RESOURCES[kind].tool === "axe" ? "도끼" : "손"}을(를) 사용해 주세요.`); return;
+      this.say(`${FOREST_RESOURCES[kind].name}: ${FOREST_RESOURCES[kind].tool === "axe" ? "도끼" : FOREST_RESOURCES[kind].tool === "pickaxe" ? "곡괭이" : "손"}을(를) 사용해 주세요.`); return;
     }
+    if (this.selectedTool === "pickaxe" && !this.toolProgression.pickaxe) { this.say("제작대에서 곡괭이를 해금해 주세요."); return; }
     if (this.family) {
       const daySerial = this.family.snapshot?.world.daySerial ?? this.family.snapshot?.world.day;
       if (!daySerial) { this.say("가족 숲의 최신 상태를 받는 중이에요."); return; }
@@ -307,7 +308,7 @@ export class FarmScene extends Phaser.Scene {
     }
     this.toolActions.execute(this.selectedTool, this.facing, () => {
       const before = this.forestState;
-      const result = strikeForestNode(this.forestState, object, this.selectedTool);
+      const result = strikeForestNode(this.forestState, object, this.selectedTool, this.toolProgression);
       this.forestState = result.state;
       this.worldRenderer.renderForestHits(this.forestState.hits);
       if (result.drop) this.inventory.add(result.drop, result.quantity);
