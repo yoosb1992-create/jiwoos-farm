@@ -142,3 +142,70 @@ button { font:inherit; touch-action:manipulation; }
 .tool-status{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.tool-status span{flex:1;min-width:180px;padding:8px;border:1px solid #af9066;border-radius:8px;background:#fff9e9;font-size:13px}.tool-status strong{display:block;margin-top:3px}.crafting-card .tool-notice{padding:9px;border-radius:8px;background:#e4f1ce;color:#315732;font-weight:800}.tool-toast{position:absolute;z-index:38;left:50%;top:30%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 30px);padding:12px 18px;border:2px solid #4b713e;border-radius:10px;background:#fff5cf;color:#315732;text-align:center;font-weight:800;box-shadow:0 5px 16px #162c2388;pointer-events:none}
 @media (max-width:600px) { .crafting-recipe { grid-template-columns:1fr auto; }.crafting-recipe ul { grid-column:1; }.crafting-card { max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px); } }
 @media (max-width:480px) { .top-hud .brand-plate { display:none; } .status-plate { max-width:calc(100vw - 16px); } .status-plate b { font-size:11px; white-space:nowrap; } }
+
+
+/* 2.0 playtest mobile cleanup: keep the playfield clear and group utility UI in the right menu. */
+.desktop-left-ui{display:contents}
+.mobile-menu-only{display:none}
+.run-button{display:none}
+@media (max-width:700px), (pointer:coarse){
+  .desktop-left-ui{display:none}
+  .mobile-menu-only{display:block}
+  .save-row.open{
+    width:min(290px,calc(100vw - 18px));
+    align-items:stretch;
+    max-height:calc(100dvh - max(132px,calc(env(safe-area-inset-top) + 124px)));
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    padding:8px;
+    border:2px solid #62402d;
+    border-radius:12px;
+    background:#5d3b2eea;
+    box-shadow:0 6px 20px #17251d77;
+  }
+  .save-row.open>button{width:100%}
+  .mobile-menu-summary{display:grid;gap:8px;margin-bottom:2px}
+  .mobile-menu-objective{display:grid;gap:5px;padding:9px 10px;border:2px solid #71452f;border-radius:9px;background:#fff3d1;color:#3e3427}
+  .mobile-menu-objective>b{font-size:11px;color:#8c6939}
+  .mobile-menu-objective>strong{font-size:13px}
+  .mobile-menu-objective>small{font-size:11px;line-height:1.35}
+  .mobile-menu-objective .growth-track{margin-top:2px}
+  .mobile-test-note{display:block;padding:7px 9px;border-radius:7px;background:#fff3d1;color:#65472e;font-weight:800}
+  .save-row .family-status{
+    position:static;
+    inset:auto;
+    width:100%;
+    max-width:none;
+    margin:0;
+    background:#fff3d8;
+    box-shadow:none;
+    font-size:12px;
+  }
+  .save-row .family-status .family-panel-body{max-height:190px}
+  .run-button{
+    display:block;
+    position:absolute;
+    z-index:35;
+    right:max(91px,calc(env(safe-area-inset-right) + 83px));
+    bottom:max(88px,calc(env(safe-area-inset-bottom) + 80px));
+    width:66px;
+    height:66px;
+    min-width:48px;
+    min-height:48px;
+    border:3px solid #e8f4c7;
+    border-radius:50%;
+    color:#fff;
+    background:#4f7d56;
+    box-shadow:0 5px 0 #2f5238;
+    font-weight:900;
+    touch-action:none;
+  }
+  .run-button:active{transform:translateY(3px);box-shadow:0 2px 0 #2f5238}
+}
+@media (max-width:700px) and (orientation:portrait){
+  .action-button,.run-button{bottom:max(134px,calc(env(safe-area-inset-bottom) + 126px))}
+}
+@media (max-height:430px) and (orientation:landscape){
+  .action-button,.run-button{bottom:max(82px,calc(env(safe-area-inset-bottom) + 74px))}
+  .save-row.open{width:min(260px,calc(100vw - 18px));max-height:calc(100dvh - max(62px,calc(env(safe-area-inset-top) + 54px)))}
+}
