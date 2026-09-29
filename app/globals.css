@@ -85,6 +85,8 @@ button { font:inherit; touch-action:manipulation; }
 
 /* Beta: compact closed summary; expanded content stays above movement controls. */
 .family-status{width:290px;max-width:calc(100% - 32px);padding:0;font-size:14px}
+.family-playing .save-row,.family-playing .mobile-menu-toggle{z-index:47}
+.family-playing .modal-shade{z-index:50}
 .family-status summary{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;min-height:44px;padding:8px 10px}
 .family-status summary::before{content:"▸"}.family-status[open] summary::before{content:"▾"}
 .family-panel-body{max-height:min(32dvh,240px);overflow-y:auto;overscroll-behavior:contain;padding:0 10px 10px}
