@@ -6,6 +6,7 @@ import { npcRoute, npcCellSafe } from "../npc/navigation";
 import type { NpcDefinition } from "../npc/types";
 const maps=new MapRegistry();
 const fixture:NpcDefinition={id:"test",name:"test",displayName:"주민",personality:"차분함",speed:32,fallbackColor:0,
+ giftPreferences:{loved:[],neutral:[],disliked:[]},
  asset:{assetId:"npc-test",textureKey:"npc-test",source:null,frameSize:{width:32,height:36},displayScale:{x:1,y:1},origin:{x:.5,y:.5}},
  dialogue:{first:["안녕"],general:[["좋은 날"]],morning:[],afternoon:[],evening:[],progress:[]},
  schedule:[{minute:360,mapId:"town",from:{x:10,y:12},to:{x:12,y:12},facing:"down",activity:"산책"},{minute:600,mapId:"road",from:{x:10,y:5},to:{x:10,y:8},facing:"up",activity:"산책",days:[1]}]};

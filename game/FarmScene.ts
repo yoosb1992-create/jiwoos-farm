@@ -3,6 +3,7 @@ import { normalizeProgress, talkToNpc, relationshipLevel } from "./npc/progress"
 import { nearestNpc, type DialogueView } from "./npc/dialogue";
 import { NpcController } from "./npc/NpcController";
 import { NPC_DEFINITIONS } from "./npc/definitions";
+import { giftToNpc } from "./npc/gifts";
 import { NpcRenderer, preloadNpcs, createNpcAssets } from "./npc/NpcRenderer";
 import { RemotePlayers } from "./family/RemotePlayers";
 import { FamilyClient } from "./family/client";
@@ -61,6 +62,8 @@ import { PlayerAnimationController } from "./player/PlayerAnimationController";
 import { ToolActionSystem } from "./actions/ToolActionSystem";
 import { TOOL_ACTION_DEFINITIONS } from "./actions/toolActionDefinitions";
 import { facingFromMovement, mergeMovementInput, type MovementVector } from "./input/MovementInput";
+import { advanceRelationshipEvent, availableRelationshipEvents, completeRelationshipEvent, startRelationshipEvent } from "./relationship-events/system";
+import type { RelationshipEventRunView } from "./relationship-events/types";
 
 export const REAL_MS_PER_GAME_MINUTE = GAME_CONFIG.day.realMsPerGameMinute;
 type Command = { type: string; value?: unknown };
@@ -69,6 +72,7 @@ export interface FarmSceneOptions { maps?: MapRegistry; initialMapId?: MapId; te
 export class FarmScene extends Phaser.Scene {
   private journalOpen = false;
   private dialogue?: DialogueView;
+  private relationshipEvent?: RelationshipEventRunView;
   private playerProgress = normalizeProgress(null);
   private daySerial = 1;
   private npcRequest = false;
@@ -332,6 +336,53 @@ export class FarmScene extends Phaser.Scene {
       if(this.family){const result=await this.family.npcAction(action,this.familyPose());if(result&&this.sceneLive)this.say("의뢰 기록을 반영했어요.");}
       else {this.money=applyQuestAction(this.playerProgress,this.inventory,this.money,action);this.save(false);}
     }catch(error){this.say(error instanceof Error?error.message:"의뢰를 확인해 주세요.");}
+    finally{this.npcRequest=false;if(this.sceneLive)this.emitHud();}
+  }
+  private relationshipEventContext() {
+    return { daySerial:this.daySerial,timeMinutes:this.npcTime(),mapId:this.currentMapId,weather:weatherFor(this.forestScope,this.daySerial).id } as const;
+  }
+  private async giftAction(itemId:ItemId) {
+    if(!this.dialogue||this.dialogue.eventId||this.npcRequest)return;
+    const npcId=this.dialogue.npcId;this.npcRequest=true;this.dialogue.notice=undefined;this.emitHud();
+    try {
+      if(this.family){
+        const result=await this.family.npcAction({kind:"gift",npcId,itemId},this.familyPose());
+        if(result&&this.sceneLive&&this.dialogue?.npcId===npcId&&!this.dialogue.eventId)this.dialogue.notice=result.notice;
+      }else{
+        const result=giftToNpc(this.playerProgress,this.inventory,npcId,itemId,this.daySerial);
+        if(result.error)throw new Error(result.error);
+        this.dialogue.notice=result.preference==="loved"?`정말 좋아하는 선물이에요! 호감도 +${result.points}`:result.preference==="disliked"?"마음은 고맙지만 취향에는 맞지 않았어요.":`고마워요! 호감도 +${result.points}`;
+        this.save(false);
+      }
+    }catch(error){this.say(error instanceof Error?error.message:"선물을 건넬 수 없어요.");}
+    finally{this.npcRequest=false;if(this.sceneLive)this.emitHud();}
+  }
+  private eventDialogue(view:RelationshipEventRunView):DialogueView {
+    return {npcId:view.npcId,name:view.name,image:view.image,lines:view.lines,index:view.index,eventId:view.eventId,eventTitle:view.title};
+  }
+  private async startRelationshipEventFlow(eventId:string) {
+    if(!this.dialogue||this.dialogue.eventId||this.npcRequest)return;
+    this.npcRequest=true;this.dialogue.notice=undefined;this.emitHud();
+    try {
+      if(this.family){
+        const result=await this.family.npcAction({kind:"event-start",eventId},this.familyPose());
+        if(result?.event&&this.sceneLive&&this.dialogue?.npcId===result.event.npcId&&!this.dialogue.eventId){this.relationshipEvent=result.event;this.dialogue=this.eventDialogue(result.event);}
+      }else{
+        const result=startRelationshipEvent(this.playerProgress,eventId,this.relationshipEventContext());
+        if(result.error||!result.event)throw new Error(result.error??"관계 이벤트를 시작할 수 없어요.");
+        this.relationshipEvent=result.event;this.dialogue=this.eventDialogue(result.event);this.save(false);
+      }
+    }catch(error){this.say(error instanceof Error?error.message:"관계 이벤트를 시작할 수 없어요.");}
+    finally{this.npcRequest=false;if(this.sceneLive)this.emitHud();}
+  }
+  private async completeRelationshipEventFlow() {
+    const active=this.relationshipEvent;if(!active||this.npcRequest)return;
+    this.npcRequest=true;this.emitHud();
+    try {
+      if(this.family){const result=await this.family.npcAction({kind:"event-complete",eventId:active.eventId},this.familyPose());if(!result)return;}
+      else {const error=completeRelationshipEvent(this.playerProgress,active.eventId);if(error)throw new Error(error);this.save(false);}
+      this.relationshipEvent=undefined;this.dialogue=undefined;this.say("관계 이벤트를 완료했어요.");
+    }catch(error){this.say(error instanceof Error?error.message:"관계 이벤트를 완료할 수 없어요.");}
     finally{this.npcRequest=false;if(this.sceneLive)this.emitHud();}
   }
   private performWorldAction(action: MapAction, containerId?: ContainerId) {
@@ -691,9 +742,15 @@ export class FarmScene extends Phaser.Scene {
       if(this.journalOpen&&this.family)void this.family.loadProgress().then(()=>{if(this.sceneLive)this.emitHud();}).catch(()=>{if(this.sceneLive)this.say("주민 기록을 불러올 수 없어요. 연결 후 다시 열어 주세요.");});
       this.emitHud();return;
     }
+    if(command.type==="npc-gift"&&typeof command.value==="string"&&Object.hasOwn(ITEM_DEFINITIONS,command.value)){void this.giftAction(command.value as ItemId);return;}
+    if(command.type==="relationship-event-start"&&typeof command.value==="string"){void this.startRelationshipEventFlow(command.value);return;}
     if(command.type==="quest-action"){void this.questAction(command.value as QuestAction);return;}
     if(command.type==="dialogue-close"||command.type==="dialogue-next") {
-      if(this.dialogue && command.type==="dialogue-next" && this.dialogue.index+1<this.dialogue.lines.length) this.dialogue.index++;
+      if(this.relationshipEvent&&this.dialogue?.eventId===this.relationshipEvent.eventId){
+        if(command.type==="dialogue-next"&&advanceRelationshipEvent(this.relationshipEvent)==="advanced")this.dialogue.index=this.relationshipEvent.index;
+        else if(command.type==="dialogue-next"){void this.completeRelationshipEventFlow();return;}
+        else {this.relationshipEvent=undefined;this.dialogue=undefined;}
+      }else if(this.dialogue && command.type==="dialogue-next" && this.dialogue.index+1<this.dialogue.lines.length) this.dialogue.index++;
       else this.dialogue=undefined;
       this.virtualMovement={x:0,y:0};this.emitHud();return;
     }
@@ -840,7 +897,8 @@ export class FarmScene extends Phaser.Scene {
     const villagers=NPC_DEFINITIONS.map(n=>{const p=npcPoses.find(p=>p.npcId===n.id),points=personal.relationships[n.id].points;return {id:n.id,name:n.name,points,level:relationshipLevel(points),location:p?this.mapRegistry.get(p.mapId)?.name??"다른 장소":"다른 장소",activity:p?.activity??"휴식"};});
     const step = this.getObjective();
     const date = calendarDate(this.daySerial);
-    const hud: HudState = { ranchState:this.ranchState, ranchOpen:this.ranchOpen, ranchBusy:this.ranchBusy, buildingDefinitionId:this.buildingDefinitionId, fishingStage: fishingStage(this.fishingCast, worldMinute(this.daySerial, this.timeMinutes)), marketCount: [...Object.values(CROP_DEFINITIONS).map(c => c.harvestItemId), ...Object.values(FISH_DEFINITIONS).map(f => f.itemId), "egg" as const].reduce((n,id) => n + this.inventory.count(id), 0), buildings:normalizeBuildings(this.buildings, this.daySerial), farmProgress:normalizeFarmProgress(this.farmProgress), buildingOpen:this.buildingOpen, buildingMode:this.buildingMode, buildingBusy:this.buildingBusy, placeables:normalizePlaceables(this.placeables, worldMinute(this.daySerial, this.timeMinutes)), placing:this.placing, machineOpen:this.machineOpen, machineBusy:this.machineBusy, worldTimeMinute:worldMinute(this.daySerial, this.timeMinutes), storageOpen:this.storageOpen, storageBusy:this.storageBusy, storage:normalizeStorage(this.storage), stats: normalizePlayerStats(this.stats), toolNotice:this.toolNotice, inventoryOpen:this.inventoryOpen, toolProgression: { ...this.toolProgression }, craftingOpen:this.craftingOpen,craftingBusy:this.craftingBusy,craftingItems:this.inventory.serialize().items,villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
+    const relationshipEvents=this.dialogue&&!this.dialogue.eventId?availableRelationshipEvents(personal,this.dialogue.npcId,this.relationshipEventContext()).map(event=>({id:event.id,title:event.title})):[];
+    const hud: HudState = { relationshipEvents,ranchState:this.ranchState, ranchOpen:this.ranchOpen, ranchBusy:this.ranchBusy, buildingDefinitionId:this.buildingDefinitionId, fishingStage: fishingStage(this.fishingCast, worldMinute(this.daySerial, this.timeMinutes)), marketCount: [...Object.values(CROP_DEFINITIONS).map(c => c.harvestItemId), ...Object.values(FISH_DEFINITIONS).map(f => f.itemId), "egg" as const].reduce((n,id) => n + this.inventory.count(id), 0), buildings:normalizeBuildings(this.buildings, this.daySerial), farmProgress:normalizeFarmProgress(this.farmProgress), buildingOpen:this.buildingOpen, buildingMode:this.buildingMode, buildingBusy:this.buildingBusy, placeables:normalizePlaceables(this.placeables, worldMinute(this.daySerial, this.timeMinutes)), placing:this.placing, machineOpen:this.machineOpen, machineBusy:this.machineBusy, worldTimeMinute:worldMinute(this.daySerial, this.timeMinutes), storageOpen:this.storageOpen, storageBusy:this.storageBusy, storage:normalizeStorage(this.storage), stats: normalizePlayerStats(this.stats), toolNotice:this.toolNotice, inventoryOpen:this.inventoryOpen, toolProgression: { ...this.toolProgression }, craftingOpen:this.craftingOpen,craftingBusy:this.craftingBusy,craftingItems:this.inventory.serialize().items,villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: date.day, daySerial:this.daySerial, year: date.year, season: date.season, weather: weatherFor(this.forestScope, this.daySerial).id, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
       transitioning: this.transitioning, shopOpen: this.shopOpen, mapId: this.currentMapId, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));

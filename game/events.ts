@@ -1,5 +1,6 @@
 export type ToolKey = "hoe" | "seed" | "water" | "hand" | "axe" | "pickaxe" | "fishing_rod";
 export interface HudState {
+  relationshipEvents?: { id:string; title:string }[];
   ranchState?: import("./animals/types").RanchState;
   ranchOpen?: string;
   ranchBusy?: boolean;

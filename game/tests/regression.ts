@@ -11,6 +11,7 @@ import "./building-expansion";
 import "./mining-dungeon";
 import "./fishing";
 import "./animals-ranching";
+import "./relationships-events";
 import "./family-rooms";
 import "./editor-graphics";
 import "./environment-assets";
