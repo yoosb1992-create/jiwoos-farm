@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
-import { PLAYER_ASSET, playerAnimationName, type Facing } from "../assets/definitions";
+import { playerAnimationName, type Facing } from "../assets/definitions";
+import { interactionTargetPoint, playerFeetPointFromPosition } from "./interaction";
 
 export class PlayerAnimationController {
   private toolAnimationActive = false;
@@ -27,9 +28,13 @@ export class PlayerAnimationController {
     if ((this.sprite.anims.currentAnim?.frames.length ?? 0) <= 1) this.finishToolAnimation();
   }
 
+  playerFeetPoint() {
+    const body = this.sprite.body as Phaser.Physics.Arcade.Body | null;
+    return body ? { x: body.center.x, y: body.bottom } : playerFeetPointFromPosition(this.sprite);
+  }
+
   interactionPoint(facing: Facing) {
-    const offset = PLAYER_ASSET.interactionPoints[facing];
-    return { x: this.sprite.x + offset.x, y: this.sprite.y + offset.y };
+    return interactionTargetPoint(this.playerFeetPoint(), facing);
   }
 
   private finishToolAnimation() {

@@ -9,8 +9,8 @@ import type { FishingCast, FishingProgress } from "../../game/fishing/types";
 import { DEFAULT_CROP_ID, isCropId, getCropDefinition, isMatureCrop } from "../../game/data/crops";
 import { GENERAL_STORE_LISTINGS } from "../../game/data/shop";
 import { MAP_DEFINITIONS, pointInTileRect } from "../../game/maps/definitions";
-import { PLAYER_ASSET } from "../../game/assets/definitions";
 import { parseFamilyPose } from "../../game/family/personal";
+import { interactionTargetPointFromPosition, playerFeetPointFromPosition } from "../../game/player/interaction";
 import type { FamilyAction, FamilySnapshot, FamilyWorld } from "../../game/family/types";
 import { getRecipe } from "../../game/crafting/definitions";
 import { craft } from "../../game/crafting/engine";
@@ -129,9 +129,9 @@ export class FamilyState extends FamilyRooms {
     if (!isCropId(cropId)) throw new FamilyError(400, "없는 씨앗 종류입니다.");
     const crop = getCropDefinition(cropId);
     const near = (kind: "sleep" | "open_shop" | "craft") => {
-      const offset = PLAYER_ASSET.interactionPoints[pose.facing];
+      const feet = playerFeetPointFromPosition(pose), target = interactionTargetPointFromPosition(pose, pose.facing);
       return (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).some((o) => o.interaction?.action === kind &&
-        (pointInTileRect(pose.x, pose.y, o.interaction.area) || pointInTileRect(pose.x + offset.x, pose.y + offset.y, o.interaction.area)));
+        (pointInTileRect(feet.x, feet.y, o.interaction.area) || pointInTileRect(target.x, target.y, o.interaction.area)));
     };
     if (action.kind === "tool") {
       if (pose.mapId !== "farm" || !Number.isInteger(action.x) || !Number.isInteger(action.y) || !["hoe", "seed", "water", "hand"].includes(action.tool)) throw new FamilyError(400, "올바른 농사 행동이 아닙니다.");
@@ -261,9 +261,9 @@ export class FamilyState extends FamilyRooms {
       stored.money += sellMarketGoods(inventory).earned;
     } else if (action.kind === "storage") {
       const chest = (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).find(o => o.interaction?.action === "storage" && o.interaction.containerId === action.containerId);
-      const offset = PLAYER_ASSET.interactionPoints[pose.facing];
+      const feet = playerFeetPointFromPosition(pose), target = interactionTargetPointFromPosition(pose, pose.facing);
       if (!chest || !chest.interaction ||
-          !(pointInTileRect(pose.x, pose.y, chest.interaction.area) || pointInTileRect(pose.x + offset.x, pose.y + offset.y, chest.interaction.area)) ||
+          !(pointInTileRect(feet.x, feet.y, chest.interaction.area) || pointInTileRect(target.x, target.y, chest.interaction.area)) ||
           Math.hypot(pose.x - chest.position.tileX * GAME_CONFIG.tileSize, pose.y - chest.position.tileY * GAME_CONFIG.tileSize) > 90)
         throw new FamilyError(400, "보관함 가까이에서 이용해 주세요.");
       const storage = normalizeStorage(stored.storage);

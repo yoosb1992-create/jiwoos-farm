@@ -1,4 +1,3 @@
-import { PLAYER_ASSET } from "../assets/definitions";
 import { GAME_CONFIG } from "../config";
 import type { Inventory } from "../domain";
 import { getTileTypeInMap, pointInTileRect, MAP_DEFINITIONS } from "../maps/definitions";
@@ -8,6 +7,7 @@ import type { WeatherId } from "../weather/types";
 import { FISH_BITE_DELAY_MINUTES, FISH_BITE_WINDOW_MINUTES, FISH_DEFINITIONS, FISHING_SPOTS } from "./definitions";
 import type { FishDefinition, FishId, FishingCast, FishingProgress, FishingSpotId } from "./types";
 import type { FamilyPose } from "../family/types";
+import { interactionTargetPointFromPosition, playerFeetPointFromPosition } from "../player/interaction";
 
 export const initialFishingProgress = (): FishingProgress => ({ castSequence: 0, caughtFishIds: [] });
 export function normalizeFishingProgress(value: unknown): FishingProgress {
@@ -33,15 +33,15 @@ export function fishingSpotError(spotId: unknown, pose: Pick<FamilyPose, "mapId"
   const spot = typeof spotId === "string" ? FISHING_SPOTS[spotId as FishingSpotId] : undefined;
   if (!spot || pose.mapId !== spot.mapId) return "이곳에는 낚시터가 없어요.";
   const map = MAP_DEFINITIONS[spot.mapId];
+  const feet = playerFeetPointFromPosition(pose);
   if (pose.selectedTool !== "fishing_rod" || pose.facing !== spot.facing ||
-      !pointInTileRect(pose.x, pose.y, spot.shoreArea)) return "연못 북쪽 물가에서 물을 향해 낚싯대를 사용해 주세요.";
-  const playerTileX = Math.floor(pose.x / GAME_CONFIG.tileSize), playerTileY = Math.floor(pose.y / GAME_CONFIG.tileSize);
-  const offset = PLAYER_ASSET.interactionPoints[pose.facing];
-  const target = { x: pose.x + offset.x, y: pose.y + offset.y };
+      !pointInTileRect(feet.x, feet.y, spot.shoreArea)) return "연못 북쪽 물가에서 물을 향해 낚싯대를 사용해 주세요.";
+  const playerTileX = Math.floor(feet.x / GAME_CONFIG.tileSize), playerTileY = Math.floor(feet.y / GAME_CONFIG.tileSize);
+  const target = interactionTargetPointFromPosition(pose, pose.facing);
   if (!map || getTileTypeInMap(map, playerTileX, playerTileY) === "water" ||
       !pointInTileRect(target.x, target.y, spot.waterArea) ||
       getTileTypeInMap(map, Math.floor(target.x / GAME_CONFIG.tileSize), Math.floor(target.y / GAME_CONFIG.tileSize)) !== "water" ||
-      Math.hypot(target.x - pose.x, target.y - pose.y) > 64) return "물가 가까이에서 물을 향해 던져 주세요.";
+      Math.hypot(target.x - feet.x, target.y - feet.y) > 64) return "물가 가까이에서 물을 향해 던져 주세요.";
   return null;
 }
 export function eligibleFish(spotId: FishingSpotId, daySerial: number, weather: WeatherId, timeMinutes: number): FishDefinition[] {

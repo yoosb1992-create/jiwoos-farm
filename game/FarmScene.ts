@@ -59,6 +59,7 @@ import { installMine } from "./mine/registry";
 import { emptyMineDaily, findMineResource, initialMineProgress, MINE_RESOURCES, mineResourceKind, normalizeMineDaily, normalizeMineProgress, strikeMineNode } from "./mine/resources";
 import type { MineDailyState, MineProgress } from "./mine/types";
 import { PlayerAnimationController } from "./player/PlayerAnimationController";
+import { facingActionPriority } from "./player/interaction";
 import { ToolActionSystem } from "./actions/ToolActionSystem";
 import { TOOL_ACTION_DEFINITIONS } from "./actions/toolActionDefinitions";
 import { facingFromMovement, mergeMovementInput, type MovementVector } from "./input/MovementInput";
@@ -312,14 +313,31 @@ export class FarmScene extends Phaser.Scene {
     const point = this.playerAnimations.interactionPoint(this.facing);
     if (this.buildingMode) { this.buildAt(point.x, point.y); return; }
     if (this.placing) { this.placeAt(point.x, point.y); return; }
+    const toolTarget = this.hasDirectionalToolTarget(point.x, point.y);
+    if (toolTarget) { this.useAtWorld(point.x, point.y); return; }
     if (this.openMachineAt(point.x, point.y)) return;
     if (this.openRanchAt(point.x, point.y)) return;
-    const npc=nearestNpc(this.npcs.sampleWorld(this.daySerial,this.npcTime()),this.familyPose(),this.mapRegistry.require(this.currentMapId));
-    if(npc) { this.openNpcDialogue(npc.npcId); return; }
     const object = this.mapRegistry.require(this.currentMapId).objects.find((entry) => entry.interaction && pointInTileRect(point.x, point.y, entry.interaction.area));
-    if (object?.interaction) { this.performWorldAction(object.interaction.action, object.interaction.containerId); return; }
+    const npc=nearestNpc(this.npcs.sampleWorld(this.daySerial,this.npcTime()),this.familyPose(),this.mapRegistry.require(this.currentMapId));
+    const priority = facingActionPriority({ toolTarget, interactive: Boolean(object?.interaction), npc: Boolean(npc) });
+    if (priority === "interactive" && object?.interaction) { this.performWorldAction(object.interaction.action, object.interaction.containerId); return; }
+    if (priority === "npc" && npc) { this.openNpcDialogue(npc.npcId); return; }
     if (this.selectedTool === "fishing_rod") { this.useFishing(); return; }
     this.useAtWorld(point.x, point.y);
+  }
+
+  private hasDirectionalToolTarget(worldX: number, worldY: number): boolean {
+    if (this.selectedTool === "fishing_rod") return fishingSpotError("farm_pond", this.familyPose()) === null;
+    if (this.currentMapId === FAIRY_FOREST_ID) {
+      const node = findForestResource(this.mapRegistry.require(FAIRY_FOREST_ID), { x: worldX, y: worldY }, this.player);
+      return Boolean(node && resourceKind(node) && FOREST_RESOURCES[resourceKind(node)!].tool === this.selectedTool);
+    }
+    if (mineFloorFromMapId(this.currentMapId) !== null) {
+      return this.selectedTool === "pickaxe" && Boolean(findMineResource(this.mapRegistry.require(this.currentMapId), { x: worldX, y: worldY }, this.player));
+    }
+    if (this.currentMapId !== "farm" || !["hoe", "seed", "water", "hand"].includes(this.selectedTool)) return false;
+    const x = Math.floor(worldX / GAME_CONFIG.tileSize), y = Math.floor(worldY / GAME_CONFIG.tileSize);
+    return this.farm.has(`${x},${y}`);
   }
 
   private async openNpcDialogue(npcId:string) {

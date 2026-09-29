@@ -43,6 +43,7 @@ import { facingFromMovement, mergeMovementInput, normalizeMovement } from "../in
 import { compareDraftFreshness, shouldAdoptCloudDraft } from "../editor/sync";
 import { createPinchStart, updatePinchViewport } from "../editor/viewport";
 import { PlayerAnimationController } from "../player/PlayerAnimationController";
+import { facingActionPriority, interactionTargetTile, playerFeetPointFromPosition } from "../player/interaction";
 import { AssetManager } from "../assets/AssetManager";
 
 const storage = new Map<string, string>();
@@ -211,6 +212,18 @@ const compensatedBox = physicsBoxForScale(PLAYER_ASSET.collisionBox, scaledPlaye
 assert.equal(compensatedBox.width * scaledPlayer.displayScale.x, PLAYER_ASSET.collisionBox.width, "시각 배율이 충돌 폭을 바꾸면 안 됨");
 assert.equal(compensatedBox.height * scaledPlayer.displayScale.y, PLAYER_ASSET.collisionBox.height, "시각 배율이 충돌 높이를 바꾸면 안 됨");
 assert.equal(GAME_CONFIG.playerSpeed, 145, "에셋 scale 변경이 이동 속도 설정에 영향을 주면 안 됨");
+const feetAtTen = { x: 10 * GAME_CONFIG.tileSize + 16, y: 10 * GAME_CONFIG.tileSize + 16 };
+assert.deepEqual(interactionTargetTile(feetAtTen, "up"), { x: 10, y: 9 });
+assert.deepEqual(interactionTargetTile(feetAtTen, "down"), { x: 10, y: 11 });
+assert.deepEqual(interactionTargetTile(feetAtTen, "left"), { x: 9, y: 10 });
+assert.deepEqual(interactionTargetTile(feetAtTen, "right"), { x: 11, y: 10 });
+const physicalFeet = playerFeetPointFromPosition({ x: 10 * 32 + 16, y: 10 * 32 + 3 });
+assert.equal(Math.floor(physicalFeet.y / 32), 10, "발 기준 타일은 스프라이트 중심이 윗행이어도 충돌 박스 하단 행을 유지해야 함");
+assert.deepEqual(interactionTargetTile(physicalFeet, "left"), { x: 9, y: 10 }, "좌우 행동은 발과 같은 행이어야 함");
+assert.deepEqual(interactionTargetTile({ x: 11 * 32 - .001, y: 11 * 32 - .001 }, "right"), { x: 11, y: 10 }, "타일 경계 직전의 발 좌표를 안정적으로 판정해야 함");
+assert.deepEqual(playerFeetPointFromPosition({ x: 100, y: 80 }, { x: 2, y: 1.5 }), { x: 100, y: 99.5 }, "스프라이트 배율이 바뀌어도 authored physics feet를 계산해야 함");
+assert.equal(facingActionPriority({ toolTarget: true, interactive: true, npc: true }), "tool", "앞 밭/도구 대상이 NPC보다 우선해야 함");
+assert.equal(facingActionPriority({ toolTarget: false, interactive: true, npc: true }), "interactive", "앞 상호작용 오브젝트가 근처 NPC보다 우선해야 함");
 assert.equal(TILE_TYPE_DEFINITIONS[getTileTypeAt("farm", 9, 8)].farmable, true);
 assert.equal(TILE_TYPE_DEFINITIONS[getTileTypeAt("farm", 27, 18)].walkable, false);
 assert.deepEqual(Object.keys(MAP_DEFINITIONS), ["farm", "farmhouse", "road", "town", "general_store"]);

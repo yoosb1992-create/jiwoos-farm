@@ -58,10 +58,6 @@ export const PLAYER_ASSET = {
   displayScale: { x: 1, y: 1 },
   origin: { x: 0.5, y: 0.5 },
   collisionBox: { width: 18, height: 22, offsetX: 7, offsetY: 9 },
-  interactionPoints: {
-    up: { x: 0, y: -34 }, down: { x: 0, y: 34 },
-    left: { x: -34, y: 0 }, right: { x: 34, y: 0 },
-  } satisfies Record<Facing, { x: number; y: number }>,
   animations: {
     idle_down: { startFrame: 0, endFrame: 3, fps: 1, repeat: -1 },
     idle_up: { startFrame: 4, endFrame: 7, fps: 1, repeat: -1 },
