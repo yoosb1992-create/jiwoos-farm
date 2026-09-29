@@ -87,6 +87,7 @@ export class FarmScene extends Phaser.Scene {
   private sleepPrompt = false;
   private shopOpen = false;
   private craftingOpen = false;
+  private inventoryOpen = false;
   private craftingBusy = false;
   private transitioning = false;
   private lateNightWarned = false;
@@ -178,7 +179,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private npcTime() { return this.family ? Math.min(GAME_CONFIG.day.endMinutes, this.npcMinute + Math.min(2000, Math.max(0, performance.now()-this.npcClockReceived))/REAL_MS_PER_GAME_MINUTE) : this.timeMinutes + this.timeAccumulator/REAL_MS_PER_GAME_MINUTE; }
-  private isPaused() { return this.journalOpen || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.craftingOpen || this.transitioning; }
+  private isPaused() { return this.inventoryOpen || this.journalOpen || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.craftingOpen || this.transitioning; }
   private advanceClock(delta: number) {
     this.timeAccumulator += delta;
     const elapsed = Math.floor(this.timeAccumulator / REAL_MS_PER_GAME_MINUTE);
@@ -341,6 +342,12 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
+    if (command.type === "inventory-close") { this.inventoryOpen = false; this.virtualMovement = { x: 0, y: 0 }; this.emitHud(); return; }
+    if (command.type === "inventory-open") {
+      if (this.isPaused()) return;
+      this.inventoryOpen = true; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); this.emitHud(); return;
+    }
+    if (this.inventoryOpen && !["move", "save"].includes(command.type)) return;
     if(command.type==="village-open"){
       if(this.dialogue||this.npcRequest)return;
       this.journalOpen=command.value===true;this.virtualMovement={x:0,y:0};
@@ -469,7 +476,7 @@ export class FarmScene extends Phaser.Scene {
     const npcPoses=this.npcs?.sample(this.day,this.npcTime())??[];
     const villagers=NPC_DEFINITIONS.map(n=>{const p=npcPoses.find(p=>p.npcId===n.id),points=personal.relationships[n.id].points;return {id:n.id,name:n.name,points,level:relationshipLevel(points),location:p?this.mapRegistry.get(p.mapId)?.name??"다른 장소":"다른 장소",activity:p?.activity??"휴식"};});
     const step = this.getObjective();
-    const hud: HudState = { toolProgression: { ...this.toolProgression }, craftingOpen:this.craftingOpen,craftingBusy:this.craftingBusy,craftingItems:this.inventory.serialize().items,villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
+    const hud: HudState = { inventoryOpen:this.inventoryOpen, toolProgression: { ...this.toolProgression }, craftingOpen:this.craftingOpen,craftingBusy:this.craftingBusy,craftingItems:this.inventory.serialize().items,villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: this.day, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
       transitioning: this.transitioning, shopOpen: this.shopOpen, mapId: this.currentMapId, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));
