@@ -127,6 +127,7 @@ export class FarmScene extends Phaser.Scene {
   private timeAccumulator = 0;
   private facing: Facing = "down";
   private virtualMovement: MovementVector = { x: 0, y: 0 };
+  private running = false;
   private currentMapId: MapId;
   private readonly mapRegistry: MapRegistry;
   private forestDayInstalled = 0;
@@ -220,7 +221,7 @@ export class FarmScene extends Phaser.Scene {
     if (this.toolNotice && performance.now() >= this.toolNoticeUntil) { this.toolNotice = ""; this.emitHud(); }
     if (!this.family && !this.isPaused()) this.advanceClock(delta);
     this.npcRenderer.update(this.npcs.sampleWorld(this.daySerial, this.npcTime()), this.currentMapId, this.familyPose(), this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), this.mapRegistry.require(this.currentMapId));
-    if (this.isPaused()) { this.player.setVelocity(0, 0); this.playerAnimations.playMovement(this.facing, false); return; }
+    if (this.isPaused()) { this.running = false; this.player.setVelocity(0, 0); this.playerAnimations.playMovement(this.facing, false); return; }
     if (!this.oreHintShown && !this.toolProgression.pickaxe && this.currentMapId === FAIRY_FOREST_ID) {
       const nearOre = this.mapRegistry.require(FAIRY_FOREST_ID).objects.some(o =>
         resourceKind(o) === "ore" && Math.hypot(o.position.tileX * GAME_CONFIG.tileSize - this.player.x, o.position.tileY * GAME_CONFIG.tileSize - this.player.y) <= 60);
@@ -232,7 +233,8 @@ export class FarmScene extends Phaser.Scene {
     };
     const movement = mergeMovementInput(keyboard, this.virtualMovement);
     this.facing = facingFromMovement(movement, this.facing);
-    this.player.setVelocity(movement.x * GAME_CONFIG.playerSpeed, movement.y * GAME_CONFIG.playerSpeed);
+    const movementSpeed = GAME_CONFIG.playerSpeed * (this.running ? 1.65 : 1);
+    this.player.setVelocity(movement.x * movementSpeed, movement.y * movementSpeed);
     this.playerAnimations.playMovement(this.facing, Boolean(movement.x || movement.y));
     if (Phaser.Input.Keyboard.JustDown(this.actionKey)) this.useFacingTile();
     if (Phaser.Input.Keyboard.JustDown(this.wasd.ONE)) this.selectTool("hoe");
@@ -700,6 +702,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
+    if (command.type === "run") { this.running = command.value === true; return; }
     if (command.type === "ui-close") {
       if (this.npcRequest || this.ranchBusy || this.buildingBusy || this.machineBusy || this.storageBusy || this.craftingBusy || this.transitioning) return;
       if (this.dialogue) { this.relationshipEvent = undefined; this.dialogue = undefined; }
