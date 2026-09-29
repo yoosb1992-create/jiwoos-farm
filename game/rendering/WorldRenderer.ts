@@ -13,6 +13,8 @@ import { PLACEABLE_DEFINITIONS } from "../placeables/definitions";
 import type { PlaceableInstance } from "../placeables/types";
 import { BUILDING_DEFINITIONS } from "../buildings/definitions";
 import type { BuildingInstance } from "../buildings/types";
+import type { AnimalInstance } from "../animals/types";
+import { ANIMAL_DEFINITIONS } from "../animals/definitions";
 
 const farmKey = (tile: Pick<FarmTileData, "x" | "y">) => `${tile.x},${tile.y}`;
 
@@ -30,6 +32,8 @@ export class WorldRenderer {
   private placeableSignature = "";
   private readonly buildingViews = new Map<string, { image: Phaser.GameObjects.Image; obstacle: Phaser.GameObjects.Rectangle }>();
   private buildingSignature = "";
+  private readonly animalViews: Phaser.GameObjects.Image[] = [];
+  private animalSignature = "";
   private currentMapId?: MapId;
   constructor(private readonly scene: Phaser.Scene, private readonly maps: MapRegistry) {}
 
@@ -52,7 +56,7 @@ export class WorldRenderer {
   }
 
   destroy() {
-    this.farmViews.clear(); this.forestHitLabels.clear(); this.placeableViews.clear(); this.placeableSignature = ""; this.buildingViews.clear(); this.buildingSignature = ""; this.root?.destroy(true); this.root = undefined;
+    this.farmViews.clear(); this.forestHitLabels.clear(); this.placeableViews.clear(); this.placeableSignature = ""; this.buildingViews.clear(); this.buildingSignature = ""; this.animalViews.length = 0; this.animalSignature = ""; this.root?.destroy(true); this.root = undefined;
     this.obstacles?.clear(true, true); this.obstacles = undefined;
   }
 
@@ -99,6 +103,29 @@ export class WorldRenderer {
       this.buildingViews.set(instance.id, { image, obstacle });
     }
     this.obstacles.refresh();
+  }
+
+  renderAnimals(animals: AnimalInstance[], buildings: BuildingInstance[]) {
+    if (!this.root || !this.currentMapId) return;
+    const homes = new Map(buildings.filter(b => b.mapId === this.currentMapId && b.definitionId === "chicken_coop").map(b => [b.id, b]));
+    const current = animals.filter(a => homes.has(a.homeBuildingId));
+    const signature = JSON.stringify([current.map(a => [a.id, a.homeBuildingId, a.lastFedDaySerial, a.produceReady]), [...homes.keys()]]);
+    if (signature === this.animalSignature) return;
+    for (const view of this.animalViews) this.root.remove(view, true);
+    this.animalViews.length = 0; this.animalSignature = signature;
+    for (const home of homes.values()) {
+      const troughAsset = WORLD_OBJECT_ASSETS.feed_trough;
+      const trough = this.makeImage((home.tileX + .7) * GAME_CONFIG.tileSize, (home.tileY + 3.25) * GAME_CONFIG.tileSize, troughAsset).setDepth(8);
+      this.root.add(trough); this.animalViews.push(trough);
+    }
+    current.forEach((animal, index) => {
+      const home = homes.get(animal.homeBuildingId)!;
+      const sameHome = current.filter(a => a.homeBuildingId === animal.homeBuildingId), homeIndex = sameHome.findIndex(a => a.id === animal.id);
+      const offsets = [{ x: 1.4, y: 3.35 }, { x: 2.2, y: 3.45 }, { x: 3, y: 3.3 }, { x: 2.6, y: 3.9 }];
+      const offset = offsets[homeIndex % offsets.length], asset = WORLD_OBJECT_ASSETS[ANIMAL_DEFINITIONS[animal.species].assetId];
+      const image = this.makeImage((home.tileX + offset.x) * GAME_CONFIG.tileSize, (home.tileY + offset.y) * GAME_CONFIG.tileSize, asset).setDepth(9 + index * .001);
+      this.root!.add(image); this.animalViews.push(image);
+    });
   }
 
   renderForestHits(hits: Record<string, number>) {

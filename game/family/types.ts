@@ -13,10 +13,15 @@ import type { BuildingsData, BuildingId } from "../buildings/types";
 import type { FarmProgress, ExpansionId } from "../farm/expansions";
 import type { MineDailyState, MineProgress } from "../mine/types";
 import type { FishingCast, FishingProgress, FishingSpotId } from "../fishing/types";
+import type { AnimalSpeciesId, RanchState } from "../animals/types";
 export interface FamilyPose extends PlayerData { selectedTool: ToolKey; moving: boolean }
-export interface FamilyWorld { mineProgress?: MineProgress; mineDaily?: MineDailyState; buildings?: BuildingsData; farmProgress?: FarmProgress; placeables?: PlaceablesData; storage?: StorageData; daySerial?:number; forestState?: ForestState; day: number; timeMinutes: number; money: number; farm: FarmTileData[] }
+export interface FamilyWorld { ranchState?: RanchState; mineProgress?: MineProgress; mineDaily?: MineDailyState; buildings?: BuildingsData; farmProgress?: FarmProgress; placeables?: PlaceablesData; storage?: StorageData; daySerial?:number; forestState?: ForestState; day: number; timeMinutes: number; money: number; farm: FarmTileData[] }
 export interface FamilySnapshot { fishingProgress?: FishingProgress; fishingCast?: FishingCast | null; fishingNotice?: string; npcTimeMinutes?: number; toolProgression?: ToolProgression; stats?: PlayerStats; revision: number; serverNow: number; world: FamilyWorld; inventory: InventoryData; sleep?: { waiting: string[]; agreed: number; online: number; voted: boolean } }
 export type FamilyAction =
+  | { kind: "animal-buy"; species: AnimalSpeciesId; homeBuildingId: string; pose: FamilyPose }
+  | { kind: "animal-feed"; homeBuildingId: string; pose: FamilyPose }
+  | { kind: "animal-pet"; animalId: string; pose: FamilyPose }
+  | { kind: "animal-collect"; animalId: string; pose: FamilyPose }
   | { kind: "fish-cast"; spotId: FishingSpotId; pose: FamilyPose }
   | { kind: "fish-reel"; castId: string; pose: FamilyPose }
   | { kind: "build"; definitionId: BuildingId; tileX: number; tileY: number; pose: FamilyPose }

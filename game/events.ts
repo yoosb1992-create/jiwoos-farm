@@ -1,5 +1,9 @@
 export type ToolKey = "hoe" | "seed" | "water" | "hand" | "axe" | "pickaxe" | "fishing_rod";
 export interface HudState {
+  ranchState?: import("./animals/types").RanchState;
+  ranchOpen?: string;
+  ranchBusy?: boolean;
+  buildingDefinitionId?: import("./buildings/types").BuildingId;
   fishingStage?: "idle" | "waiting" | "bite" | "missed";
   marketCount?: number;
   buildings?: import("./buildings/types").BuildingsData;
@@ -38,6 +42,7 @@ export interface HudState {
   message: string;
   progress: number;
   day: number;
+  daySerial?: number;
   year: number;
   season: import("./world/calendar").Season;
   weather: import("./weather/types").WeatherId;

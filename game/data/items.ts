@@ -10,6 +10,8 @@ export const ITEM_DEFINITIONS = {
   fish_crucian: { id: "fish_crucian", name: "붕어", kind: "fish", assetId: "item_fish_crucian" },
   fish_carp: { id: "fish_carp", name: "잉어", kind: "fish", assetId: "item_fish_carp" },
   fish_catfish: { id: "fish_catfish", name: "메기", kind: "fish", assetId: "item_fish_catfish" },
+  animal_feed: { id: "animal_feed", name: "동물 먹이", kind: "resource", assetId: "item_animal_feed", sellPrice: 0 },
+  egg: { id: "egg", name: "달걀", kind: "animal_product", assetId: "item_egg" },
   wood: { id: "wood", name: "나무", kind: "resource", assetId: "item_wood", sellPrice: 0 },
   stone: { id: "stone", name: "돌", kind: "resource", assetId: "item_stone", sellPrice: 0 },
   copper_ore: { id: "copper_ore", name: "구리 광석", kind: "resource", assetId: "item_copper_ore", sellPrice: 0 },

@@ -21,7 +21,7 @@ const tools: { id: EditorTool; label: string; hint: string }[] = [
 ];
 const layerLabels: Record<EditorLayer, string> = { terrain: "지형", objects: "오브젝트", collision: "충돌 영역", farm: "농사 영역", spawn: "시작 위치", warp: "맵 이동", grid: "격자" };
 const tileLabels: Record<TileTypeId, string> = { grass: "잔디", path: "길", water: "물", farm: "농경지", wood_floor: "나무 바닥", stone_floor: "돌 바닥", mine_floor: "광산 바닥", mine_wall: "광산 벽" };
-const objectLabels: Record<WorldObjectAssetId, string> = { house: "집", tree: "나무", forest_rock: "숲 바위", forest_ore: "채광 바위", mine_stone: "광산 바위", mine_copper: "구리 광맥", mine_ladder: "광산 사다리", mine_entrance: "광산 입구", forest_herb: "들풀", forest_moon_mushroom: "달빛버섯", forest_fairy_bloom: "요정꽃", sell_basket: "판매 바구니", store: "상점", bed: "침대", crafting_table: "제작대", storage_chest: "보관 상자", wood_processor: "목재 가공기", work_shed: "작업 창고", shop_counter: "상점 계산대" };
+const objectLabels: Record<WorldObjectAssetId, string> = { chicken_coop: "닭장", chicken: "닭", feed_trough: "먹이통", house: "집", tree: "나무", forest_rock: "숲 바위", forest_ore: "채광 바위", mine_stone: "광산 바위", mine_copper: "구리 광맥", mine_ladder: "광산 사다리", mine_entrance: "광산 입구", forest_herb: "들풀", forest_moon_mushroom: "달빛버섯", forest_fairy_bloom: "요정꽃", sell_basket: "판매 바구니", store: "상점", bed: "침대", crafting_table: "제작대", storage_chest: "보관 상자", wood_processor: "목재 가공기", work_shed: "작업 창고", shop_counter: "상점 계산대" };
 const initialLayers: Record<EditorLayer, boolean> = { terrain: true, objects: true, collision: false, farm: false, spawn: true, warp: true, grid: true };
 const repository = new LocalMapEditorRepository();
 const cloudRepository = new CloudMapEditorRepository();

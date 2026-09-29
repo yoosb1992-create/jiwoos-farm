@@ -6,4 +6,5 @@ export const GENERAL_STORE_LISTINGS: ShopListing[] = [
   { id: "sunpotato_seed", itemId: "sunpotato_seed", name: "햇살감자 씨앗", price: 30, quantity: 1 },
   { id: "heartberry_seed", itemId: "heartberry_seed", name: "하트딸기 씨앗", price: 45, quantity: 1 },
   { id: "morningcarrot_seed", itemId: "morningcarrot_seed", name: "아침당근 씨앗", price: 25, quantity: 1 },
+  { id: "animal_feed", itemId: "animal_feed", name: "동물 먹이", price: 10, quantity: 1 },
 ];

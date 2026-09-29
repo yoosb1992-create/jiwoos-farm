@@ -19,6 +19,8 @@ import { InventoryPanel } from "./components/InventoryPanel";
 import { StoragePanel } from "./components/StoragePanel";
 import { MachinePanel } from "./components/MachinePanel";
 import { BuildingPanel } from "./components/BuildingPanel";
+import { RanchPanel } from "./components/RanchPanel";
+import { BUILDING_DEFINITIONS } from "@/game/buildings/definitions";
 import { FamilyLobby } from "./family/FamilyLobby";
 import { FamilyStatus } from "./family/FamilyStatus";
 import type { FamilySession } from "@/game/family/types";
@@ -116,8 +118,9 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         {hud.inventoryOpen && <InventoryPanel items={hud.craftingItems ?? {}} stats={hud.stats} onClose={() => command("inventory-close")} />}
         {hud.storageOpen && hud.storage && <StoragePanel containerId={hud.storageOpen} storage={hud.storage} items={hud.craftingItems ?? {}} busy={hud.storageBusy ?? false} notice={hud.message} onTransfer={(direction, itemId, quantity) => command("storage-transfer", { direction, itemId, quantity })} onClose={() => command("storage-close")} />}
         {hud.machineOpen && hud.placeables?.instances.find(p => p.id === hud.machineOpen) && <MachinePanel instance={hud.placeables.instances.find(p => p.id === hud.machineOpen)!} now={hud.worldTimeMinute ?? 0} items={hud.craftingItems ?? {}} busy={hud.machineBusy ?? false} notice={hud.message} onStart={() => command("machine-start")} onCollect={() => command("machine-collect")} onRemove={() => command("machine-remove")} onClose={() => command("machine-close")} />}
-        {hud.buildingOpen && <BuildingPanel money={hud.money} items={hud.craftingItems ?? {}} progress={hud.farmProgress ?? { unlocked: [] }} count={hud.buildings?.instances.length ?? 0} busy={hud.buildingBusy ?? false} notice={hud.message} onBuild={() => command("building-mode")} onExpand={() => command("farm-expand")} onClose={() => command("building-close")} />}
-        {hud.buildingMode && <div className="place-hint" role="status">🏠 창고의 왼쪽 위 칸을 누르거나 행동 버튼으로 건설 · {hud.message}</div>}
+        {hud.buildingOpen && <BuildingPanel money={hud.money} items={hud.craftingItems ?? {}} progress={hud.farmProgress ?? { unlocked: [] }} counts={hud.buildings?.instances.reduce<Record<string, number>>((counts, b) => { counts[b.definitionId] = (counts[b.definitionId] ?? 0) + 1; return counts; }, {}) ?? {}} busy={hud.buildingBusy ?? false} notice={hud.message} onBuild={id => command("building-mode", id)} onExpand={() => command("farm-expand")} onClose={() => command("building-close")} />}
+        {hud.ranchOpen && hud.ranchState && <RanchPanel homeBuildingId={hud.ranchOpen} ranch={hud.ranchState} daySerial={hud.daySerial ?? hud.day} money={hud.money} items={hud.craftingItems ?? {}} busy={hud.ranchBusy ?? false} notice={hud.message} onBuy={() => command("animal-buy")} onFeed={() => command("animal-feed")} onPet={id => command("animal-pet", id)} onCollect={id => command("animal-collect", id)} onClose={() => command("ranch-close")} />}
+        {hud.buildingMode && <div className="place-hint" role="status">🏠 {BUILDING_DEFINITIONS[hud.buildingDefinitionId ?? "work_shed"].name}의 왼쪽 위 칸을 누르거나 행동 버튼으로 건설 · {hud.message}</div>}
         {hud.placing && <div className="place-hint" role="status">⚙ 가까운 빈 땅을 누르거나 행동 버튼으로 배치 · {hud.message}</div>}
         {hud.selectedTool === "fishing_rod" && !hud.placing && !hud.buildingMode && <div className="place-hint" role="status">🎣 {hud.fishingStage === "waiting" ? "기다리는 중… 입질이 오면 행동 버튼" : hud.fishingStage === "bite" ? "입질! 지금 행동 버튼으로 당기세요" : hud.fishingStage === "missed" ? "입질을 놓쳤어요. 행동 버튼으로 정리하세요" : "농장 연못 북쪽 물가에서 물을 향해 행동 버튼"}</div>}
         {hud.transitioning && <div className="night-fade"><span>하루를 마무리합니다…</span></div>}

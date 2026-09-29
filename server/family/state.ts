@@ -29,6 +29,7 @@ import { FamilyError, FamilyRooms } from "./rooms";
 import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeForestState, resourceKind, strikeForestNode, validForestNodeId } from "../../game/forest/resources";
 import { generateMineFloor, MINE_PLAYABLE_FLOORS, mineMapId } from "../../game/mine/generation";
 import { emptyMineDaily, initialMineProgress, mineResourceKind, normalizeMineDaily, normalizeMineProgress, strikeMineNode } from "../../game/mine/resources";
+import { advanceRanchDay, buyAnimal, collectAnimalProduce, feedCoop, initialRanchState, normalizeRanchState, petAnimal } from "../../game/animals/system";
 
 interface StoredWorld extends FamilyWorld { clockAnchor: number; sleepVotes?: string[]; sleepSessions?: Record<string, string> }
 interface StateRow { revision: number; world_json: string; inventories_json: string }
@@ -40,6 +41,7 @@ export const initialFamilyWorld = (now: number): StoredWorld => ({
   storage: initialStorage(),
   placeables: initialPlaceables(),
   buildings: initialBuildings(), farmProgress: initialFarmProgress(),
+  ranchState: initialRanchState(),
   farm: MAP_DEFINITIONS.farm.farmAreas.flatMap((area) => Array.from({ length: area.endY - area.startY + 1 }, (_, j) =>
     Array.from({ length: area.endX - area.startX + 1 }, (_, i) => ({ x: area.startX + i, y: area.startY + j, tilled: false, wateredToday: false, cropType: null, cropStage: null, plantedDay: null }))).flat()),
 });
@@ -47,7 +49,8 @@ function currentWorld(stored: StoredWorld, now: number, roomId: string): FamilyW
   // Older room JSON has no weather field; derive rain for the current day on read.
   waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
   const timeMinutes = Math.min(GAME_CONFIG.day.endMinutes, stored.timeMinutes + Math.floor(Math.max(0, now - stored.clockAnchor) / GAME_CONFIG.day.realMsPerGameMinute));
-  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), mineProgress: normalizeMineProgress(stored.mineProgress), mineDaily: normalizeMineDaily(stored.mineDaily, stored.daySerial ?? stored.day, roomId), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), buildings: normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day), farmProgress: normalizeFarmProgress(stored.farmProgress), money: stored.money, farm: stored.farm,
+  const buildings = normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day);
+  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), mineProgress: normalizeMineProgress(stored.mineProgress), mineDaily: normalizeMineDaily(stored.mineDaily, stored.daySerial ?? stored.day, roomId), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), buildings, ranchState: normalizeRanchState(stored.ranchState, buildings), farmProgress: normalizeFarmProgress(stored.farmProgress), money: stored.money, farm: stored.farm,
     timeMinutes };
 }
 export class FamilyState extends FamilyRooms {
@@ -69,9 +72,12 @@ export class FamilyState extends FamilyRooms {
   private nextDay(stored: StoredWorld, roomId: string, inventories: Record<string, FamilyInventory>) {
     waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
     advanceFarmDay(stored.farm);
-    stored.daySerial = (stored.daySerial ?? stored.day) + 1;
+    const previousDaySerial = stored.daySerial ?? stored.day;
+    stored.daySerial = previousDaySerial + 1;
     stored.day = calendarDate(stored.daySerial).day;
     stored.buildings = normalizeBuildings(stored.buildings, stored.daySerial);
+    stored.ranchState = normalizeRanchState(stored.ranchState, stored.buildings);
+    advanceRanchDay(stored.ranchState, previousDaySerial, stored.daySerial);
     stored.placeables = normalizePlaceables(stored.placeables, worldMinute(stored.daySerial, GAME_CONFIG.day.startMinutes));
     waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial));
     stored.forestState = emptyForestState(stored.daySerial);
@@ -264,6 +270,32 @@ export class FamilyState extends FamilyRooms {
       const error = transferItem(inventory, storage, action.containerId, action.direction, action.itemId, action.quantity);
       if (error) throw new FamilyError(409, error);
       stored.storage = storage;
+    } else if (action.kind === "animal-buy" || action.kind === "animal-feed" || action.kind === "animal-pet" || action.kind === "animal-collect") {
+      const buildings = normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day);
+      const ranch = normalizeRanchState(stored.ranchState, buildings);
+      const animal = "animalId" in action ? ranch.animals.find(a => a.id === action.animalId) : undefined;
+      const homeId = "homeBuildingId" in action ? action.homeBuildingId : animal?.homeBuildingId;
+      const home = buildings.instances.find(b => b.id === homeId && b.definitionId === "chicken_coop" && b.status === "ready");
+      if (!home || pose.mapId !== home.mapId) throw new FamilyError(400, "완성된 닭장 가까이에서 돌봐 주세요.");
+      const definition = BUILDING_DEFINITIONS[home.definitionId];
+      const centerX = (home.tileX + definition.footprint.width / 2) * GAME_CONFIG.tileSize;
+      const centerY = (home.tileY + definition.footprint.height / 2) * GAME_CONFIG.tileSize;
+      if (Math.hypot(pose.x - centerX, pose.y - centerY) > 150) throw new FamilyError(400, "닭장 가까이에서 돌봐 주세요.");
+      if (action.kind === "animal-buy") {
+        const result = buyAnimal(ranch, buildings, stored.money, action.species, home.id, crypto.randomUUID(), stored.daySerial ?? stored.day);
+        if (result.error) throw new FamilyError(409, result.error);
+        stored.money = result.money;
+      } else if (action.kind === "animal-feed") {
+        const error = feedCoop(ranch, buildings, inventory, home.id, stored.daySerial ?? stored.day);
+        if (error) throw new FamilyError(409, error);
+      } else if (action.kind === "animal-pet") {
+        const error = petAnimal(ranch, action.animalId, stored.daySerial ?? stored.day);
+        if (error) throw new FamilyError(409, error);
+      } else {
+        const error = collectAnimalProduce(ranch, inventory, action.animalId);
+        if (error) throw new FamilyError(409, error);
+      }
+      stored.ranchState = ranch;
     } else if (action.kind === "farm-expand") {
       const expansion = typeof action.expansionId === "string" ? FARM_EXPANSIONS[action.expansionId as keyof typeof FARM_EXPANSIONS] : undefined;
       if (!expansion || pose.mapId !== "farm" || Math.hypot(pose.x - (expansion.area.startX + expansion.area.endX + 1) * GAME_CONFIG.tileSize / 2,

@@ -25,6 +25,8 @@ import { normalizeMineDaily, normalizeMineProgress } from "./mine/resources";
 import type { MineDailyState, MineProgress } from "./mine/types";
 import { normalizeFishingProgress } from "./fishing/system";
 import type { FishingProgress } from "./fishing/types";
+import { normalizeRanchState } from "./animals/system";
+import type { RanchState } from "./animals/types";
 
 export interface FarmTileData {
   x: number;
@@ -38,6 +40,7 @@ export interface FarmTileData {
 export interface InventoryData { items: Partial<Record<ItemId, number>> }
 export interface PlayerData { x: number; y: number; facing: Facing; mapId: MapId }
 export interface SaveData {
+  ranchState?: RanchState;
   fishingProgress?: FishingProgress;
   mineProgress?: MineProgress;
   mineDaily?: MineDailyState;
@@ -163,13 +166,15 @@ const normalizeV4 = (value: unknown): SaveData | null => {
     y: finiteNumber(rawPlayer.y, fallbackPlayer.y),
     facing: isFacing(rawPlayer.facing) ? rawPlayer.facing : fallbackPlayer.facing,
   };
+  const buildings = normalizeBuildings(value.buildings, daySerial);
   return {
     version: 4,
     stats: normalizePlayerStats(value.stats),
     fishingProgress: normalizeFishingProgress(value.fishingProgress),
     storage: normalizeStorage(value.storage),
     placeables: normalizePlaceables(value.placeables, worldMinute(daySerial, timeMinutes)),
-    buildings: normalizeBuildings(value.buildings, daySerial),
+    buildings,
+    ranchState: normalizeRanchState(value.ranchState, buildings),
     farmProgress: normalizeFarmProgress(value.farmProgress),
     mineProgress: normalizeMineProgress(value.mineProgress),
     mineDaily: normalizeMineDaily(value.mineDaily, daySerial, "single"),

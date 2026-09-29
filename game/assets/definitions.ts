@@ -117,6 +117,9 @@ export const WORLD_OBJECT_ASSETS = {
   storage_chest: { assetId: "storage_chest", textureKey: "furniture-storage-chest", source: { kind: "image", path: "/assets/objects/storage-chest.png" }, frameSize: { width: 64, height: 48 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xb77843, stroke: 0x38261f } },
   wood_processor: { assetId: "wood_processor", textureKey: "world-wood-processor", source: { kind: "image", path: "/assets/objects/wood-processor.png" }, frameSize: { width: 40, height: 42 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xa87543, stroke: 0x41352b } },
   work_shed: { assetId: "work_shed", textureKey: "building-work-shed", source: { kind: "image", path: "/assets/objects/work-shed.png" }, frameSize: { width: 96, height: 96 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xc99459, stroke: 0x543d2a } },
+  chicken_coop: { assetId: "chicken_coop", textureKey: "building-chicken-coop", source: { kind: "image", path: "/assets/objects/chicken-coop.png" }, frameSize: { width: 128, height: 96 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xd5a25f, stroke: 0x593b28 } },
+  chicken: { assetId: "chicken", textureKey: "animal-chicken", source: { kind: "image", path: "/assets/objects/chicken.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xf3ead4, stroke: 0x7c5140 } },
+  feed_trough: { assetId: "feed_trough", textureKey: "animal-feed-trough", source: { kind: "image", path: "/assets/objects/feed-trough.png" }, frameSize: { width: 40, height: 24 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x9c7042, stroke: 0x503522 } },
   shop_counter: { assetId: "shop_counter", textureKey: "furniture-shop-counter", source: { kind: "image", path: "/assets/objects/shop-counter.png" }, frameSize: { width: 224, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x9c6543, stroke: 0x60402f } },
 } as const;
 export type WorldObjectAssetId = keyof typeof WORLD_OBJECT_ASSETS;
@@ -159,6 +162,8 @@ export const ITEM_ASSETS = {
   item_fish_crucian: itemAsset("item_fish_crucian", "item-fish-crucian", "🐟", { kind: "image", path: "/assets/items/fish-crucian.png" }),
   item_fish_carp: itemAsset("item_fish_carp", "item-fish-carp", "🐟", { kind: "image", path: "/assets/items/fish-carp.png" }),
   item_fish_catfish: itemAsset("item_fish_catfish", "item-fish-catfish", "🐟", { kind: "image", path: "/assets/items/fish-catfish.png" }),
+  item_animal_feed: itemAsset("item_animal_feed", "item-animal-feed", "▧", { kind: "image", path: "/assets/items/animal-feed.png" }),
+  item_egg: itemAsset("item_egg", "item-egg", "🥚", { kind: "image", path: "/assets/items/egg.png" }),
   item_wood: itemAsset("item_wood", "item-wood", "▰", { kind: "image", path: "/assets/items/wood.png" }),
   item_stone: itemAsset("item_stone", "item-stone", "◆", { kind: "image", path: "/assets/items/stone.png" }),
   item_copper_ore: itemAsset("item_copper_ore", "item-copper-ore", "◆", { kind: "image", path: "/assets/items/copper-ore.png" }),

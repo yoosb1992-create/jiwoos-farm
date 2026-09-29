@@ -7,7 +7,7 @@ import { nextLevelExperience } from "@/game/skills/progression";
 import type { SkillId } from "@/game/skills/types";
 
 const carriedItems = (Object.keys(ITEM_DEFINITIONS) as ItemId[]).filter(id =>
-  ["seed", "crop", "resource", "material", "placeable", "fish"].includes(ITEM_DEFINITIONS[id].kind) && id !== "seed");
+  ["seed", "crop", "resource", "material", "placeable", "fish", "animal_product"].includes(ITEM_DEFINITIONS[id].kind) && id !== "seed");
 
 export function InventoryPanel({ items, stats, onClose }: { items: Partial<Record<ItemId, number>>; stats: PlayerStats; onClose: () => void }) {
   const visible = carriedItems.filter(id => (items[id] ?? 0) > 0);
