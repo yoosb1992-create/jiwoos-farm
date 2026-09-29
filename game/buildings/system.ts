@@ -1,7 +1,7 @@
 import { GAME_CONFIG } from "../config";
 import type { FarmTileData, Inventory } from "../domain";
 import { FARM_EXPANSIONS, inside } from "../farm/expansions";
-import { getTileTypeInMap, TILE_TYPE_DEFINITIONS } from "../maps/definitions";
+import { getTileTypeInMap, MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS } from "../maps/definitions";
 import type { MapDefinition } from "../maps/types";
 import { PLACEABLE_DEFINITIONS } from "../placeables/definitions";
 import type { PlaceablesData } from "../placeables/types";
@@ -22,6 +22,8 @@ export function normalizeBuildings(value: unknown, daySerial: number): Buildings
       typeof b.mapId !== "string" || !BUILDING_DEFINITIONS[b.definitionId].maps.includes(b.mapId) ||
       !Number.isSafeInteger(b.tileX) || (b.tileX as number) < 0 || !Number.isSafeInteger(b.tileY) || (b.tileY as number) < 0 ||
       !Number.isSafeInteger(b.startedDaySerial) || (b.startedDaySerial as number) < 1 || !Number.isSafeInteger(b.readyDaySerial) || (b.readyDaySerial as number) < (b.startedDaySerial as number)) continue;
+    const map = MAP_DEFINITIONS[b.mapId], footprint = BUILDING_DEFINITIONS[b.definitionId].footprint;
+    if (!map || (b.tileX as number) + footprint.width > map.width || (b.tileY as number) + footprint.height > map.height) continue;
     instances.push({ id: b.id, definitionId: b.definitionId, mapId: b.mapId, tileX: b.tileX as number, tileY: b.tileY as number,
       status: daySerial >= (b.readyDaySerial as number) ? "ready" : "constructing", startedDaySerial: b.startedDaySerial as number,
       readyDaySerial: b.readyDaySerial as number, upgradeLevel: Number.isSafeInteger(b.upgradeLevel) && (b.upgradeLevel as number) >= 1 ? b.upgradeLevel as number : 1 });

@@ -12,6 +12,7 @@ import "./mining-dungeon";
 import "./fishing";
 import "./animals-ranching";
 import "./relationships-events";
+import "./integration-2.0";
 import "./family-rooms";
 import "./editor-graphics";
 import "./environment-assets";

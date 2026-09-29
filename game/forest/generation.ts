@@ -62,9 +62,10 @@ export function safeForestPosition(map: MapDefinition, x: number, y: number): bo
   return true;
 }
 
-export function recoverForestPosition(map: MapDefinition, position: { x: number; y: number } | undefined) {
+export function recoverForestPosition(map: MapDefinition, position: { x: number; y: number } | undefined,
+  fallback = { x: FOREST_ENTRY.tileX * GAME_CONFIG.tileSize, y: FOREST_ENTRY.tileY * GAME_CONFIG.tileSize }) {
   if (position && safeForestPosition(map, position.x, position.y)) return position;
-  return { x: FOREST_ENTRY.tileX * GAME_CONFIG.tileSize, y: FOREST_ENTRY.tileY * GAME_CONFIG.tileSize };
+  return fallback;
 }
 
 /** The reserved two-tile corridors and clearings precede obstacle placement. */

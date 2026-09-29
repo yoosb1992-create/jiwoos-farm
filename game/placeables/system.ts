@@ -1,7 +1,6 @@
 import type { Inventory } from "../domain";
 import { GAME_CONFIG } from "../config";
-import { getTileTypeInMap } from "../maps/definitions";
-import { TILE_TYPE_DEFINITIONS } from "../maps/definitions";
+import { getTileTypeInMap, MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS } from "../maps/definitions";
 import type { MapDefinition } from "../maps/types";
 import { advanceMachine, idleMachine, normalizeMachine } from "../machines/system";
 import { isPlaceableId, PLACEABLE_DEFINITIONS } from "./definitions";
@@ -24,6 +23,8 @@ export function normalizePlaceables(value: unknown, now?: number): PlaceablesDat
     const entry = candidate as Partial<PlaceableInstance>;
     if (!entry || typeof entry !== "object" || !isPlaceableId(entry.definitionId) || typeof entry.id !== "string" || !entry.id || entry.id.length > 80 || ids.has(entry.id) ||
         typeof entry.mapId !== "string" || !PLACEABLE_DEFINITIONS[entry.definitionId].maps.includes(entry.mapId) || !safeTile(entry.tileX) || !safeTile(entry.tileY)) continue;
+    const map = MAP_DEFINITIONS[entry.mapId], footprint = PLACEABLE_DEFINITIONS[entry.definitionId].footprint;
+    if (!map || entry.tileX + footprint.width > map.width || entry.tileY + footprint.height > map.height) continue;
     const machine = normalizeMachine(entry.state?.machine);
     if (now !== undefined) {
       if (machine.status === "ready" && machine.completesAt !== null && machine.completesAt > now) machine.status = "processing";

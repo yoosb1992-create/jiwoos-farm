@@ -282,7 +282,8 @@ export class FarmScene extends Phaser.Scene {
     this.obstacleCollider = this.physics.add.collider(this.player, this.obstacles);
     const spawn = map.spawns.find((entry) => entry.id === spawnId) ?? map.spawns[0];
     if (position) {
-      const safe = mapId === FAIRY_FOREST_ID ? recoverForestPosition(map, position) : mineFloor !== null ? recoverMinePosition(map, position) : position;
+      const fallback = tilePoint(spawn.tileX, spawn.tileY);
+      const safe = mineFloor !== null ? recoverMinePosition(map, position) : recoverForestPosition(map, position, fallback);
       this.player.setPosition(Phaser.Math.Clamp(safe.x, GAME_CONFIG.tileSize, width - GAME_CONFIG.tileSize), Phaser.Math.Clamp(safe.y, GAME_CONFIG.tileSize, height - GAME_CONFIG.tileSize));
       this.facing = position.facing;
     }
@@ -699,6 +700,22 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
+    if (command.type === "ui-close") {
+      if (this.npcRequest || this.ranchBusy || this.buildingBusy || this.machineBusy || this.storageBusy || this.craftingBusy || this.transitioning) return;
+      if (this.dialogue) { this.relationshipEvent = undefined; this.dialogue = undefined; }
+      else if (this.journalOpen) this.journalOpen = false;
+      else if (this.ranchOpen) this.ranchOpen = undefined;
+      else if (this.buildingOpen) this.buildingOpen = false;
+      else if (this.machineOpen) this.machineOpen = undefined;
+      else if (this.storageOpen) this.storageOpen = undefined;
+      else if (this.inventoryOpen) this.inventoryOpen = false;
+      else if (this.craftingOpen) this.craftingOpen = false;
+      else if (this.shopOpen) this.shopOpen = false;
+      else if (this.sleepPrompt) this.sleepPrompt = false;
+      else if (this.buildingMode) { this.buildingMode = false; this.buildPreview?.setVisible(false); }
+      else if (this.placing) this.placing = false;
+      this.virtualMovement = { x: 0, y: 0 }; this.emitHud(); return;
+    }
     if (command.type === "ranch-close") { if (!this.ranchBusy) { this.ranchOpen = undefined; this.emitHud(); } return; }
     if (command.type === "animal-buy" || command.type === "animal-feed") { this.ranchAction(command.type); return; }
     if ((command.type === "animal-pet" || command.type === "animal-collect") && typeof command.value === "string") { this.ranchAction(command.type, command.value); return; }
@@ -737,8 +754,9 @@ export class FarmScene extends Phaser.Scene {
     if (this.inventoryOpen && !["move", "save"].includes(command.type)) return;
     if (this.machineOpen && !["move", "save"].includes(command.type)) return;
     if(command.type==="village-open"){
-      if(this.dialogue||this.npcRequest)return;
-      this.journalOpen=command.value===true;this.virtualMovement={x:0,y:0};
+      const opening=command.value===true;
+      if(this.dialogue||this.npcRequest||(opening&&this.isPaused()))return;
+      this.journalOpen=opening;this.virtualMovement={x:0,y:0};
       if(this.journalOpen&&this.family)void this.family.loadProgress().then(()=>{if(this.sceneLive)this.emitHud();}).catch(()=>{if(this.sceneLive)this.say("주민 기록을 불러올 수 없어요. 연결 후 다시 열어 주세요.");});
       this.emitHud();return;
     }

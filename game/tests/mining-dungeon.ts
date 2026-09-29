@@ -35,8 +35,9 @@ for (const floor of [1, 2, 3, 4, 5]) {
   assert.ok(safeForestPosition(map, 11.5 * 32, 15.5 * 32));
   assert.ok(safeForestPosition(map, 11.5 * 32, 3.5 * 32));
   assert.equal(TILE_TYPE_DEFINITIONS[getTileTypeInMap(map, 11, 8)].walkable, true, "central corridor remains open");
-  assert.equal(map.warps.length, 2);
+  assert.equal(map.warps.length, floor === MINE_PLAYABLE_FLOORS ? 1 : 2);
   assert.equal(map.warps[0].targetMapId, floor === 1 ? "road" : mineMapId(floor - 1));
+  assert.equal(map.warps.some(warp => warp.targetMapId === mineMapId(6)), false, "terminal floor cannot reference a missing map");
   assert.ok(map.objects.some(o => mineResourceKind(o) === "stone"));
   assert.ok(map.objects.some(o => mineResourceKind(o) === "copper"));
 }
@@ -48,8 +49,9 @@ assert.ok(registry.require("road").warps.some(w => w.id === "to_mine"));
 assert.ok(registry.require("road").warps.some(w => w.id === "to_fairy_forest"));
 assert.ok(registry.require("fairy_forest"));
 assert.equal(registry.require("road").spawns.find(s => s.id === "mine_return")?.tileX, 8.5);
-assert.ok(safeForestPosition(registry.require("road"), 8.5 * 32, 7 * 32));
-assert.ok(safeForestPosition(registry.require("road"), 6.5 * 32, 6.5 * 32));
+assert.equal(registry.require("road").spawns.find(s => s.id === "mine_return")?.tileY, 10.5);
+assert.ok(safeForestPosition(registry.require("road"), 8.5 * 32, 10.5 * 32));
+assert.ok(safeForestPosition(registry.require("road"), 6.5 * 32, 10.5 * 32));
 assert.equal(findMineResource(first, { x: gate(1).position.tileX * 32, y: gate(1).position.tileY * 32 }, { x: 0, y: 0 }), undefined);
 let daily = emptyMineDaily(1), progress = initialMineProgress();
 const stats = initialPlayerStats(), tools = { axe: 1, pickaxe: 1 }, locked = { ...tools, pickaxe: 0 };

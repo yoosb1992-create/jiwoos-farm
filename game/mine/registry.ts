@@ -8,11 +8,12 @@ export function installMine(registry: MapRegistry, scope: string, daySerial: num
   if (!registry.has("road")) return false;
   const maps = registry.snapshot(), state = normalizeMineDaily(daily, daySerial, scope);
   if (!maps.road.warps.some(w => w.id === "to_mine")) {
-    // The road's west bank has water through x=4; x=6..8,y=6..7 is clear grass.
-    maps.road.terrainRegions.push({ startX: 6, endX: 8, startY: 6, endY: 7, tileType: "path" });
-    maps.road.warps.push({ id: "to_mine", area: { startX: 6, endX: 7, startY: 6, endY: 7 }, targetMapId: mineMapId(1), targetSpawnId: "entry" });
-    maps.road.spawns.push({ id: "mine_return", tileX: 8.5, tileY: 7, facing: "right" });
-    maps.road.objects.push({ id: "mine_gate", assetId: "mine_entrance", position: { tileX: 6.5, tileY: 5.2 }, label: "광산 ↖", depth: 4 });
+    // The west bank has water through x=4. This lower clearing also avoids Boram's
+    // x=7,y=7 route and Soli's x=7,y=4..9 road schedule.
+    maps.road.terrainRegions.push({ startX: 6, endX: 8, startY: 10, endY: 11, tileType: "path" });
+    maps.road.warps.push({ id: "to_mine", area: { startX: 6, endX: 7, startY: 10, endY: 11 }, targetMapId: mineMapId(1), targetSpawnId: "entry" });
+    maps.road.spawns.push({ id: "mine_return", tileX: 8.5, tileY: 10.5, facing: "right" });
+    maps.road.objects.push({ id: "mine_gate", assetId: "mine_entrance", position: { tileX: 6.5, tileY: 9.2 }, label: "광산 ↙", depth: 4 });
   }
   for (let floor = 1; floor <= MINE_PLAYABLE_FLOORS; floor++) {
     const map = generateMineFloor(scope, daySerial, floor), depleted = state.floors[floor]?.depleted ?? [];

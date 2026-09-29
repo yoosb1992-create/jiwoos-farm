@@ -93,6 +93,18 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
     command("help", next ? "open" : "close");
   };
 
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      if (showHelp) { setShowHelp(false); command("help", "close"); }
+      else if (mobileMenuOpen) setMobileMenuOpen(false);
+      else command("ui-close");
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [command, mobileMenuOpen, showHelp]);
+
   return (
     <main className={`game-shell${family ? " family-playing" : ""}`}>
       <section className="game-frame" aria-label="지우네 농장 게임">

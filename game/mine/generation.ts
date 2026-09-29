@@ -56,7 +56,9 @@ export function generateMineFloor(scope: string, daySerial: number, floor: numbe
     spawns: [{ id: "entry", ...MINE_ENTRY }, { id: "near_ladder", tileX: 11.5, tileY: 4.5, facing: "up" }],
     warps: [
       { id: "mine_exit", area: area(10, 13, 16, 16), targetMapId: floor === 1 ? "road" : mineMapId(floor - 1), targetSpawnId: floor === 1 ? "mine_return" : "near_ladder" },
-      { id: "mine_down", area: area(11, 12, 2, 3), targetMapId: mineMapId(floor + 1), targetSpawnId: "entry" },
+      ...(floor < MINE_PLAYABLE_FLOORS
+        ? [{ id: "mine_down", area: area(11, 12, 2, 3), targetMapId: mineMapId(floor + 1), targetSpawnId: "entry" }]
+        : []),
     ], boundary: { enabled: true },
   };
   for (const spawn of map.spawns) if (!safeForestPosition(map, spawn.tileX * GAME_CONFIG.tileSize, spawn.tileY * GAME_CONFIG.tileSize)) throw new Error("Blocked mine spawn");
