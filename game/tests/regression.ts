@@ -295,6 +295,7 @@ import "./family-forest";
 import "./crafting";
 import "./crafting-interface";
 import "./family-crafting";
+import "./tool-progression";
 
 import "./spring-crops";
 

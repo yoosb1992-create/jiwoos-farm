@@ -43,7 +43,7 @@ export class FamilyProgress extends FamilyRooms {
   }catch(error){throw new FamilyError(409,error instanceof Error?error.message:"의뢰를 확인해 주세요.");}
   // Both tables change in one D1 batch transaction. A unique receipt ties the world
   // update to this exact successful progress CAS, including concurrent retries.
-  const receipt=crypto.randomUUID();inventories[member.playerId]=inventory.serialize();
+  const receipt=crypto.randomUUID();inventories[member.playerId]={...inventories[member.playerId],...inventory.serialize()};
   const progressWrite=this.db.prepare(`UPDATE family_player_progress SET progress_json=?, revision=revision+1, updated_at=? WHERE player_id=? AND revision=? AND EXISTS (SELECT 1 FROM family_state WHERE room_id=? AND revision=?)`)
    .bind(JSON.stringify({...progress.data,_mutation:receipt}),this.now(),member.playerId,expectedRevision,roomId,snapshot.revision);
   const changesWorld=action.kind==="quest-deliver"||action.kind==="quest-reward";

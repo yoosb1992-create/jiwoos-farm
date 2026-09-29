@@ -9,11 +9,14 @@ import { parseFamilyPose } from "../../game/family/personal";
 import type { FamilyAction, FamilySnapshot, FamilyWorld } from "../../game/family/types";
 import { getRecipe } from "../../game/crafting/definitions";
 import { craft } from "../../game/crafting/engine";
+import { normalizeToolProgression } from "../../game/tools/progression";
+import type { ToolProgression } from "../../game/tools/types";
 import { FamilyError, FamilyRooms } from "./rooms";
 import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeForestState, resourceKind, strikeForestNode, validForestNodeId } from "../../game/forest/resources";
 
 interface StoredWorld extends FamilyWorld { clockAnchor: number; sleepVotes?: string[]; sleepSessions?: Record<string, string> }
 interface StateRow { revision: number; world_json: string; inventories_json: string }
+type FamilyInventory = InventoryData & { toolProgression?: ToolProgression };
 export const initialFamilyWorld = (now: number): StoredWorld => ({
   day: 1, daySerial: 1, timeMinutes: GAME_CONFIG.day.startMinutes, clockAnchor: now, money: GAME_CONFIG.startingMoney,
   forestState: emptyForestState(1),
@@ -33,9 +36,9 @@ export class FamilyState extends FamilyRooms {
     return row;
   }
   private snapshot(row: StateRow, playerId: string): FamilySnapshot {
-    const inventories = JSON.parse(row.inventories_json) as Record<string, InventoryData>;
+    const inventories = JSON.parse(row.inventories_json) as Record<string, FamilyInventory>;
     const clock = JSON.parse(row.world_json) as StoredWorld;
-    return { npcTimeMinutes: Math.min(GAME_CONFIG.day.endMinutes, clock.timeMinutes + Math.max(0, this.now()-clock.clockAnchor)/GAME_CONFIG.day.realMsPerGameMinute), revision: row.revision, serverNow: this.now(), world: currentWorld(JSON.parse(row.world_json), this.now()), inventory: inventories[playerId] ?? new Inventory().serialize() };
+    return { npcTimeMinutes: Math.min(GAME_CONFIG.day.endMinutes, clock.timeMinutes + Math.max(0, this.now()-clock.clockAnchor)/GAME_CONFIG.day.realMsPerGameMinute), revision: row.revision, serverNow: this.now(), world: currentWorld(JSON.parse(row.world_json), this.now()), inventory: inventories[playerId] ?? new Inventory().serialize(), toolProgression: normalizeToolProgression(inventories[playerId]?.toolProgression) };
   }
   private async online(roomId: string) {
     return (await this.db.prepare(`SELECT m.player_id AS playerId, m.nickname, p.session_id AS sessionId FROM family_members m JOIN family_presence p ON p.room_id = m.room_id AND p.user_id = m.user_id WHERE m.room_id = ? AND p.last_seen > ?`).bind(roomId, this.now() - FAMILY_PRESENCE_TTL_MS).all<{playerId: string; nickname: string; sessionId?: string}>()).results;
@@ -72,8 +75,9 @@ export class FamilyState extends FamilyRooms {
     const conflict = async () => new FamilyError(409, "다른 가족의 변경을 받았습니다. 상태를 확인한 뒤 다시 행동해 주세요.", { snapshot: await this.read(userId, roomId) });
     if (row.revision !== expectedRevision) throw await conflict();
     const stored = JSON.parse(row.world_json) as StoredWorld;
-    const inventories = JSON.parse(row.inventories_json) as Record<string, InventoryData>;
+    const inventories = JSON.parse(row.inventories_json) as Record<string, FamilyInventory>;
     const inventory = new Inventory(inventories[member.playerId]);
+    const toolProgression = normalizeToolProgression(inventories[member.playerId]?.toolProgression);
     const cropId = action.kind === "tool" && action.tool === "seed" ? action.cropId ?? DEFAULT_CROP_ID : DEFAULT_CROP_ID;
     if (!isCropId(cropId)) throw new FamilyError(400, "없는 씨앗 종류입니다.");
     const crop = getCropDefinition(cropId);
@@ -139,7 +143,7 @@ export class FamilyState extends FamilyRooms {
     } else if (action.kind === "sell") {
       stored.money += sellAllCrops(inventory).earned;
     } else throw new FamilyError(400, "지원하지 않는 행동입니다.");
-    inventories[member.playerId] = inventory.serialize();
+    inventories[member.playerId] = { ...inventory.serialize(), toolProgression };
     const result = await this.db.prepare(`UPDATE family_state SET world_json = ?, inventories_json = ?, revision = revision + 1, updated_at = ? WHERE room_id = ? AND revision = ?`)
       .bind(JSON.stringify(stored), JSON.stringify(inventories), this.now(), roomId, expectedRevision).run();
     if (result.meta.changes !== 1) throw await conflict();
