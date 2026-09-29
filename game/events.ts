@@ -1,5 +1,7 @@
-export type ToolKey = "hoe" | "seed" | "water" | "hand" | "axe" | "pickaxe";
+export type ToolKey = "hoe" | "seed" | "water" | "hand" | "axe" | "pickaxe" | "fishing_rod";
 export interface HudState {
+  fishingStage?: "idle" | "waiting" | "bite" | "missed";
+  marketCount?: number;
   buildings?: import("./buildings/types").BuildingsData;
   farmProgress?: import("./farm/expansions").FarmProgress;
   buildingOpen?: boolean;

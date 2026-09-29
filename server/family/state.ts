@@ -2,7 +2,10 @@ import { FAMILY_PRESENCE_TTL_MS } from "../../game/family/presence";
 import { GAME_CONFIG } from "../../game/config";
 import { calendarDate, worldMinute } from "../../game/world/calendar";
 import { waterFarmForRain, weatherFor } from "../../game/weather/system";
-import { advanceFarmDay, sellAllCrops, Inventory, purchaseInventoryItem, type InventoryData } from "../../game/domain";
+import { advanceFarmDay, Inventory, purchaseInventoryItem, type InventoryData } from "../../game/domain";
+import { sellMarketGoods } from "../../game/economy/sales";
+import { beginFishing, fishingSpotError, normalizeFishingCast, normalizeFishingProgress, reelFishing } from "../../game/fishing/system";
+import type { FishingCast, FishingProgress } from "../../game/fishing/types";
 import { DEFAULT_CROP_ID, isCropId, getCropDefinition, isMatureCrop } from "../../game/data/crops";
 import { GENERAL_STORE_LISTINGS } from "../../game/data/shop";
 import { MAP_DEFINITIONS, pointInTileRect } from "../../game/maps/definitions";
@@ -29,7 +32,7 @@ import { emptyMineDaily, initialMineProgress, mineResourceKind, normalizeMineDai
 
 interface StoredWorld extends FamilyWorld { clockAnchor: number; sleepVotes?: string[]; sleepSessions?: Record<string, string> }
 interface StateRow { revision: number; world_json: string; inventories_json: string }
-type FamilyInventory = InventoryData & { toolProgression?: ToolProgression; stats?: PlayerStats };
+type FamilyInventory = InventoryData & { toolProgression?: ToolProgression; stats?: PlayerStats; fishingProgress?: FishingProgress; fishingCast?: FishingCast | null };
 export const initialFamilyWorld = (now: number): StoredWorld => ({
   day: 1, daySerial: 1, timeMinutes: GAME_CONFIG.day.startMinutes, clockAnchor: now, money: GAME_CONFIG.startingMoney,
   forestState: emptyForestState(1),
@@ -58,7 +61,7 @@ export class FamilyState extends FamilyRooms {
   private snapshot(row: StateRow, playerId: string, roomId: string): FamilySnapshot {
     const inventories = JSON.parse(row.inventories_json) as Record<string, FamilyInventory>;
     const clock = JSON.parse(row.world_json) as StoredWorld;
-    return { npcTimeMinutes: Math.min(GAME_CONFIG.day.endMinutes, clock.timeMinutes + Math.max(0, this.now()-clock.clockAnchor)/GAME_CONFIG.day.realMsPerGameMinute), revision: row.revision, serverNow: this.now(), world: currentWorld(JSON.parse(row.world_json), this.now(), roomId), inventory: inventories[playerId] ?? new Inventory().serialize(), toolProgression: normalizeToolProgression(inventories[playerId]?.toolProgression), stats: normalizePlayerStats(inventories[playerId]?.stats) };
+    return { npcTimeMinutes: Math.min(GAME_CONFIG.day.endMinutes, clock.timeMinutes + Math.max(0, this.now()-clock.clockAnchor)/GAME_CONFIG.day.realMsPerGameMinute), revision: row.revision, serverNow: this.now(), world: currentWorld(JSON.parse(row.world_json), this.now(), roomId), inventory: inventories[playerId] ?? new Inventory().serialize(), toolProgression: normalizeToolProgression(inventories[playerId]?.toolProgression), stats: normalizePlayerStats(inventories[playerId]?.stats), fishingProgress: normalizeFishingProgress(inventories[playerId]?.fishingProgress), fishingCast: normalizeFishingCast(inventories[playerId]?.fishingCast, clock.daySerial ?? clock.day) };
   }
   private async online(roomId: string) {
     return (await this.db.prepare(`SELECT m.player_id AS playerId, m.nickname, p.session_id AS sessionId FROM family_members m JOIN family_presence p ON p.room_id = m.room_id AND p.user_id = m.user_id WHERE m.room_id = ? AND p.last_seen > ?`).bind(roomId, this.now() - FAMILY_PRESENCE_TTL_MS).all<{playerId: string; nickname: string; sessionId?: string}>()).results;
@@ -78,6 +81,7 @@ export class FamilyState extends FamilyRooms {
       const stats = normalizePlayerStats(personal.stats);
       restoreStamina(stats);
       personal.stats = stats;
+      personal.fishingCast = null;
     }
   }
   async read(userId: string, roomId: string): Promise<FamilySnapshot> {
@@ -112,6 +116,9 @@ export class FamilyState extends FamilyRooms {
     const inventory = new Inventory(inventories[member.playerId]);
     const toolProgression = normalizeToolProgression(inventories[member.playerId]?.toolProgression);
     const stats = normalizePlayerStats(inventories[member.playerId]?.stats);
+    let fishingProgress = normalizeFishingProgress(inventories[member.playerId]?.fishingProgress);
+    let fishingCast = normalizeFishingCast(inventories[member.playerId]?.fishingCast, stored.daySerial ?? stored.day);
+    let fishingNotice: string | undefined;
     const cropId = action.kind === "tool" && action.tool === "seed" ? action.cropId ?? DEFAULT_CROP_ID : DEFAULT_CROP_ID;
     if (!isCropId(cropId)) throw new FamilyError(400, "없는 씨앗 종류입니다.");
     const crop = getCropDefinition(cropId);
@@ -192,13 +199,36 @@ export class FamilyState extends FamilyRooms {
       stored.mineDaily = result.daily; stored.mineProgress = result.progress;
       if (result.drop) inventory.add(result.drop, result.quantity);
       recordSuccessfulAction(stats, "pickaxe");
+    } else if (action.kind === "fish-cast" || action.kind === "fish-reel") {
+      // Cross-check the reported shore location against the recently observed player pose.
+      const presence = await this.db.prepare("SELECT pose_json, last_seen FROM family_presence WHERE room_id = ? AND user_id = ?")
+        .bind(roomId, userId).first<{ pose_json: string; last_seen: number }>();
+      let observed = null;
+      try { observed = presence ? parseFamilyPose(JSON.parse(presence.pose_json)) : null; } catch { /* Invalid presence cannot authorize fishing. */ }
+      const age = presence ? this.now() - presence.last_seen : Infinity;
+      if (!observed || age < 0 || age > FAMILY_PRESENCE_TTL_MS || observed.mapId !== pose.mapId ||
+          Math.hypot(observed.x - pose.x, observed.y - pose.y) > GAME_CONFIG.playerSpeed * Math.min(2.5, age / 1000 + .5))
+        throw new FamilyError(400, "물가의 현재 위치를 동기화한 뒤 낚시해 주세요.");
+      const day = stored.daySerial ?? stored.day, time = currentWorld(stored, this.now(), roomId).timeMinutes;
+      if (action.kind === "fish-cast") {
+        const result = beginFishing(fishingProgress, fishingCast, pose, action.spotId, roomId, member.playerId, day, weatherFor(roomId, day).id, time, stats);
+        if (result.error || !result.cast || !result.progress) throw new FamilyError(409, result.error ?? "낚시를 시작할 수 없어요.");
+        fishingProgress = result.progress; fishingCast = result.cast;
+        fishingNotice = "찌를 던졌어요. 입질이 오면 행동 버튼을 누르세요.";
+      } else {
+        const error = fishingSpotError(fishingCast?.spotId, pose);
+        if (error) throw new FamilyError(400, error);
+        const result = reelFishing(fishingCast, action.castId, fishingProgress, inventory, stats, day, time);
+        if (result.error) throw new FamilyError(409, result.error);
+        fishingCast = result.cast ?? null; fishingNotice = result.message;
+      }
     } else if (action.kind === "sleep") {
       if (!near("sleep")) throw new FamilyError(400, "농장집 침대에서 잠들어 주세요.");
       const online = await this.online(roomId);
       if (!online.some(p => p.playerId === member.playerId)) online.push(member);
       stored.sleepVotes = [...new Set([...(stored.sleepVotes ?? []).filter(id => online.some(p => p.playerId === id && (!stored.sleepSessions?.[id] || stored.sleepSessions[id] === p.sessionId))), member.playerId])];
       stored.sleepSessions = { ...stored.sleepSessions, [member.playerId]: online.find(p => p.playerId === member.playerId)?.sessionId ?? "" };
-      if (online.every(p => stored.sleepVotes!.includes(p.playerId))) { this.nextDay(stored, roomId, inventories); restoreStamina(stats); }
+      if (online.every(p => stored.sleepVotes!.includes(p.playerId))) { this.nextDay(stored, roomId, inventories); restoreStamina(stats); fishingCast = null; }
     } else if (action.kind === "sleep-cancel") {
       stored.sleepVotes = (stored.sleepVotes ?? []).filter(id => id !== member.playerId);
     } else if (action.kind === "buy") {
@@ -222,7 +252,7 @@ export class FamilyState extends FamilyRooms {
         if (!upgradeTool(inventory, toolProgression, upgrade)) throw new FamilyError(409, "도구 단계나 재료를 확인해 주세요.");
       }
     } else if (action.kind === "sell") {
-      stored.money += sellAllCrops(inventory).earned;
+      stored.money += sellMarketGoods(inventory).earned;
     } else if (action.kind === "storage") {
       const chest = (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).find(o => o.interaction?.action === "storage" && o.interaction.containerId === action.containerId);
       const offset = PLAYER_ASSET.interactionPoints[pose.facing];
@@ -280,7 +310,7 @@ export class FamilyState extends FamilyRooms {
       }
       stored.placeables = placeables;
     } else throw new FamilyError(400, "지원하지 않는 행동입니다.");
-    inventories[member.playerId] = { ...inventory.serialize(), toolProgression, stats };
+    inventories[member.playerId] = { ...inventory.serialize(), toolProgression, stats, fishingProgress, fishingCast };
     const result = await this.db.prepare(`UPDATE family_state SET world_json = ?, inventories_json = ?, revision = revision + 1, updated_at = ? WHERE room_id = ? AND revision = ?`)
       .bind(JSON.stringify(stored), JSON.stringify(inventories), this.now(), roomId, expectedRevision).run();
     if (result.meta.changes !== 1) throw await conflict();
@@ -290,6 +320,6 @@ export class FamilyState extends FamilyRooms {
       try { await this.db.prepare("UPDATE family_presence SET pose_json = json_set(pose_json, '$.action', json(?)) WHERE room_id = ? AND user_id = ?")
         .bind(JSON.stringify(visual), roomId, userId).run(); } catch { /* Presence is best effort. */ }
     }
-    return this.read(userId, roomId);
+    return { ...await this.read(userId, roomId), ...(fishingNotice ? { fishingNotice } : {}) };
   }
 }

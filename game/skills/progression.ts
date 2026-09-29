@@ -2,7 +2,7 @@ import { experienceForLevel, MAX_SKILL_LEVEL, SKILL_DEFINITIONS } from "./defini
 import type { SkillId, SkillProgression } from "./types";
 
 export const initialSkills = (): SkillProgression => ({
-  farming: { level: 1, experience: 0 }, foraging: { level: 1, experience: 0 }, mining: { level: 1, experience: 0 },
+  farming: { level: 1, experience: 0 }, foraging: { level: 1, experience: 0 }, mining: { level: 1, experience: 0 }, fishing: { level: 1, experience: 0 },
 });
 const safeExperience = (value: unknown) => Number.isSafeInteger(value) && (value as number) >= 0 ? value as number : 0;
 export function levelForExperience(experience: number): number {

@@ -9,6 +9,7 @@ import "./storage-containers";
 import "./placeable-machines";
 import "./building-expansion";
 import "./mining-dungeon";
+import "./fishing";
 import "./family-rooms";
 import "./editor-graphics";
 import "./environment-assets";
@@ -21,6 +22,7 @@ import { GENERAL_STORE_LISTINGS } from "../data/shop";
 import { ITEM_DEFINITIONS } from "../data/items";
 import { GAME_CONFIG } from "../config";
 import { initialPlayerStats } from "../player/stats";
+import { initialFishingProgress } from "../fishing/system";
 import { initialStorage } from "../storage/container";
 import { initialPlaceables } from "../placeables/system";
 import { initialBuildings } from "../buildings/system";
@@ -80,7 +82,7 @@ const save: SaveData = {
 };
 const repository = new LocalStorageSaveRepository();
 repository.save(save);
-assert.deepEqual(repository.load(), {...save, mineProgress:initialMineProgress(), mineDaily:emptyMineDaily(save.day), buildings:initialBuildings(), farmProgress:initialFarmProgress(), placeables:initialPlaceables(), storage:initialStorage(), stats:initialPlayerStats(), daySerial:save.day, playerProgress:normalizeProgress(null)}, "날짜·시간·농장·인벤토리·돈·위치를 동일하게 복원해야 함");
+assert.deepEqual(repository.load(), {...save, fishingProgress:initialFishingProgress(), mineProgress:initialMineProgress(), mineDaily:emptyMineDaily(save.day), buildings:initialBuildings(), farmProgress:initialFarmProgress(), placeables:initialPlaceables(), storage:initialStorage(), stats:initialPlayerStats(), daySerial:save.day, playerProgress:normalizeProgress(null)}, "날짜·시간·농장·인벤토리·돈·위치를 동일하게 복원해야 함");
 
 storage.clear();
 storage.set("jiwoos-farm.save.v2", JSON.stringify({

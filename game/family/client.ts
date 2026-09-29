@@ -97,7 +97,7 @@ export class FamilyClient {
     try {
       const snapshot = await familyFetch<FamilySnapshot>("/api/family/state", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, expectedRevision: this.snapshot.revision, action }) });
       if (!this.live) return false;
-      this.accept(snapshot); this.onMessage("가족 농장에 반영했어요."); return true;
+      this.accept(snapshot); this.onMessage(snapshot.fishingNotice ?? "가족 농장에 반영했어요."); return true;
     } catch (error) {
       if (!this.live) return false;
       if (error instanceof FamilyAPIError && error.snapshot) {

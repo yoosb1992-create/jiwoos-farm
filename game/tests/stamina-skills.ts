@@ -13,7 +13,7 @@ import { weatherFor } from "../weather/system";
 
 const stats = initialPlayerStats();
 assert.deepEqual([stats.stamina, stats.maxStamina], [100, 100]);
-assert.deepEqual(Object.values(stats.skills).map(s => [s.level, s.experience]), [[1, 0], [1, 0], [1, 0]]);
+assert.deepEqual(Object.values(stats.skills).map(s => [s.level, s.experience]), [[1, 0], [1, 0], [1, 0], [1, 0]]);
 assert.deepEqual([SKILL_ACTIONS.hoe.stamina, SKILL_ACTIONS.water.stamina, SKILL_ACTIONS.axe.stamina, SKILL_ACTIONS.pickaxe.stamina], [4, 3, 6, 7]);
 for (const [action, stamina, skill, xp] of [
   ["hoe", 96, "farming", 3], ["water", 93, "farming", 5], ["harvest", 93, "farming", 11],

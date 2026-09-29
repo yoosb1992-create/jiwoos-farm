@@ -12,4 +12,5 @@ export const TOOL_ACTION_DEFINITIONS: Record<ToolKey, { effectTiming: ToolEffect
   hand: { effectTiming: { trigger: "start" } },
   axe: { effectTiming: { trigger: "start" } },
   pickaxe: { effectTiming: { trigger: "start" } },
+  fishing_rod: { effectTiming: { trigger: "start" } },
 };

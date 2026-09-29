@@ -12,10 +12,13 @@ import type { PlaceablesData, PlaceableId } from "../placeables/types";
 import type { BuildingsData, BuildingId } from "../buildings/types";
 import type { FarmProgress, ExpansionId } from "../farm/expansions";
 import type { MineDailyState, MineProgress } from "../mine/types";
+import type { FishingCast, FishingProgress, FishingSpotId } from "../fishing/types";
 export interface FamilyPose extends PlayerData { selectedTool: ToolKey; moving: boolean }
 export interface FamilyWorld { mineProgress?: MineProgress; mineDaily?: MineDailyState; buildings?: BuildingsData; farmProgress?: FarmProgress; placeables?: PlaceablesData; storage?: StorageData; daySerial?:number; forestState?: ForestState; day: number; timeMinutes: number; money: number; farm: FarmTileData[] }
-export interface FamilySnapshot { npcTimeMinutes?: number; toolProgression?: ToolProgression; stats?: PlayerStats; revision: number; serverNow: number; world: FamilyWorld; inventory: InventoryData; sleep?: { waiting: string[]; agreed: number; online: number; voted: boolean } }
+export interface FamilySnapshot { fishingProgress?: FishingProgress; fishingCast?: FishingCast | null; fishingNotice?: string; npcTimeMinutes?: number; toolProgression?: ToolProgression; stats?: PlayerStats; revision: number; serverNow: number; world: FamilyWorld; inventory: InventoryData; sleep?: { waiting: string[]; agreed: number; online: number; voted: boolean } }
 export type FamilyAction =
+  | { kind: "fish-cast"; spotId: FishingSpotId; pose: FamilyPose }
+  | { kind: "fish-reel"; castId: string; pose: FamilyPose }
   | { kind: "build"; definitionId: BuildingId; tileX: number; tileY: number; pose: FamilyPose }
   | { kind: "farm-expand"; expansionId: ExpansionId; pose: FamilyPose }
   | { kind: "tool"; tool: ToolKey; cropId?: import("../data/crops").CropId; x: number; y: number; pose: FamilyPose }

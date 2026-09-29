@@ -27,7 +27,7 @@ import { documentToRegistry } from "@/game/editor/document";
 import type { MapEditorDocument } from "@/game/editor/types";
 import type { MapDefinition } from "@/game/maps/types";
 
-const toolKeys: ToolKey[] = ["hoe", "seed", "water", "hand", "axe", "pickaxe"];
+const toolKeys: ToolKey[] = ["hoe", "seed", "water", "hand", "axe", "pickaxe", "fishing_rod"];
 const tools = toolKeys.map((key) => {
   const item = ITEM_DEFINITIONS[key];
   return { key, ...item, visual: ITEM_ASSETS[item.assetId] };
@@ -119,6 +119,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         {hud.buildingOpen && <BuildingPanel money={hud.money} items={hud.craftingItems ?? {}} progress={hud.farmProgress ?? { unlocked: [] }} count={hud.buildings?.instances.length ?? 0} busy={hud.buildingBusy ?? false} notice={hud.message} onBuild={() => command("building-mode")} onExpand={() => command("farm-expand")} onClose={() => command("building-close")} />}
         {hud.buildingMode && <div className="place-hint" role="status">🏠 창고의 왼쪽 위 칸을 누르거나 행동 버튼으로 건설 · {hud.message}</div>}
         {hud.placing && <div className="place-hint" role="status">⚙ 가까운 빈 땅을 누르거나 행동 버튼으로 배치 · {hud.message}</div>}
+        {hud.selectedTool === "fishing_rod" && !hud.placing && !hud.buildingMode && <div className="place-hint" role="status">🎣 {hud.fishingStage === "waiting" ? "기다리는 중… 입질이 오면 행동 버튼" : hud.fishingStage === "bite" ? "입질! 지금 행동 버튼으로 당기세요" : hud.fishingStage === "missed" ? "입질을 놓쳤어요. 행동 버튼으로 정리하세요" : "농장 연못 북쪽 물가에서 물을 향해 행동 버튼"}</div>}
         {hud.transitioning && <div className="night-fade"><span>하루를 마무리합니다…</span></div>}
         <div className="inventory-chip" aria-live="polite"><label>씨앗 <select aria-label="심을 씨앗 종류" value={hud.selectedCrop ?? DEFAULT_CROP_ID} onChange={e => command("seed-select", e.target.value)}>{Object.values(CROP_DEFINITIONS).map(c => <option key={c.id} value={c.id}>{c.name} · {hud.seedCounts?.[c.id] ?? (c.id === DEFAULT_CROP_ID ? hud.seeds : 0)}개</option>)}</select></label><span>수확물 <b>{hud.harvest}</b></span>{hud.mapId === "fairy_forest" && <span>나무 {hud.resources?.wood ?? 0} · 돌 {hud.resources?.stone ?? 0} · 들풀 {hud.resources?.wild_herb ?? 0} · 달빛버섯 {hud.resources?.moon_mushroom ?? 0} · 요정꽃 {hud.resources?.fairy_bloom ?? 0}</span>}</div>
         <nav className="quickbar" aria-label="도구 선택">
@@ -126,7 +127,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
             const locked = tool.key === "pickaxe" && !hud.toolProgression?.pickaxe;
             return <button key={tool.key} className={hud.selectedTool === tool.key ? "selected" : ""} disabled={locked} aria-label={locked ? "곡괭이 잠김 · 제작대에서 해금" : tool.name} onClick={() => command("tool", tool.key)} title={`${index + 1} · ${locked ? "제작대에서 해금" : tool.toolbarHint}`}><em>{index + 1}</em><ItemIcon asset={tool.visual} /><small>{locked ? "🔒 잠김" : tool.name}{tool.key === "axe" && hud.toolProgression?.axe === 2 ? " Lv2" : ""}</small></button>;
           })}
-          <button className="sell-slot" onClick={() => command("sell")} disabled={!hud.harvest}><span>🧺</span><small>전부 판매</small></button>
+          <button className="sell-slot" onClick={() => command("sell")} disabled={!hud.marketCount}><span>🧺</span><small>전부 판매</small></button>
         </nav>
         <button className="action-button" onClick={() => command("action")}>행동</button>
         <VirtualJoystick onMove={(x, y) => command("move", { x, y })} />

@@ -23,6 +23,8 @@ import type { FarmProgress } from "./farm/expansions";
 import { MINE_ENTRY, mineFloorFromMapId } from "./mine/generation";
 import { normalizeMineDaily, normalizeMineProgress } from "./mine/resources";
 import type { MineDailyState, MineProgress } from "./mine/types";
+import { normalizeFishingProgress } from "./fishing/system";
+import type { FishingProgress } from "./fishing/types";
 
 export interface FarmTileData {
   x: number;
@@ -36,6 +38,7 @@ export interface FarmTileData {
 export interface InventoryData { items: Partial<Record<ItemId, number>> }
 export interface PlayerData { x: number; y: number; facing: Facing; mapId: MapId }
 export interface SaveData {
+  fishingProgress?: FishingProgress;
   mineProgress?: MineProgress;
   mineDaily?: MineDailyState;
   buildings?: BuildingsData;
@@ -110,7 +113,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const finiteNumber = (value: unknown, fallback: number) => typeof value === "number" && Number.isFinite(value) ? value : fallback;
 const nonNegativeInteger = (value: unknown, fallback: number) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
 const isFacing = (value: unknown): value is Facing => value === "up" || value === "down" || value === "left" || value === "right";
-const isTool = (value: unknown): value is ToolKey => value === "hoe" || value === "seed" || value === "water" || value === "hand" || value === "axe" || value === "pickaxe";
+const isTool = (value: unknown): value is ToolKey => value === "hoe" || value === "seed" || value === "water" || value === "hand" || value === "axe" || value === "pickaxe" || value === "fishing_rod";
 const isMapId = (value: unknown): value is MapId => typeof value === "string" && (value === FAIRY_FOREST_ID || mineFloorFromMapId(value) !== null || Object.hasOwn(MAP_DEFINITIONS, value));
 const isItemId = (value: string): value is ItemId => Object.hasOwn(ITEM_DEFINITIONS, value);
 const isCropId = (value: unknown): value is CropId => typeof value === "string" && Object.hasOwn(CROP_DEFINITIONS, value);
@@ -163,6 +166,7 @@ const normalizeV4 = (value: unknown): SaveData | null => {
   return {
     version: 4,
     stats: normalizePlayerStats(value.stats),
+    fishingProgress: normalizeFishingProgress(value.fishingProgress),
     storage: normalizeStorage(value.storage),
     placeables: normalizePlaceables(value.placeables, worldMinute(daySerial, timeMinutes)),
     buildings: normalizeBuildings(value.buildings, daySerial),
