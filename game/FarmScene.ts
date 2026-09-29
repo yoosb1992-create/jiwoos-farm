@@ -129,6 +129,7 @@ export class FarmScene extends Phaser.Scene {
   private facing: Facing = "down";
   private virtualMovement: MovementVector = { x: 0, y: 0 };
   private running = false;
+  private controlsEditing = false;
   private currentMapId: MapId;
   private readonly mapRegistry: MapRegistry;
   private forestDayInstalled = 0;
@@ -249,7 +250,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private npcTime() { return this.family ? Math.min(GAME_CONFIG.day.endMinutes, this.npcMinute + Math.min(2000, Math.max(0, performance.now()-this.npcClockReceived))/REAL_MS_PER_GAME_MINUTE) : this.timeMinutes + this.timeAccumulator/REAL_MS_PER_GAME_MINUTE; }
-  private isPaused() { return this.inventoryOpen || !!this.storageOpen || !!this.machineOpen || !!this.ranchOpen || this.buildingOpen || this.journalOpen || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.craftingOpen || this.transitioning; }
+  private isPaused() { return this.controlsEditing || this.inventoryOpen || !!this.storageOpen || !!this.machineOpen || !!this.ranchOpen || this.buildingOpen || this.journalOpen || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.craftingOpen || this.transitioning; }
   private advanceClock(delta: number) {
     this.timeAccumulator += delta;
     const elapsed = Math.floor(this.timeAccumulator / REAL_MS_PER_GAME_MINUTE);
@@ -720,6 +721,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
+    if (command.type === "controls-edit") { this.controlsEditing = command.value === true; this.running = false; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); return; }
     if (command.type === "run") { this.running = command.value === true; return; }
     if (command.type === "ui-close") {
       if (this.npcRequest || this.ranchBusy || this.buildingBusy || this.machineBusy || this.storageBusy || this.craftingBusy || this.transitioning) return;

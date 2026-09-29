@@ -148,6 +148,10 @@ button { font:inherit; touch-action:manipulation; }
 .desktop-left-ui{display:contents}
 .mobile-menu-only{display:none}
 .run-button{display:none}
+.custom-mobile-control{--mobile-control-base-size:66px}
+.virtual-joystick.custom-mobile-control{--mobile-control-base-size:116px}
+.control-editor-backdrop{position:absolute;inset:0;z-index:54;background:#13231b55;touch-action:none}
+.control-editor-panel{display:none}
 @media (max-width:700px), (pointer:coarse){
   .desktop-left-ui{display:none}
   .mobile-menu-only{display:block}
@@ -201,11 +205,18 @@ button { font:inherit; touch-action:manipulation; }
     touch-action:none;
   }
   .run-button:active{transform:translateY(3px);box-shadow:0 2px 0 #2f5238}
+  .custom-mobile-control{touch-action:none}
+  .custom-mobile-control.control-editing{z-index:61;outline:4px dashed #ffe78c;outline-offset:4px;cursor:grab}
+  .control-editor-panel{display:grid;gap:8px;position:absolute;z-index:62;top:max(8px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(430px,calc(100% - 16px));max-height:50dvh;overflow:auto;padding:12px;border:2px solid #62402d;border-radius:12px;background:#fff3d8;color:#3e3427;box-shadow:0 6px 24px #0008;touch-action:manipulation}
+  .control-editor-panel header{display:flex;justify-content:space-between;gap:10px;align-items:center}.control-editor-panel p{margin:0;font-size:12px}.control-editor-panel label{display:grid;gap:4px;font-size:12px;font-weight:800}.control-editor-panel input{width:100%}
+  .control-editor-tabs,.control-editor-panel footer{display:flex;gap:6px;flex-wrap:wrap}.control-editor-panel button{min-height:42px;padding:6px 10px;border:1px solid #73543b;border-radius:7px;background:#eee0c2;color:#443328;font-weight:800}.control-editor-tabs button{flex:1}.control-editor-panel button.selected,.control-editor-panel button.primary{background:#527d48;color:white}
+  .custom-mobile-control.run-button:active{transform:translate(-50%,calc(-50% + 3px));box-shadow:0 2px 0 #2f5238}
 }
 @media (max-width:700px) and (orientation:portrait){
   .action-button,.run-button{bottom:max(134px,calc(env(safe-area-inset-bottom) + 126px))}
 }
 @media (max-height:430px) and (orientation:landscape){
+  .virtual-joystick.custom-mobile-control{--mobile-control-base-size:104px}
   .action-button,.run-button{bottom:max(82px,calc(env(safe-area-inset-bottom) + 74px))}
   .save-row.open{width:min(260px,calc(100vw - 18px));max-height:calc(100dvh - max(62px,calc(env(safe-area-inset-top) + 54px)))}
 }

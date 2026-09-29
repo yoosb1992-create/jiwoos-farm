@@ -1,5 +1,6 @@
 import { normalizeProgress } from "../npc/progress";
 import "./family-client";
+import "./mobile-controls";
 import "./family-lobby";
 import "./family-presence";
 import "./family-state";

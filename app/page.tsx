@@ -4,7 +4,7 @@ import { SEASON_NAMES } from "@/game/world/calendar";
 import { WEATHER_DEFINITIONS } from "@/game/weather/definitions";
 import { weatherFor } from "@/game/weather/system";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type * as Phaser from "phaser";
 import { gameEvents, type HudState, initialHud, type ToolKey } from "@/game/events";
 import { ITEM_ASSETS } from "@/game/assets/definitions";
@@ -29,6 +29,11 @@ import { MapEditor } from "./editor/MapEditor";
 import { documentToRegistry } from "@/game/editor/document";
 import type { MapEditorDocument } from "@/game/editor/types";
 import type { MapDefinition } from "@/game/maps/types";
+import {
+  MOBILE_CONTROL_LIMITS, clampMobileControlPlacement, defaultMobileControlSettings, loadMobileControlSettings,
+  mobileOrientation, runHeldForPointerPhase, saveMobileControlSettings,
+  type MobileControlId, type MobileControlSettings, type ViewportSize,
+} from "@/game/input/mobileControlLayout";
 
 const toolKeys: ToolKey[] = ["hoe", "seed", "water", "hand", "axe", "pickaxe", "fishing_rod"];
 const tools = toolKeys.map((key) => {
@@ -36,7 +41,15 @@ const tools = toolKeys.map((key) => {
   return { key, ...item, visual: ITEM_ASSETS[item.assetId] };
 });
 
-function VirtualJoystick({ onMove }: { onMove: (x: number, y: number) => void }) {
+type EditPointerHandlers = {
+  onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerMove: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerUp: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerCancel: (event: ReactPointerEvent<HTMLElement>) => void;
+  onLostPointerCapture: (event: ReactPointerEvent<HTMLElement>) => void;
+};
+
+function VirtualJoystick({ onMove, editing, style, editHandlers }: { onMove: (x: number, y: number) => void; editing?: boolean; style?: CSSProperties; editHandlers?: EditPointerHandlers }) {
   const baseRef = useRef<HTMLDivElement>(null);
   const activePointer = useRef<number | null>(null);
   const [thumb, setThumb] = useState({ x: 0, y: 0 });
@@ -53,10 +66,10 @@ function VirtualJoystick({ onMove }: { onMove: (x: number, y: number) => void })
     if (pointerId !== undefined && activePointer.current !== pointerId) return;
     activePointer.current = null; setThumb({ x: 0, y: 0 }); onMove(0, 0);
   }, [onMove]);
-  return <div ref={baseRef} className="virtual-joystick" aria-label="이동 조이스틱"
-    onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); if (activePointer.current !== null) return; activePointer.current = event.pointerId; event.currentTarget.setPointerCapture(event.pointerId); update(event.clientX, event.clientY); }}
-    onPointerMove={(event) => { if (activePointer.current === event.pointerId) { event.preventDefault(); event.stopPropagation(); update(event.clientX, event.clientY); } }}
-    onPointerUp={(event) => release(event.pointerId)} onPointerCancel={(event) => release(event.pointerId)} onLostPointerCapture={() => release()}>
+  return <div ref={baseRef} style={style} className={`virtual-joystick custom-mobile-control${editing ? " control-editing" : ""}`} aria-label="이동 조이스틱"
+    onPointerDown={editing ? editHandlers?.onPointerDown : (event) => { event.preventDefault(); event.stopPropagation(); if (activePointer.current !== null) return; activePointer.current = event.pointerId; event.currentTarget.setPointerCapture(event.pointerId); update(event.clientX, event.clientY); }}
+    onPointerMove={editing ? editHandlers?.onPointerMove : (event) => { if (activePointer.current === event.pointerId) { event.preventDefault(); event.stopPropagation(); update(event.clientX, event.clientY); } }}
+    onPointerUp={editing ? editHandlers?.onPointerUp : (event) => release(event.pointerId)} onPointerCancel={editing ? editHandlers?.onPointerCancel : (event) => release(event.pointerId)} onLostPointerCapture={editing ? editHandlers?.onLostPointerCapture : () => release()}>
     <span className="joystick-arrows">↖ ↑ ↗<br />← · →<br />↙ ↓ ↘</span><i style={{ transform: `translate(${thumb.x}px, ${thumb.y}px)` }} />
   </div>;
 }
@@ -67,6 +80,11 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
   const [showHelp, setShowHelp] = useState(true);
   const [questOpen, setQuestOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [viewport, setViewport] = useState<ViewportSize>({ width: 390, height: 844 });
+  const [controlSettings, setControlSettings] = useState<MobileControlSettings>(() => defaultMobileControlSettings({ width: 390, height: 844 }));
+  const [controlDraft, setControlDraft] = useState<MobileControlSettings | null>(null);
+  const [selectedControl, setSelectedControl] = useState<MobileControlId>("action");
+  const controlDrag = useRef<{ id: number; control: MobileControlId } | null>(null);
 
   useEffect(() => {
     const update = (event: Event) => setHud((event as CustomEvent<HudState>).detail);
@@ -83,6 +101,12 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
     };
   }, [editorMaps, initialMapId, testMode, family]);
 
+  useEffect(() => {
+    const resize = () => setViewport({ width: Math.max(1, window.innerWidth), height: Math.max(1, window.innerHeight) });
+    resize(); setControlSettings(loadMobileControlSettings(window.localStorage, { width: Math.max(1, window.innerWidth), height: Math.max(1, window.innerHeight) }));
+    window.addEventListener("resize", resize); return () => window.removeEventListener("resize", resize);
+  }, []);
+
   const command = useCallback((type: string, value?: unknown) => {
     gameEvents.dispatchEvent(new CustomEvent("command", { detail: { type, value } }));
   }, []);
@@ -93,17 +117,52 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
     command("help", next ? "open" : "close");
   };
 
+  const editingControls = controlDraft !== null;
+  const activeSettings = controlDraft ?? controlSettings;
+  const orientation = mobileOrientation(viewport);
+  const activeProfile = activeSettings[orientation];
+  const controlStyle = (id: MobileControlId): CSSProperties => {
+    const value = clampMobileControlPlacement(id, activeProfile[id], viewport);
+    return {
+      left: `clamp(calc(env(safe-area-inset-left) + ${id === "joystick" ? 42 : 30}px), ${value.x * 100}%, calc(100% - env(safe-area-inset-right) - ${id === "joystick" ? 42 : 30}px))`,
+      top: `clamp(calc(env(safe-area-inset-top) + ${id === "joystick" ? 42 : 30}px), ${value.y * 100}%, calc(100% - env(safe-area-inset-bottom) - ${id === "joystick" ? 42 : 30}px))`,
+      right: "auto", bottom: "auto", transform: "translate(-50%, -50%)",
+      width: `calc(var(--mobile-control-base-size) * ${value.size / 100})`, height: `calc(var(--mobile-control-base-size) * ${value.size / 100})`, opacity: value.opacity / 100,
+    };
+  };
+  const updateControlPlacement = (control: MobileControlId, event: ReactPointerEvent<HTMLElement>) => {
+    setControlDraft((current) => {
+      if (!current) return current;
+      const next = structuredClone(current), currentProfile = next[mobileOrientation(viewport)];
+      currentProfile[control] = clampMobileControlPlacement(control, { ...currentProfile[control], x: event.clientX / viewport.width, y: event.clientY / viewport.height }, viewport);
+      return next;
+    });
+  };
+  const editHandlers = (control: MobileControlId): EditPointerHandlers => ({
+    onPointerDown: (event) => { event.preventDefault(); event.stopPropagation(); controlDrag.current = { id: event.pointerId, control }; setSelectedControl(control); event.currentTarget.setPointerCapture(event.pointerId); updateControlPlacement(control, event); },
+    onPointerMove: (event) => { if (controlDrag.current?.id === event.pointerId && controlDrag.current.control === control) { event.preventDefault(); event.stopPropagation(); updateControlPlacement(control, event); } },
+    onPointerUp: (event) => { if (controlDrag.current?.id === event.pointerId) controlDrag.current = null; },
+    onPointerCancel: (event) => { if (controlDrag.current?.id === event.pointerId) controlDrag.current = null; },
+    onLostPointerCapture: (event) => { if (controlDrag.current?.id === event.pointerId) controlDrag.current = null; },
+  });
+  const openControlEditor = () => { command("run", false); command("move", { x: 0, y: 0 }); command("controls-edit", true); setControlDraft(structuredClone(controlSettings)); setMobileMenuOpen(false); };
+  const closeControlEditor = () => { controlDrag.current = null; setControlDraft(null); command("controls-edit", false); };
+  const updateSelectedControl = (field: "size" | "opacity", value: number) => setControlDraft((current) => {
+    if (!current) return current; const next = structuredClone(current); next[orientation][selectedControl][field] = value; return next;
+  });
+
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      if (showHelp) { setShowHelp(false); command("help", "close"); }
+      if (editingControls) closeControlEditor();
+      else if (showHelp) { setShowHelp(false); command("help", "close"); }
       else if (mobileMenuOpen) setMobileMenuOpen(false);
       else command("ui-close");
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [command, mobileMenuOpen, showHelp]);
+  }, [command, editingControls, mobileMenuOpen, showHelp]);
 
   return (
     <main className={`game-shell${family ? " family-playing" : ""}`}>
@@ -136,6 +195,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
           {(hud.craftingItems?.wood_processor || hud.placing) && <button onClick={() => { command("place-mode"); setMobileMenuOpen(false); }}>{hud.placing ? "배치 취소" : `⚙ 배치 ×${hud.craftingItems?.wood_processor ?? 0}`}</button>}
           <button onClick={() => { command(hud.buildingMode ? "building-mode" : "building-open"); setMobileMenuOpen(false); }}>{hud.buildingMode ? "건설 취소" : "🏠 건설·확장"}</button>
           <button onClick={()=>{command("village-open",true);setMobileMenuOpen(false);}}>주민·의뢰</button>
+          <button className="mobile-menu-only" onClick={openControlEditor}>🎮 조작 UI 설정</button>
           {!family && <button className="mobile-menu-only" onClick={() => { setMobileMenuOpen(false); onOpenEditor(); }}>{testMode ? "← 편집기로 돌아가기" : "🛠 맵 편집"}</button>}
           <button className="mobile-menu-only" onClick={() => { setMobileMenuOpen(false); onHome(); }}>{family ? "농장 나가기" : "처음으로"}</button>
           <button onClick={toggleHelp}>?</button>
@@ -164,12 +224,22 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
           })}
           <button className="sell-slot" onClick={() => command("sell")} disabled={!hud.marketCount}><span>🧺</span><small>전부 판매</small></button>
         </nav>
-        <button className="run-button" aria-label="달리기"
-          onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); command("run", true); }}
-          onPointerUp={() => command("run", false)} onPointerCancel={() => command("run", false)}
-          onLostPointerCapture={() => command("run", false)}>달리기</button>
-        <button className="action-button" onClick={() => command("action")}>행동</button>
-        <VirtualJoystick onMove={(x, y) => command("move", { x, y })} />
+        {editingControls && <div className="control-editor-backdrop" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); }} />}
+        {editingControls && controlDraft && <section className="control-editor-panel" role="dialog" aria-modal="true" aria-label="조작 UI 설정" onPointerDown={(event) => event.stopPropagation()}>
+          <header><b>🎮 조작 UI 설정</b><small>{orientation === "portrait" ? "세로" : "가로"} 화면</small></header>
+          <p>버튼과 조이스틱을 직접 끌어 옮기세요.</p>
+          <div className="control-editor-tabs">{(["joystick", "run", "action"] as const).map(id => <button key={id} className={selectedControl === id ? "selected" : ""} onClick={() => setSelectedControl(id)}>{id === "joystick" ? "조이스틱" : id === "run" ? "달리기" : "행동"}</button>)}</div>
+          <label>크기 {controlDraft[orientation][selectedControl].size}%<input type="range" min={MOBILE_CONTROL_LIMITS.minSize} max={MOBILE_CONTROL_LIMITS.maxSize} value={controlDraft[orientation][selectedControl].size} onChange={event => updateSelectedControl("size", Number(event.target.value))} /></label>
+          <label>투명도 {controlDraft[orientation][selectedControl].opacity}%<input type="range" min={MOBILE_CONTROL_LIMITS.minOpacity} max={MOBILE_CONTROL_LIMITS.maxOpacity} value={controlDraft[orientation][selectedControl].opacity} onChange={event => updateSelectedControl("opacity", Number(event.target.value))} /></label>
+          <footer><button onClick={() => setControlDraft(defaultMobileControlSettings(viewport))}>기본값으로 초기화</button><button onClick={closeControlEditor}>취소</button><button className="primary" onClick={() => { saveMobileControlSettings(window.localStorage, controlDraft); setControlSettings(controlDraft); closeControlEditor(); }}>저장</button></footer>
+        </section>}
+        <button style={controlStyle("run")} className={`run-button custom-mobile-control${editingControls ? " control-editing" : ""}`} aria-label="달리기" {...(editingControls ? editHandlers("run") : {
+          onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => { event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId); command("run", runHeldForPointerPhase("down")); },
+          onPointerUp: () => command("run", runHeldForPointerPhase("up")), onPointerCancel: () => command("run", runHeldForPointerPhase("cancel")),
+          onLostPointerCapture: () => command("run", runHeldForPointerPhase("lost-capture")),
+        })}>달리기</button>
+        <button style={controlStyle("action")} className={`action-button custom-mobile-control${editingControls ? " control-editing" : ""}`} aria-label="행동" {...(editingControls ? editHandlers("action") : { onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => { event.preventDefault(); event.stopPropagation(); command("action"); } })}>행동</button>
+        <VirtualJoystick style={controlStyle("joystick")} editing={editingControls} editHandlers={editHandlers("joystick")} onMove={(x, y) => command("move", { x, y })} />
       </section>
     </main>
   );
