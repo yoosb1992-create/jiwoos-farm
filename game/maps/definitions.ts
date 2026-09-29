@@ -40,6 +40,7 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
     terrainRegions: [{ ...area(0, 17, 0, 1), tileType: "stone_floor" }], farmAreas: [], collisionRegions: [],
     objects: [
       { id: "bed", assetId: "bed", position: { tileX: 7, tileY: 7 }, collision: { x: -48, y: -28, width: 96, height: 56 }, interaction: { action: "sleep", area: area(5, 9, 6, 9) }, label: "침대 · 잠자기", depth: 3 },
+      { id: "crafting_table", assetId: "crafting_table", position: { tileX: 12, tileY: 6.5 }, collision: { x: -28, y: -12, width: 56, height: 28 }, interaction: { action: "craft", area: area(10, 14, 5, 8) }, label: "제작대", depth: 3 },
     ],
     spawns: [{ id: "entry", tileX: 9, tileY: 10, facing: "up" }, { id: "bed_wake", tileX: 9.5, tileY: 7, facing: "left" }],
     warps: [{ id: "exit", area: area(8, 10, 11, 12), targetMapId: "farm", targetSpawnId: "from_house" }],

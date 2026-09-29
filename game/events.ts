@@ -1,5 +1,8 @@
 export type ToolKey = "hoe" | "seed" | "water" | "hand" | "axe";
 export interface HudState {
+  craftingOpen?: boolean;
+  craftingBusy?: boolean;
+  craftingItems?: import("./domain").InventoryData["items"];
   villageOpen?:boolean;
   villagers?:{id:string;name:string;points:number;level:string;location:string;activity:string}[];
   quests?: import("./quests/engine").QuestView[];

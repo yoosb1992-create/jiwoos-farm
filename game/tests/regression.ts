@@ -293,6 +293,7 @@ import "./forest-resources";
 import "./forest-feedback";
 import "./family-forest";
 import "./crafting";
+import "./crafting-interface";
 
 import "./spring-crops";
 

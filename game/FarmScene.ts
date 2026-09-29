@@ -18,6 +18,8 @@ import { forestFeedback } from "./forest/feedback";
 import { GAME_CONFIG } from "./config";
 import { CROP_DEFINITIONS, DEFAULT_CROP_ID, isCropId, type CropId, getCropDefinition, isMatureCrop } from "./data/crops";
 import { ITEM_DEFINITIONS } from "./data/items";
+import { getRecipe } from "./crafting/definitions";
+import { craft } from "./crafting/engine";
 import { GENERAL_STORE_LISTINGS } from "./data/shop";
 import { TILE_TYPE_DEFINITIONS, getTileTypeInMap, pointInTileRect, tilePoint } from "./maps/definitions";
 import type { MapAction, MapId } from "./maps/types";
@@ -80,6 +82,8 @@ export class FarmScene extends Phaser.Scene {
   private helpOpen = true;
   private sleepPrompt = false;
   private shopOpen = false;
+  private craftingOpen = false;
+  private craftingBusy = false;
   private transitioning = false;
   private lateNightWarned = false;
   private lockedWarpId: string | null = null;
@@ -169,7 +173,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private npcTime() { return this.family ? Math.min(GAME_CONFIG.day.endMinutes, this.npcMinute + Math.min(2000, Math.max(0, performance.now()-this.npcClockReceived))/REAL_MS_PER_GAME_MINUTE) : this.timeMinutes + this.timeAccumulator/REAL_MS_PER_GAME_MINUTE; }
-  private isPaused() { return this.journalOpen || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.transitioning; }
+  private isPaused() { return this.journalOpen || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.craftingOpen || this.transitioning; }
   private advanceClock(delta: number) {
     this.timeAccumulator += delta;
     const elapsed = Math.floor(this.timeAccumulator / REAL_MS_PER_GAME_MINUTE);
@@ -246,6 +250,7 @@ export class FarmScene extends Phaser.Scene {
   private performWorldAction(action: MapAction) {
     if (action === "sleep") this.askToSleep();
     else if (action === "open_shop") { this.shopOpen = true; this.say("새봄 상점입니다. 필요한 씨앗을 골라 보세요."); }
+    else if (action === "craft") { this.craftingOpen = true; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); this.say("제작대에서 재료를 가공할 수 있어요."); }
     else if (action === "sell") this.sellHarvest();
   }
 
@@ -363,7 +368,19 @@ export class FarmScene extends Phaser.Scene {
     if (command.type === "sleep-cancel") { this.sleepPrompt = false; this.say("조금 더 둘러보기로 했어요."); }
     if (command.type === "shop-close") { this.shopOpen = false; this.say("다음에 또 들러 주세요."); }
     if (command.type === "shop-buy" && typeof command.value === "string") this.buy(command.value);
+    if (command.type === "craft-close") { if (!this.craftingBusy) { this.craftingOpen = false; this.virtualMovement = { x: 0, y: 0 }; this.emitHud(); } }
+    if (command.type === "craft" && typeof command.value === "string") this.craftRecipe(command.value);
     if (command.type === "sell") this.sellHarvest();
+  }
+
+  private craftRecipe(recipeId: string) {
+    if (!this.craftingOpen || this.craftingBusy) return;
+    const recipe = getRecipe(recipeId);
+    if (!recipe) { this.say("없는 제작법이에요."); return; }
+    if (this.family) { this.say("가족 제작 상태를 확인하고 다시 시도해 주세요."); return; }
+    if (!craft(this.inventory, recipe)) { this.say("재료가 부족해요."); return; }
+    this.say(`${recipe.name} ${recipe.output.quantity}개를 만들었어요.`);
+    this.save(false);
   }
 
   private buy(listingId: string) {
@@ -424,7 +441,7 @@ export class FarmScene extends Phaser.Scene {
     const npcPoses=this.npcs?.sample(this.day,this.npcTime())??[];
     const villagers=NPC_DEFINITIONS.map(n=>{const p=npcPoses.find(p=>p.npcId===n.id),points=personal.relationships[n.id].points;return {id:n.id,name:n.name,points,level:relationshipLevel(points),location:p?this.mapRegistry.get(p.mapId)?.name??"다른 장소":"다른 장소",activity:p?.activity??"휴식"};});
     const step = this.getObjective();
-    const hud: HudState = { villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
+    const hud: HudState = { craftingOpen:this.craftingOpen,craftingBusy:this.craftingBusy,craftingItems:this.inventory.serialize().items,villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: this.day, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
       transitioning: this.transitioning, shopOpen: this.shopOpen, mapId: this.currentMapId, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));
