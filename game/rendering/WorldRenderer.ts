@@ -9,6 +9,8 @@ import type { MapRegistry } from "../maps/MapRegistry";
 import { FOREST_RESOURCES, resourceKind } from "../forest/resources";
 import { PLACEABLE_DEFINITIONS } from "../placeables/definitions";
 import type { PlaceableInstance } from "../placeables/types";
+import { BUILDING_DEFINITIONS } from "../buildings/definitions";
+import type { BuildingInstance } from "../buildings/types";
 
 const farmKey = (tile: Pick<FarmTileData, "x" | "y">) => `${tile.x},${tile.y}`;
 
@@ -24,6 +26,8 @@ export class WorldRenderer {
   private readonly forestHitLabels = new Map<string, Phaser.GameObjects.Text>();
   private readonly placeableViews = new Map<string, { image: Phaser.GameObjects.Image; obstacle?: Phaser.GameObjects.Rectangle }>();
   private placeableSignature = "";
+  private readonly buildingViews = new Map<string, { image: Phaser.GameObjects.Image; obstacle: Phaser.GameObjects.Rectangle }>();
+  private buildingSignature = "";
   private currentMapId?: MapId;
   constructor(private readonly scene: Phaser.Scene, private readonly maps: MapRegistry) {}
 
@@ -46,7 +50,7 @@ export class WorldRenderer {
   }
 
   destroy() {
-    this.farmViews.clear(); this.forestHitLabels.clear(); this.placeableViews.clear(); this.placeableSignature = ""; this.root?.destroy(true); this.root = undefined;
+    this.farmViews.clear(); this.forestHitLabels.clear(); this.placeableViews.clear(); this.placeableSignature = ""; this.buildingViews.clear(); this.buildingSignature = ""; this.root?.destroy(true); this.root = undefined;
     this.obstacles?.clear(true, true); this.obstacles = undefined;
   }
 
@@ -68,6 +72,29 @@ export class WorldRenderer {
       this.root.add(image);
       const obstacle = definition.collision ? this.addObstacle(x, y, definition.footprint.width * GAME_CONFIG.tileSize - 4, definition.footprint.height * GAME_CONFIG.tileSize - 4) : undefined;
       this.placeableViews.set(instance.id, { image, obstacle });
+    }
+    this.obstacles.refresh();
+  }
+
+  renderBuildings(instances: BuildingInstance[]) {
+    if (!this.root || !this.obstacles || !this.currentMapId) return;
+    const current = instances.filter(b => b.mapId === this.currentMapId);
+    const signature = JSON.stringify(current.map(b => [b.id, b.definitionId, b.tileX, b.tileY, b.status]));
+    if (signature === this.buildingSignature) return;
+    for (const { image, obstacle } of this.buildingViews.values()) {
+      this.root.remove(image, true); this.root.remove(obstacle); this.obstacles.remove(obstacle, true, true);
+    }
+    this.buildingViews.clear(); this.buildingSignature = signature;
+    for (const instance of current) {
+      const definition = BUILDING_DEFINITIONS[instance.definitionId], asset = WORLD_OBJECT_ASSETS[definition.assetId];
+      const x = (instance.tileX + definition.footprint.width / 2) * GAME_CONFIG.tileSize;
+      const y = (instance.tileY + definition.footprint.height / 2) * GAME_CONFIG.tileSize;
+      const image = this.makeImage(x, y, asset).setDepth(7).setAlpha(instance.status === "ready" ? 1 : .65);
+      this.root.add(image);
+      const obstacle = this.addObstacle(instance.tileX * GAME_CONFIG.tileSize + definition.collision.x + definition.collision.width / 2,
+        instance.tileY * GAME_CONFIG.tileSize + definition.collision.y + definition.collision.height / 2,
+        definition.collision.width, definition.collision.height);
+      this.buildingViews.set(instance.id, { image, obstacle });
     }
     this.obstacles.refresh();
   }
@@ -95,7 +122,12 @@ export class WorldRenderer {
   }
 
   renderFarmTile(tile: FarmTileData) {
-    const view = this.farmViews.get(farmKey(tile));
+    let view = this.farmViews.get(farmKey(tile));
+    if (!view && this.root && this.currentMapId === "farm") {
+      const position = tilePoint(tile.x + .5, tile.y + .5);
+      view = this.scene.add.container(position.x, position.y).setDepth(6);
+      this.root.add(view); this.farmViews.set(farmKey(tile), view);
+    }
     if (!view) return;
     view.removeAll(true);
     const groundId = tile.wateredToday ? "tile_farm_watered" : tile.tilled ? "tile_farm_tilled" : "tile_farm_empty";
@@ -108,9 +140,7 @@ export class WorldRenderer {
 
   private createFarmViews(farm: Iterable<FarmTileData>) {
     for (const tile of farm) {
-      const position = tilePoint(tile.x + 0.5, tile.y + 0.5);
-      const view = this.scene.add.container(position.x, position.y).setDepth(6);
-      this.root!.add(view); this.farmViews.set(farmKey(tile), view); this.renderFarmTile(tile);
+      this.renderFarmTile(tile);
     }
   }
 

@@ -19,6 +19,9 @@ import { canPerformAction, normalizePlayerStats, recordSuccessfulAction, restore
 import { initialStorage, normalizeStorage, transferItem } from "../../game/storage/container";
 import { initialPlaceables, normalizePlaceables, placeObject, removeObject } from "../../game/placeables/system";
 import { startMachine, collectMachine } from "../../game/machines/system";
+import { constructBuilding, initialBuildings, normalizeBuildings } from "../../game/buildings/system";
+import { BUILDING_DEFINITIONS } from "../../game/buildings/definitions";
+import { FARM_EXPANSIONS, initialFarmProgress, normalizeFarmProgress, unlockExpansion } from "../../game/farm/expansions";
 import { FamilyError, FamilyRooms } from "./rooms";
 import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeForestState, resourceKind, strikeForestNode, validForestNodeId } from "../../game/forest/resources";
 
@@ -30,6 +33,7 @@ export const initialFamilyWorld = (now: number): StoredWorld => ({
   forestState: emptyForestState(1),
   storage: initialStorage(),
   placeables: initialPlaceables(),
+  buildings: initialBuildings(), farmProgress: initialFarmProgress(),
   farm: MAP_DEFINITIONS.farm.farmAreas.flatMap((area) => Array.from({ length: area.endY - area.startY + 1 }, (_, j) =>
     Array.from({ length: area.endX - area.startX + 1 }, (_, i) => ({ x: area.startX + i, y: area.startY + j, tilled: false, wateredToday: false, cropType: null, cropStage: null, plantedDay: null }))).flat()),
 });
@@ -37,7 +41,7 @@ function currentWorld(stored: StoredWorld, now: number, roomId: string): FamilyW
   // Older room JSON has no weather field; derive rain for the current day on read.
   waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
   const timeMinutes = Math.min(GAME_CONFIG.day.endMinutes, stored.timeMinutes + Math.floor(Math.max(0, now - stored.clockAnchor) / GAME_CONFIG.day.realMsPerGameMinute));
-  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), money: stored.money, farm: stored.farm,
+  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), buildings: normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day), farmProgress: normalizeFarmProgress(stored.farmProgress), money: stored.money, farm: stored.farm,
     timeMinutes };
 }
 export class FamilyState extends FamilyRooms {
@@ -61,6 +65,7 @@ export class FamilyState extends FamilyRooms {
     advanceFarmDay(stored.farm);
     stored.daySerial = (stored.daySerial ?? stored.day) + 1;
     stored.day = calendarDate(stored.daySerial).day;
+    stored.buildings = normalizeBuildings(stored.buildings, stored.daySerial);
     stored.placeables = normalizePlaceables(stored.placeables, worldMinute(stored.daySerial, GAME_CONFIG.day.startMinutes));
     waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial));
     stored.forestState = emptyForestState(stored.daySerial);
@@ -198,6 +203,29 @@ export class FamilyState extends FamilyRooms {
       const error = transferItem(inventory, storage, action.containerId, action.direction, action.itemId, action.quantity);
       if (error) throw new FamilyError(409, error);
       stored.storage = storage;
+    } else if (action.kind === "farm-expand") {
+      const expansion = typeof action.expansionId === "string" ? FARM_EXPANSIONS[action.expansionId as keyof typeof FARM_EXPANSIONS] : undefined;
+      if (!expansion || pose.mapId !== "farm" || Math.hypot(pose.x - (expansion.area.startX + expansion.area.endX + 1) * GAME_CONFIG.tileSize / 2,
+        pose.y - (expansion.area.startY + expansion.area.endY + 1) * GAME_CONFIG.tileSize / 2) > 150) throw new FamilyError(400, "확장할 밭 가까이에서 이용해 주세요.");
+      const progress = normalizeFarmProgress(stored.farmProgress);
+      const result = unlockExpansion(progress, stored.farm, inventory, stored.money, action.expansionId,
+        normalizePlaceables(stored.placeables), normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day));
+      if (result.error) throw new FamilyError(409, result.error);
+      stored.money = result.money; stored.farmProgress = progress;
+      if (weatherFor(roomId, stored.daySerial ?? stored.day).id === "rain") waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
+    } else if (action.kind === "build") {
+      const definition = typeof action.definitionId === "string" ? BUILDING_DEFINITIONS[action.definitionId as keyof typeof BUILDING_DEFINITIONS] : undefined;
+      if (!definition || pose.mapId !== "farm" || !Number.isSafeInteger(action.tileX) || !Number.isSafeInteger(action.tileY) ||
+        Math.hypot(pose.x - (action.tileX + definition.footprint.width / 2) * GAME_CONFIG.tileSize,
+          pose.y - (action.tileY + definition.footprint.height / 2) * GAME_CONFIG.tileSize) > 140)
+        throw new FamilyError(400, "건설할 위치 가까이에서 이용해 주세요.");
+      const nearby = await this.db.prepare("SELECT pose_json FROM family_presence WHERE room_id=? AND last_seen>?").bind(roomId, this.now() - FAMILY_PRESENCE_TTL_MS).all<{ pose_json: string }>();
+      const players = [pose, ...nearby.results.flatMap(row => { try { const p = parseFamilyPose(JSON.parse(row.pose_json)); return p ? [p] : []; } catch { return []; } })];
+      const buildings = normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day);
+      const result = constructBuilding(buildings, normalizePlaceables(stored.placeables), stored.farm, inventory, stored.money,
+        MAP_DEFINITIONS.farm, action.definitionId, action.tileX, action.tileY, players, crypto.randomUUID(), stored.daySerial ?? stored.day);
+      if (result.error) throw new FamilyError(409, result.error);
+      stored.money = result.money; stored.buildings = buildings;
     } else if (action.kind === "place" || action.kind === "place-remove" || action.kind === "machine-start" || action.kind === "machine-collect") {
       const time = currentWorld(stored, this.now(), roomId).timeMinutes;
       const now = worldMinute(stored.daySerial ?? stored.day, time);
@@ -208,7 +236,7 @@ export class FamilyState extends FamilyRooms {
           throw new FamilyError(400, "농장 가까운 칸에 배치해 주세요.");
         const nearby = await this.db.prepare("SELECT pose_json FROM family_presence WHERE room_id=? AND last_seen>?").bind(roomId, this.now() - FAMILY_PRESENCE_TTL_MS).all<{ pose_json: string }>();
         const players = [pose, ...nearby.results.flatMap(row => { try { const p = parseFamilyPose(JSON.parse(row.pose_json)); return p ? [p] : []; } catch { return []; } })];
-        const error = placeObject(placeables, inventory, action.definitionId, MAP_DEFINITIONS.farm, action.tileX, action.tileY, players, crypto.randomUUID());
+        const error = placeObject(placeables, inventory, action.definitionId, MAP_DEFINITIONS.farm, action.tileX, action.tileY, players, crypto.randomUUID(), normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day));
         if (error) throw new FamilyError(409, error);
       } else {
         const instance = placeables.instances.find(p => p.id === action.instanceId && p.mapId === pose.mapId);

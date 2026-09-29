@@ -9,10 +9,14 @@ import type { ToolProgression } from "../tools/types";
 import type { PlayerStats } from "../player/stats";
 import type { StorageData, ContainerId, StorageDirection } from "../storage/types";
 import type { PlaceablesData, PlaceableId } from "../placeables/types";
+import type { BuildingsData, BuildingId } from "../buildings/types";
+import type { FarmProgress, ExpansionId } from "../farm/expansions";
 export interface FamilyPose extends PlayerData { selectedTool: ToolKey; moving: boolean }
-export interface FamilyWorld { placeables?: PlaceablesData; storage?: StorageData; daySerial?:number; forestState?: ForestState; day: number; timeMinutes: number; money: number; farm: FarmTileData[] }
+export interface FamilyWorld { buildings?: BuildingsData; farmProgress?: FarmProgress; placeables?: PlaceablesData; storage?: StorageData; daySerial?:number; forestState?: ForestState; day: number; timeMinutes: number; money: number; farm: FarmTileData[] }
 export interface FamilySnapshot { npcTimeMinutes?: number; toolProgression?: ToolProgression; stats?: PlayerStats; revision: number; serverNow: number; world: FamilyWorld; inventory: InventoryData; sleep?: { waiting: string[]; agreed: number; online: number; voted: boolean } }
 export type FamilyAction =
+  | { kind: "build"; definitionId: BuildingId; tileX: number; tileY: number; pose: FamilyPose }
+  | { kind: "farm-expand"; expansionId: ExpansionId; pose: FamilyPose }
   | { kind: "tool"; tool: ToolKey; cropId?: import("../data/crops").CropId; x: number; y: number; pose: FamilyPose }
   | { kind: "forest-gather"; nodeId: string; daySerial: number; tool: ToolKey; pose: FamilyPose }
   | { kind: "buy"; listingId: string; pose: FamilyPose }

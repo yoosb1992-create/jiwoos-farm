@@ -6,6 +6,9 @@ import type { MapDefinition } from "../maps/types";
 import { advanceMachine, idleMachine, normalizeMachine } from "../machines/system";
 import { isPlaceableId, PLACEABLE_DEFINITIONS } from "./definitions";
 import type { PlaceableId, PlaceableInstance, PlaceablesData } from "./types";
+import { BUILDING_DEFINITIONS } from "../buildings/definitions";
+import type { BuildingsData } from "../buildings/types";
+import { FARM_EXPANSIONS } from "../farm/expansions";
 
 export const initialPlaceables = (): PlaceablesData => ({ instances: [] });
 const safeTile = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
@@ -34,7 +37,7 @@ export function normalizePlaceables(value: unknown, now?: number): PlaceablesDat
 }
 
 export function placementError(data: PlaceablesData, definitionId: unknown, map: MapDefinition, x: unknown, y: unknown,
-  players: { x: number; y: number; mapId: string }[]): string | null {
+  players: { x: number; y: number; mapId: string }[], buildings?: BuildingsData): string | null {
   if (!isPlaceableId(definitionId)) return "배치할 수 없는 오브젝트예요.";
   const definition = PLACEABLE_DEFINITIONS[definitionId];
   if (!definition.maps.includes(map.id)) return "이 맵에는 배치할 수 없어요.";
@@ -47,11 +50,13 @@ export function placementError(data: PlaceablesData, definitionId: unknown, map:
         map.collisionRegions.some(area => contains(area, tx, ty))) return "농지나 장애물 위에는 배치할 수 없어요.";
     if (map.warps.some(w => tx >= w.area.startX - 1 && tx <= w.area.endX + 1 && ty >= w.area.startY - 1 && ty <= w.area.endY + 1))
       return "출입구를 막을 수 없어요.";
+    if (Object.values(FARM_EXPANSIONS).some(expansion => contains(expansion.area, tx, ty))) return "확장 농지에는 배치할 수 없어요.";
   }
   if (players.some(p => p.mapId === map.id && overlaps(rect, { x: Math.floor(p.x / GAME_CONFIG.tileSize), y: Math.floor(p.y / GAME_CONFIG.tileSize), width: 1, height: 1 })))
     return "플레이어가 서 있는 칸에는 배치할 수 없어요.";
   if (data.instances.some(p => p.mapId === map.id && overlaps(rect, { x: p.tileX, y: p.tileY, ...PLACEABLE_DEFINITIONS[p.definitionId].footprint })))
     return "다른 오브젝트와 겹쳐요.";
+  if (buildings?.instances.some(b => b.mapId === map.id && overlaps(rect, { x: b.tileX, y: b.tileY, ...BUILDING_DEFINITIONS[b.definitionId].footprint }))) return "건물과 겹쳐요.";
   const pixel = { x: tileX * GAME_CONFIG.tileSize, y: tileY * GAME_CONFIG.tileSize, width: rect.width * GAME_CONFIG.tileSize, height: rect.height * GAME_CONFIG.tileSize };
   if (map.objects.some(o => o.collision && overlaps(pixel, {
     x: o.position.tileX * GAME_CONFIG.tileSize + o.collision.x, y: o.position.tileY * GAME_CONFIG.tileSize + o.collision.y,
@@ -61,8 +66,8 @@ export function placementError(data: PlaceablesData, definitionId: unknown, map:
 }
 
 export function placeObject(data: PlaceablesData, inventory: Inventory, definitionId: unknown, map: MapDefinition, x: unknown, y: unknown,
-  players: { x: number; y: number; mapId: string }[], id: string): string | null {
-  const error = placementError(data, definitionId, map, x, y, players);
+  players: { x: number; y: number; mapId: string }[], id: string, buildings?: BuildingsData): string | null {
+  const error = placementError(data, definitionId, map, x, y, players, buildings);
   if (error) return error;
   const definition = PLACEABLE_DEFINITIONS[definitionId as PlaceableId];
   if (typeof id !== "string" || !id || id.length > 80 || data.instances.some(p => p.id === id)) return "오브젝트 ID가 올바르지 않아요.";

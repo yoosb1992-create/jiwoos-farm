@@ -16,6 +16,10 @@ import { normalizeStorage } from "./storage/container";
 import type { StorageData } from "./storage/types";
 import { normalizePlaceables } from "./placeables/system";
 import type { PlaceablesData } from "./placeables/types";
+import { normalizeBuildings } from "./buildings/system";
+import type { BuildingsData } from "./buildings/types";
+import { normalizeFarmProgress } from "./farm/expansions";
+import type { FarmProgress } from "./farm/expansions";
 
 export interface FarmTileData {
   x: number;
@@ -29,6 +33,8 @@ export interface FarmTileData {
 export interface InventoryData { items: Partial<Record<ItemId, number>> }
 export interface PlayerData { x: number; y: number; facing: Facing; mapId: MapId }
 export interface SaveData {
+  buildings?: BuildingsData;
+  farmProgress?: FarmProgress;
   placeables?: PlaceablesData;
   storage?: StorageData;
   stats?: PlayerStats;
@@ -154,6 +160,8 @@ const normalizeV4 = (value: unknown): SaveData | null => {
     stats: normalizePlayerStats(value.stats),
     storage: normalizeStorage(value.storage),
     placeables: normalizePlaceables(value.placeables, worldMinute(daySerial, timeMinutes)),
+    buildings: normalizeBuildings(value.buildings, daySerial),
+    farmProgress: normalizeFarmProgress(value.farmProgress),
     ...(Object.hasOwn(value, "toolProgression") ? { toolProgression: normalizeToolProgression(value.toolProgression) } : {}),
     playerProgress: normalizeProgress(value.playerProgress),
     daySerial,

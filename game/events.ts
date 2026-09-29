@@ -1,5 +1,10 @@
 export type ToolKey = "hoe" | "seed" | "water" | "hand" | "axe" | "pickaxe";
 export interface HudState {
+  buildings?: import("./buildings/types").BuildingsData;
+  farmProgress?: import("./farm/expansions").FarmProgress;
+  buildingOpen?: boolean;
+  buildingMode?: boolean;
+  buildingBusy?: boolean;
   placeables?: import("./placeables/types").PlaceablesData;
   placing?: boolean;
   machineOpen?: string;
