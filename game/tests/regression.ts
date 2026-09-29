@@ -3,6 +3,7 @@ import "./family-client";
 import "./family-lobby";
 import "./family-presence";
 import "./family-state";
+import "./world-simulation";
 import "./family-rooms";
 import "./editor-graphics";
 import "./environment-assets";

@@ -4,6 +4,7 @@ import { CROP_DEFINITIONS, getCropDefinition, type CropId } from "./data/crops";
 import { ITEM_DEFINITIONS, type ItemId } from "./data/items";
 import type { Facing } from "./assets/definitions";
 import { GAME_CONFIG } from "./config";
+import { calendarDate } from "./world/calendar";
 import type { MapId } from "./maps/types";
 import { MAP_DEFINITIONS } from "./maps/definitions";
 import { FAIRY_FOREST_ID, FOREST_ENTRY } from "./forest/generation";
@@ -131,7 +132,8 @@ const normalizeV4 = (value: unknown): SaveData | null => {
   const mapId: MapId = isMapId(rawPlayer.mapId) ? rawPlayer.mapId : "farm";
   const fallbackPlayer = defaultPlayer(mapId);
   const invalidMap = !isMapId(rawPlayer.mapId);
-  const daySerial = Math.max(1, nonNegativeInteger(value.daySerial, nonNegativeInteger(value.day, 1)));
+  const legacyDay = Math.min(GAME_CONFIG.day.daysPerSeason, Math.max(1, nonNegativeInteger(value.day, 1)));
+  const daySerial = Number.isSafeInteger(value.daySerial) && (value.daySerial as number) >= 1 ? value.daySerial as number : legacyDay;
   const player = invalidMap ? fallbackPlayer : {
     mapId,
     x: finiteNumber(rawPlayer.x, fallbackPlayer.x),
@@ -144,7 +146,7 @@ const normalizeV4 = (value: unknown): SaveData | null => {
     playerProgress: normalizeProgress(value.playerProgress),
     daySerial,
     ...(Object.hasOwn(value, "forestState") ? { forestState: normalizeForestState(value.forestState, daySerial) } : {}),
-    day: Math.min(GAME_CONFIG.day.daysPerSeason, Math.max(1, nonNegativeInteger(value.day, 1))),
+    day: calendarDate(daySerial).day,
     timeMinutes: Math.min(GAME_CONFIG.day.endMinutes, Math.max(GAME_CONFIG.day.startMinutes, nonNegativeInteger(value.timeMinutes, GAME_CONFIG.day.startMinutes))),
     money: nonNegativeInteger(value.money, GAME_CONFIG.startingMoney),
     selectedTool: isTool(value.selectedTool) ? value.selectedTool : "hoe",

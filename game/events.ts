@@ -22,6 +22,9 @@ export interface HudState {
   message: string;
   progress: number;
   day: number;
+  year: number;
+  season: import("./world/calendar").Season;
+  weather: import("./weather/types").WeatherId;
   timeText: string;
   sleepPrompt: boolean;
   transitioning: boolean;
@@ -32,7 +35,10 @@ export interface HudState {
 export const initialHud: HudState = {
   money: GAME_CONFIG.startingMoney, seeds: GAME_CONFIG.startingSeedCount, harvest: 0, selectedTool: "hoe",
   objective: "첫 밭을 갈아 보세요", message: "갈색 밭 가까이에서 괭이를 사용하세요.", progress: 0,
-  day: 1, timeText: "오전 6:00", sleepPrompt: false, transitioning: false, shopOpen: false, mapName: "지우네 농장",
+  day: calendarDate(1).day, year: 1, season: calendarDate(1).season, weather: weatherFor("single", 1).id,
+  timeText: "오전 6:00", sleepPrompt: false, transitioning: false, shopOpen: false, mapName: "지우네 농장",
 };
 export const gameEvents = new EventTarget();
 import { GAME_CONFIG } from "./config";
+import { calendarDate } from "./world/calendar";
+import { weatherFor } from "./weather/system";

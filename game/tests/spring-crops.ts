@@ -6,6 +6,7 @@ import { GENERAL_STORE_LISTINGS } from "../data/shop";
 import { Inventory, normalizeSaveData, advanceFarmDay, sellAllCrops } from "../domain";
 import { familyTestDB } from "./family-db";
 import type { FamilyPose } from "../family/types";
+import { waterFarmForRain, weatherFor } from "../weather/system";
 for (const crop of [CROP_DEFINITIONS.sunpotato, CROP_DEFINITIONS.heartberry, CROP_DEFINITIONS.morningcarrot]) {
   const { db, close } = familyTestDB();
   try {
@@ -29,6 +30,7 @@ for (const crop of [CROP_DEFINITIONS.sunpotato, CROP_DEFINITIONS.heartberry, CRO
       await act({ ...tool, tool: "water" });
       const next = await act({ kind: "sleep", pose: { ...pose, mapId: "farmhouse", x: 304, y: 224 } });
       localTile.wateredToday = true; advanceFarmDay([localTile]);
+      waterFarmForRain([localTile], weatherFor(room.id, next.world.daySerial!));
       assert.deepEqual(next.world.farm[0], localTile, "local/server growth must match");
       assert.equal(isMatureCrop(localTile.cropType!, localTile.cropStage!), day === crop.growthDays);
     }

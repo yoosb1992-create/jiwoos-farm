@@ -1,5 +1,8 @@
 "use client";
 import { CROP_DEFINITIONS, DEFAULT_CROP_ID } from "@/game/data/crops";
+import { SEASON_NAMES } from "@/game/world/calendar";
+import { WEATHER_DEFINITIONS } from "@/game/weather/definitions";
+import { weatherFor } from "@/game/weather/system";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type * as Phaser from "phaser";
@@ -54,7 +57,7 @@ function VirtualJoystick({ onMove }: { onMove: (x: number, y: number) => void })
 
 function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor, onHome, family }: { editorMaps?: Record<string, MapDefinition>; initialMapId?: string; testMode?: boolean; onOpenEditor: () => void; onHome: () => void; family?: FamilySession }) {
   const gameRef = useRef<Phaser.Game | null>(null);
-  const [hud, setHud] = useState<HudState>(initialHud);
+  const [hud, setHud] = useState<HudState>(() => family ? { ...initialHud, weather: weatherFor(family.room.id, 1).id } : initialHud);
   const [showHelp, setShowHelp] = useState(true);
   const [questOpen, setQuestOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -92,7 +95,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         {family && <FamilyStatus session={family} mapId={hud.mapId} />}
         <header className="top-hud">
           <div className="brand-plate"><span className="brand-leaf">✦</span><div><strong>지우네 농장</strong><small>우리 가족의 봄날</small></div></div>
-          <div className="status-plate"><span>☀ 맑음 · {hud.mapName}</span><b>봄 {hud.day}일</b><strong>{hud.timeText}</strong><em>{hud.money.toLocaleString()} G</em></div>
+          <div className="status-plate"><span>{WEATHER_DEFINITIONS[hud.weather].icon} {hud.mapName}</span><b>{hud.year}년차 · {SEASON_NAMES[hud.season]} {hud.day}일 · {WEATHER_DEFINITIONS[hud.weather].name}</b><strong>{hud.timeText}</strong><em>{hud.money.toLocaleString()} G</em></div>
         </header>
         <aside className={`quest-card ${questOpen ? "expanded" : ""}`} onClick={() => setQuestOpen((open) => !open)}>
           <span className="quest-kicker">오늘 할 일 <i>▾</i></span><strong>{hud.objective}</strong>

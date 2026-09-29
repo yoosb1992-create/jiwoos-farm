@@ -1,5 +1,7 @@
 import { FAMILY_PRESENCE_TTL_MS } from "../../game/family/presence";
 import { GAME_CONFIG } from "../../game/config";
+import { calendarDate } from "../../game/world/calendar";
+import { waterFarmForRain, weatherFor } from "../../game/weather/system";
 import { advanceFarmDay, sellAllCrops, Inventory, purchaseInventoryItem, type InventoryData } from "../../game/domain";
 import { DEFAULT_CROP_ID, isCropId, getCropDefinition, isMatureCrop } from "../../game/data/crops";
 import { GENERAL_STORE_LISTINGS } from "../../game/data/shop";
@@ -25,8 +27,10 @@ export const initialFamilyWorld = (now: number): StoredWorld => ({
   farm: MAP_DEFINITIONS.farm.farmAreas.flatMap((area) => Array.from({ length: area.endY - area.startY + 1 }, (_, j) =>
     Array.from({ length: area.endX - area.startX + 1 }, (_, i) => ({ x: area.startX + i, y: area.startY + j, tilled: false, wateredToday: false, cropType: null, cropStage: null, plantedDay: null }))).flat()),
 });
-function currentWorld(stored: StoredWorld, now: number): FamilyWorld {
-  return { day: stored.day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), money: stored.money, farm: stored.farm,
+function currentWorld(stored: StoredWorld, now: number, roomId: string): FamilyWorld {
+  // Older room JSON has no weather field; derive rain for the current day on read.
+  waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
+  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), money: stored.money, farm: stored.farm,
     timeMinutes: Math.min(GAME_CONFIG.day.endMinutes, stored.timeMinutes + Math.floor(Math.max(0, now - stored.clockAnchor) / GAME_CONFIG.day.realMsPerGameMinute)) };
 }
 export class FamilyState extends FamilyRooms {
@@ -37,18 +41,21 @@ export class FamilyState extends FamilyRooms {
     if (!row) throw new FamilyError(503, "공유 상태를 읽을 수 없습니다.");
     return row;
   }
-  private snapshot(row: StateRow, playerId: string): FamilySnapshot {
+  private snapshot(row: StateRow, playerId: string, roomId: string): FamilySnapshot {
     const inventories = JSON.parse(row.inventories_json) as Record<string, FamilyInventory>;
     const clock = JSON.parse(row.world_json) as StoredWorld;
-    return { npcTimeMinutes: Math.min(GAME_CONFIG.day.endMinutes, clock.timeMinutes + Math.max(0, this.now()-clock.clockAnchor)/GAME_CONFIG.day.realMsPerGameMinute), revision: row.revision, serverNow: this.now(), world: currentWorld(JSON.parse(row.world_json), this.now()), inventory: inventories[playerId] ?? new Inventory().serialize(), toolProgression: normalizeToolProgression(inventories[playerId]?.toolProgression) };
+    return { npcTimeMinutes: Math.min(GAME_CONFIG.day.endMinutes, clock.timeMinutes + Math.max(0, this.now()-clock.clockAnchor)/GAME_CONFIG.day.realMsPerGameMinute), revision: row.revision, serverNow: this.now(), world: currentWorld(JSON.parse(row.world_json), this.now(), roomId), inventory: inventories[playerId] ?? new Inventory().serialize(), toolProgression: normalizeToolProgression(inventories[playerId]?.toolProgression) };
   }
   private async online(roomId: string) {
     return (await this.db.prepare(`SELECT m.player_id AS playerId, m.nickname, p.session_id AS sessionId FROM family_members m JOIN family_presence p ON p.room_id = m.room_id AND p.user_id = m.user_id WHERE m.room_id = ? AND p.last_seen > ?`).bind(roomId, this.now() - FAMILY_PRESENCE_TTL_MS).all<{playerId: string; nickname: string; sessionId?: string}>()).results;
   }
-  private nextDay(stored: StoredWorld) {
+  private nextDay(stored: StoredWorld, roomId: string) {
+    waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
+    advanceFarmDay(stored.farm);
     stored.daySerial = (stored.daySerial ?? stored.day) + 1;
+    stored.day = calendarDate(stored.daySerial).day;
+    waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial));
     stored.forestState = emptyForestState(stored.daySerial);
-    advanceFarmDay(stored.farm); stored.day = stored.day >= GAME_CONFIG.day.daysPerSeason ? 1 : stored.day + 1;
     stored.timeMinutes = GAME_CONFIG.day.startMinutes; stored.clockAnchor = this.now(); stored.sleepVotes = []; stored.sleepSessions = {};
   }
   async read(userId: string, roomId: string): Promise<FamilySnapshot> {
@@ -58,14 +65,14 @@ export class FamilyState extends FamilyRooms {
     const votes = (stored.sleepVotes ?? []).filter(id => online.some(p => p.playerId === id && (!stored.sleepSessions?.[id] || stored.sleepSessions[id] === p.sessionId)));
     if (votes.length !== (stored.sleepVotes ?? []).length || (online.length && votes.length === online.length)) {
       stored.sleepVotes = votes;
-      if (online.length && votes.length === online.length) this.nextDay(stored);
+      if (online.length && votes.length === online.length) this.nextDay(stored, roomId);
       await this.db.prepare("UPDATE family_state SET world_json = ?, revision = revision + 1, updated_at = ? WHERE room_id = ? AND revision = ?")
         .bind(JSON.stringify(stored), this.now(), roomId, row.revision).run();
       row = await this.row(roomId);
     }
     const current = JSON.parse(row.world_json) as StoredWorld;
     const waiting = online.filter(p => current.sleepVotes?.includes(p.playerId));
-    return { ...this.snapshot(row, member.playerId), sleep: { waiting: waiting.map(p => p.nickname), agreed: waiting.length, online: online.length, voted: waiting.some(p => p.playerId === member.playerId) } };
+    return { ...this.snapshot(row, member.playerId, roomId), sleep: { waiting: waiting.map(p => p.nickname), agreed: waiting.length, online: online.length, voted: waiting.some(p => p.playerId === member.playerId) } };
   }
   async act(userId: string, roomId: string, expectedRevision: unknown, raw: unknown) {
     const member = await this.requireMember(userId, roomId);
@@ -77,6 +84,7 @@ export class FamilyState extends FamilyRooms {
     const conflict = async () => new FamilyError(409, "다른 가족의 변경을 받았습니다. 상태를 확인한 뒤 다시 행동해 주세요.", { snapshot: await this.read(userId, roomId) });
     if (row.revision !== expectedRevision) throw await conflict();
     const stored = JSON.parse(row.world_json) as StoredWorld;
+    waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
     const inventories = JSON.parse(row.inventories_json) as Record<string, FamilyInventory>;
     const inventory = new Inventory(inventories[member.playerId]);
     const toolProgression = normalizeToolProgression(inventories[member.playerId]?.toolProgression);
@@ -92,11 +100,11 @@ export class FamilyState extends FamilyRooms {
       if (pose.mapId !== "farm" || !Number.isInteger(action.x) || !Number.isInteger(action.y) || !["hoe", "seed", "water", "hand"].includes(action.tool)) throw new FamilyError(400, "올바른 농사 행동이 아닙니다.");
       const tile = stored.farm.find((t) => t.x === action.x && t.y === action.y);
       if (!tile || Math.hypot(pose.x - (tile.x + .5) * GAME_CONFIG.tileSize, pose.y - (tile.y + .5) * GAME_CONFIG.tileSize) > GAME_CONFIG.farmInteractionDistance) throw new FamilyError(400, "밭 가까이에서 행동해 주세요.");
-      if (action.tool === "hoe") tile.tilled = true;
+      if (action.tool === "hoe") { tile.tilled = true; if (weatherFor(roomId, stored.daySerial ?? stored.day).id === "rain") tile.wateredToday = true; }
       else if (action.tool === "seed") {
         if (!tile.tilled || tile.cropType) throw new FamilyError(409, "비어 있는 갈아놓은 밭에 심어 주세요.");
         if (!inventory.consume(crop.seedItemId)) throw new FamilyError(409, "씨앗이 없습니다.");
-        Object.assign(tile, { cropType: cropId, cropStage: 0, plantedDay: stored.day, wateredToday: false });
+        Object.assign(tile, { cropType: cropId, cropStage: 0, plantedDay: calendarDate(stored.daySerial ?? stored.day).day, wateredToday: weatherFor(roomId, stored.daySerial ?? stored.day).id === "rain" });
       } else if (action.tool === "water") {
         if (!tile.cropType) throw new FamilyError(409, "먼저 씨앗을 심어 주세요.");
         tile.wateredToday = true;
@@ -126,7 +134,7 @@ export class FamilyState extends FamilyRooms {
       if (!online.some(p => p.playerId === member.playerId)) online.push(member);
       stored.sleepVotes = [...new Set([...(stored.sleepVotes ?? []).filter(id => online.some(p => p.playerId === id && (!stored.sleepSessions?.[id] || stored.sleepSessions[id] === p.sessionId))), member.playerId])];
       stored.sleepSessions = { ...stored.sleepSessions, [member.playerId]: online.find(p => p.playerId === member.playerId)?.sessionId ?? "" };
-      if (online.every(p => stored.sleepVotes!.includes(p.playerId))) this.nextDay(stored);
+      if (online.every(p => stored.sleepVotes!.includes(p.playerId))) this.nextDay(stored, roomId);
     } else if (action.kind === "sleep-cancel") {
       stored.sleepVotes = (stored.sleepVotes ?? []).filter(id => id !== member.playerId);
     } else if (action.kind === "buy") {

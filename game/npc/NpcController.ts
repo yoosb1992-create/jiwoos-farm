@@ -1,4 +1,5 @@
 import { GAME_CONFIG } from "../config";
+import { calendarDate } from "../world/calendar";
 import type { MapRegistry } from "../maps/MapRegistry";
 import { npcRoute } from "./navigation";
 import type { NpcDefinition, NpcPose, NpcScheduleStep } from "./types";
@@ -9,6 +10,11 @@ export function scheduleAt(npc: NpcDefinition, day: number, minute: number): Npc
 export class NpcController {
   private routes = new Map<NpcScheduleStep, ReturnType<typeof npcRoute>>();
   constructor(readonly definitions: readonly NpcDefinition[], private maps: MapRegistry) {}
+  /** Calendar context is available here for later seasonal schedules. */
+  sampleWorld(daySerial: number, minute: number): NpcPose[] {
+    const date = calendarDate(daySerial);
+    return this.sample(date.day, minute);
+  }
   sample(day:number, minute:number): NpcPose[] {
     return this.definitions.flatMap<NpcPose>(npc => {
       const step=scheduleAt(npc,day,minute), map=step&&this.maps.get(step.mapId);
