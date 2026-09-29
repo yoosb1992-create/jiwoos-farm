@@ -3,8 +3,10 @@ import type { FarmTileData } from "../domain";
 import { CROP_ASSETS, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, type CropAssetId } from "../assets/definitions";
 import { CROP_DEFINITIONS } from "../data/crops";
 import { GAME_CONFIG } from "../config";
-import { MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS, tilePoint } from "../maps/definitions";
+import { TILE_TYPE_DEFINITIONS, tilePoint } from "../maps/definitions";
 import type { MapDefinition, MapId, TileRect } from "../maps/types";
+import type { MapRegistry } from "../maps/MapRegistry";
+import { FOREST_RESOURCES, resourceKind } from "../forest/resources";
 
 const farmKey = (tile: Pick<FarmTileData, "x" | "y">) => `${tile.x},${tile.y}`;
 
@@ -17,11 +19,12 @@ export class WorldRenderer {
   private root?: Phaser.GameObjects.Container;
   private obstacles?: Phaser.Physics.Arcade.StaticGroup;
   private readonly farmViews = new Map<string, Phaser.GameObjects.Container>();
-  constructor(private readonly scene: Phaser.Scene) {}
+  private readonly forestHitLabels = new Map<string, Phaser.GameObjects.Text>();
+  constructor(private readonly scene: Phaser.Scene, private readonly maps: MapRegistry) {}
 
   renderMap(mapId: MapId, farm: Iterable<FarmTileData>) {
     this.destroy();
-    const map = MAP_DEFINITIONS[mapId];
+    const map = this.maps.require(mapId);
     this.root = this.scene.add.container(0, 0);
     this.obstacles = this.scene.physics.add.staticGroup();
     const size = GAME_CONFIG.tileSize, width = map.width * size, height = map.height * size;
@@ -37,8 +40,30 @@ export class WorldRenderer {
   }
 
   destroy() {
-    this.farmViews.clear(); this.root?.destroy(true); this.root = undefined;
+    this.farmViews.clear(); this.forestHitLabels.clear(); this.root?.destroy(true); this.root = undefined;
     this.obstacles?.clear(true, true); this.obstacles = undefined;
+  }
+
+  renderForestHits(hits: Record<string, number>) {
+    if (!this.root) return;
+    const map = this.maps.get("fairy_forest");
+    if (!map) return;
+    const active = new Set<string>();
+    for (const object of map.objects) {
+      const kind = resourceKind(object), count = hits[object.id];
+      if (!kind || !Number.isInteger(count) || count <= 0 || count >= FOREST_RESOURCES[kind].hits) continue;
+      active.add(object.id);
+      const existing = this.forestHitLabels.get(object.id);
+      if (existing) existing.setText(`${count}/${FOREST_RESOURCES[kind].hits}`);
+      else {
+        const position = tilePoint(object.position.tileX, object.position.tileY);
+        const label = this.scene.add.text(position.x, position.y - 27, `${count}/${FOREST_RESOURCES[kind].hits}`, {
+          fontFamily: "sans-serif", fontSize: "12px", color: "#fff8d3", backgroundColor: "#493727dd", padding: { x: 3, y: 1 },
+        }).setOrigin(.5).setDepth(9);
+        this.root.add(label); this.forestHitLabels.set(object.id, label);
+      }
+    }
+    for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { label.destroy(); this.forestHitLabels.delete(id); }
   }
 
   renderFarmTile(tile: FarmTileData) {

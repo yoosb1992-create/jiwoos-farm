@@ -1,0 +1,38 @@
+import { strict as assert } from "node:assert";
+import { FamilyError, FamilyRooms } from "../../server/family/rooms";
+import { familyTestDB } from "./family-db";
+const { db, close } = familyTestDB();
+try {
+  const rooms = new FamilyRooms(db);
+  const a = await rooms.create("user-a", "우리 가족", "지우");
+  assert.match(a.room.inviteCode, /^[A-HJ-NP-Z2-9]{8}$/);
+  const b = await rooms.join("user-b", a.room.inviteCode.toLowerCase(), "아빠");
+  assert.equal(a.room.id, b.room.id); assert.equal(b.members.length, 2);
+  assert.notEqual(a.room.playerId, b.room.playerId);
+  const again = await rooms.join("user-b", a.room.inviteCode, "아빠2");
+  assert.equal(again.room.playerId, b.room.playerId); assert.equal(again.members.length, 2);
+  assert.equal((await rooms.list("user-b"))[0].id, a.room.id);
+  assert.equal((await rooms.list("outsider")).length, 0);
+  await assert.rejects(rooms.detail("outsider", a.room.id), (e: unknown) => e instanceof FamilyError && e.status === 403);
+  await assert.rejects(rooms.join("user-b", "BAD", "아빠"));
+  await assert.rejects(rooms.create("user-a", "", "지우"));
+  assert.ok(!JSON.stringify(b).includes("user-a"), "account IDs must not be exposed");
+  assert.ok(a.room.isOwner); assert.ok(!b.room.isOwner);
+  await assert.rejects(rooms.manage("user-b", a.room.id, "delete"));
+  await assert.rejects(rooms.manage("user-b", a.room.id, "rotate"));
+  await assert.rejects(rooms.manage("user-a", a.room.id, "leave"));
+  const renamed = await rooms.manage("user-b", a.room.id, "rename", "새이름");
+  assert.ok("room" in renamed && renamed.room.nickname === "새이름");
+  const rotated = await rooms.manage("user-a", a.room.id, "rotate");
+  assert.ok("room" in rotated && rotated.room.inviteCode !== a.room.inviteCode);
+  await assert.rejects(rooms.join("user-c", a.room.inviteCode, "옛코드"));
+  await db.prepare("INSERT INTO family_state (room_id, revision, world_json, inventories_json, updated_at) VALUES (?,0,'{}','{}',0)").bind(a.room.id).run();
+  await db.prepare("INSERT INTO family_presence (room_id,user_id,session_id,pose_json,last_seen) VALUES (?,?,'session','{}',?)").bind(a.room.id,"user-b",Date.now()).run();
+  assert.ok((await rooms.detail("user-a", a.room.id)).members.find(m => m.playerId === b.room.playerId)?.online);
+  await rooms.manage("user-b", a.room.id, "leave");
+  await assert.rejects(rooms.detail("user-b", a.room.id));
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM family_presence").first<{n:number}>())!.n,0);
+  await rooms.manage("user-a", a.room.id, "delete");
+  for (const table of ["family_rooms", "family_members", "family_state", "family_presence"]) assert.equal((await db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<{n:number}>())!.n, 0, table);
+  console.log("Family rooms: create, invite, join, recent rooms, membership isolation passed");
+} finally { close(); }
