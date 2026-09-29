@@ -10,6 +10,8 @@ import type { FamilyAction, FamilySnapshot, FamilyWorld } from "../../game/famil
 import { getRecipe } from "../../game/crafting/definitions";
 import { craft } from "../../game/crafting/engine";
 import { normalizeToolProgression } from "../../game/tools/progression";
+import { upgradeTool } from "../../game/tools/progression";
+import { getToolUpgrade } from "../../game/tools/definitions";
 import type { ToolProgression } from "../../game/tools/types";
 import { FamilyError, FamilyRooms } from "./rooms";
 import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeForestState, resourceKind, strikeForestNode, validForestNodeId } from "../../game/forest/resources";
@@ -133,13 +135,19 @@ export class FamilyState extends FamilyRooms {
       const result = purchaseInventoryItem(inventory, stored.money, listing.itemId, listing.price, listing.quantity);
       if (!result.purchased) throw new FamilyError(409, "공동 자금이 부족합니다.");
       stored.money = result.money;
-    } else if (action.kind === "craft") {
-      const recipe = getRecipe(action.recipeId);
-      if (!recipe) throw new FamilyError(400, "없는 제작법이에요.");
+    } else if (action.kind === "craft" || action.kind === "tool-upgrade") {
       const table = (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).find(o => o.interaction?.action === "craft");
       if (!table || !near("craft") || Math.hypot(pose.x - table.position.tileX * GAME_CONFIG.tileSize, pose.y - table.position.tileY * GAME_CONFIG.tileSize) > 90)
         throw new FamilyError(400, "제작대 가까이에서 제작해 주세요.");
-      if (!craft(inventory, recipe)) throw new FamilyError(409, "제작 재료가 부족해요.");
+      if (action.kind === "craft") {
+        const recipe = getRecipe(action.recipeId);
+        if (!recipe) throw new FamilyError(400, "없는 제작법이에요.");
+        if (!craft(inventory, recipe)) throw new FamilyError(409, "제작 재료가 부족해요.");
+      } else {
+        const upgrade = getToolUpgrade(action.upgradeId);
+        if (!upgrade) throw new FamilyError(400, "없는 도구 강화예요.");
+        if (!upgradeTool(inventory, toolProgression, upgrade)) throw new FamilyError(409, "도구 단계나 재료를 확인해 주세요.");
+      }
     } else if (action.kind === "sell") {
       stored.money += sellAllCrops(inventory).earned;
     } else throw new FamilyError(400, "지원하지 않는 행동입니다.");

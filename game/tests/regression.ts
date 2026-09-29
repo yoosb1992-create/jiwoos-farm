@@ -240,11 +240,11 @@ assert.equal(effects, 2);
 
 const animatedTools: string[] = [];
 const allToolActions = new ToolActionSystem({ playTool: (facing) => animatedTools.push(facing) }, () => now);
-for (const tool of ["hoe", "water", "seed", "hand", "axe"] as const) {
+for (const tool of ["hoe", "water", "seed", "hand", "axe", "pickaxe"] as const) {
   now += GAME_CONFIG.toolActionCooldownMs;
   assert.equal(allToolActions.execute(tool, "left", () => undefined), true);
 }
-assert.deepEqual(animatedTools, ["left", "left", "left", "left", "left"], "괭이·물뿌리개·씨앗·손·도끼는 모두 현재 방향 도구 animation을 요청해야 함");
+assert.deepEqual(animatedTools, Array(6).fill("left"), "괭이·물뿌리개·씨앗·손·도끼·곡괭이는 모두 현재 방향 도구 animation을 요청해야 함");
 
 const editorDocument = createBuiltInEditorDocument();
 assert.deepEqual(validateEditorDocument(editorDocument), [], "기본 맵은 편집기 schema/참조 검증을 통과해야 함");

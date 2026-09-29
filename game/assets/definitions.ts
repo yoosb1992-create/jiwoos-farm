@@ -143,6 +143,7 @@ export const ITEM_ASSETS = {
   item_water: itemAsset("item_water", "item-water", "◒", { kind: "image", path: "/assets/items/water.png" }),
   item_hand: itemAsset("item_hand", "item-hand", "✋", { kind: "image", path: "/assets/items/hand.png" }),
   item_axe: itemAsset("item_axe", "item-axe", "🪓", { kind: "image", path: "/assets/items/axe.png" }),
+  item_pickaxe: itemAsset("item_pickaxe", "item-pickaxe", "⛏", { kind: "image", path: "/assets/items/pickaxe.png" }),
   item_wood: itemAsset("item_wood", "item-wood", "▰", { kind: "image", path: "/assets/items/wood.png" }),
   item_stone: itemAsset("item_stone", "item-stone", "◆", { kind: "image", path: "/assets/items/stone.png" }),
   item_wild_herb: itemAsset("item_wild_herb", "item-wild-herb", "❧", { kind: "image", path: "/assets/items/wild-herb.png" }),

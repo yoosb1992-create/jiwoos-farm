@@ -20,7 +20,7 @@ import { documentToRegistry } from "@/game/editor/document";
 import type { MapEditorDocument } from "@/game/editor/types";
 import type { MapDefinition } from "@/game/maps/types";
 
-const toolKeys: ToolKey[] = ["hoe", "seed", "water", "hand", "axe"];
+const toolKeys: ToolKey[] = ["hoe", "seed", "water", "hand", "axe", "pickaxe"];
 const tools = toolKeys.map((key) => {
   const item = ITEM_DEFINITIONS[key];
   return { key, ...item, visual: ITEM_ASSETS[item.assetId] };
@@ -104,12 +104,13 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         {hud.dialogue && <NpcDialogue dialogue={hud.dialogue} onNext={()=>command("dialogue-next")} onClose={()=>command("dialogue-close")}><NpcQuests quests={(hud.quests??[]).filter(q=>q.giver===hud.dialogue!.npcId)} busy={hud.npcBusy} onAction={action=>command("quest-action",action)} /></NpcDialogue>}
         {hud.sleepPrompt && <div className="modal-shade"><div className="sleep-card" role="dialog" aria-modal="true" aria-label="잠자기 확인"><span>🌙</span><b>{family ? "잠자기에 동의할까요? 접속한 가족 모두 동의하면 다음 날이 됩니다." : "오늘 하루를 마치고 잠드시겠습니까?"}</b><p>물을 준 작물은 잠든 사이 한 단계 자랍니다.</p><div><button onClick={() => command("sleep-confirm")}>확인</button><button onClick={() => command("sleep-cancel")}>취소</button></div></div></div>}
         {hud.shopOpen && <div className="modal-shade"><div className="sleep-card" role="dialog" aria-modal="true" aria-label="새봄 상점"><span>🌱</span><b>새봄 상점</b><p>농사에 필요한 씨앗을 준비했어요.</p>{GENERAL_STORE_LISTINGS.map((listing) => <div key={listing.id}><button onClick={() => command("shop-buy", listing.id)}>{listing.name} · {listing.price} G</button></div>)}<div><button onClick={() => command("shop-close")}>상점 나가기</button></div></div></div>}
-        {hud.craftingOpen && <CraftingPanel items={hud.craftingItems ?? {}} busy={hud.craftingBusy ?? false} onCraft={id => command("craft", id)} onClose={() => command("craft-close")} />}
+        {hud.craftingOpen && <CraftingPanel items={hud.craftingItems ?? {}} progression={hud.toolProgression} busy={hud.craftingBusy ?? false} onCraft={id => command("craft", id)} onUpgrade={id => command("tool-upgrade", id)} onClose={() => command("craft-close")} />}
         {hud.transitioning && <div className="night-fade"><span>하루를 마무리합니다…</span></div>}
         <div className="inventory-chip" aria-live="polite"><label>씨앗 <select aria-label="심을 씨앗 종류" value={hud.selectedCrop ?? DEFAULT_CROP_ID} onChange={e => command("seed-select", e.target.value)}>{Object.values(CROP_DEFINITIONS).map(c => <option key={c.id} value={c.id}>{c.name} · {hud.seedCounts?.[c.id] ?? (c.id === DEFAULT_CROP_ID ? hud.seeds : 0)}개</option>)}</select></label><span>수확물 <b>{hud.harvest}</b></span>{hud.mapId === "fairy_forest" && <span>나무 {hud.resources?.wood ?? 0} · 돌 {hud.resources?.stone ?? 0} · 들풀 {hud.resources?.wild_herb ?? 0} · 달빛버섯 {hud.resources?.moon_mushroom ?? 0} · 요정꽃 {hud.resources?.fairy_bloom ?? 0}</span>}</div>
         <nav className="quickbar" aria-label="도구 선택">
           {tools.map((tool, index) => {
-            return <button key={tool.key} className={hud.selectedTool === tool.key ? "selected" : ""} onClick={() => command("tool", tool.key)} title={`${index + 1} · ${tool.toolbarHint}`}><em>{index + 1}</em><ItemIcon asset={tool.visual} /><small>{tool.name}</small></button>;
+            const locked = tool.key === "pickaxe" && !hud.toolProgression?.pickaxe;
+            return <button key={tool.key} className={hud.selectedTool === tool.key ? "selected" : ""} disabled={locked} onClick={() => command("tool", tool.key)} title={`${index + 1} · ${locked ? "제작대에서 해금" : tool.toolbarHint}`}><em>{index + 1}</em><ItemIcon asset={tool.visual} /><small>{locked ? "곡괭이 잠김" : tool.name}{tool.key === "axe" && hud.toolProgression?.axe === 2 ? " Lv2" : ""}</small></button>;
           })}
           <button className="sell-slot" onClick={() => command("sell")} disabled={!hud.harvest}><span>🧺</span><small>전부 판매</small></button>
         </nav>

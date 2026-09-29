@@ -14,6 +14,7 @@ export type FamilyAction =
   | { kind: "forest-gather"; nodeId: string; daySerial: number; tool: ToolKey; pose: FamilyPose }
   | { kind: "buy"; listingId: string; pose: FamilyPose }
   | { kind: "craft"; recipeId: string; pose: FamilyPose }
+  | { kind: "tool-upgrade"; upgradeId: string; pose: FamilyPose }
   | { kind: "sleep" | "sleep-cancel" | "sell"; pose: FamilyPose };
 export interface FamilySession { room: FamilyRoom }
 export interface FamilyToolAction { id: string; tool: ToolKey; facing: FamilyPose["facing"]; expiresAt: number }

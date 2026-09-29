@@ -11,4 +11,5 @@ export const TOOL_ACTION_DEFINITIONS: Record<ToolKey, { effectTiming: ToolEffect
   water: { effectTiming: { trigger: "start" } },
   hand: { effectTiming: { trigger: "start" } },
   axe: { effectTiming: { trigger: "start" } },
+  pickaxe: { effectTiming: { trigger: "start" } },
 };

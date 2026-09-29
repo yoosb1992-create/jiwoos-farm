@@ -4,6 +4,7 @@ export const ITEM_DEFINITIONS = {
   water: { id: "water", name: "물뿌리개", kind: "tool", assetId: "item_water", toolbarHint: "물 주기" },
   hand: { id: "hand", name: "손", kind: "tool", assetId: "item_hand", toolbarHint: "수확" },
   axe: { id: "axe", name: "도끼", kind: "tool", assetId: "item_axe", toolbarHint: "숲에서 벌목" },
+  pickaxe: { id: "pickaxe", name: "곡괭이", kind: "tool", assetId: "item_pickaxe", toolbarHint: "숲에서 채광" },
   wood: { id: "wood", name: "나무", kind: "resource", assetId: "item_wood", sellPrice: 0 },
   stone: { id: "stone", name: "돌", kind: "resource", assetId: "item_stone", sellPrice: 0 },
   wild_herb: { id: "wild_herb", name: "들풀", kind: "resource", assetId: "item_wild_herb", sellPrice: 0 },
