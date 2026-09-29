@@ -95,7 +95,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         {family && <FamilyStatus session={family} mapId={hud.mapId} />}
         <header className="top-hud">
           <div className="brand-plate"><span className="brand-leaf">✦</span><div><strong>지우네 농장</strong><small>우리 가족의 봄날</small></div></div>
-          <div className="status-plate"><span>{WEATHER_DEFINITIONS[hud.weather].icon} {hud.mapName}</span><b>{hud.year}년차 · {SEASON_NAMES[hud.season]} {hud.day}일 · {WEATHER_DEFINITIONS[hud.weather].name}</b><strong>{hud.timeText}</strong><em>{hud.money.toLocaleString()} G</em></div>
+          <div className="status-plate"><span>{WEATHER_DEFINITIONS[hud.weather].icon} {hud.mapName}</span><b>{hud.year}년차 · {SEASON_NAMES[hud.season]} {hud.day}일 · {WEATHER_DEFINITIONS[hud.weather].name}</b><strong>{hud.timeText}</strong><em>{hud.money.toLocaleString()} G <small>체력 {hud.stats.stamina} / {hud.stats.maxStamina}</small></em></div>
         </header>
         <aside className={`quest-card ${questOpen ? "expanded" : ""}`} onClick={() => setQuestOpen((open) => !open)}>
           <span className="quest-kicker">오늘 할 일 <i>▾</i></span><strong>{hud.objective}</strong>
@@ -110,7 +110,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         {hud.shopOpen && <div className="modal-shade"><div className="sleep-card" role="dialog" aria-modal="true" aria-label="새봄 상점"><span>🌱</span><b>새봄 상점</b><p>농사에 필요한 씨앗을 준비했어요.</p>{GENERAL_STORE_LISTINGS.map((listing) => <div key={listing.id}><button onClick={() => command("shop-buy", listing.id)}>{listing.name} · {listing.price} G</button></div>)}<div><button onClick={() => command("shop-close")}>상점 나가기</button></div></div></div>}
         {hud.craftingOpen && <CraftingPanel items={hud.craftingItems ?? {}} progression={hud.toolProgression} notice={hud.toolNotice} busy={hud.craftingBusy ?? false} onCraft={id => command("craft", id)} onUpgrade={id => command("tool-upgrade", id)} onClose={() => command("craft-close")} />}
         {hud.toolNotice && !hud.craftingOpen && <div className="tool-toast" role="status">{hud.toolNotice}</div>}
-        {hud.inventoryOpen && <InventoryPanel items={hud.craftingItems ?? {}} onClose={() => command("inventory-close")} />}
+        {hud.inventoryOpen && <InventoryPanel items={hud.craftingItems ?? {}} stats={hud.stats} onClose={() => command("inventory-close")} />}
         {hud.transitioning && <div className="night-fade"><span>하루를 마무리합니다…</span></div>}
         <div className="inventory-chip" aria-live="polite"><label>씨앗 <select aria-label="심을 씨앗 종류" value={hud.selectedCrop ?? DEFAULT_CROP_ID} onChange={e => command("seed-select", e.target.value)}>{Object.values(CROP_DEFINITIONS).map(c => <option key={c.id} value={c.id}>{c.name} · {hud.seedCounts?.[c.id] ?? (c.id === DEFAULT_CROP_ID ? hud.seeds : 0)}개</option>)}</select></label><span>수확물 <b>{hud.harvest}</b></span>{hud.mapId === "fairy_forest" && <span>나무 {hud.resources?.wood ?? 0} · 돌 {hud.resources?.stone ?? 0} · 들풀 {hud.resources?.wild_herb ?? 0} · 달빛버섯 {hud.resources?.moon_mushroom ?? 0} · 요정꽃 {hud.resources?.fairy_bloom ?? 0}</span>}</div>
         <nav className="quickbar" aria-label="도구 선택">

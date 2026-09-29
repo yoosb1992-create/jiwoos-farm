@@ -27,7 +27,7 @@ for (const crop of [CROP_DEFINITIONS.sunpotato, CROP_DEFINITIONS.heartberry, CRO
     assert.equal(saved?.farm[0].cropType, crop.id); assert.equal(saved?.inventory.items[crop.seedItemId], 0);
     const localTile = { ...planted.world.farm[0] };
     for (let day = 1; day <= crop.growthDays; day++) {
-      await act({ ...tool, tool: "water" });
+      if (!localTile.wateredToday) await act({ ...tool, tool: "water" });
       const next = await act({ kind: "sleep", pose: { ...pose, mapId: "farmhouse", x: 304, y: 224 } });
       localTile.wateredToday = true; advanceFarmDay([localTile]);
       waterFarmForRain([localTile], weatherFor(room.id, next.world.daySerial!));

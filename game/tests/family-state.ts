@@ -25,8 +25,9 @@ try {
   assert.equal((await state.read("A", roomId)).inventory.items.sproutberry_seed, 7, "retry must not consume twice");
   let revision = planted.revision;
   for (let day = 0; day < 3; day++) {
-    const water = await state.act("B", roomId, revision, { ...hoe, tool: "water" });
-    const sleep = await state.act("A", roomId, water.revision, { kind: "sleep", pose: { ...pose, mapId: "farmhouse", x: 304, y: 224 } });
+    const current = await state.read("B", roomId);
+    if (!current.world.farm[0].wateredToday) revision = (await state.act("B", roomId, revision, { ...hoe, tool: "water" })).revision;
+    const sleep = await state.act("A", roomId, revision, { kind: "sleep", pose: { ...pose, mapId: "farmhouse", x: 304, y: 224 } });
     revision = sleep.revision;
   }
   const mature = await state.read("B", roomId); assert.equal(mature.world.farm[0].cropStage, 3); assert.equal(mature.world.day, 4);
