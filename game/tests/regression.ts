@@ -22,6 +22,8 @@ import "./environment-assets";
 import "./graphics-foundation";
 import "./y-sort";
 import "./persistent-world-editor";
+import "./editor-stability";
+import "./editor-runtime-maps";
 import "./graphics-first-pass";
 import "./graphics-composition";
 import "./initial-farm-composition";
