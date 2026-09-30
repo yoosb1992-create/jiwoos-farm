@@ -20,7 +20,7 @@ import { upgradeTool } from "../../game/tools/progression";
 import { getToolUpgrade } from "../../game/tools/definitions";
 import type { ToolProgression } from "../../game/tools/types";
 import { canPerformAction, normalizePlayerStats, recordSuccessfulAction, restoreStamina, type PlayerStats } from "../../game/player/stats";
-import { normalizeStorage, starterStorage, transferItem } from "../../game/storage/container";
+import { normalizeStorage, starterStorage, transferItem, transferItemsAtomically } from "../../game/storage/container";
 import { initialPlaceables, normalizePlaceables, placeObject, removeObject } from "../../game/placeables/system";
 import { startMachine, collectMachine } from "../../game/machines/system";
 import { constructBuilding, initialBuildings, normalizeBuildings } from "../../game/buildings/system";
@@ -320,7 +320,7 @@ export class FamilyState extends FamilyRooms {
     } else if (action.kind === "consume-food") {
       const result = consumeFood(inventory, stats, action.itemId);
       if (!result.consumed) throw new FamilyError(409, result.message);
-    } else if (action.kind === "storage") {
+    } else if (action.kind === "storage" || action.kind === "storage-batch") {
       const chest = (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).find(o => o.interaction?.action === "storage" && o.interaction.containerId === action.containerId);
       const feet = playerFeetPointFromPosition(pose), target = interactionTargetPointFromPosition(pose, pose.facing);
       if (!chest || !chest.interaction ||
@@ -328,7 +328,10 @@ export class FamilyState extends FamilyRooms {
           Math.hypot(pose.x - chest.position.tileX * GAME_CONFIG.tileSize, pose.y - chest.position.tileY * GAME_CONFIG.tileSize) > 90)
         throw new FamilyError(400, "보관함 가까이에서 이용해 주세요.");
       const storage = normalizeStorage(stored.storage);
-      const error = transferItem(inventory, storage, action.containerId, action.direction, action.itemId, action.quantity);
+      const transfers = action.kind === "storage"
+        ? [{ direction: action.direction, itemId: action.itemId, quantity: action.quantity }]
+        : action.transfers;
+      const error = transferItemsAtomically(inventory, storage, action.containerId, transfers);
       if (error) throw new FamilyError(409, error);
       stored.storage = storage;
     } else if (action.kind === "animal-buy" || action.kind === "animal-feed" || action.kind === "animal-pet" || action.kind === "animal-collect") {
