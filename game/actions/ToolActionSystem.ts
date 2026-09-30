@@ -3,6 +3,37 @@ import type { Facing } from "../assets/definitions";
 import { GAME_CONFIG } from "../config";
 import { TOOL_ACTION_DEFINITIONS, shouldTriggerToolEffect, type ToolActionDefinition, type ToolActionStyle } from "./toolActionDefinitions";
 
+export type ToolActionContext = {
+  tool: ToolKey;
+  facing: Facing;
+  mapId: string;
+  player: { x: number; y: number };
+  targetWorld: { x: number; y: number };
+  targetTile: { x: number; y: number };
+  targetObjectId?: string;
+};
+
+/** Capture every coordinate used by an action before animation/movement locking.
+ * Gameplay callbacks must consume this immutable snapshot instead of sampling
+ * the animated player again. */
+export const captureToolActionContext = (
+  tool: ToolKey,
+  facing: Facing,
+  mapId: string,
+  player: { x: number; y: number },
+  targetWorld: { x: number; y: number },
+): ToolActionContext => ({
+  tool,
+  facing,
+  mapId,
+  player: { ...player },
+  targetWorld: { ...targetWorld },
+  targetTile: {
+    x: Math.floor(targetWorld.x / GAME_CONFIG.tileSize),
+    y: Math.floor(targetWorld.y / GAME_CONFIG.tileSize),
+  },
+});
+
 export interface ToolAnimationPort {
   playAction(request: {
     tool: ToolKey;
@@ -51,14 +82,15 @@ export class ToolActionSystem {
     this.actionActive = true;
     this.onActiveChange(true);
     try {
+      // Start-triggered gameplay is authoritative and must not depend on the
+      // Phaser animation lifecycle. Apply it exactly once before visual setup;
+      // refill remains complete-triggered below.
+      if (shouldTriggerToolEffect(definition.effectTiming, "start")) applyEffect();
       this.animations.playAction({
         tool, style: definition.style, facing, definition,
         onFrame: (frame) => { if (shouldTriggerToolEffect(definition.effectTiming, "frame", frame)) applyEffect(); },
         onComplete: complete,
       });
-      // Existing authoritative tool effects remain start-triggered. Refill uses
-      // the same bridge with a complete trigger so the visible scoop happens first.
-      if (shouldTriggerToolEffect(definition.effectTiming, "start")) applyEffect();
     } catch (error) {
       complete();
       throw error;
