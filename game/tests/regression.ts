@@ -12,7 +12,7 @@ import "./storage-containers";
 import "./placeable-machines";
 import "./building-expansion";
 import "./mining-dungeon";
-import "./fishing";
+import "./fishing";\nimport "./fishing-flow";
 import "./animals-ranching";
 import "./relationships-events";
 import "./integration-2.0";
