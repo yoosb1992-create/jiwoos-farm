@@ -13,6 +13,7 @@ import type { BuildingsData, BuildingId } from "../buildings/types";
 import type { FarmProgress, ExpansionId } from "../farm/expansions";
 import type { MineDailyState, MineProgress } from "../mine/types";
 import type { FishingCast, FishingProgress, FishingSpotId } from "../fishing/types";
+import type { FishingCatchGrade } from "../fishing/maze";
 import type { AnimalSpeciesId, RanchState } from "../animals/types";
 import type { WateringCanState } from "../tools/wateringCan";
 import type { FarmTreeState } from "../farm/trees";
@@ -25,7 +26,8 @@ export type FamilyAction =
   | { kind: "animal-pet"; animalId: string; pose: FamilyPose }
   | { kind: "animal-collect"; animalId: string; pose: FamilyPose }
   | { kind: "fish-cast"; spotId: FishingSpotId; pose: FamilyPose }
-  | { kind: "fish-reel"; castId: string; pose: FamilyPose }
+  | { kind: "fish-reel"; castId: string; grade?: FishingCatchGrade; pose: FamilyPose }
+  | { kind: "fish-fail"; castId: string; pose: FamilyPose }
   | { kind: "build"; definitionId: BuildingId; tileX: number; tileY: number; pose: FamilyPose }
   | { kind: "farm-expand"; expansionId: ExpansionId; pose: FamilyPose }
   | { kind: "tool"; tool: ToolKey; cropId?: import("../data/crops").CropId; x: number; y: number; pose: FamilyPose }
