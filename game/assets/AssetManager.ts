@@ -1,6 +1,7 @@
 import type * as Phaser from "phaser";
-import { CROP_ASSETS, DEFAULT_CHARACTER_VISUAL_PROFILE, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, playerAnimationFrames, type AssetSource, type CharacterVisualProfile } from "./definitions";
+import { CROP_ASSETS, DEFAULT_CHARACTER_VISUAL_PROFILE, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, playerAnimationFrames, playerAnimationName, type AssetSource, type CharacterVisualProfile } from "./definitions";
 import { TERRAIN_COMPOSITION_ASSETS } from "./terrainComposition";
+import { PLAYER_ACTION_ASSET, TOOL_ACTION_FACINGS, TOOL_ACTION_STYLES, TOOL_OVERLAY_ASSET, playerActionAnimationName } from "../actions/toolActionDefinitions";
 
 const loadSource = (scene: Phaser.Scene, key: string, source: AssetSource) => {
   if (!source) return;
@@ -10,6 +11,7 @@ const loadSource = (scene: Phaser.Scene, key: string, source: AssetSource) => {
 
 export class AssetManager {
   private playerSpritesheetReady = false;
+  private playerActionSpritesheetReady = false;
 
   constructor(private readonly scene: Phaser.Scene, readonly playerProfile: CharacterVisualProfile = DEFAULT_CHARACTER_VISUAL_PROFILE) {}
 
@@ -17,6 +19,8 @@ export class AssetManager {
 
   preload() {
     loadSource(this.scene, this.playerAsset.textureKey, this.playerAsset.source);
+    if (this.playerProfile.lifeStage === "adult") loadSource(this.scene, PLAYER_ACTION_ASSET.textureKey, PLAYER_ACTION_ASSET.source);
+    loadSource(this.scene, TOOL_OVERLAY_ASSET.textureKey, TOOL_OVERLAY_ASSET.source);
     Object.values(TILE_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
     Object.values(TERRAIN_COMPOSITION_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
     Object.values(WORLD_OBJECT_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
@@ -26,6 +30,7 @@ export class AssetManager {
 
   createFallbackTextures() {
     this.playerSpritesheetReady = this.hasValidPlayerSpritesheet();
+    this.playerActionSpritesheetReady = this.playerProfile.lifeStage === "adult" && this.hasValidActionSpritesheet();
     if (!this.playerSpritesheetReady) {
       // A missing file and a sheet with too few frames are both recoverable. Remove
       // an incomplete texture before generating the known-safe single-frame fallback.
@@ -63,12 +68,32 @@ export class AssetManager {
         repeat: definition.repeat,
       });
     }
+    for (const style of TOOL_ACTION_STYLES) for (const facing of TOOL_ACTION_FACINGS) {
+      const key = playerActionAnimationName(style, facing);
+      const definition = PLAYER_ACTION_ASSET.animations[key];
+      if (this.scene.anims.exists(key)) this.scene.anims.remove(key);
+      const fallback = this.playerAsset.animations[playerAnimationName("tool", facing)];
+      const frames = this.playerActionSpritesheetReady
+        ? this.scene.anims.generateFrameNumbers(PLAYER_ACTION_ASSET.textureKey, { start: definition.startFrame, end: definition.endFrame })
+        : this.playerSpritesheetReady
+          ? this.scene.anims.generateFrameNumbers(this.playerAsset.textureKey, { start: fallback.startFrame, end: fallback.endFrame })
+          : [{ key: this.playerAsset.textureKey }];
+      this.scene.anims.create({ key, frames, frameRate: definition.fps, repeat: definition.repeat });
+    }
   }
 
   private hasValidPlayerSpritesheet() {
     if (this.playerAsset.source?.kind !== "spritesheet" || !this.scene.textures.exists(this.playerAsset.textureKey)) return false;
     const texture = this.scene.textures.get(this.playerAsset.textureKey);
     return Object.values(this.playerAsset.animations)
+      .flatMap(playerAnimationFrames)
+      .every((frame) => texture.has(String(frame)));
+  }
+
+  private hasValidActionSpritesheet() {
+    if (!this.scene.textures.exists(PLAYER_ACTION_ASSET.textureKey)) return false;
+    const texture = this.scene.textures.get(PLAYER_ACTION_ASSET.textureKey);
+    return Object.values(PLAYER_ACTION_ASSET.animations)
       .flatMap(playerAnimationFrames)
       .every((frame) => texture.has(String(frame)));
   }

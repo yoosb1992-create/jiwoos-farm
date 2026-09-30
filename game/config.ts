@@ -17,3 +17,6 @@ export const GAME_CONFIG = {
     sleepTransitionMs: 800,
   },
 } as const;
+
+/** Help remains available from the ? button, but never blocks a fresh session. */
+export const START_WITH_HELP_OPEN = false;

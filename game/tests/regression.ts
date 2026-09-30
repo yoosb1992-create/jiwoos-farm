@@ -23,6 +23,7 @@ import "./graphics-first-pass";
 import "./graphics-composition";
 import "./initial-farm-composition";
 import "./farm-vertical-slice";
+import "./inplay-polish";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale, playerAnimationFrames, playerAnimationName } from "../assets/definitions";
@@ -43,6 +44,7 @@ import { emptyMineDaily, initialMineProgress } from "../mine/resources";
 import { MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS, getTileTypeAt, tilePoint } from "../maps/definitions";
 import { collisionRectCenter } from "../rendering/WorldRenderer";
 import { ToolActionSystem } from "../actions/ToolActionSystem";
+import { PLAYER_ACTION_ASSET } from "../actions/toolActionDefinitions";
 import { cloneEditorDocument, createBuiltInEditorDocument, documentToRegistry, LocalMapEditorRepository, parseEditorDocument, touchEditorDocument } from "../editor/document";
 import { EditorHistory } from "../editor/history";
 import { validateEditorDocument } from "../editor/validation";
@@ -162,6 +164,7 @@ assert.equal(Math.max(...configuredFrames), 47, "48프레임 시트 범위를 �
 for (const availableFrames of [48, 0, 20]) {
   const textures = new Map<string, number>();
   if (availableFrames) textures.set(PLAYER_ASSET.textureKey, availableFrames);
+  if (availableFrames === 48) textures.set(PLAYER_ACTION_ASSET.textureKey, 64);
   const registered = new Map<string, { frames: unknown[] }>();
   const graphics: any = new Proxy({}, { get: (_target, method) => (...args: any[]) => {
     if (method === "generateTexture") textures.set(args[0], 0);
@@ -186,28 +189,27 @@ for (const availableFrames of [48, 0, 20]) {
   manager.createFallbackTextures();
   manager.createPlayerAnimations();
   manager.createPlayerAnimations();
-  assert.equal(registered.size, 12);
-  for (const config of registered.values()) assert.equal(config.frames.length, availableFrames === 48 ? 4 : 1);
+  assert.equal(registered.size, 28, "12 idle/walk/tool + 16 style/direction action animations");
+  for (const [key, config] of registered) assert.equal(config.frames.length, availableFrames === 48 ? 4 : 1, `${key}: actual sheet or safe fallback`);
   assert.equal(textures.get(PLAYER_ASSET.textureKey), availableFrames === 48 ? 48 : 0);
 }
 assert.equal(playerAnimationName("walk", facingFromMovement({ x: 1, y: 0 }, "down")), "walk_right");
 assert.equal(playerAnimationName("walk", facingFromMovement(mergeMovementInput({ x: 0, y: 0 }, { x: 1, y: 0 }), "down")), "walk_right", "키보드와 조이스틱은 같은 걷기 animation 이름을 사용해야 함");
 
-type AnimationComplete = () => void;
 const playedAnimations: string[] = [];
-let animationComplete: AnimationComplete = () => undefined;
+const animationHandlers = new Map<string, (...args: never[]) => void>();
 const animatedSprite = {
   x: 100, y: 80,
   anims: { currentAnim: { frames: [{}, {}] } },
-  on: (_event: string, handler: AnimationComplete) => { animationComplete = handler; return animatedSprite; },
+  on: (event: string, handler: (...args: never[]) => void) => { animationHandlers.set(event, handler); return animatedSprite; },
   play: (key: string) => { playedAnimations.push(key); return animatedSprite; },
 };
 const animationController = new PlayerAnimationController(animatedSprite as never, "down");
 animationController.playMovement("left", true);
 animationController.playMovement("left", false);
 animationController.playTool("up");
-animationComplete();
-assert.deepEqual(playedAnimations, ["walk_left", "idle_left", "tool_up", "idle_up"], "도구 animation 뒤에는 같은 방향 대기로 복귀해야 함");
+animationHandlers.get("animationcomplete")?.({ key: "action_swing_up" } as never);
+assert.deepEqual(playedAnimations, ["walk_left", "idle_left", "action_swing_up", "idle_up"], "도구 action animation 뒤에는 같은 방향 대기로 복귀해야 함");
 
 const fallbackAnimations: string[] = [];
 const fallbackSprite = {
@@ -217,7 +219,7 @@ const fallbackSprite = {
   play: (key: string) => { fallbackAnimations.push(key); return fallbackSprite; },
 };
 new PlayerAnimationController(fallbackSprite as never).playTool("right");
-assert.deepEqual(fallbackAnimations, ["tool_right", "idle_right"], "단일 프레임 fallback도 도구 상태에 고정되면 안 됨");
+assert.deepEqual(fallbackAnimations, ["action_swing_right", "idle_right"], "단일 프레임 fallback도 도구 상태에 고정되면 안 됨");
 const scaledPlayer = { ...PLAYER_ASSET, displayScale: { x: 2, y: 1.5 } };
 assert.deepEqual(displayedSize(scaledPlayer), { width: 96, height: 108 }, "scale 변경은 표현 크기에만 반영되어야 함");
 const compensatedBox = physicsBoxForScale(PLAYER_ASSET.collisionBox, scaledPlayer.displayScale);
@@ -281,7 +283,7 @@ assert.deepEqual(collisionRectCenter(tilePoint(basket.position.tileX, basket.pos
 
 let now = 1_000;
 let effects = 0;
-const toolActions = new ToolActionSystem({ playTool: () => undefined }, () => now);
+const toolActions = new ToolActionSystem({ playAction: () => undefined }, () => now);
 assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), true);
 assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), false, "한 animation 중 중복 행동을 막아야 함");
 now += GAME_CONFIG.toolActionCooldownMs;
@@ -289,12 +291,15 @@ assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), true);
 assert.equal(effects, 2);
 
 const animatedTools: string[] = [];
-const allToolActions = new ToolActionSystem({ playTool: (facing) => animatedTools.push(facing) }, () => now);
-for (const tool of ["hoe", "water", "seed", "hand", "axe", "pickaxe"] as const) {
+const allToolActions = new ToolActionSystem({ playAction: ({ tool, style, facing }) => animatedTools.push(`${tool}:${style}:${facing}`) }, () => now);
+for (const tool of ["hoe", "water", "seed", "hand", "axe", "pickaxe", "fishing_rod"] as const) {
   now += GAME_CONFIG.toolActionCooldownMs;
   assert.equal(allToolActions.execute(tool, "left", () => undefined), true);
 }
-assert.deepEqual(animatedTools, Array(6).fill("left"), "괭이·물뿌리개·씨앗·손·도끼·곡괭이는 모두 현재 방향 도구 animation을 요청해야 함");
+assert.deepEqual(animatedTools, [
+  "hoe:swing:left", "water:pour:left", "seed:reach:left", "hand:reach:left",
+  "axe:swing:left", "pickaxe:swing:left", "fishing_rod:cast:left",
+], "모든 도구는 데이터 정의의 style과 현재 방향 action animation을 요청해야 함");
 
 const editorDocument = createBuiltInEditorDocument();
 assert.deepEqual(validateEditorDocument(editorDocument), [], "기본 맵은 편집기 schema/참조 검증을 통과해야 함");

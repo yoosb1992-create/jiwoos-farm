@@ -20,7 +20,7 @@ import { DEFAULT_CHARACTER_VISUAL_PROFILE, displayedSize, physicsBoxForScale, ty
 import { WorldRenderer } from "./rendering/WorldRenderer";
 import { ForestGatheringEffects } from "./rendering/ForestGatheringEffects";
 import { forestFeedback } from "./forest/feedback";
-import { GAME_CONFIG } from "./config";
+import { GAME_CONFIG, START_WITH_HELP_OPEN } from "./config";
 import { calendarDate, worldMinute } from "./world/calendar";
 import { waterFarmForRain, weatherFor } from "./weather/system";
 import { CROP_DEFINITIONS, DEFAULT_CROP_ID, isCropId, type CropId, getCropDefinition, isMatureCrop } from "./data/crops";
@@ -59,6 +59,7 @@ import { installMine } from "./mine/registry";
 import { emptyMineDaily, findMineResource, initialMineProgress, MINE_RESOURCES, mineResourceKind, normalizeMineDaily, normalizeMineProgress, strikeMineNode } from "./mine/resources";
 import type { MineDailyState, MineProgress } from "./mine/types";
 import { PlayerAnimationController } from "./player/PlayerAnimationController";
+import { PlayerActionVisuals } from "./player/PlayerActionVisuals";
 import { facingActionPriority } from "./player/interaction";
 import { ToolActionSystem } from "./actions/ToolActionSystem";
 import { TOOL_ACTION_DEFINITIONS } from "./actions/toolActionDefinitions";
@@ -98,6 +99,7 @@ export class FarmScene extends Phaser.Scene {
   private worldRenderer!: WorldRenderer;
   private forestEffects!: ForestGatheringEffects;
   private playerAnimations!: PlayerAnimationController;
+  private playerActionVisuals!: PlayerActionVisuals;
   private toolActions!: ToolActionSystem;
   private inventory = new Inventory();
   private toolProgression: ToolProgression = normalizeToolProgression(undefined);
@@ -144,7 +146,7 @@ export class FarmScene extends Phaser.Scene {
   private readonly forestScope: string;
   private readonly testMode: boolean;
   private readonly playerVisualProfile: CharacterVisualProfile;
-  private helpOpen = true;
+  private helpOpen = START_WITH_HELP_OPEN;
   private sleepPrompt = false;
   private shopOpen = false;
   private craftingOpen = false;
@@ -193,7 +195,9 @@ export class FarmScene extends Phaser.Scene {
       .setOrigin(playerAsset.origin.x, playerAsset.origin.y).setDepth(20).setCollideWorldBounds(true);
     const box = physicsBoxForScale(playerAsset.collisionBox, { x: this.player.scaleX, y: this.player.scaleY });
     this.player.body!.setSize(box.width, box.height).setOffset(box.offsetX, box.offsetY);
-    this.playerAnimations = new PlayerAnimationController(this.player, this.facing, this.playerVisualProfile); this.toolActions = new ToolActionSystem(this.playerAnimations);
+    this.playerAnimations = new PlayerAnimationController(this.player, this.facing, this.playerVisualProfile);
+    this.playerActionVisuals = new PlayerActionVisuals(this, this.player, this.playerAnimations);
+    this.toolActions = new ToolActionSystem(this.playerActionVisuals);
     this.loadMap(this.currentMapId, undefined, personal?.mapId === this.currentMapId ? personal : saved?.player.mapId === this.currentMapId ? saved.player : undefined);
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys("W,A,S,D,ONE,TWO,THREE,FOUR,FIVE,SIX,SEVEN") as Record<string, Phaser.Input.Keyboard.Key>;
@@ -206,6 +210,7 @@ export class FarmScene extends Phaser.Scene {
       try { this.save(false); } catch { /* Continue cleanup if local storage is full. */ }
       if (this.sleepTimer !== undefined) window.clearTimeout(this.sleepTimer);
       this.sceneLive = false;
+      this.playerActionVisuals.destroy();
       gameEvents.removeEventListener("command", this.commandHandler);
       this.family?.stop(); this.remotePlayers?.destroy(); this.npcRenderer.destroy();
     };
@@ -638,20 +643,22 @@ export class FarmScene extends Phaser.Scene {
     const pose = this.familyPose();
     const error = fishingSpotError(this.fishingCast?.spotId ?? "farm_pond", pose);
     if (error) { this.say(error); return; }
-    if (this.fishingCast) {
-      const castId = this.fishingCast.id;
-      if (this.family) { void this.family.act({ kind: "fish-reel", castId, pose }); return; }
-      const result = reelFishing(this.fishingCast, castId, this.fishingProgress, this.inventory, this.stats, this.daySerial, this.timeMinutes);
-      if (result.error) { this.say(result.error); return; }
-      this.fishingCast = result.cast ?? null;
-      this.save(false); this.say(result.message ?? "낚시를 마쳤어요."); return;
-    }
-    if (this.family) { void this.family.act({ kind: "fish-cast", spotId: "farm_pond", pose }); return; }
-    const result = beginFishing(this.fishingProgress, null, pose, "farm_pond", this.forestScope, "single", this.daySerial,
-      weatherFor(this.forestScope, this.daySerial).id, this.timeMinutes, this.stats);
-    if (result.error || !result.cast || !result.progress) { this.say(result.error ?? "낚시를 시작할 수 없어요."); return; }
-    this.fishingProgress = result.progress; this.fishingCast = result.cast;
-    this.save(false); this.say("찌를 던졌어요. 입질이 오면 행동 버튼을 누르세요.");
+    this.toolActions.execute("fishing_rod", this.facing, () => {
+      if (this.fishingCast) {
+        const castId = this.fishingCast.id;
+        if (this.family) { void this.family.act({ kind: "fish-reel", castId, pose }); return; }
+        const result = reelFishing(this.fishingCast, castId, this.fishingProgress, this.inventory, this.stats, this.daySerial, this.timeMinutes);
+        if (result.error) { this.say(result.error); return; }
+        this.fishingCast = result.cast ?? null;
+        this.save(false); this.say(result.message ?? "낚시를 마쳤어요."); return;
+      }
+      if (this.family) { void this.family.act({ kind: "fish-cast", spotId: "farm_pond", pose }); return; }
+      const result = beginFishing(this.fishingProgress, null, pose, "farm_pond", this.forestScope, "single", this.daySerial,
+        weatherFor(this.forestScope, this.daySerial).id, this.timeMinutes, this.stats);
+      if (result.error || !result.cast || !result.progress) { this.say(result.error ?? "낚시를 시작할 수 없어요."); return; }
+      this.fishingProgress = result.progress; this.fishingCast = result.cast;
+      this.save(false); this.say("찌를 던졌어요. 입질이 오면 행동 버튼을 누르세요.");
+    });
   }
 
   private useForestResource(worldX: number, worldY: number) {

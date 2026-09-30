@@ -84,6 +84,14 @@ life stage는 `spriteProfileId`와 분리되고 body, hair, outfit, accessory ID
 
 신규 농장 dressing은 각각 독립 투명 PNG이며 `WORLD_OBJECT_ASSETS`에 frameSize, origin, visualFootprint, groundAnchor, shadow를 정의한다. 울타리·우물·나무만 필요한 배치에서 명시적 collision을 사용하고, 관목·꽃밭·우체통·벤치·가로등·상자·그루터기는 기본적으로 시각 장식이다. Map Editor 문서 schema는 그대로이며 새 asset id만 동일 팔레트에서 선택할 수 있다.
 
+## In-Play Polish 1 action contract
+
+성인 idle/walk 48프레임 시트는 그대로 유지하고 행동 몸체는 `/assets/inplay-polish/player/adult-farmer-actions.png`로 분리한다. 프레임은 `48 × 72`, 시트는 `16 × 4` 배열(`768 × 288`)이며 각 행은 swing, pour, reach, cast 순서다. 각 행 안에서는 down/up/left/right가 각각 4프레임씩 이어진다.
+
+`ToolKey → ToolActionStyle` 매핑과 gameplay effect timing은 `game/actions/toolActionDefinitions.ts` 한 곳에서 관리한다. 현재 Family authoritative action 호환을 위해 모든 gameplay effect는 `start`를 유지하지만, animation callback을 통해 `frame`과 `complete`도 실제 연결할 수 있다. 접촉 VFX는 gameplay 판정과 분리된 3번째 pose(frame 2)에 표시한다.
+
+괭이·물뿌리개·도끼·곡괭이·낚싯대는 `/assets/inplay-polish/tools/tool-overlays.png`의 독립 프레임을 사용한다. 씨앗과 손은 body reach 동작만 쓴다. 따라서 이후 도구 Lv2/Lv3는 body sheet를 다시 만들지 않고 overlay atlas/profile만 교체할 수 있다. action sheet와 overlay는 collision, ground anchor, lower-body interaction anchor를 변경하지 않는다.
+
 ## 다음 단계 PNG 제작 목록
 
 - 32×32 seamless grass(조용한 base), path, water center

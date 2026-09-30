@@ -34,6 +34,7 @@ import {
   mobileOrientation, runHeldForPointerPhase, saveMobileControlSettings,
   type MobileControlId, type MobileControlSettings, type ViewportSize,
 } from "@/game/input/mobileControlLayout";
+import { START_WITH_HELP_OPEN } from "@/game/config";
 
 const toolKeys: ToolKey[] = ["hoe", "seed", "water", "hand", "axe", "pickaxe", "fishing_rod"];
 const tools = toolKeys.map((key) => {
@@ -77,7 +78,7 @@ function VirtualJoystick({ onMove, editing, style, editHandlers }: { onMove: (x:
 function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor, onHome, family }: { editorMaps?: Record<string, MapDefinition>; initialMapId?: string; testMode?: boolean; onOpenEditor: () => void; onHome: () => void; family?: FamilySession }) {
   const gameRef = useRef<Phaser.Game | null>(null);
   const [hud, setHud] = useState<HudState>(() => family ? { ...initialHud, weather: weatherFor(family.room.id, 1).id } : initialHud);
-  const [showHelp, setShowHelp] = useState(true);
+  const [showHelp, setShowHelp] = useState(START_WITH_HELP_OPEN);
   const [questOpen, setQuestOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [viewport, setViewport] = useState<ViewportSize>({ width: 390, height: 844 });
