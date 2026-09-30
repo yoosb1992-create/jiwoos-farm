@@ -57,7 +57,7 @@ function currentWorld(stored: StoredWorld, now: number, roomId: string): FamilyW
   waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
   const timeMinutes = Math.min(GAME_CONFIG.day.endMinutes, stored.timeMinutes + Math.floor(Math.max(0, now - stored.clockAnchor) / GAME_CONFIG.day.realMsPerGameMinute));
   const buildings = normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day);
-  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, ...(stored.storageLock && stored.storageLock.expiresAt > Date.now() ? { storageLock: stored.storageLock } : {}), forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), farmTreeState: normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(MAP_DEFINITIONS.farm)), mineProgress: normalizeMineProgress(stored.mineProgress), mineDaily: normalizeMineDaily(stored.mineDaily, stored.daySerial ?? stored.day, roomId), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), buildings, ranchState: normalizeRanchState(stored.ranchState, buildings), farmProgress: normalizeFarmProgress(stored.farmProgress), money: stored.money, farm: stored.farm,
+  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), farmTreeState: normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(MAP_DEFINITIONS.farm)), mineProgress: normalizeMineProgress(stored.mineProgress), mineDaily: normalizeMineDaily(stored.mineDaily, stored.daySerial ?? stored.day, roomId), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), buildings, ranchState: normalizeRanchState(stored.ranchState, buildings), farmProgress: normalizeFarmProgress(stored.farmProgress), money: stored.money, farm: stored.farm,
     timeMinutes };
 }
 export class FamilyState extends FamilyRooms {
@@ -327,23 +327,30 @@ export class FamilyState extends FamilyRooms {
       const nearChest = Boolean(chest?.interaction &&
         (pointInTileRect(feet.x, feet.y, chest.interaction.area) || pointInTileRect(target.x, target.y, chest.interaction.area)) &&
         Math.hypot(pose.x - chest!.position.tileX * GAME_CONFIG.tileSize, pose.y - chest!.position.tileY * GAME_CONFIG.tileSize) <= 90);
-      if (action.kind === "storage-lock" && !action.acquire) {
-        if (stored.storageLock?.playerId === member.playerId && stored.storageLock.containerId === action.containerId) stored.storageLock = undefined;
+      if (stored.storageLock && stored.storageLock.expiresAt <= this.now()) stored.storageLock = undefined;
+
+      if (action.kind === "storage-lock") {
+        if (!action.acquire) {
+          if (stored.storageLock?.playerId === member.playerId && stored.storageLock.containerId === action.containerId) stored.storageLock = undefined;
+        } else {
+          if (!nearChest) throw new FamilyError(400, "보관함 가까이에서 이용해 주세요.");
+          if (stored.storageLock && stored.storageLock.playerId !== member.playerId)
+            throw new FamilyError(409, `${stored.storageLock.nickname}님이 보관함을 사용 중이에요.`);
+          stored.storageLock = { containerId: action.containerId, playerId: member.playerId, nickname: member.nickname, expiresAt: this.now() + STORAGE_LOCK_TTL_MS };
+        }
       } else {
         if (!nearChest) throw new FamilyError(400, "보관함 가까이에서 이용해 주세요.");
-        if (stored.storageLock && stored.storageLock.expiresAt <= this.now()) stored.storageLock = undefined;
         if (stored.storageLock && stored.storageLock.playerId !== member.playerId)
           throw new FamilyError(409, `${stored.storageLock.nickname}님이 보관함을 사용 중이에요.`);
-        stored.storageLock = { containerId: action.containerId, playerId: member.playerId, nickname: member.nickname, expiresAt: this.now() + STORAGE_LOCK_TTL_MS };
-        if (action.kind !== "storage-lock") {
-          const storage = normalizeStorage(stored.storage);
-          const transfers = action.kind === "storage"
-            ? [{ direction: action.direction, itemId: action.itemId, quantity: action.quantity }]
-            : action.transfers;
-          const error = transferItemsAtomically(inventory, storage, action.containerId, transfers);
-          if (error) throw new FamilyError(409, error);
-          stored.storage = storage;
-        }
+        if (stored.storageLock?.playerId === member.playerId)
+          stored.storageLock = { ...stored.storageLock, expiresAt: this.now() + STORAGE_LOCK_TTL_MS };
+        const storage = normalizeStorage(stored.storage);
+        const transfers = action.kind === "storage"
+          ? [{ direction: action.direction, itemId: action.itemId, quantity: action.quantity }]
+          : action.transfers;
+        const error = transferItemsAtomically(inventory, storage, action.containerId, transfers);
+        if (error) throw new FamilyError(409, error);
+        stored.storage = storage;
       }
     } else if (action.kind === "animal-buy" || action.kind === "animal-feed" || action.kind === "animal-pet" || action.kind === "animal-collect") {
       const buildings = normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day);
