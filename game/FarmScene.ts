@@ -62,12 +62,13 @@ import { PlayerAnimationController } from "./player/PlayerAnimationController";
 import { PlayerActionVisuals } from "./player/PlayerActionVisuals";
 import { facingActionPriority } from "./player/interaction";
 import { ToolActionSystem } from "./actions/ToolActionSystem";
-import { TOOL_ACTION_DEFINITIONS } from "./actions/toolActionDefinitions";
+import { EMPTY_WATER_ACTION_DEFINITION, TOOL_ACTION_DEFINITIONS, WATER_REFILL_ACTION_DEFINITION } from "./actions/toolActionDefinitions";
 import { facingFromMovement, mergeMovementInput, type MovementVector } from "./input/MovementInput";
 import { advanceRelationshipEvent, availableRelationshipEvents, completeRelationshipEvent, startRelationshipEvent } from "./relationship-events/system";
 import type { RelationshipEventRunView } from "./relationship-events/types";
 import { initialWateringCan, normalizeWateringCan, refillWateringCan, waterCrop, type WateringCanState } from "./tools/wateringCan";
 import { emptyFarmTreeState, farmTreeIds, findFarmTree, normalizeFarmTreeState, strikeFarmTree, type FarmTreeState } from "./farm/trees";
+import { hasPlantedCrop, undoTilledFarmTile } from "./farm/toolBehavior";
 
 export const REAL_MS_PER_GAME_MINUTE = GAME_CONFIG.day.realMsPerGameMinute;
 type Command = { type: string; value?: unknown };
@@ -199,7 +200,9 @@ export class FarmScene extends Phaser.Scene {
     this.player.body!.setSize(box.width, box.height).setOffset(box.offsetX, box.offsetY);
     this.playerAnimations = new PlayerAnimationController(this.player, this.facing, this.playerVisualProfile);
     this.playerActionVisuals = new PlayerActionVisuals(this, this.player, this.playerAnimations);
-    this.toolActions = new ToolActionSystem(this.playerActionVisuals);
+    this.toolActions = new ToolActionSystem(this.playerActionVisuals, undefined, undefined, (active) => {
+      if (active) this.player.setVelocity(0, 0);
+    });
     this.loadMap(this.currentMapId, undefined, personal?.mapId === this.currentMapId ? personal : saved?.player.mapId === this.currentMapId ? saved.player : undefined);
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys("W,A,S,D,ONE,TWO,THREE,FOUR,FIVE,SIX,SEVEN") as Record<string, Phaser.Input.Keyboard.Key>;
@@ -237,6 +240,11 @@ export class FarmScene extends Phaser.Scene {
     if (!this.family && !this.isPaused()) this.advanceClock(delta);
     this.npcRenderer.update(this.npcs.sampleWorld(this.daySerial, this.npcTime()), this.currentMapId, this.familyPose(), this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), this.mapRegistry.require(this.currentMapId));
     if (this.isPaused()) { this.running = false; this.player.setVelocity(0, 0); this.playerAnimations.playMovement(this.facing, false); return; }
+    if (this.toolActions.isActive()) {
+      this.player.setVelocity(0, 0);
+      this.playerAnimations.playMovement(this.facing, false);
+      return;
+    }
     if (!this.oreHintShown && !this.toolProgression.pickaxe && this.currentMapId === FAIRY_FOREST_ID) {
       const nearOre = this.mapRegistry.require(FAIRY_FOREST_ID).objects.some(o =>
         resourceKind(o) === "ore" && Math.hypot(o.position.tileX * GAME_CONFIG.tileSize - this.player.x, o.position.tileY * GAME_CONFIG.tileSize - this.player.y) <= 60);
@@ -325,11 +333,11 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private useFacingTile() {
-    if(this.isPaused()||this.npcRequest) return;
+    if(this.isPaused()||this.npcRequest||this.toolActions.isActive()) return;
     const point = this.playerAnimations.interactionPoint(this.facing);
     if (this.buildingMode) { this.buildAt(point.x, point.y); return; }
     if (this.placing) { this.placeAt(point.x, point.y); return; }
-    const toolTarget = this.hasDirectionalToolTarget(point.x, point.y);
+    const toolTarget = this.hasDirectionalToolEffect(point.x, point.y);
     if (toolTarget) { this.useAtWorld(point.x, point.y); return; }
     if (this.openMachineAt(point.x, point.y)) return;
     if (this.openRanchAt(point.x, point.y)) return;
@@ -342,7 +350,7 @@ export class FarmScene extends Phaser.Scene {
     this.useAtWorld(point.x, point.y);
   }
 
-  private hasDirectionalToolTarget(worldX: number, worldY: number): boolean {
+  private hasDirectionalToolEffect(worldX: number, worldY: number): boolean {
     if (this.selectedTool === "fishing_rod") return fishingSpotError("farm_pond", this.familyPose()) === null;
     const targetX = Math.floor(worldX / GAME_CONFIG.tileSize), targetY = Math.floor(worldY / GAME_CONFIG.tileSize);
     if (this.selectedTool === "water" && getTileTypeInMap(this.mapRegistry.require(this.currentMapId), targetX, targetY) === "water") return true;
@@ -356,13 +364,14 @@ export class FarmScene extends Phaser.Scene {
     if (this.currentMapId === "farm" && this.selectedTool === "axe") {
       return Boolean(findFarmTree(this.mapRegistry.require("farm"), { x: worldX, y: worldY }, this.playerAnimations.playerInteractionAnchor(), this.farmTreeState));
     }
-    if (this.currentMapId !== "farm" || !["hoe", "seed", "water", "hand"].includes(this.selectedTool)) return false;
+    if (this.currentMapId !== "farm" || !["hoe", "seed", "water", "hand", "pickaxe"].includes(this.selectedTool)) return false;
     const x = Math.floor(worldX / GAME_CONFIG.tileSize), y = Math.floor(worldY / GAME_CONFIG.tileSize);
     const tile = this.farm.get(`${x},${y}`);
     if (!tile) return false;
     if (this.selectedTool === "hoe") return !tile.tilled;
     if (this.selectedTool === "seed") return tile.tilled && tile.cropStage === null;
     if (this.selectedTool === "water") return tile.cropStage !== null && !tile.wateredToday;
+    if (this.selectedTool === "pickaxe") return tile.tilled && !tile.cropType && tile.cropStage === null;
     return Boolean(tile.cropType && tile.cropStage !== null && isMatureCrop(tile.cropType, tile.cropStage));
   }
 
@@ -594,7 +603,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private useAtWorld(worldX: number, worldY: number) {
-    if(this.isPaused()) return;
+    if(this.isPaused() || this.toolActions.isActive()) return;
     if (this.family && (this.isPaused() || this.family.busy)) return;
     if (this.family && !this.family.snapshot) { this.say("가족 농장 상태를 불러오는 중이에요. 이동은 계속할 수 있습니다."); return; }
     if (this.buildingMode) { this.buildAt(worldX, worldY); return; }
@@ -603,35 +612,68 @@ export class FarmScene extends Phaser.Scene {
     if (this.openRanchAt(worldX, worldY)) return;
     if (this.selectedTool === "fishing_rod") { this.useFishing(); return; }
     if (this.tryRefillWateringCan(worldX, worldY)) return;
+    if (this.selectedTool === "water") { this.useWaterAtWorld(worldX, worldY); return; }
     if (this.currentMapId === FAIRY_FOREST_ID) { this.useForestResource(worldX, worldY); return; }
     if (mineFloorFromMapId(this.currentMapId) !== null) { this.useMineResource(worldX, worldY); return; }
     if (this.currentMapId === "farm" && this.selectedTool === "axe") { this.useFarmTree(worldX, worldY); return; }
-    if (this.selectedTool === "axe" || this.selectedTool === "pickaxe") { this.say("도끼는 농장 나무나 숲에서, 곡괭이는 숲이나 광산에서 사용해 주세요."); return; }
-    if (this.currentMapId !== "farm") { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
-    const x = Math.floor(worldX / GAME_CONFIG.tileSize), y = Math.floor(worldY / GAME_CONFIG.tileSize);
-    if (!isFarmTile(this.mapRegistry.require("farm"), this.farmProgress, x, y) && !TILE_TYPE_DEFINITIONS[getTileTypeInMap(this.mapRegistry.require("farm"), x, y)].farmable) { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
-    const tile = this.farm.get(`${x},${y}`);
-    if (!tile) { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
-    const center = tilePoint(x + 0.5, y + 0.5);
-    if (Phaser.Math.Distance.Between(this.player.x, this.player.y, center.x, center.y) > GAME_CONFIG.farmInteractionDistance) { this.say("조금 더 가까이 가 주세요."); return; }
-    if (this.family) {
-      this.toolActions.execute(this.selectedTool, this.facing, (tool) => { void this.family!.act({ kind: "tool", tool, cropId: this.selectedCrop, x, y, pose: this.familyPose() }).then(accepted => {
-        if (accepted && tool === "water" && this.sceneLive) this.say(`물을 주었어요. 물 ${this.wateringCan.currentWater} / ${this.wateringCan.capacity}`);
-      }); });
+    if (this.currentMapId !== "farm") {
+      this.toolActions.execute(this.selectedTool, this.facing, () => this.say(this.selectedTool === "axe" || this.selectedTool === "pickaxe"
+        ? "도끼는 농장 나무나 숲에서, 곡괭이는 농장·숲·광산에서 사용해 주세요."
+        : "이곳에서는 농사 효과가 적용되지 않아요."));
       return;
     }
-    let changed = false;
-    const executed = this.toolActions.execute(this.selectedTool, this.facing, (tool) => { changed = this.applyTool(tool, tile); });
-    if (!executed || !changed) return;
-    this.worldRenderer.renderFarmTile(tile); this.save(false); this.emitHud();
+    this.useFarmTool(worldX, worldY);
+  }
+
+  /** Visual feedback is unconditional after world interactions have had priority.
+   * Only the effect callback resolves and mutates a valid farm target. */
+  private useFarmTool(worldX: number, worldY: number) {
+    this.toolActions.execute(this.selectedTool, this.facing, (tool) => {
+      const x = Math.floor(worldX / GAME_CONFIG.tileSize), y = Math.floor(worldY / GAME_CONFIG.tileSize);
+      if (!isFarmTile(this.mapRegistry.require("farm"), this.farmProgress, x, y) && !TILE_TYPE_DEFINITIONS[getTileTypeInMap(this.mapRegistry.require("farm"), x, y)]?.farmable) {
+        this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return;
+      }
+      const tile = this.farm.get(`${x},${y}`);
+      if (!tile) { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
+      const center = tilePoint(x + 0.5, y + 0.5);
+      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, center.x, center.y) > GAME_CONFIG.farmInteractionDistance) { this.say("조금 더 가까이 가 주세요."); return; }
+      if (this.family) {
+        void this.family.act({ kind: "tool", tool, cropId: this.selectedCrop, x, y, pose: this.familyPose() });
+        return;
+      }
+      if (!this.applyTool(tool, tile)) return;
+      this.worldRenderer.renderFarmTile(tile); this.save(false); this.emitHud();
+    });
+  }
+
+  private useWaterAtWorld(worldX: number, worldY: number) {
+    const definition = this.wateringCan.currentWater <= 0 ? EMPTY_WATER_ACTION_DEFINITION : undefined;
+    this.toolActions.execute("water", this.facing, () => {
+      if (this.wateringCan.currentWater <= 0) { this.say("물뿌리개가 비었어요. 물가에서 다시 채워 주세요."); return; }
+      if (this.currentMapId !== "farm") return;
+      const x = Math.floor(worldX / GAME_CONFIG.tileSize), y = Math.floor(worldY / GAME_CONFIG.tileSize);
+      const tile = this.farm.get(`${x},${y}`);
+      if (!tile) return;
+      const center = tilePoint(x + .5, y + .5);
+      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, center.x, center.y) > GAME_CONFIG.farmInteractionDistance) return;
+      if (!hasPlantedCrop(tile)) return;
+      if (this.family) {
+        void this.family.act({ kind: "tool", tool: "water", cropId: this.selectedCrop, x, y, pose: this.familyPose() }).then((accepted) => {
+          if (accepted && this.sceneLive) this.say(`물을 주었어요. 물 ${this.wateringCan.currentWater} / ${this.wateringCan.capacity}`);
+        });
+        return;
+      }
+      if (!this.applyTool("water", tile)) return;
+      this.worldRenderer.renderFarmTile(tile); this.save(false); this.emitHud();
+    }, definition);
   }
 
   private useFarmTree(worldX: number, worldY: number) {
     const map = this.mapRegistry.require("farm");
     const object = findFarmTree(map, { x: worldX, y: worldY }, this.playerAnimations.playerInteractionAnchor(), this.farmTreeState);
-    if (!object) { this.say("나무 가까이에서 나무를 바라보고 도끼를 사용해 주세요."); return; }
-    if (!this.family && !canPerformAction(this.stats, "axe")) { this.say("체력이 부족합니다. 잠을 자고 회복하세요."); return; }
     this.toolActions.execute("axe", this.facing, (tool) => {
+      if (!object) { this.say("나무 가까이에서 나무를 바라보고 도끼를 사용해 주세요."); return; }
+      if (!this.family && !canPerformAction(this.stats, "axe")) { this.say("체력이 부족합니다. 잠을 자고 회복하세요."); return; }
       if (this.family) {
         void this.family!.act({ kind: "farm-tree-hit", nodeId: object.id, tool: "axe", pose: this.familyPose() }).then((accepted) => {
           if (!accepted || !this.sceneLive || this.currentMapId !== "farm") return;
@@ -663,25 +705,27 @@ export class FarmScene extends Phaser.Scene {
     if (x < 0 || y < 0 || x >= map.width || y >= map.height || getTileTypeInMap(map, x, y) !== "water") return false;
     const target = this.playerAnimations.interactionPoint(this.facing);
     if (x !== Math.floor(target.x / GAME_CONFIG.tileSize) || y !== Math.floor(target.y / GAME_CONFIG.tileSize)) {
-      this.say("물가 가까이에서 물을 바라보고 채워 주세요."); return true;
+      return false;
     }
-    if (this.family) {
-      void this.family.act({ kind: "water-refill", pose: this.familyPose() }).then(accepted => {
-        if (accepted && this.sceneLive) this.say(`물뿌리개를 가득 채웠어요. 물 ${this.wateringCan.currentWater} / ${this.wateringCan.capacity}`);
-      });
-      return true;
-    }
-    if (!refillWateringCan(this.wateringCan)) { this.say("물뿌리개가 이미 가득 찼어요."); return true; }
-    this.save(false); this.say(`물뿌리개를 가득 채웠어요. 물 ${this.wateringCan.currentWater} / ${this.wateringCan.capacity}`);
+    this.toolActions.execute("water", this.facing, () => {
+      if (this.family) {
+        void this.family.act({ kind: "water-refill", pose: this.familyPose() }).then(accepted => {
+          if (accepted && this.sceneLive) this.say(`물뿌리개를 가득 채웠어요. 물 ${this.wateringCan.currentWater} / ${this.wateringCan.capacity}`);
+        });
+        return;
+      }
+      if (!refillWateringCan(this.wateringCan)) { this.say("물뿌리개가 이미 가득 찼어요."); return; }
+      this.save(false); this.say(`물뿌리개를 가득 채웠어요. 물 ${this.wateringCan.currentWater} / ${this.wateringCan.capacity}`);
+    }, WATER_REFILL_ACTION_DEFINITION);
     return true;
   }
 
   private useFishing() {
     if (this.family && (this.family.busy || !this.family.snapshot)) return;
     const pose = this.familyPose();
-    const error = fishingSpotError(this.fishingCast?.spotId ?? "farm_pond", pose);
-    if (error) { this.say(error); return; }
     this.toolActions.execute("fishing_rod", this.facing, () => {
+      const error = fishingSpotError(this.fishingCast?.spotId ?? "farm_pond", pose);
+      if (error) { this.say(error); return; }
       if (this.fishingCast) {
         const castId = this.fishingCast.id;
         if (this.family) { void this.family.act({ kind: "fish-reel", castId, pose }); return; }
@@ -702,18 +746,18 @@ export class FarmScene extends Phaser.Scene {
   private useForestResource(worldX: number, worldY: number) {
     const map = this.mapRegistry.require(FAIRY_FOREST_ID);
     const object = findForestResource(map, { x: worldX, y: worldY }, this.player);
-    if (!object) { this.say("채집할 숲 자원 가까이에서 사용해 주세요."); return; }
-    const kind = resourceKind(object)!;
-    if (this.selectedTool !== FOREST_RESOURCES[kind].tool) {
-      this.say(`${FOREST_RESOURCES[kind].name}: ${FOREST_RESOURCES[kind].tool === "axe" ? "도끼" : FOREST_RESOURCES[kind].tool === "pickaxe" ? "곡괭이" : "손"}을(를) 사용해 주세요.`); return;
-    }
-    if (this.selectedTool === "pickaxe" && !this.toolProgression.pickaxe) { this.say("제작대에서 곡괭이를 해금해 주세요."); return; }
-    const skillAction = this.selectedTool === "axe" ? "axe" : this.selectedTool === "pickaxe" ? "pickaxe" : "forage";
-    if (!this.family && !canPerformAction(this.stats, skillAction)) { this.say("체력이 부족합니다. 잠을 자고 회복하세요."); return; }
-    if (this.family) {
-      const daySerial = this.family.snapshot?.world.daySerial ?? this.family.snapshot?.world.day;
-      if (!daySerial) { this.say("가족 숲의 최신 상태를 받는 중이에요."); return; }
-      this.toolActions.execute(this.selectedTool, this.facing, tool => {
+    this.toolActions.execute(this.selectedTool, this.facing, tool => {
+      if (!object) { this.say("채집할 숲 자원 가까이에서 사용해 주세요."); return; }
+      const kind = resourceKind(object)!;
+      if (tool !== FOREST_RESOURCES[kind].tool) {
+        this.say(`${FOREST_RESOURCES[kind].name}: ${FOREST_RESOURCES[kind].tool === "axe" ? "도끼" : FOREST_RESOURCES[kind].tool === "pickaxe" ? "곡괭이" : "손"}을(를) 사용해 주세요.`); return;
+      }
+      if (tool === "pickaxe" && !this.toolProgression.pickaxe) { this.say("제작대에서 곡괭이를 해금해 주세요."); return; }
+      const skillAction = tool === "axe" ? "axe" : tool === "pickaxe" ? "pickaxe" : "forage";
+      if (!this.family && !canPerformAction(this.stats, skillAction)) { this.say("체력이 부족합니다. 잠을 자고 회복하세요."); return; }
+      if (this.family) {
+        const daySerial = this.family.snapshot?.world.daySerial ?? this.family.snapshot?.world.day;
+        if (!daySerial) { this.say("가족 숲의 최신 상태를 받는 중이에요."); return; }
         const before = this.sharedForestState;
         const priorCount = this.inventory.count(FOREST_RESOURCES[kind].drop);
         void this.family!.act({ kind: "forest-gather", nodeId: object.id, daySerial, tool, pose: this.familyPose() }).then(accepted => {
@@ -723,12 +767,10 @@ export class FarmScene extends Phaser.Scene {
           const feedback = forestFeedback(object, before, this.sharedForestState, definition.drop, delta);
           if (feedback) this.forestEffects.play(object, feedback);
         });
-      });
-      return;
-    }
-    this.toolActions.execute(this.selectedTool, this.facing, () => {
+        return;
+      }
       const before = this.forestState;
-      const result = strikeForestNode(this.forestState, object, this.selectedTool, this.toolProgression);
+      const result = strikeForestNode(this.forestState, object, tool, this.toolProgression);
       if (result.state === this.forestState) { this.say(result.message); return; }
       this.forestState = result.state;
       recordSuccessfulAction(this.stats, skillAction);
@@ -749,10 +791,10 @@ export class FarmScene extends Phaser.Scene {
     const floor = mineFloorFromMapId(this.currentMapId);
     if (floor === null) return;
     const node = findMineResource(this.mapRegistry.require(this.currentMapId), { x: worldX, y: worldY }, this.player);
-    if (!node) { this.say("광석 가까이에서 곡괭이를 사용해 주세요."); return; }
-    if (this.selectedTool !== "pickaxe" || !this.toolProgression.pickaxe) { this.say("제작대에서 곡괭이를 해금하고 선택해 주세요."); return; }
-    if (!this.family && !canPerformAction(this.stats, "pickaxe")) { this.say("체력이 부족합니다. 잠을 자고 회복하세요."); return; }
-    this.toolActions.execute("pickaxe", this.facing, tool => {
+    this.toolActions.execute(this.selectedTool, this.facing, tool => {
+      if (!node) { this.say("광석 가까이에서 곡괭이를 사용해 주세요."); return; }
+      if (tool !== "pickaxe" || !this.toolProgression.pickaxe) { this.say("제작대에서 곡괭이를 해금하고 선택해 주세요."); return; }
+      if (!this.family && !canPerformAction(this.stats, "pickaxe")) { this.say("체력이 부족합니다. 잠을 자고 회복하세요."); return; }
       const kind = mineResourceKind(node)!;
       if (this.family) {
         const daySerial = this.family.snapshot?.world.daySerial;
@@ -796,7 +838,11 @@ export class FarmScene extends Phaser.Scene {
       const error = waterCrop(tile, this.stats, this.wateringCan);
       if (error) { this.say(error); return false; }
       this.say(`물을 주었어요. 물 ${this.wateringCan.currentWater} / ${this.wateringCan.capacity}`); return true;
-    } else if (!tile.cropType || tile.cropStage === null || !isMatureCrop(tile.cropType, tile.cropStage)) { this.say("아직 수확할 때가 아니에요."); return false; }
+    } else if (tool === "pickaxe") {
+      const error = undoTilledFarmTile(tile, this.stats, this.toolProgression);
+      if (error) { this.say(error); return false; }
+      this.say("갈아 놓은 땅을 원래 상태로 되돌렸어요."); return true;
+    } else if (tool !== "hand" || !tile.cropType || tile.cropStage === null || !isMatureCrop(tile.cropType, tile.cropStage)) { this.say("아직 수확할 때가 아니에요."); return false; }
     else { const harvested = getCropDefinition(tile.cropType); this.inventory.add(harvested.harvestItemId); Object.assign(tile, { cropType: null, cropStage: null, wateredToday: false, plantedDay: null, tilled: true }); recordSuccessfulAction(this.stats, "harvest"); this.say(`통통한 ${harvested.name}를 수확했어요!`); return true; }
   }
 

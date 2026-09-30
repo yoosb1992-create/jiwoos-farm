@@ -21,8 +21,8 @@ export class PlayerAnimationController {
     });
     this.sprite.on("animationcomplete", (animation: Phaser.Animations.Animation) => {
       if (!this.toolAnimationActive || (this.activeActionKey && animation.key !== this.activeActionKey)) return;
-      this.actionHooks?.onComplete?.();
-      this.finishToolAnimation();
+      try { this.actionHooks?.onComplete?.(); }
+      finally { this.finishToolAnimation(); }
     });
   }
 
@@ -47,8 +47,8 @@ export class PlayerAnimationController {
     // The generated fallback has one frame, so it cannot emit a useful visible
     // sequence. Release it immediately and preserve normal movement controls.
     if ((this.sprite.anims.currentAnim?.frames.length ?? 0) <= 1) {
-      hooks.onComplete?.();
-      this.finishToolAnimation();
+      try { hooks.onComplete?.(); }
+      finally { this.finishToolAnimation(); }
     }
   }
 

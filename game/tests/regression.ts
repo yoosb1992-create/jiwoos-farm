@@ -25,6 +25,7 @@ import "./initial-farm-composition";
 import "./farm-vertical-slice";
 import "./inplay-polish";
 import "./inplay-farm-fixes";
+import "./inplay-tool-behavior";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale, playerAnimationFrames, playerAnimationName } from "../assets/definitions";
@@ -190,7 +191,7 @@ for (const availableFrames of [48, 0, 20]) {
   manager.createFallbackTextures();
   manager.createPlayerAnimations();
   manager.createPlayerAnimations();
-  assert.equal(registered.size, 28, "12 idle/walk/tool + 16 style/direction action animations");
+  assert.equal(registered.size, 32, "12 idle/walk/tool + 20 style/direction action animations including refill");
   for (const [key, config] of registered) assert.equal(config.frames.length, availableFrames === 48 ? 4 : 1, `${key}: actual sheet or safe fallback`);
   assert.equal(textures.get(PLAYER_ASSET.textureKey), availableFrames === 48 ? 48 : 0);
 }
@@ -284,15 +285,19 @@ assert.deepEqual(collisionRectCenter(tilePoint(basket.position.tileX, basket.pos
 
 let now = 1_000;
 let effects = 0;
-const toolActions = new ToolActionSystem({ playAction: () => undefined }, () => now);
+let finishAction: () => void = () => undefined;
+const toolActions = new ToolActionSystem({ playAction: ({ onComplete }) => { finishAction = onComplete; } }, () => now);
 assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), true);
 assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), false, "한 animation 중 중복 행동을 막아야 함");
 now += GAME_CONFIG.toolActionCooldownMs;
+assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), false, "cooldown이 지나도 animation complete 전에는 중첩할 수 없어야 함");
+finishAction();
 assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), true);
 assert.equal(effects, 2);
+finishAction();
 
 const animatedTools: string[] = [];
-const allToolActions = new ToolActionSystem({ playAction: ({ tool, style, facing }) => animatedTools.push(`${tool}:${style}:${facing}`) }, () => now);
+const allToolActions = new ToolActionSystem({ playAction: ({ tool, style, facing, onComplete }) => { animatedTools.push(`${tool}:${style}:${facing}`); onComplete(); } }, () => now);
 for (const tool of ["hoe", "water", "seed", "hand", "axe", "pickaxe", "fishing_rod"] as const) {
   now += GAME_CONFIG.toolActionCooldownMs;
   assert.equal(allToolActions.execute(tool, "left", () => undefined), true);

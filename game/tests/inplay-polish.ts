@@ -9,6 +9,7 @@ import {
   TOOL_ACTION_FACINGS,
   TOOL_ACTION_STYLES,
   TOOL_OVERLAY_ASSET,
+  WATER_REFILL_ACTION_DEFINITION,
   playerActionAnimationName,
   shouldTriggerToolEffect,
   type ToolActionDefinition,
@@ -36,7 +37,7 @@ assert.equal(shouldTriggerToolEffect({ trigger: "complete" }, "complete"), true)
 const actionSheet = readAssetPng(PLAYER_ACTION_ASSET.source.path);
 assert.deepEqual({ width: actionSheet.width, height: actionSheet.height }, { width: 768, height: 288 });
 assert.deepEqual(PLAYER_ACTION_ASSET.frameSize, { width: 48, height: 72 });
-assert.equal(Object.keys(PLAYER_ACTION_ASSET.animations).length, 16, "four styles × four directions");
+assert.equal(Object.keys(PLAYER_ACTION_ASSET.animations).length, 20, "five styles × four directions; refill aliases existing body art");
 const actionFrameSignature = (frame: number) => {
   const startX = frame % 16 * 48, startY = Math.floor(frame / 16) * 72;
   const hash = createHash("sha256");
@@ -52,6 +53,8 @@ for (const style of TOOL_ACTION_STYLES) for (const facing of TOOL_ACTION_FACINGS
   const signatures = Array.from({ length: 4 }, (_, index) => actionFrameSignature(animation.startFrame + index));
   assert.ok(new Set(signatures).size >= 2, `${style}/${facing}: contains real pose changes`);
 }
+assert.equal(WATER_REFILL_ACTION_DEFINITION.style, "refill");
+assert.equal(WATER_REFILL_ACTION_DEFINITION.effectTiming.trigger, "complete", "refill authority runs after its scoop animation");
 
 const overlays = readAssetPng(TOOL_OVERLAY_ASSET.source.path);
 assert.deepEqual({ width: overlays.width, height: overlays.height }, { width: 320, height: 64 });
@@ -88,4 +91,4 @@ const completeSystem = new ToolActionSystem({ playAction: ({ onComplete }) => on
 completeSystem.execute("hand", "right", () => { completeEffects++; });
 assert.equal(completeEffects, 1, "complete timing is connected to animation callbacks");
 
-console.log("In-Play Polish 1: help default, 64 action frames, overlays, styles, timing and anchors passed");
+console.log("In-Play Polish 1: help default, 64 source action frames, refill alias, overlays, styles, timing and anchors passed");

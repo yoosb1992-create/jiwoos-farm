@@ -1,7 +1,7 @@
 import type { ToolKey } from "../events";
 import type { Facing, PlayerAnimationDefinition } from "../assets/definitions";
 
-export type ToolActionStyle = "swing" | "pour" | "reach" | "cast";
+export type ToolActionStyle = "swing" | "pour" | "reach" | "cast" | "refill";
 
 export type ToolEffectTiming =
   | { trigger: "start" }
@@ -16,10 +16,10 @@ export type ToolActionDefinition = {
   /** Visual feedback is intentionally delayed until the contact pose. */
   visualCue: Extract<ToolEffectTiming, { trigger: "frame" }>;
   overlayFrame?: number;
-  vfx: "soil" | "seed" | "water" | "sparkle" | "wood-hit" | "stone-hit" | "cast";
+  vfx: "soil" | "seed" | "water" | "empty-water" | "refill-water" | "sparkle" | "wood-hit" | "stone-hit" | "cast";
 };
 
-export const TOOL_ACTION_STYLES = ["swing", "pour", "reach", "cast"] as const satisfies readonly ToolActionStyle[];
+export const TOOL_ACTION_STYLES = ["swing", "pour", "reach", "cast", "refill"] as const satisfies readonly ToolActionStyle[];
 export const TOOL_ACTION_FACINGS = ["down", "up", "left", "right"] as const satisfies readonly Facing[];
 
 export const TOOL_ACTION_DEFINITIONS: Record<ToolKey, ToolActionDefinition> = {
@@ -32,14 +32,37 @@ export const TOOL_ACTION_DEFINITIONS: Record<ToolKey, ToolActionDefinition> = {
   fishing_rod: { style: "cast", effectTiming: { trigger: "start" }, visualCue: { trigger: "frame", frame: 2 }, overlayFrame: 4, vfx: "cast" },
 };
 
+export const EMPTY_WATER_ACTION_DEFINITION: ToolActionDefinition = {
+  ...TOOL_ACTION_DEFINITIONS.water,
+  vfx: "empty-water",
+};
+
+export const WATER_REFILL_ACTION_DEFINITION: ToolActionDefinition = {
+  style: "refill",
+  effectTiming: { trigger: "complete" },
+  visualCue: { trigger: "frame", frame: 2 },
+  overlayFrame: TOOL_ACTION_DEFINITIONS.water.overlayFrame,
+  vfx: "refill-water",
+};
+
 export type PlayerActionAnimationName = `action_${ToolActionStyle}_${Facing}`;
 
 export const playerActionAnimationName = (style: ToolActionStyle, facing: Facing) =>
   `action_${style}_${facing}` as PlayerActionAnimationName;
 
-const actionAnimations = Object.fromEntries(TOOL_ACTION_STYLES.flatMap((style, styleIndex) =>
+const actionStyleRow: Record<ToolActionStyle, number> = {
+  swing: 0,
+  pour: 1,
+  reach: 2,
+  cast: 3,
+  // Refill deliberately reuses the crouched/reaching body row. The can angle and
+  // inward water cue distinguish it from pour without changing the 64-frame PNG.
+  refill: 2,
+};
+
+const actionAnimations = Object.fromEntries(TOOL_ACTION_STYLES.flatMap((style) =>
   TOOL_ACTION_FACINGS.map((facing, facingIndex) => {
-    const startFrame = styleIndex * 16 + facingIndex * 4;
+    const startFrame = actionStyleRow[style] * 16 + facingIndex * 4;
     return [playerActionAnimationName(style, facing), { startFrame, endFrame: startFrame + 3, fps: 10, repeat: 0 }];
   }),
 )) as Record<PlayerActionAnimationName, PlayerAnimationDefinition>;

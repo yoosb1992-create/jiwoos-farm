@@ -29,6 +29,7 @@ const PLANTED_SEED_ACCENTS: Record<CropId, number> = {
   morningcarrot: 0xf08b32,
 };
 export const plantedSeedAccent = (cropId: CropId) => PLANTED_SEED_ACCENTS[cropId];
+export const PLANTED_SEED_MARKER_OFFSET = { x: 0, y: 2 } as const;
 
 export const collisionRectCenter = (position: { x: number; y: number }, collision: { x: number; y: number; width: number; height: number }) => ({
   x: position.x + collision.x + collision.width / 2,
@@ -224,10 +225,11 @@ export class WorldRenderer {
       const stage = CROP_DEFINITIONS[tile.cropType].stages[tile.cropStage];
       if (tile.cropStage === 0) {
         const planted = this.scene.add.graphics();
-        planted.fillStyle(0x5f3e2d, .95).fillEllipse(0, 5, 21, 10)
-          .lineStyle(1, 0x3f2c23, .8).strokeEllipse(0, 5, 21, 10)
+        const { x, y } = PLANTED_SEED_MARKER_OFFSET;
+        planted.fillStyle(0x5f3e2d, .95).fillEllipse(x, y, 21, 10)
+          .lineStyle(1, 0x3f2c23, .8).strokeEllipse(x, y, 21, 10)
           .fillStyle(plantedSeedAccent(tile.cropType), 1)
-          .fillCircle(-5, 2, 2).fillCircle(0, 5, 2).fillCircle(5, 2, 2);
+          .fillCircle(x - 5, y - 2, 2).fillCircle(x, y + 1, 2).fillCircle(x + 5, y - 2, 2);
         view.add(planted);
       }
       view.add(this.makeImage(0, 0, CROP_ASSETS[stage.assetId as CropAssetId]));
