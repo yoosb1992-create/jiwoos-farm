@@ -7,7 +7,7 @@ import type { ToolKey } from "../events";
 import type { ForestState } from "../forest/resources";
 import type { ToolProgression } from "../tools/types";
 import type { PlayerStats } from "../player/stats";
-import type { StorageData, ContainerId, StorageDirection } from "../storage/types";
+import type { StorageData, ContainerId, StorageDirection, StorageTransfer } from "../storage/types";
 import type { PlaceablesData, PlaceableId } from "../placeables/types";
 import type { BuildingsData, BuildingId } from "../buildings/types";
 import type { FarmProgress, ExpansionId } from "../farm/expansions";
@@ -38,6 +38,7 @@ export type FamilyAction =
   | { kind: "tool-upgrade"; upgradeId: string; pose: FamilyPose }
   | { kind: "consume-food"; itemId: import("../data/food").FoodItemId; pose: FamilyPose }
   | { kind: "storage"; containerId: ContainerId; direction: StorageDirection; itemId: import("../data/items").ItemId; quantity: number; pose: FamilyPose }
+  | { kind: "storage-batch"; containerId: ContainerId; transfers: StorageTransfer[]; pose: FamilyPose }
   | { kind: "place"; definitionId: PlaceableId; tileX: number; tileY: number; pose: FamilyPose }
   | { kind: "place-remove"; instanceId: string; pose: FamilyPose }
   | { kind: "machine-start"; instanceId: string; processId: string; pose: FamilyPose }
