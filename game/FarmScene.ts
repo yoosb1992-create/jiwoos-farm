@@ -26,6 +26,7 @@ import { calendarDate, worldMinute } from "./world/calendar";
 import { waterFarmForRain, weatherFor } from "./weather/system";
 import { CROP_DEFINITIONS, DEFAULT_CROP_ID, isCropId, type CropId, getCropDefinition, isMatureCrop } from "./data/crops";
 import { ITEM_DEFINITIONS } from "./data/items";
+import { consumeFood, isFoodItemId } from "./data/food";
 import { getRecipe } from "./crafting/definitions";
 import { craft } from "./crafting/engine";
 import { getToolUpgrade } from "./tools/definitions";
@@ -33,7 +34,7 @@ import { normalizeToolProgression, upgradeTool } from "./tools/progression";
 import type { ToolProgression } from "./tools/types";
 import { canPerformAction, initialPlayerStats, normalizePlayerStats, recordSuccessfulAction, restoreStamina } from "./player/stats";
 import type { PlayerStats } from "./player/stats";
-import { initialStorage, normalizeStorage, transferItem } from "./storage/container";
+import { initialStorage, normalizeStorage, starterStorage, transferItem } from "./storage/container";
 import { isContainerId } from "./storage/definitions";
 import type { ContainerId, StorageData, StorageDirection } from "./storage/types";
 import type { ItemId } from "./data/items";
@@ -191,7 +192,10 @@ export class FarmScene extends Phaser.Scene {
     const personal = this.family?.loadPersonal();
     if (personal) { this.currentMapId = personal.mapId; this.facing = personal.facing; this.selectedTool = personal.selectedTool; }
     if (saved) this.applySavedState(saved);
-    else if (!this.family) waterFarmForRain(this.farm.values(), weatherFor(this.forestScope, this.daySerial));
+    else if (!this.family) {
+      if (!this.testMode) this.storage = starterStorage();
+      waterFarmForRain(this.farm.values(), weatherFor(this.forestScope, this.daySerial));
+    }
     if (personal?.forestDaySerial && personal.mapId === FAIRY_FOREST_ID) this.daySerial = personal.forestDaySerial;
     this.syncForest();
     this.syncMine();
@@ -940,6 +944,7 @@ export class FarmScene extends Phaser.Scene {
       if (this.isPaused()) return;
       this.inventoryOpen = true; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); this.emitHud(); return;
     }
+    if (command.type === "consume-food") { this.consumeFoodItem(command.value); return; }
     if (this.inventoryOpen && !["move", "save"].includes(command.type)) return;
     if (this.machineOpen && !["move", "save"].includes(command.type)) return;
     if(command.type==="village-open"){
@@ -1000,6 +1005,19 @@ export class FarmScene extends Phaser.Scene {
     const error = transferItem(this.inventory, this.storage, this.storageOpen, direction, itemId, quantity);
     if (error) { this.say(error); return; }
     this.save(false); this.say("아이템을 옮겼어요.");
+  }
+
+  private consumeFoodItem(value: unknown) {
+    if (!this.inventoryOpen || !isFoodItemId(value)) return;
+    if (this.family) {
+      void this.family.act({ kind: "consume-food", itemId: value, pose: this.familyPose() }).then((accepted) => {
+        if (accepted && this.sceneLive) this.say("스테미나 비스켓을 먹었어요.");
+      });
+      return;
+    }
+    const result = consumeFood(this.inventory, this.stats, value);
+    if (result.consumed) this.save(false);
+    this.say(result.message);
   }
 
   private craftRecipe(recipeId: string) {

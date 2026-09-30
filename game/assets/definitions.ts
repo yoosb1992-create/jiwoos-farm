@@ -309,6 +309,7 @@ export const ITEM_ASSETS = {
   item_fish_carp: itemAsset("item_fish_carp", "item-fish-carp", "🐟", { kind: "image", path: "/assets/items/fish-carp.png" }),
   item_fish_catfish: itemAsset("item_fish_catfish", "item-fish-catfish", "🐟", { kind: "image", path: "/assets/items/fish-catfish.png" }),
   item_animal_feed: itemAsset("item_animal_feed", "item-animal-feed", "▧", { kind: "image", path: "/assets/items/animal-feed.png" }),
+  item_stamina_biscuit: itemAsset("item_stamina_biscuit", "item-stamina-biscuit", "🍪"),
   item_egg: itemAsset("item_egg", "item-egg", "🥚", { kind: "image", path: "/assets/items/egg.png" }),
   item_wood: itemAsset("item_wood", "item-wood", "▰", { kind: "image", path: "/assets/items/wood.png" }),
   item_stone: itemAsset("item_stone", "item-stone", "◆", { kind: "image", path: "/assets/items/stone.png" }),

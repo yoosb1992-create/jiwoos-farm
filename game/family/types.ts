@@ -36,6 +36,7 @@ export type FamilyAction =
   | { kind: "buy"; listingId: string; pose: FamilyPose }
   | { kind: "craft"; recipeId: string; pose: FamilyPose }
   | { kind: "tool-upgrade"; upgradeId: string; pose: FamilyPose }
+  | { kind: "consume-food"; itemId: import("../data/food").FoodItemId; pose: FamilyPose }
   | { kind: "storage"; containerId: ContainerId; direction: StorageDirection; itemId: import("../data/items").ItemId; quantity: number; pose: FamilyPose }
   | { kind: "place"; definitionId: PlaceableId; tileX: number; tileY: number; pose: FamilyPose }
   | { kind: "place-remove"; instanceId: string; pose: FamilyPose }

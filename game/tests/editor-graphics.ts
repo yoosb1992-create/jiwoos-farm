@@ -24,8 +24,10 @@ console.log("Editor graphics: shared tile/object images rendered, map document u
 // Small HUD images retain explicit dimensions and the original glyph when no source exists.
 for (const asset of Object.values(ITEM_ASSETS)) {
   const icon = renderToStaticMarkup(createElement(ItemIcon, { asset, size: 24 }));
-  assert.ok(icon.includes(`src="${asset.source!.path}"`));
-  assert.ok(icon.includes('width="24"'));
+  if (asset.source?.kind === "image") {
+    assert.ok(icon.includes(`src="${asset.source.path}"`));
+    assert.ok(icon.includes('width="24"'));
+  } else assert.ok(icon.includes(asset.icon) && icon.includes("width:24px") && !icon.includes("<img"));
   const fallback = renderToStaticMarkup(createElement(ItemIcon, { asset: { ...asset, source: null } }));
   assert.ok(fallback.includes(asset.icon)); assert.ok(!fallback.includes("<img"));
 }

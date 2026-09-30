@@ -35,6 +35,7 @@ import {
   type MobileControlId, type MobileControlSettings, type ViewportSize,
 } from "@/game/input/mobileControlLayout";
 import { START_WITH_HELP_OPEN } from "@/game/config";
+import { LocalStorageSaveRepository } from "@/game/domain";
 
 const toolKeys: ToolKey[] = ["hoe", "seed", "water", "hand", "axe", "pickaxe", "fishing_rod"];
 const tools = toolKeys.map((key) => {
@@ -184,7 +185,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         </div>
         <header className="top-hud">
           <div className="brand-plate"><span className="brand-leaf">✦</span><div><strong>지우네 농장</strong><small>우리 가족의 봄날</small></div></div>
-          <div className="status-plate"><span>{WEATHER_DEFINITIONS[hud.weather].icon} {hud.mapName}</span><b>{hud.year}년차 · {SEASON_NAMES[hud.season]} {hud.day}일 · {WEATHER_DEFINITIONS[hud.weather].name}</b><strong>{hud.timeText}</strong><em>{hud.money.toLocaleString()} G <small>체력 {hud.stats.stamina} / {hud.stats.maxStamina}</small></em></div>
+          <div className="status-plate"><span>{WEATHER_DEFINITIONS[hud.weather].icon} {hud.mapName}</span><b>{hud.year}년차 · {SEASON_NAMES[hud.season]} {hud.day}일 · {WEATHER_DEFINITIONS[hud.weather].name}</b><strong>{hud.timeText}</strong><em>{hud.money.toLocaleString()} G</em><StaminaMeter stamina={hud.stats.stamina} maxStamina={hud.stats.maxStamina} /></div>
         </header>
         <div className="desktop-left-ui">
           <aside className={`quest-card ${questOpen ? "expanded" : ""}`} onClick={() => setQuestOpen((open) => !open)}>
@@ -218,7 +219,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         {hud.shopOpen && <div className="modal-shade"><div className="sleep-card" role="dialog" aria-modal="true" aria-label="새봄 상점"><span>🌱</span><b>새봄 상점</b><p>농사에 필요한 씨앗을 준비했어요.</p>{GENERAL_STORE_LISTINGS.map((listing) => <div key={listing.id}><button onClick={() => command("shop-buy", listing.id)}>{listing.name} · {listing.price} G</button></div>)}<div><button onClick={() => command("shop-close")}>상점 나가기</button></div></div></div>}
         {hud.craftingOpen && <CraftingPanel items={hud.craftingItems ?? {}} progression={hud.toolProgression} notice={hud.toolNotice} busy={hud.craftingBusy ?? false} onCraft={id => command("craft", id)} onUpgrade={id => command("tool-upgrade", id)} onClose={() => command("craft-close")} />}
         {hud.toolNotice && !hud.craftingOpen && <div className="tool-toast" role="status">{hud.toolNotice}</div>}
-        {hud.inventoryOpen && <InventoryPanel items={hud.craftingItems ?? {}} stats={hud.stats} onClose={() => command("inventory-close")} />}
+        {hud.inventoryOpen && <InventoryPanel items={hud.craftingItems ?? {}} stats={hud.stats} notice={hud.message} onConsume={itemId => command("consume-food", itemId)} onClose={() => command("inventory-close")} />}
         {hud.storageOpen && hud.storage && <StoragePanel containerId={hud.storageOpen} storage={hud.storage} items={hud.craftingItems ?? {}} busy={hud.storageBusy ?? false} notice={hud.message} onTransfer={(direction, itemId, quantity) => command("storage-transfer", { direction, itemId, quantity })} onClose={() => command("storage-close")} />}
         {hud.machineOpen && hud.placeables?.instances.find(p => p.id === hud.machineOpen) && <MachinePanel instance={hud.placeables.instances.find(p => p.id === hud.machineOpen)!} now={hud.worldTimeMinute ?? 0} items={hud.craftingItems ?? {}} busy={hud.machineBusy ?? false} notice={hud.message} onStart={() => command("machine-start")} onCollect={() => command("machine-collect")} onRemove={() => command("machine-remove")} onClose={() => command("machine-close")} />}
         {hud.buildingOpen && <BuildingPanel money={hud.money} items={hud.craftingItems ?? {}} progress={hud.farmProgress ?? { unlocked: [] }} counts={hud.buildings?.instances.reduce<Record<string, number>>((counts, b) => { counts[b.definitionId] = (counts[b.definitionId] ?? 0) + 1; return counts; }, {}) ?? {}} busy={hud.buildingBusy ?? false} notice={hud.message} onBuild={id => command("building-mode", id)} onExpand={() => command("farm-expand")} onClose={() => command("building-close")} />}
@@ -256,19 +257,42 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
   );
 }
 
+export function StaminaMeter({ stamina, maxStamina }: { stamina: number; maxStamina: number }) {
+  const ratio = maxStamina > 0 ? Math.max(0, Math.min(100, stamina / maxStamina * 100)) : 0;
+  return <div className={`stamina-meter${ratio <= 25 ? " low" : ""}`} role="meter" aria-label="스테미나" aria-valuemin={0} aria-valuemax={maxStamina} aria-valuenow={stamina}>
+    <span>스테미나 {stamina} / {maxStamina}</span><div className="stamina-track"><i style={{ width: `${ratio}%` }} /></div>
+  </div>;
+}
+
+export function SinglePlayerMenu({ hasSave, onNew, onContinue, onBack }: { hasSave: boolean; onNew: () => void; onContinue: () => void; onBack: () => void }) {
+  return <main className="family-screen"><section className="family-card family-welcome single-player-menu">
+    <span className="family-leaf" aria-hidden="true">🌱</span><h1>혼자 하기</h1><p>새 농장을 시작하거나 이 브라우저의 농장을 이어서 플레이하세요.</p>
+    <button onClick={onNew}>처음부터<small>1년차 봄 1일부터 새로 시작</small></button>
+    <button onClick={onContinue} disabled={!hasSave}>이어서 하기<small>{hasSave ? "최근 저장한 혼자하기 농장 불러오기" : "저장된 게임이 없습니다."}</small></button>
+    <button className="family-secondary" onClick={onBack}>뒤로</button>
+  </section></main>;
+}
+
 export default function Home() {
-  const [mode, setMode] = useState<"start" | "play" | "editor" | "test" | "family">("start");
+  const [mode, setMode] = useState<"start" | "single" | "play" | "editor" | "test" | "family">("start");
   const [family, setFamily] = useState<FamilySession | undefined>();
   const [testSession, setTestSession] = useState<{ maps: Record<string, MapDefinition>; mapId: string } | null>(null);
+  const [hasSingleSave, setHasSingleSave] = useState(false);
   useEffect(() => { if (new URLSearchParams(window.location.search).get("family") === "1") setMode("family"); }, []);
   const home = () => { setFamily(undefined); setMode("start"); };
+  const openSinglePlayer = () => { setFamily(undefined); setHasSingleSave(new LocalStorageSaveRepository().exists()); setMode("single"); };
   if (mode === "start") return <main className="family-screen"><section className="family-card family-welcome">
     <span className="family-leaf" aria-hidden="true">✦</span><h1>지우네 농장</h1><p>오늘은 누구와 농장을 가꿀까요?</p>
-    <button onClick={() => { setFamily(undefined); setMode("play"); }}>혼자 하기<small>이 브라우저에 저장한 농장 이어하기</small></button>
+    <button onClick={openSinglePlayer}>혼자 하기<small>처음부터 시작하거나 저장한 농장 이어하기</small></button>
     <button onClick={() => setMode("family")}>가족 농장<small>초대 코드로 같은 농장에서 만나기</small></button>
     <button className="family-secondary" onClick={() => setMode("editor")}>맵 편집기</button>
     <p className="family-note">Family Beta · 가족 농장은 로그인과 서버 연결이 필요합니다.</p>
   </section></main>;
+  if (mode === "single") return <SinglePlayerMenu hasSave={hasSingleSave} onBack={home} onContinue={() => { if (new LocalStorageSaveRepository().exists()) setMode("play"); else setHasSingleSave(false); }} onNew={() => {
+    const repository = new LocalStorageSaveRepository();
+    if (repository.exists() && !window.confirm("기존 혼자하기 저장을 삭제하고 처음부터 시작할까요?")) return;
+    repository.clear(); setFamily(undefined); setMode("play");
+  }} />;
   if (mode === "family") return <FamilyLobby onBack={home} onEnter={(session) => { setFamily(session); setMode("play"); }} />;
   if (mode === "editor") return <MapEditor onExit={home} onPlay={(document: MapEditorDocument, mapId: string) => { setTestSession({ maps: documentToRegistry(document), mapId }); setMode("test"); }} />;
   return <FarmGameView editorMaps={mode === "test" ? testSession?.maps : undefined} initialMapId={mode === "test" ? testSession?.mapId : undefined} testMode={mode === "test"} family={mode === "play" ? family : undefined} onHome={home} onOpenEditor={() => { setFamily(undefined); setMode("editor"); }} />;

@@ -218,12 +218,18 @@ export const normalizeSaveData = (value: unknown): SaveData | null => {
   return null;
 };
 
-export interface SaveRepository { save(data: SaveData): void; load(): SaveData | null }
+export interface SaveRepository { save(data: SaveData): void; load(): SaveData | null; exists(): boolean; clear(): void }
+export const SINGLE_PLAYER_SAVE_KEYS = [
+  "jiwoos-farm.save.v4",
+  "jiwoos-farm.save.v3",
+  "jiwoos-farm.save.v2",
+  "jiwoos-farm.save.v1",
+] as const;
 export class LocalStorageSaveRepository implements SaveRepository {
-  private readonly key = "jiwoos-farm.save.v4";
+  private readonly key = SINGLE_PLAYER_SAVE_KEYS[0];
   save(data: SaveData) { localStorage.setItem(this.key, JSON.stringify(data)); }
   load(): SaveData | null {
-    for (const key of [this.key, "jiwoos-farm.save.v3", "jiwoos-farm.save.v2", "jiwoos-farm.save.v1"]) {
+    for (const key of SINGLE_PLAYER_SAVE_KEYS) {
       const stored = localStorage.getItem(key);
       if (!stored) continue;
       try {
@@ -233,6 +239,8 @@ export class LocalStorageSaveRepository implements SaveRepository {
     }
     return null;
   }
+  exists(): boolean { return this.load() !== null; }
+  clear(): void { for (const key of SINGLE_PLAYER_SAVE_KEYS) localStorage.removeItem(key); }
 }
 
 export const cropRegistry = CROP_DEFINITIONS;

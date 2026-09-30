@@ -28,6 +28,7 @@ import "./inplay-farm-fixes";
 import "./inplay-tool-behavior";
 import "./tool-action-gameplay-integration";
 import "./tool-core-matrix";
+import "./stamina-food-newgame";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale, playerAnimationFrames, playerAnimationName } from "../assets/definitions";
@@ -64,6 +65,7 @@ const storage = new Map<string, string>();
 Object.defineProperty(globalThis, "localStorage", { value: {
   getItem: (key: string) => storage.get(key) ?? null,
   setItem: (key: string, value: string) => storage.set(key, value),
+  removeItem: (key: string) => storage.delete(key),
 } });
 
 const tile: FarmTileData = { x: 9, y: 8, tilled: true, wateredToday: false, cropType: "sproutberry", cropStage: 0, plantedDay: 1 };
@@ -101,7 +103,14 @@ const save: SaveData = {
 };
 const repository = new LocalStorageSaveRepository();
 repository.save(save);
+assert.equal(repository.exists(), true);
 assert.deepEqual(repository.load(), {...save, wateringCan:initialWateringCan(), ranchState:initialRanchState(), fishingProgress:initialFishingProgress(), mineProgress:initialMineProgress(), mineDaily:emptyMineDaily(save.day), buildings:initialBuildings(), farmProgress:initialFarmProgress(), placeables:initialPlaceables(), storage:initialStorage(), stats:initialPlayerStats(), farmTreeState:{ hits:{}, depleted:[] }, daySerial:save.day, playerProgress:normalizeProgress(null)}, "날짜·시간·농장·인벤토리·돈·위치를 동일하게 복원해야 함");
+for (const key of ["jiwoos-farm.save.v1", "jiwoos-farm.save.v2", "jiwoos-farm.save.v3"]) storage.set(key, JSON.stringify(save));
+storage.set("jiwoos-farm.mobile-controls.v1", "mobile"); storage.set("jiwoos-farm.editor.document.v1", "editor"); storage.set("jiwoos-farm.family.session.v1", "family");
+repository.clear();
+assert.equal(repository.exists(), false);
+for (const key of ["jiwoos-farm.save.v1", "jiwoos-farm.save.v2", "jiwoos-farm.save.v3", "jiwoos-farm.save.v4"]) assert.equal(storage.has(key), false, `${key} clear`);
+assert.deepEqual([storage.get("jiwoos-farm.mobile-controls.v1"), storage.get("jiwoos-farm.editor.document.v1"), storage.get("jiwoos-farm.family.session.v1")], ["mobile", "editor", "family"], "new game reset must preserve non-single-player data");
 
 storage.clear();
 storage.set("jiwoos-farm.save.v2", JSON.stringify({

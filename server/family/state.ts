@@ -20,7 +20,7 @@ import { upgradeTool } from "../../game/tools/progression";
 import { getToolUpgrade } from "../../game/tools/definitions";
 import type { ToolProgression } from "../../game/tools/types";
 import { canPerformAction, normalizePlayerStats, recordSuccessfulAction, restoreStamina, type PlayerStats } from "../../game/player/stats";
-import { initialStorage, normalizeStorage, transferItem } from "../../game/storage/container";
+import { normalizeStorage, starterStorage, transferItem } from "../../game/storage/container";
 import { initialPlaceables, normalizePlaceables, placeObject, removeObject } from "../../game/placeables/system";
 import { startMachine, collectMachine } from "../../game/machines/system";
 import { constructBuilding, initialBuildings, normalizeBuildings } from "../../game/buildings/system";
@@ -34,6 +34,7 @@ import { advanceRanchDay, buyAnimal, collectAnimalProduce, feedCoop, initialRanc
 import { normalizeWateringCan, refillWateringCan, type WateringCanState } from "../../game/tools/wateringCan";
 import { emptyFarmTreeState, farmTreeIds, farmTreeInFacingReach, isFarmTreeObject, normalizeFarmTreeState, strikeFarmTree } from "../../game/farm/trees";
 import { applyFarmToolEffect } from "../../game/farm/toolBehavior";
+import { consumeFood } from "../../game/data/food";
 
 interface StoredWorld extends FamilyWorld { clockAnchor: number; sleepVotes?: string[]; sleepSessions?: Record<string, string> }
 interface StateRow { revision: number; world_json: string; inventories_json: string }
@@ -43,7 +44,7 @@ export const initialFamilyWorld = (now: number): StoredWorld => ({
   forestState: emptyForestState(1),
   farmTreeState: emptyFarmTreeState(),
   mineProgress: initialMineProgress(), mineDaily: emptyMineDaily(1),
-  storage: initialStorage(),
+  storage: starterStorage(),
   placeables: initialPlaceables(),
   buildings: initialBuildings(), farmProgress: initialFarmProgress(),
   ranchState: initialRanchState(),
@@ -316,6 +317,9 @@ export class FamilyState extends FamilyRooms {
       }
     } else if (action.kind === "sell") {
       stored.money += sellMarketGoods(inventory).earned;
+    } else if (action.kind === "consume-food") {
+      const result = consumeFood(inventory, stats, action.itemId);
+      if (!result.consumed) throw new FamilyError(409, result.message);
     } else if (action.kind === "storage") {
       const chest = (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).find(o => o.interaction?.action === "storage" && o.interaction.containerId === action.containerId);
       const feet = playerFeetPointFromPosition(pose), target = interactionTargetPointFromPosition(pose, pose.facing);
