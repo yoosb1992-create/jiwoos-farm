@@ -9,7 +9,6 @@ import type * as Phaser from "phaser";
 import { gameEvents, type HudState, initialHud, type ToolKey } from "@/game/events";
 import { ITEM_ASSETS } from "@/game/assets/definitions";
 import { ITEM_DEFINITIONS } from "@/game/data/items";
-import { GENERAL_STORE_LISTINGS } from "@/game/data/shop";
 import { VillageJournal } from "./components/VillageJournal";
 import { NpcQuests } from "./components/NpcQuests";
 import { NpcDialogue } from "./components/NpcDialogue";
@@ -17,6 +16,7 @@ import { ItemIcon } from "./components/ItemIcon";
 import { CraftingPanel } from "./components/CraftingPanel";
 import { InventoryPanel } from "./components/InventoryPanel";
 import { StoragePanel } from "./components/StoragePanel";
+import { ShopPanel } from "./components/ShopPanel";
 import { MachinePanel } from "./components/MachinePanel";
 import { BuildingPanel } from "./components/BuildingPanel";
 import { RanchPanel } from "./components/RanchPanel";
@@ -87,6 +87,8 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
   const [controlDraft, setControlDraft] = useState<MobileControlSettings | null>(null);
   const [selectedControl, setSelectedControl] = useState<MobileControlId>("action");
   const controlDrag = useRef<{ id: number; control: MobileControlId } | null>(null);
+  // Each mobile control owns its own pointer so a joystick finger and an action finger can coexist.
+  const actionPointer = useRef<number | null>(null);
 
   useEffect(() => {
     const update = (event: Event) => setHud((event as CustomEvent<HudState>).detail);
@@ -216,7 +218,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         {hud.villageOpen && <VillageJournal hud={hud} onClose={()=>command("village-open",false)} />}
         {hud.dialogue && <NpcDialogue dialogue={hud.dialogue} onNext={()=>command("dialogue-next")} onClose={()=>command("dialogue-close")}>{!hud.dialogue.eventId && <><NpcRelationshipActions items={hud.craftingItems??{}} eventOptions={hud.relationshipEvents??[]} busy={hud.npcBusy??false} onGift={itemId=>command("npc-gift",itemId)} onEvent={eventId=>command("relationship-event-start",eventId)} /><NpcQuests quests={(hud.quests??[]).filter(q=>q.giver===hud.dialogue!.npcId)} busy={hud.npcBusy} onAction={action=>command("quest-action",action)} /></>}</NpcDialogue>}
         {hud.sleepPrompt && <div className="modal-shade"><div className="sleep-card" role="dialog" aria-modal="true" aria-label="잠자기 확인"><span>🌙</span><b>{family ? "잠자기에 동의할까요? 접속한 가족 모두 동의하면 다음 날이 됩니다." : "오늘 하루를 마치고 잠드시겠습니까?"}</b><p>물을 준 작물은 잠든 사이 한 단계 자랍니다.</p><div><button onClick={() => command("sleep-confirm")}>확인</button><button onClick={() => command("sleep-cancel")}>취소</button></div></div></div>}
-        {hud.shopOpen && <div className="modal-shade"><div className="sleep-card" role="dialog" aria-modal="true" aria-label="새봄 상점"><span>🌱</span><b>새봄 상점</b><p>농사에 필요한 씨앗을 준비했어요.</p>{GENERAL_STORE_LISTINGS.map((listing) => <div key={listing.id}><button onClick={() => command("shop-buy", listing.id)}>{listing.name} · {listing.price} G</button></div>)}<div><button onClick={() => command("shop-close")}>상점 나가기</button></div></div></div>}
+        {hud.shopOpen && <ShopPanel money={hud.money} items={hud.craftingItems ?? {}} notice={hud.message} onBuy={id => command("shop-buy", id)} onClose={() => command("shop-close")} />}
         {hud.craftingOpen && <CraftingPanel items={hud.craftingItems ?? {}} progression={hud.toolProgression} notice={hud.toolNotice} busy={hud.craftingBusy ?? false} onCraft={id => command("craft", id)} onUpgrade={id => command("tool-upgrade", id)} onClose={() => command("craft-close")} />}
         {hud.toolNotice && !hud.craftingOpen && <div className="tool-toast" role="status">{hud.toolNotice}</div>}
         {hud.inventoryOpen && <InventoryPanel items={hud.craftingItems ?? {}} stats={hud.stats} notice={hud.message} onConsume={itemId => command("consume-food", itemId)} onClose={() => command("inventory-close")} />}
@@ -250,7 +252,28 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
           onPointerUp: () => command("run", runHeldForPointerPhase("up")), onPointerCancel: () => command("run", runHeldForPointerPhase("cancel")),
           onLostPointerCapture: () => command("run", runHeldForPointerPhase("lost-capture")),
         })}>달리기</button>
-        <button style={controlStyle("action")} className={`action-button custom-mobile-control${editingControls ? " control-editing" : ""}`} aria-label="행동" {...(editingControls ? editHandlers("action") : { onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => { event.preventDefault(); event.stopPropagation(); command("action"); } })}>행동</button>
+        <button className="bag-button" aria-label="가방 열기"
+          onPointerDown={(event) => event.stopPropagation()} onClick={() => command("inventory-open")}>🎒</button>
+        <button style={controlStyle("action")} className={`action-button custom-mobile-control${editingControls ? " control-editing" : ""}`} aria-label="행동" {...(editingControls ? editHandlers("action") : {
+          onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => {
+            event.preventDefault(); event.stopPropagation();
+            if (actionPointer.current !== null) return;
+            actionPointer.current = event.pointerId;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            command("action");
+          },
+          onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => {
+            event.preventDefault(); event.stopPropagation();
+            if (actionPointer.current === event.pointerId) actionPointer.current = null;
+          },
+          onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => {
+            event.preventDefault(); event.stopPropagation();
+            if (actionPointer.current === event.pointerId) actionPointer.current = null;
+          },
+          onLostPointerCapture: (event: ReactPointerEvent<HTMLButtonElement>) => {
+            if (actionPointer.current === event.pointerId) actionPointer.current = null;
+          },
+        })}>행동</button>
         <VirtualJoystick style={controlStyle("joystick")} editing={editingControls} editHandlers={editHandlers("joystick")} onMove={(x, y) => command("move", { x, y })} />
       </section>
     </main>

@@ -232,3 +232,39 @@ button { font:inherit; touch-action:manipulation; }
   .action-button,.run-button{bottom:max(82px,calc(env(safe-area-inset-bottom) + 74px))}
   .save-row.open{width:min(260px,calc(100vw - 18px));max-height:calc(100dvh - max(62px,calc(env(safe-area-inset-top) + 54px)))}
 }
+
+
+/* Mobile play input + inventory/shop touch contract */
+.bag-button{display:none}
+.game-ui-modal{touch-action:manipulation;overscroll-behavior:contain}
+.bag-card,.shop-card{
+  width:min(620px,calc(100% - 24px));max-height:calc(100dvh - 32px);overflow:auto;
+  padding:16px;border:3px solid #71452f;border-radius:16px;background:#fff1cf;color:#483525;
+  box-shadow:0 8px 26px #17291999;overscroll-behavior:contain;touch-action:pan-y
+}
+.bag-card header,.shop-card header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.bag-card header h2,.shop-card header h2{margin:0}.bag-card header small,.shop-card header small{display:block;margin-top:3px}
+.bag-card button,.shop-card button{min-height:44px;padding:8px 12px;border:2px solid #694a32;border-radius:8px;background:#78965d;color:#fff;font-weight:800;touch-action:manipulation}
+.bag-card button:disabled,.shop-card button:disabled{opacity:.48}
+.bag-stamina{display:grid;grid-template-columns:auto auto;gap:5px 10px;align-items:center;margin:12px 0;padding:9px;border:1px solid #b49061;border-radius:9px;background:#fff8e7}
+.bag-stamina .stamina-track{grid-column:1/-1}
+.bag-items,.shop-list{list-style:none;margin:10px 0;padding:0;display:grid;gap:8px}
+.bag-item-row,.shop-list li{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:9px;padding:9px;border:1px solid #b99a6e;border-radius:10px;background:#fff9e9}
+.bag-item-row span,.shop-list li span{display:grid;gap:2px;min-width:0}.bag-item-row small,.shop-list small{font-size:11px;color:#715d47}
+.bag-notice,.shop-notice{padding:8px 10px;border-radius:8px;background:#e5efcf;font-weight:700}
+@media (max-width:700px),(pointer:coarse){
+  .bag-button{
+    display:grid;place-items:center;position:absolute;z-index:37;right:max(22px,calc(env(safe-area-inset-right) + 14px));
+    bottom:max(210px,calc(env(safe-area-inset-bottom) + 202px));width:54px;height:54px;border:3px solid #f2e0ae;
+    border-radius:14px;background:#5b7048;color:#fff;font-size:25px;box-shadow:0 4px 0 #34492f;touch-action:none
+  }
+  .mobile-menu-open .bag-button{visibility:hidden;opacity:0;pointer-events:none}
+  .action-button{touch-action:none!important}
+  .bag-card,.shop-card{width:min(560px,calc(100% - 16px));max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 18px);padding:12px}
+  .bag-item-row,.shop-list li{grid-template-columns:auto minmax(0,1fr) auto;gap:7px}
+  .bag-item-row>.eat-button,.shop-list li>button{grid-column:2/-1;width:100%}
+}
+@media (max-height:430px) and (orientation:landscape){
+  .bag-button{bottom:max(150px,calc(env(safe-area-inset-bottom) + 142px));right:max(18px,calc(env(safe-area-inset-right) + 10px))}
+  .bag-card,.shop-card{max-height:calc(100dvh - 12px)}
+}
