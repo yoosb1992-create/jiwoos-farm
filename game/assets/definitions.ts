@@ -165,7 +165,7 @@ const tileAsset = (
   textureSize, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback,
 });
 export const TILE_ASSETS = {
-  tile_grass: tileAsset("tile_grass", "tile-grass", { color: 0x83b85e }, { kind: "image", path: "/assets/graphics-first-pass/tiles/grass.png" }, { width: 128, height: 128 }),
+  tile_grass: tileAsset("tile_grass", "tile-grass", { color: 0x83b85e }, { kind: "image", path: "/assets/graphics-composition/tiles/grass.png" }, { width: 128, height: 128 }),
   tile_path: tileAsset("tile_path", "tile-path", { color: 0xc9aa71 }, { kind: "image", path: "/assets/graphics-first-pass/tiles/path.png" }, { width: 128, height: 128 }),
   tile_water: tileAsset("tile_water", "tile-water", { color: 0x66a8ca }, { kind: "image", path: "/assets/graphics-first-pass/tiles/water.png" }, { width: 128, height: 128 }),
   tile_farm_empty: tileAsset("tile_farm_empty", "farm-empty", { color: 0xb78a55, alpha: 0.28, stroke: 0x6e8f4a }, { kind: "image", path: "/assets/graphics-first-pass/tiles/farm-empty.png" }),

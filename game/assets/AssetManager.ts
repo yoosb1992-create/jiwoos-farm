@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { CROP_ASSETS, DEFAULT_CHARACTER_VISUAL_PROFILE, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, playerAnimationFrames, type AssetSource, type CharacterVisualProfile } from "./definitions";
+import { TERRAIN_COMPOSITION_ASSETS } from "./terrainComposition";
 
 const loadSource = (scene: Phaser.Scene, key: string, source: AssetSource) => {
   if (!source) return;
@@ -17,6 +18,7 @@ export class AssetManager {
   preload() {
     loadSource(this.scene, this.playerAsset.textureKey, this.playerAsset.source);
     Object.values(TILE_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
+    Object.values(TERRAIN_COMPOSITION_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
     Object.values(WORLD_OBJECT_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
     Object.values(CROP_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));
     Object.values(ITEM_ASSETS).forEach((asset) => loadSource(this.scene, asset.textureKey, asset.source));

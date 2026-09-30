@@ -111,6 +111,15 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
     gameEvents.dispatchEvent(new CustomEvent("command", { detail: { type, value } }));
   }, []);
 
+  useEffect(() => {
+    command("menu-open", mobileMenuOpen);
+    if (mobileMenuOpen) {
+      command("run", false);
+      command("move", { x: 0, y: 0 });
+    }
+    return () => { if (mobileMenuOpen) command("menu-open", false); };
+  }, [command, mobileMenuOpen]);
+
   const toggleHelp = () => {
     const next = !showHelp;
     setShowHelp(next);
@@ -166,7 +175,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
 
   return (
     <main className={`game-shell${family ? " family-playing" : ""}`}>
-      <section className="game-frame" aria-label="지우네 농장 게임">
+      <section className={`game-frame${mobileMenuOpen ? " mobile-menu-open" : ""}`} aria-label="지우네 농장 게임">
         <div id="game-canvas" className="game-canvas" />
         <div className="desktop-left-ui">
           <div className="mode-switch">{!family && <button onClick={onOpenEditor}>{testMode ? "← 편집기로 돌아가기" : "🛠 맵 편집"}</button>}<button onClick={onHome}>{family ? "농장 나가기" : "처음으로"}</button>{testMode && <span>테스트 플레이 · 저장 비활성</span>}</div>
@@ -182,8 +191,9 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
             <div className="quest-details"><div className="growth-track"><i style={{ width: `${hud.progress}%` }} /></div><small>{hud.message}</small></div>
           </aside>
         </div>
-        <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen((open) => !open)} aria-label="게임 메뉴">☰</button>
-        <div className={`save-row ${mobileMenuOpen ? "open" : ""}`}>
+        <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen((open) => !open)} aria-label="게임 메뉴" aria-expanded={mobileMenuOpen} aria-controls="mobile-game-menu">☰</button>
+        {mobileMenuOpen && <div className="mobile-menu-backdrop" aria-hidden="true" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); setMobileMenuOpen(false); }} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} />}
+        <div id="mobile-game-menu" className={`save-row ${mobileMenuOpen ? "open" : ""}`} role={mobileMenuOpen ? "dialog" : undefined} aria-modal={mobileMenuOpen || undefined} aria-label={mobileMenuOpen ? "게임 메뉴" : undefined} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
           {mobileMenuOpen && <div className="mobile-menu-summary mobile-menu-only">
             <section className="mobile-menu-objective"><b>오늘 할 일</b><strong>{hud.objective}</strong><div className="growth-track"><i style={{ width: `${hud.progress}%` }} /></div><small>{hud.message}</small></section>
             {family && <FamilyStatus session={family} mapId={hud.mapId} />}

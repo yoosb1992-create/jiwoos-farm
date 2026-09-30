@@ -6,7 +6,6 @@ import { readAssetPng } from "./png";
 
 const firstPassRoot = "/assets/graphics-first-pass/";
 const firstPassTiles = [
-  TILE_ASSETS.tile_grass,
   TILE_ASSETS.tile_path,
   TILE_ASSETS.tile_farm_empty,
   TILE_ASSETS.tile_farm_tilled,
@@ -26,6 +25,8 @@ for (const asset of firstPassTiles) {
   assert.ok(asset.source?.kind === "image" && asset.source.path.startsWith(`${firstPassRoot}tiles/`));
   assert.deepEqual(asset.frameSize, { width: 32, height: 32 });
 }
+assert.equal(TILE_ASSETS.tile_grass.source?.kind, "image");
+assert.equal(TILE_ASSETS.tile_grass.source?.path, "/assets/graphics-composition/tiles/grass.png", "Graphics 1.2 may replace the First Pass grass without changing its logical contract");
 for (const asset of [TILE_ASSETS.tile_grass, TILE_ASSETS.tile_path, TILE_ASSETS.tile_water]) {
   assert.deepEqual(asset.textureSize, { width: 128, height: 128 }, `${asset.assetId}: visual repeat texture is decoupled from the logical tile`);
 }
@@ -41,7 +42,7 @@ const meanRgb = (path: string) => {
 };
 const luma = ([red, green, blue]: number[]) => red * .2126 + green * .7152 + blue * .0722;
 const colorDistance = (left: number[], right: number[]) => Math.hypot(...left.map((value, index) => value - right[index]));
-const tilePath = (asset: (typeof firstPassTiles)[number]) => asset.source!.kind === "image" ? asset.source!.path : "";
+const tilePath = (asset: { source: { kind: "image"; path: string } | null }) => asset.source!.kind === "image" ? asset.source!.path : "";
 const grassMean = meanRgb(tilePath(TILE_ASSETS.tile_grass));
 const pathMean = meanRgb(tilePath(TILE_ASSETS.tile_path));
 assert.ok(grassMean[1] > grassMean[0] && grassMean[1] > grassMean[2], "grass remains warm green");

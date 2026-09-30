@@ -20,6 +20,7 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
     terrainRegions: [
       { ...area(3, 37, 10, 12), tileType: "path", depth: 1 },
       { ...area(24, 30, 15, 20), tileType: "water", depth: 1 },
+      { ...area(19, 22, 13, 22), tileType: "path", depth: 1 },
       { ...area(19, 22, 23, 25), tileType: "path", depth: 1 },
     ],
     farmAreas: [area(9, 18, 8, 14)], collisionRegions: [area(24, 30, 15, 20)],

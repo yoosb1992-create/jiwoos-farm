@@ -151,23 +151,35 @@ button { font:inherit; touch-action:manipulation; }
 .custom-mobile-control{--mobile-control-base-size:66px}
 .virtual-joystick.custom-mobile-control{--mobile-control-base-size:116px}
 .control-editor-backdrop{position:absolute;inset:0;z-index:54;background:#13231b55;touch-action:none}
+.mobile-menu-backdrop{display:none}
 .control-editor-panel{display:none}
 @media (max-width:700px), (pointer:coarse){
   .desktop-left-ui{display:none}
   .mobile-menu-only{display:block}
   .save-row.open{
+    z-index:72;
     width:min(290px,calc(100vw - 18px));
     align-items:stretch;
-    max-height:calc(100dvh - max(132px,calc(env(safe-area-inset-top) + 124px)));
+    max-height:calc(100dvh - max(128px,calc(env(safe-area-inset-top) + 120px)) - env(safe-area-inset-bottom));
     overflow-y:auto;
     overscroll-behavior:contain;
-    padding:8px;
+    -webkit-overflow-scrolling:touch;
+    touch-action:pan-y;
+    scrollbar-width:thin;
+    scrollbar-color:#f4d890 #4a3027;
+    padding:8px 8px calc(12px + env(safe-area-inset-bottom));
     border:2px solid #62402d;
     border-radius:12px;
     background:#5d3b2eea;
     box-shadow:0 6px 20px #17251d77;
   }
+  .save-row.open::-webkit-scrollbar{width:8px}
+  .save-row.open::-webkit-scrollbar-track{background:#4a3027;border-radius:8px}
+  .save-row.open::-webkit-scrollbar-thumb{background:#f4d890;border:2px solid #4a3027;border-radius:8px}
   .save-row.open>button{width:100%}
+  .mobile-menu-backdrop{display:block;position:absolute;inset:0;z-index:70;background:#17251d38;touch-action:none;overscroll-behavior:contain}
+  .mobile-menu-open .mobile-menu-toggle{z-index:73}
+  .mobile-menu-open .custom-mobile-control,.mobile-menu-open .quickbar,.mobile-menu-open .inventory-chip{visibility:hidden;opacity:0;pointer-events:none}
   .mobile-menu-summary{display:grid;gap:8px;margin-bottom:2px}
   .mobile-menu-objective{display:grid;gap:5px;padding:9px 10px;border:2px solid #71452f;border-radius:9px;background:#fff3d1;color:#3e3427}
   .mobile-menu-objective>b{font-size:11px;color:#8c6939}

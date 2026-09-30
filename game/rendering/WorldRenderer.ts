@@ -1,9 +1,11 @@
 import * as Phaser from "phaser";
 import type { FarmTileData } from "../domain";
 import { CROP_ASSETS, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, type CropAssetId } from "../assets/definitions";
+import { FARM_TERRAIN_DECORATIONS, TERRAIN_COMPOSITION_ASSETS, type CardinalDirection, type CornerDirection, type TerrainCompositionAssetId } from "../assets/terrainComposition";
+import { TERRAIN_GRAPHICS_PROFILE } from "../assets/graphicsFoundation";
 import { CROP_DEFINITIONS } from "../data/crops";
 import { GAME_CONFIG } from "../config";
-import { TILE_TYPE_DEFINITIONS, tilePoint } from "../maps/definitions";
+import { TILE_TYPE_DEFINITIONS, getTileTypeInMap, tilePoint } from "../maps/definitions";
 import type { MapDefinition, MapId, TileRect } from "../maps/types";
 import type { MapRegistry } from "../maps/MapRegistry";
 import { FOREST_RESOURCES, resourceKind } from "../forest/resources";
@@ -47,6 +49,8 @@ export class WorldRenderer {
     const base = TILE_ASSETS[TILE_TYPE_DEFINITIONS[map.baseTileType].graphicAssetId];
     this.root.add(this.scene.add.tileSprite(width / 2, height / 2, width, height, base.textureKey));
     for (const region of map.terrainRegions) this.addRegion(region);
+    this.addTerrainComposition(map);
+    if (mapId === "farm") this.addFarmDecorations();
     for (const region of map.collisionRegions) this.addCollisionRegion(region);
     for (const object of map.objects) this.addObject(object);
     if (map.boundary.enabled) this.createBoundary(map);
@@ -183,6 +187,7 @@ export class WorldRenderer {
     view.removeAll(true);
     const groundId = tile.wateredToday ? "tile_farm_watered" : tile.tilled ? "tile_farm_tilled" : "tile_farm_empty";
     view.add(this.makeImage(0, 0, TILE_ASSETS[groundId]));
+    this.addFarmBorder(view, tile);
     if (tile.cropType && tile.cropStage !== null) {
       const stage = CROP_DEFINITIONS[tile.cropType].stages[tile.cropStage];
       view.add(this.makeImage(0, 0, CROP_ASSETS[stage.assetId as CropAssetId]));
@@ -200,6 +205,115 @@ export class WorldRenderer {
     const width = (region.endX - region.startX + 1) * size, height = (region.endY - region.startY + 1) * size;
     const asset = TILE_ASSETS[TILE_TYPE_DEFINITIONS[region.tileType].graphicAssetId];
     this.root!.add(this.scene.add.tileSprite(region.startX * size + width / 2, region.startY * size + height / 2, width, height, asset.textureKey).setDepth(region.depth ?? 1));
+  }
+
+  private addTerrainComposition(map: MapDefinition) {
+    const size = GAME_CONFIG.tileSize;
+    for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) {
+      const tileType = getTileTypeInMap(map, x, y);
+      if (tileType !== "path" && tileType !== "water") continue;
+      const same = (dx: number, dy: number) => getTileTypeInMap(map, x + dx, y + dy) === tileType;
+      const cardinal: Record<CardinalDirection, boolean> = {
+        north: same(0, -1), east: same(1, 0), south: same(0, 1), west: same(-1, 0),
+      };
+      const diagonal: Record<CornerDirection, boolean> = {
+        northWest: same(-1, -1), northEast: same(1, -1), southEast: same(1, 1), southWest: same(-1, 1),
+      };
+      const centerX = (x + .5) * size, centerY = (y + .5) * size;
+      if (tileType === "path") {
+        const profile = TERRAIN_GRAPHICS_PROFILE.path;
+        for (const direction of Object.keys(cardinal) as CardinalDirection[]) {
+          if (!cardinal[direction]) this.addCompositionImage(centerX, centerY, profile.edgeAssetIds[direction], 1.12);
+        }
+        this.addCornerComposition(centerX, centerY, cardinal, diagonal, profile.outerCornerAssetIds, profile.innerCornerAssetIds, 1.13);
+      } else {
+        const profile = TERRAIN_GRAPHICS_PROFILE.water;
+        for (const direction of Object.keys(cardinal) as CardinalDirection[]) {
+          if (!cardinal[direction]) this.addCompositionImage(centerX, centerY, profile.edgeAssetIds[direction], 1.12);
+        }
+        this.addOuterCorners(centerX, centerY, cardinal, profile.cornerAssetIds, 1.13);
+      }
+    }
+  }
+
+  private addCornerComposition(
+    x: number,
+    y: number,
+    cardinal: Record<CardinalDirection, boolean>,
+    diagonal: Record<CornerDirection, boolean>,
+    outerAssets: Record<CornerDirection, TerrainCompositionAssetId>,
+    innerAssets: Record<CornerDirection, TerrainCompositionAssetId>,
+    depth: number,
+  ) {
+    this.addOuterCorners(x, y, cardinal, outerAssets, depth);
+    const corners: Array<[CornerDirection, CardinalDirection, CardinalDirection]> = [
+      ["northWest", "north", "west"], ["northEast", "north", "east"],
+      ["southEast", "south", "east"], ["southWest", "south", "west"],
+    ];
+    for (const [corner, first, second] of corners) {
+      if (cardinal[first] && cardinal[second] && !diagonal[corner]) this.addCompositionImage(x, y, innerAssets[corner], depth);
+    }
+  }
+
+  private addOuterCorners(
+    x: number,
+    y: number,
+    cardinal: Record<CardinalDirection, boolean>,
+    assets: Record<CornerDirection, TerrainCompositionAssetId>,
+    depth: number,
+  ) {
+    const corners: Array<[CornerDirection, CardinalDirection, CardinalDirection]> = [
+      ["northWest", "north", "west"], ["northEast", "north", "east"],
+      ["southEast", "south", "east"], ["southWest", "south", "west"],
+    ];
+    for (const [corner, first, second] of corners) {
+      if (!cardinal[first] && !cardinal[second]) this.addCompositionImage(x, y, assets[corner], depth);
+    }
+  }
+
+  private addFarmBorder(view: Phaser.GameObjects.Container, tile: FarmTileData) {
+    const map = this.currentMapId ? this.maps.get(this.currentMapId) : undefined;
+    if (!map) return;
+    const isFarm = (x: number, y: number) => map.farmAreas.some((area) => x >= area.startX && x <= area.endX && y >= area.startY && y <= area.endY);
+    const cardinal: Record<CardinalDirection, boolean> = {
+      north: isFarm(tile.x, tile.y - 1), east: isFarm(tile.x + 1, tile.y), south: isFarm(tile.x, tile.y + 1), west: isFarm(tile.x - 1, tile.y),
+    };
+    const profile = TERRAIN_GRAPHICS_PROFILE.farm;
+    for (const direction of Object.keys(cardinal) as CardinalDirection[]) {
+      if (!cardinal[direction]) {
+        const image = this.makeCompositionImage(0, 0, profile.borderAssetIds[direction]);
+        if (image) view.add(image);
+      }
+    }
+    const corners: Array<[CornerDirection, CardinalDirection, CardinalDirection]> = [
+      ["northWest", "north", "west"], ["northEast", "north", "east"],
+      ["southEast", "south", "east"], ["southWest", "south", "west"],
+    ];
+    for (const [corner, first, second] of corners) if (!cardinal[first] && !cardinal[second]) {
+      const image = this.makeCompositionImage(0, 0, profile.cornerAssetIds[corner]);
+      if (image) view.add(image);
+    }
+  }
+
+  private addFarmDecorations() {
+    for (const placement of FARM_TERRAIN_DECORATIONS) {
+      const image = this.makeCompositionImage(placement.tileX * GAME_CONFIG.tileSize, placement.tileY * GAME_CONFIG.tileSize, placement.assetId);
+      if (!image) continue;
+      image.setDepth(placement.depth ?? 2.4).setAlpha(placement.alpha ?? 1).setFlipX(placement.flipX ?? false);
+      this.root!.add(image);
+    }
+  }
+
+  private addCompositionImage(x: number, y: number, assetId: TerrainCompositionAssetId, depth: number) {
+    const image = this.makeCompositionImage(x, y, assetId);
+    if (!image) return;
+    image.setDepth(depth); this.root!.add(image);
+  }
+
+  private makeCompositionImage(x: number, y: number, assetId: TerrainCompositionAssetId) {
+    const asset = TERRAIN_COMPOSITION_ASSETS[assetId];
+    if (!this.scene.textures.exists(asset.textureKey)) return undefined;
+    return this.makeImage(x, y, asset);
   }
 
   private addObject(object: MapDefinition["objects"][number]) {
