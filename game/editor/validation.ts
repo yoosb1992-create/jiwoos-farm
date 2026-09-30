@@ -1,6 +1,7 @@
 import { WORLD_OBJECT_ASSETS } from "../assets/definitions";
 import { TILE_TYPE_DEFINITIONS } from "../maps/definitions";
 import type { MapDefinition, PixelRect, TileRect } from "../maps/types";
+import { MAP_DIMENSION_MIN, MAP_TILE_BUDGET } from "./mapSize";
 import { EDITOR_DOCUMENT_VERSION, type MapEditorDocument, type ValidationIssue } from "./types";
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -28,8 +29,9 @@ export function validateEditorDocument(value: unknown): ValidationIssue[] {
     if (mapIds.has(mapId)) issues.push({ mapId, path: "id", message: "중복된 맵 ID입니다." });
     mapIds.add(mapId);
     if (!text(raw.name)) issues.push({ mapId, path: "name", message: "맵 이름이 필요합니다." });
-    if (!number(raw.width) || !Number.isInteger(raw.width) || raw.width < 4 || raw.width > 200) issues.push({ mapId, path: "width", message: "너비는 4~200 사이의 정수여야 합니다." });
-    if (!number(raw.height) || !Number.isInteger(raw.height) || raw.height < 4 || raw.height > 200) issues.push({ mapId, path: "height", message: "높이는 4~200 사이의 정수여야 합니다." });
+    if (!number(raw.width) || !Number.isInteger(raw.width) || raw.width < MAP_DIMENSION_MIN) issues.push({ mapId, path: "width", message: `너비는 ${MAP_DIMENSION_MIN} 이상의 정수여야 합니다.` });
+    if (!number(raw.height) || !Number.isInteger(raw.height) || raw.height < MAP_DIMENSION_MIN) issues.push({ mapId, path: "height", message: `높이는 ${MAP_DIMENSION_MIN} 이상의 정수여야 합니다.` });
+    if (number(raw.width) && number(raw.height) && raw.width * raw.height > MAP_TILE_BUDGET) issues.push({ mapId, path: "size", message: `맵 전체 타일 수는 ${MAP_TILE_BUDGET.toLocaleString("ko-KR")}개 이하여야 합니다.` });
     if (!tileType(raw.baseTileType)) issues.push({ mapId, path: "baseTileType", message: "존재하지 않는 타일 종류입니다." });
     for (const field of ["terrainRegions", "farmAreas", "collisionRegions", "objects", "spawns", "warps"] as const) if (!Array.isArray(raw[field])) issues.push({ mapId, path: field, message: "배열이어야 합니다." });
     if (!record(raw.boundary) || typeof raw.boundary.enabled !== "boolean" || (raw.boundary.openings !== undefined && !Array.isArray(raw.boundary.openings))) issues.push({ mapId, path: "boundary", message: "맵 경계 정의가 올바르지 않습니다." });
