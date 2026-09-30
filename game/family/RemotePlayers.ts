@@ -1,5 +1,5 @@
 import type * as Phaser from "phaser";
-import { PLAYER_ASSET, displayedSize, playerAnimationName } from "../assets/definitions";
+import { PLAYER_ASSET, WORLD_OVERLAY_DEPTH, depthFromGroundAnchor, displayedSize, playerAnimationName } from "../assets/definitions";
 import { interpolateFamilyPosition, visibleFamilyPlayers } from "./presence";
 import type { FamilyPresence, FamilyPresenceSnapshot } from "./types";
 
@@ -22,13 +22,17 @@ export class RemotePlayers {
       if (!view) {
         const size = displayedSize(PLAYER_ASSET);
         const sprite = this.scene.add.sprite(player.x, player.y, PLAYER_ASSET.textureKey).setOrigin(PLAYER_ASSET.origin.x, PLAYER_ASSET.origin.y)
-          .setDisplaySize(size.width, size.height).setDepth(19).setTint(0xb9e6ff).setAlpha(.85);
-        const label = this.scene.add.text(player.x, player.y - 26, "", { fontFamily: "sans-serif", fontSize: "12px", color: "#e3f6ff", backgroundColor: "#254d67dd", padding: { x: 4, y: 2 } }).setOrigin(.5, 1).setDepth(25);
+          .setDisplaySize(size.width, size.height).setTint(0xb9e6ff).setAlpha(.85);
+        const label = this.scene.add.text(player.x, player.y - 26, "", { fontFamily: "sans-serif", fontSize: "12px", color: "#e3f6ff", backgroundColor: "#254d67dd", padding: { x: 4, y: 2 } }).setOrigin(.5, 1).setDepth(WORLD_OVERLAY_DEPTH + .4);
         view = { sprite, label, target: player }; this.views.set(player.playerId, view);
       }
       view.target = player;
       const point = interpolateFamilyPosition(view.sprite, player, delta);
-      view.sprite.setPosition(point.x, point.y);
+      view.sprite.setPosition(point.x, point.y).setDepth(depthFromGroundAnchor(
+        point,
+        PLAYER_ASSET,
+        { width: view.sprite.displayWidth, height: view.sprite.displayHeight },
+      ));
       const action = player.action;
       if (action && action.expiresAt > estimated.serverNow && action.id !== view.actionId) {
         view.actionId = action.id; view.actionUntil = Date.now() + 550;
