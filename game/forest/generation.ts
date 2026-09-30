@@ -4,7 +4,7 @@ import { TILE_TYPE_DEFINITIONS, getTileTypeInMap } from "../maps/definitions";
 import type { MapDefinition, MapObjectDefinition, TileRect } from "../maps/types";
 
 export const FAIRY_FOREST_ID = "fairy_forest";
-export const FOREST_WIDTH = 32;
+export const FOREST_WIDTH = 40;
 export const FOREST_HEIGHT = 24;
 export const FOREST_ENTRY = { tileX: 15.5, tileY: 20.5, facing: "up" as const };
 const area = (startX: number, endX: number, startY: number, endY: number): TileRect => ({ startX, endX, startY, endY });
