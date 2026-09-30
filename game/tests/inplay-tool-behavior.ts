@@ -149,6 +149,6 @@ try {
   close();
 }
 
-assert.equal(MAP_DEFINITIONS.farm.width, 42);
+assert.equal(MAP_DEFINITIONS.farm.width, 52);
 assert.equal(MAP_DEFINITIONS.farm.height, 26);
 console.log("In-Play Polish 1.2: action lock, refill/empty water, centered seeds, farm pickaxe, Family sync, and editor object drag passed");
