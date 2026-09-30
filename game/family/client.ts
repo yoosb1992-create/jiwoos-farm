@@ -3,10 +3,16 @@ import { gameEvents } from "../events";
 import type { FamilyAction, FamilyPose, FamilySession, FamilySnapshot, FamilyPresenceSnapshot } from "./types";
 import { familyPersonalKey, parseFamilyPose } from "./personal";
 
-export const FAMILY_POLL_MS = 1000;
+export const FAMILY_STATE_POLL_MS = 1000;
+export const FAMILY_PRESENCE_FALLBACK_MS = 1000;
+/** When a WebSocket/DO presence channel is injected later, D1 presence remains
+ * a low-rate membership/online keepalive instead of carrying movement frames. */
+export const FAMILY_PRESENCE_KEEPALIVE_MS = 5000;
+/** Backwards-compatible name used by existing retry tests/callers. */
+export const FAMILY_POLL_MS = FAMILY_STATE_POLL_MS;
 export type FamilyConnection = "connecting" | "connected" | "reconnecting" | "disconnected" | "syncing";
 export const CONNECTION_LABELS: Record<FamilyConnection, string> = { connecting: "연결 중", connected: "연결됨", reconnecting: "재연결 중", disconnected: "연결 끊김", syncing: "최신 상태 동기화 중" };
-export const familyRetryDelay = (failures: number) => Math.min(16000, FAMILY_POLL_MS * 2 ** Math.min(4, failures));
+export const familyRetryDelay = (failures: number) => Math.min(16000, FAMILY_STATE_POLL_MS * 2 ** Math.min(4, failures));
 export class FamilyAPIError extends Error {
   constructor(public status: number, message: string, public snapshot?: FamilySnapshot) { super(message); }
 }
@@ -15,6 +21,20 @@ export async function familyFetch<T>(path: string, init: RequestInit = {}): Prom
   const result = await response.json() as { message?: string; snapshot?: FamilySnapshot };
   if (!response.ok) throw new FamilyAPIError(response.status, result.message ?? "가족 농장 요청이 실패했습니다.", result.snapshot);
   return result as T;
+}
+
+export interface FamilyRealtimePresenceContext {
+  roomId: string;
+  sessionId: string;
+  pose: () => FamilyPose | undefined;
+  onSnapshot: (snapshot: FamilyPresenceSnapshot) => void;
+  onDisconnect: () => void;
+}
+/** Optional fast channel. D1 state/action APIs remain authoritative regardless
+ * of whether a realtime channel is installed. */
+export interface FamilyRealtimePresenceChannel {
+  start(context: FamilyRealtimePresenceContext): void;
+  stop(): void;
 }
 export class FamilyClient {
   progress?: ProgressSnapshot;
@@ -54,37 +74,77 @@ export class FamilyClient {
   private pose?: () => FamilyPose;
   private onPresence?: (snapshot: FamilyPresenceSnapshot) => void;
   private heartbeatRequest?: Promise<void>;
+  private stateTimer?: ReturnType<typeof setTimeout>;
+  private presenceTimer?: ReturnType<typeof setTimeout>;
+  private realtimeStarted = false;
   setPresence(pose: () => FamilyPose, onPresence: (snapshot: FamilyPresenceSnapshot) => void) { this.pose = pose; this.onPresence = onPresence; }
   private async heartbeat() {
     if (!this.pose || !this.live) return;
     const snapshot = await familyFetch<FamilyPresenceSnapshot>("/api/family/presence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId, pose: this.pose() }) });
     if (this.live) this.onPresence?.(snapshot);
   }
-  private timer?: ReturnType<typeof setTimeout>;
-  constructor(readonly session: FamilySession, private onSnapshot: (snapshot: FamilySnapshot) => void, private onMessage: (message: string) => void) {}
+  constructor(
+    readonly session: FamilySession,
+    private onSnapshot: (snapshot: FamilySnapshot) => void,
+    private onMessage: (message: string) => void,
+    private readonly realtimePresence?: FamilyRealtimePresenceChannel,
+  ) {}
   private accept(snapshot: FamilySnapshot) {
     if (!this.live || (this.snapshot && (snapshot.revision < this.snapshot.revision || (snapshot.revision === this.snapshot.revision && snapshot.serverNow < this.snapshot.serverNow)))) return;
     this.snapshot = snapshot; this.onSnapshot(snapshot);
   }
-  start() { if (this.live) return; this.live = true; void this.poll(); }
+  start() {
+    if (this.live) return;
+    this.live = true;
+    this.startRealtimePresence();
+    void this.pollState();
+    void this.pollPresence();
+  }
   stop() {
     if (!this.live) return;
-    this.live = false; clearTimeout(this.timer);
-    // Wait for an already-sent heartbeat so leaving cannot be undone by its late response.
+    this.live = false;
+    clearTimeout(this.stateTimer); clearTimeout(this.presenceTimer);
+    if (this.realtimeStarted) { this.realtimePresence?.stop(); this.realtimeStarted = false; }
+    // Wait for an already-sent D1 keepalive so leaving cannot be undone by its late response.
     void (this.heartbeatRequest ?? Promise.resolve()).catch(() => {}).then(() => familyFetch("/api/family/presence", {
       method: "DELETE", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId }),
     })).catch(() => {});
   }
-  private async poll() {
+  private startRealtimePresence() {
+    if (!this.realtimePresence || !this.pose || !this.onPresence || this.realtimeStarted) return;
+    this.realtimeStarted = true;
+    this.realtimePresence.start({
+      roomId: this.session.room.id,
+      sessionId: this.sessionId,
+      pose: () => this.live ? this.pose?.() : undefined,
+      onSnapshot: (snapshot) => { if (this.live) this.onPresence?.(snapshot); },
+      onDisconnect: () => { /* D1 keepalive/presence polling remains the safe fallback. */ },
+    });
+  }
+  private async pollState() {
     if (this.failures) this.setConnection(this.failures >= 3 ? "disconnected" : "reconnecting");
     try {
-      this.heartbeatRequest = this.heartbeat();
-      const results = await Promise.allSettled([this.refresh(), this.heartbeatRequest]);
-      if (results.some((r) => r.status === "rejected")) throw new Error("offline");
+      await this.refresh();
       this.failures = 0; this.setConnection("connected");
     } catch {
       this.failures++; this.setConnection(this.failures >= 3 ? "disconnected" : "reconnecting");
-    } finally { if (this.live) this.timer = setTimeout(() => void this.poll(), familyRetryDelay(this.failures)); }
+    } finally {
+      if (this.live) this.stateTimer = setTimeout(() => void this.pollState(), familyRetryDelay(this.failures));
+    }
+  }
+  private async pollPresence() {
+    try {
+      this.heartbeatRequest = this.heartbeat();
+      await this.heartbeatRequest;
+    } catch {
+      // Presence loss must not block authoritative farming/shop actions. The
+      // state channel owns the connection state and retries independently.
+    } finally {
+      if (this.live) this.presenceTimer = setTimeout(
+        () => void this.pollPresence(),
+        this.realtimeStarted ? FAMILY_PRESENCE_KEEPALIVE_MS : FAMILY_PRESENCE_FALLBACK_MS,
+      );
+    }
   }
   async refresh() {
     if (!this.live) return;
