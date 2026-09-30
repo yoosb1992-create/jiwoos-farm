@@ -26,7 +26,8 @@ for (const tree of trees) {
   assert.ok(!farm.warps.some(warp => contains(warp.area, tree.position.tileX, tree.position.tileY)), `${tree.id}: warp stays clear`);
 }
 
-assert.equal(FARM_TERRAIN_DECORATIONS.length, 41, "authored decoration set is richer but bounded");
+assert.equal(FARM_TERRAIN_DECORATIONS.length, 54, "authored decoration set is richer but bounded");
+assert.ok(FARM_TERRAIN_DECORATIONS.filter(item => item.tileX >= 40).length >= 10, "expanded east meadow is visually authored");
 assert.equal(new Set(FARM_TERRAIN_DECORATIONS.map(item => `${item.assetId}:${item.tileX}:${item.tileY}`)).size, FARM_TERRAIN_DECORATIONS.length);
 for (const decoration of FARM_TERRAIN_DECORATIONS) {
   assert.ok(decoration.tileX >= 0 && decoration.tileX < farm.width && decoration.tileY >= 0 && decoration.tileY < farm.height);
@@ -53,7 +54,7 @@ const connectedBy = (allowed: Set<string>, start: [number, number], target: [num
   }
   return false;
 };
-for (const target of [[20, 25], [25, 14], [33, 9]] as const) {
+for (const target of [[20, 25], [25, 14], [33, 9], [45, 9]] as const) {
   assert.ok(connectedBy(pathTiles, [5, 9], [...target]), `authored path connects the house yard to ${target.join(",")}`);
 }
 assert.ok(pathTiles.size < 190, "the expanded farm still avoids a full-width path rectangle");
@@ -85,7 +86,7 @@ for (const [x, y] of [[6, 20], [35, 18]] as const) {
   assert.equal(placementError(placeables, "wood_processor", farm, x, y, players, buildings), null, `machine clearing ${x},${y}`);
 }
 
-for (const id of ["yard_flower_bed_east", "yard_shrub_west", "pond_bench", "pond_lamp", "pond_flower_bed", "south_lamp_west", "south_lamp_east"]) {
+for (const id of ["yard_flower_bed_east", "yard_shrub_west", "pond_bench", "pond_lamp", "pond_flower_bed", "south_lamp_west", "south_lamp_east", "east_meadow_bench", "east_meadow_lamp"]) {
   assert.ok(farm.objects.some(object => object.id === id), `${id}: curated starter dressing remains authored`);
 }
 const basket = farm.objects.find(object => object.id === "sell_basket")!;
