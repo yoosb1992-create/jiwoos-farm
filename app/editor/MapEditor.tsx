@@ -77,7 +77,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
 
   useEffect(() => {
     if (cloudStatus === "checking" && !hasLocalDraft.current) return;
-    const timer = window.setTimeout(() => { if (repository.save(document)) hasLocalDraft.current = true; }, 750);
+    const timer = window.setTimeout(() => { if (repository.save(document)) hasLocalDraft.current = true; }, 1200);
     return () => window.clearTimeout(timer);
   }, [cloudStatus, document]);
 
@@ -131,7 +131,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   const saveCloud = useCallback(async (source = documentRef.current) => {
     if (validateEditorDocument(source).length) return;
     setCloudStatus("saving");
-    const result = await cloudRepository.save(cloneEditorDocument(source), cloudRevision.current);
+    const result = await cloudRepository.save(source, cloudRevision.current);
     if (result.status === "ok") {
       const syncedDocument = cloneEditorDocument(result.draft.document);
       cloudRevision.current = result.draft.revision; cloudSyncedAt.current = result.draft.updatedAt;
@@ -146,7 +146,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
 
   useEffect(() => {
     if (cloudStatus !== "ready" || cloudConflict || document.updatedAt <= cloudSyncedAt.current) return;
-    const timer = window.setTimeout(() => { void saveCloud(document); }, 2800);
+    const timer = window.setTimeout(() => { void saveCloud(document); }, 6000);
     return () => window.clearTimeout(timer);
   }, [cloudConflict, cloudStatus, document, saveCloud]);
   const pushHistory = useCallback(() => history.current.push(documentRef.current), []);
