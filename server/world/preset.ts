@@ -7,6 +7,17 @@ import { MAP_DEFINITIONS } from "../../game/maps/definitions";
 export const WORLD_PRESET_ID = "initial-world";
 export type WorldPresetDB = Pick<D1Database, "prepare">;
 
+export async function ensureWorldPresetStorage(db: WorldPresetDB) {
+  await db.prepare(`CREATE TABLE IF NOT EXISTS world_presets (
+    id text PRIMARY KEY NOT NULL,
+    owner_id text NOT NULL,
+    document_version integer NOT NULL,
+    document_json text NOT NULL,
+    revision integer DEFAULT 1 NOT NULL,
+    updated_at integer NOT NULL
+  )`).run();
+}
+
 export interface PublishedWorldPreset {
   document: MapEditorDocument;
   revision: number;
@@ -33,10 +44,15 @@ export function serializeWorldPreset(row: WorldPresetRow | null): (PublishedWorl
 }
 
 export async function readPublishedWorldPreset(db: WorldPresetDB): Promise<(PublishedWorldPreset & { ownerId: string }) | null> {
-  const row = await db.prepare(
-    "SELECT owner_id, document_json, document_version, revision, updated_at FROM world_presets WHERE id = ?",
-  ).bind(WORLD_PRESET_ID).first<WorldPresetRow>();
-  return serializeWorldPreset(row);
+  try {
+    const row = await db.prepare(
+      "SELECT owner_id, document_json, document_version, revision, updated_at FROM world_presets WHERE id = ?",
+    ).bind(WORLD_PRESET_ID).first<WorldPresetRow>();
+    return serializeWorldPreset(row);
+  } catch (error) {
+    if (String(error).includes("no such table") && String(error).includes("world_presets")) return null;
+    throw error;
+  }
 }
 
 export async function publishedWorldMaps(db: WorldPresetDB): Promise<Record<string, MapDefinition>> {
