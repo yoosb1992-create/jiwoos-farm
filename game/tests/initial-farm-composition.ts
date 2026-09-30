@@ -85,6 +85,9 @@ for (const [x, y] of [[6, 20], [35, 18]] as const) {
   assert.equal(placementError(placeables, "wood_processor", farm, x, y, players, buildings), null, `machine clearing ${x},${y}`);
 }
 
+for (const id of ["yard_flower_bed_east", "yard_shrub_west", "pond_bench", "pond_lamp", "pond_flower_bed", "south_lamp_west", "south_lamp_east"]) {
+  assert.ok(farm.objects.some(object => object.id === id), `${id}: curated starter dressing remains authored`);
+}
 const basket = farm.objects.find(object => object.id === "sell_basket")!;
 assert.deepEqual(basket.interaction?.area, { startX: 31, endX: 35, startY: 6, endY: 9 }, "sell basket remains accessible");
 
