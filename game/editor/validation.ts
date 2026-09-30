@@ -80,7 +80,9 @@ export function validateEditorDocument(value: unknown): ValidationIssue[] {
     if (!target) issues.push({ mapId: map.id, path: `warps.${warp.id}.targetMapId`, message: "목적지 맵이 존재하지 않습니다." });
     else if (!(Array.isArray(target.spawns) ? target.spawns : []).some((spawn) => record(spawn) && spawn.id === warp.targetSpawnId)) issues.push({ mapId: map.id, path: `warps.${warp.id}.targetSpawnId`, message: "목적지 시작 위치가 존재하지 않습니다." });
   }
-  if (!mapIds.has("farm")) issues.push({ path: "maps", message: "핵심 농장 맵은 삭제할 수 없습니다." });
+  for (const coreId of ["farm", "farmhouse", "road", "town", "general_store"]) {
+    if (!mapIds.has(coreId)) issues.push({ path: "maps", message: `핵심 월드 맵 ${coreId}은(는) 삭제할 수 없습니다.` });
+  }
   return issues;
 }
 
