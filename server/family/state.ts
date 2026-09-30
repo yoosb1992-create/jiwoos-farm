@@ -4,8 +4,9 @@ import { calendarDate, worldMinute } from "../../game/world/calendar";
 import { waterFarmForRain, weatherFor } from "../../game/weather/system";
 import { advanceFarmDay, Inventory, purchaseInventoryItem, type InventoryData } from "../../game/domain";
 import { sellMarketGoods } from "../../game/economy/sales";
-import { beginFishing, fishingSpotError, normalizeFishingCast, normalizeFishingProgress, reelFishing } from "../../game/fishing/system";
+import { beginFishing, failFishing, fishingSpotError, normalizeFishingCast, normalizeFishingProgress, reelFishing } from "../../game/fishing/system";
 import type { FishingCast, FishingProgress } from "../../game/fishing/types";
+import { isFishingCatchGrade } from "../../game/fishing/maze";
 import { DEFAULT_CROP_ID, isCropId } from "../../game/data/crops";
 import { GENERAL_STORE_LISTINGS } from "../../game/data/shop";
 import { getTileTypeInMap, MAP_DEFINITIONS, pointInTileRect } from "../../game/maps/definitions";
@@ -264,7 +265,7 @@ export class FamilyState extends FamilyRooms {
       stored.mineDaily = result.daily; stored.mineProgress = result.progress;
       if (result.drop) inventory.add(result.drop, result.quantity);
       recordSuccessfulAction(stats, "pickaxe");
-    } else if (action.kind === "fish-cast" || action.kind === "fish-reel") {
+    } else if (action.kind === "fish-cast" || action.kind === "fish-reel" || action.kind === "fish-fail") {
       // Cross-check the reported shore location against the recently observed player pose.
       const presence = await this.db.prepare("SELECT pose_json, last_seen FROM family_presence WHERE room_id = ? AND user_id = ?")
         .bind(roomId, userId).first<{ pose_json: string; last_seen: number }>();
@@ -283,9 +284,16 @@ export class FamilyState extends FamilyRooms {
       } else {
         const error = fishingSpotError(fishingCast?.spotId, pose);
         if (error) throw new FamilyError(400, error);
-        const result = reelFishing(fishingCast, action.castId, fishingProgress, inventory, stats, day, time);
-        if (result.error) throw new FamilyError(409, result.error);
-        fishingCast = result.cast ?? null; fishingNotice = result.message;
+        if (action.kind === "fish-reel") {
+          if (action.grade !== undefined && !isFishingCatchGrade(action.grade)) throw new FamilyError(400, "낚시 판정이 올바르지 않습니다.");
+          const result = reelFishing(fishingCast, action.castId, fishingProgress, inventory, stats, day, time, action.grade);
+          if (result.error) throw new FamilyError(409, result.error);
+          fishingCast = result.cast ?? null; fishingNotice = result.message;
+        } else {
+          const result = failFishing(fishingCast, action.castId);
+          if (result.error) throw new FamilyError(409, result.error);
+          fishingCast = null; fishingNotice = result.message;
+        }
       }
     } else if (action.kind === "sleep") {
       if (!near("sleep")) throw new FamilyError(400, "농장집 침대에서 잠들어 주세요.");
