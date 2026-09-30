@@ -26,7 +26,7 @@ const farmDressing = (id: string, assetId: MapObjectDefinition["assetId"], tileX
 
 export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
   farm: {
-    id: "farm", name: "지우네 농장", width: 42, height: 26, baseTileType: "grass",
+    id: "farm", name: "지우네 농장", width: 52, height: 26, baseTileType: "grass",
     terrainRegions: [
       // Authored route: front yard -> field lane -> pond bank / south exit.
       { ...area(3, 8, 9, 11), tileType: "path", depth: 1 },
@@ -36,6 +36,7 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
       { ...area(22, 28, 13, 14), tileType: "path", depth: 1 },
       { ...area(28, 31, 11, 13), tileType: "path", depth: 1 },
       { ...area(31, 35, 9, 11), tileType: "path", depth: 1 },
+      { ...area(35, 43, 9, 10), tileType: "path", depth: 1 },
       { ...area(24, 30, 15, 20), tileType: "water", depth: 1 },
     ],
     farmAreas: [area(9, 18, 8, 14)], collisionRegions: [area(24, 30, 15, 20)],
@@ -86,6 +87,9 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
       farmTree("farm_tree_east_pond", 39.2, 19.3),
       farmTree("farm_tree_south_east", 37.2, 23.5, "tree_variant_b"),
       farmTree("farm_tree_south_pond", 30.8, 24.2, "tree_variant_a"),
+      farmTree("farm_tree_far_east_north", 48.5, 4.0, "tree_variant_a"),
+      farmTree("farm_tree_far_east_mid", 49.2, 13.0, "tree_variant_b"),
+      farmTree("farm_tree_far_east_south", 47.8, 22.8),
     ],
     spawns: [
       { id: "house_front", tileX: 7, tileY: 8, facing: "down" },
@@ -98,7 +102,7 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
     ], boundary: { enabled: true, openings: [area(19, 22, 24, 25)] },
   },
   farmhouse: {
-    id: "farmhouse", name: "농장집", width: 18, height: 13, baseTileType: "wood_floor",
+    id: "farmhouse", name: "농장집", width: 22, height: 13, baseTileType: "wood_floor",
     terrainRegions: [{ ...area(0, 17, 0, 1), tileType: "stone_floor" }], farmAreas: [], collisionRegions: [],
     objects: [
       { id: "bed", assetId: "bed", position: { tileX: 7, tileY: 7 }, collision: { x: -48, y: -28, width: 96, height: 56 }, interaction: { action: "sleep", area: area(5, 9, 6, 9) }, label: "침대 · 잠자기", depth: 3 },
@@ -110,7 +114,7 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
     boundary: { enabled: true, openings: [area(8, 10, 11, 12)] },
   },
   road: {
-    id: "road", name: "들꽃길", width: 22, height: 14, baseTileType: "grass",
+    id: "road", name: "들꽃길", width: 30, height: 14, baseTileType: "grass",
     terrainRegions: [{ ...area(9, 12, 0, 13), tileType: "path" }, { ...area(1, 4, 4, 10), tileType: "water" }], farmAreas: [], collisionRegions: [area(1, 4, 4, 10)],
     objects: [],
     spawns: [{ id: "farm_entrance", tileX: 10.5, tileY: 3, facing: "down" }, { id: "town_entrance", tileX: 10.5, tileY: 10.5, facing: "up" }],
@@ -118,7 +122,7 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
     boundary: { enabled: true, openings: [area(9, 12, 0, 1), area(9, 12, 12, 13)] },
   },
   town: {
-    id: "town", name: "햇살마을", width: 34, height: 18, baseTileType: "grass",
+    id: "town", name: "햇살마을", width: 44, height: 18, baseTileType: "grass",
     terrainRegions: [{ ...area(14, 19, 0, 17), tileType: "path" }, { ...area(5, 28, 8, 12), tileType: "stone_floor" }], farmAreas: [], collisionRegions: [],
     objects: [{ id: "general_store", assetId: "store", position: { tileX: 24, tileY: 7 }, collision: { x: -96, y: -72, width: 192, height: 118 }, label: "새봄 상점", depth: 4 }],
     spawns: [{ id: "from_road", tileX: 16.5, tileY: 15.5, facing: "up" }, { id: "from_store", tileX: 24, tileY: 10.5, facing: "down" }],
@@ -126,7 +130,7 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
     boundary: { enabled: true, openings: [area(14, 19, 16, 17)] },
   },
   general_store: {
-    id: "general_store", name: "새봄 상점", width: 18, height: 13, baseTileType: "wood_floor",
+    id: "general_store", name: "새봄 상점", width: 22, height: 13, baseTileType: "wood_floor",
     terrainRegions: [{ ...area(0, 17, 0, 1), tileType: "stone_floor" }], farmAreas: [], collisionRegions: [],
     objects: [{ id: "shop_counter", assetId: "shop_counter", position: { tileX: 9, tileY: 4 }, collision: { x: -112, y: -28, width: 224, height: 56 }, interaction: { action: "open_shop", area: area(5, 12, 4, 7) }, label: "씨앗 구매", depth: 3 }],
     spawns: [{ id: "entry", tileX: 9, tileY: 10, facing: "up" }],
