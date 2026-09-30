@@ -233,8 +233,9 @@ export class FarmScene extends Phaser.Scene {
     window.addEventListener("keydown", this.runKeyDownHandler);
     window.addEventListener("keyup", this.runKeyUpHandler);
     window.addEventListener("blur", this.runBlurHandler);
-    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, _currentlyOver: Phaser.GameObjects.GameObject[], event: Event) => {
-      if (!isGameCanvasPointerEvent(event?.target, this.game.canvas)) return;
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, _currentlyOver: Phaser.GameObjects.GameObject[]) => {
+      const sourceTarget = pointer.downElement ?? pointer.event?.target;
+      if (!isGameCanvasPointerEvent(sourceTarget, this.game.canvas)) return;
       if (pointer.wasTouch) { this.touchPointerDown(pointer); return; }
       this.touchNavigation = undefined;
       this.useAtWorld(pointer.worldX, pointer.worldY, "pointer");
