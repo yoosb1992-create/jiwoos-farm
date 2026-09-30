@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { createBuiltInEditorDocument } from "../editor/document";
 import { SCENERY_STAMPS, applySceneryStamp } from "../editor/sceneryStamps";
+import { MAP_TILE_BUDGET, mapSizeError } from "../editor/mapSize";
 import { validateEditorDocument } from "../editor/validation";
 
 const decorated = createBuiltInEditorDocument();
@@ -42,13 +43,20 @@ const missingCore = createBuiltInEditorDocument();
 missingCore.maps = missingCore.maps.filter((map) => map.id !== "town");
 assert.ok(validateEditorDocument(missingCore).some((issue) => issue.message.includes("town")), "core NPC/life maps stay protected");
 
+const largeWorld = createBuiltInEditorDocument();
+const largeFarm = largeWorld.maps.find((map) => map.id === "farm")!;
+largeFarm.width = 480; largeFarm.height = 300;
+assert.equal(mapSizeError(largeFarm.width, largeFarm.height), null, "map axes can exceed the old 200-tile cap");
+assert.deepEqual(validateEditorDocument(largeWorld), [], "validated world accepts practical maps larger than 200 tiles per axis");
+assert.ok(mapSizeError(1000, 1000)?.includes(MAP_TILE_BUDGET.toLocaleString("ko-KR")), "total tile budget guards accidental browser-locking sizes");
+
 const editorSource = readFileSync(new URL("../../app/editor/MapEditor.tsx", import.meta.url), "utf8");
 const canvasSource = readFileSync(new URL("../../app/editor/EditorCanvas.tsx", import.meta.url), "utf8");
 const pageSource = readFileSync(new URL("../../app/page.tsx", import.meta.url), "utf8");
 const stateRouteSource = readFileSync(new URL("../../app/api/family/state/route.ts", import.meta.url), "utf8");
 const presetRouteSource = readFileSync(new URL("../../app/api/world-preset/route.ts", import.meta.url), "utf8");
 
-for (const token of ["★ 초기월드로 적용", "초기월드 불러오기", "가로 타일", "세로 타일", "볼거리 묶음"]) {
+for (const token of ["★ 초기월드로 적용", "초기월드 불러오기", "가로 타일", "세로 타일", "볼거리 묶음", "맵 크기 적용"]) {
   assert.ok(editorSource.includes(token), `world editor exposes ${token}`);
 }
 assert.ok(pageSource.includes("PublishedWorldRepository"), "normal gameplay loads the published initial world");
@@ -56,6 +64,9 @@ assert.ok(stateRouteSource.includes("publishedWorldMaps"), "Family authority use
 assert.ok(presetRouteSource.includes("world_presets"), "published world is persisted independently from deploy source");
 assert.ok(editorSource.includes("inspectorObjectId"), "mobile object inspector state is separate from selection");
 assert.ok(editorSource.includes("맵·옵션"), "mobile editor surfaces map sizing/options");
+assert.ok(editorSource.includes("mapSizeDraft"), "map size inputs edit a draft instead of mutating the live map");
+assert.ok(!editorSource.includes('max="200"'), "old per-axis 200-tile input cap is removed");
+assert.ok(editorSource.includes("applyMapSize"), "map dimensions change only through the explicit apply action");
 assert.ok(canvasSource.includes("alreadySelected"), "first mobile object tap selects without opening properties");
 assert.ok(canvasSource.includes("onInspectObject(completedDrag.id)"), "second stationary tap opens object properties");
 assert.ok(canvasSource.includes("movedPixels >= 8"), "selected mobile objects can drag without accidental inspector opening");
