@@ -87,6 +87,21 @@ try {
   const pose = { mapId: "farmhouse", x: 96, y: 160, facing: "up", selectedTool: "hand", moving: false };
   const action = (direction: string, quantity: unknown, itemId = "wood", at = pose) => ({ kind: "storage", containerId: id, direction, itemId, quantity, pose: at });
   const act = async (user: string, value: object) => state.act(user, roomId, (await state.read(user, roomId)).revision, value);
+  const lockedA = await act("storage-A", { kind: "storage-lock", containerId: id, acquire: true, pose });
+  assert.ok(lockedA.revision > 0);
+  await assert.rejects(
+    act("storage-B", { kind: "storage-lock", containerId: id, acquire: true, pose }),
+    (error: unknown) => error instanceof FamilyError && error.status === 409 && /사용 중/.test(error.message),
+    "only one family member may hold the chest lock",
+  );
+  await assert.rejects(
+    act("storage-B", action("withdraw", 1)),
+    (error: unknown) => error instanceof FamilyError && error.status === 409,
+    "another member cannot mutate storage while it is locked",
+  );
+  await act("storage-A", { kind: "storage-lock", containerId: id, acquire: false, pose });
+  await act("storage-B", { kind: "storage-lock", containerId: id, acquire: true, pose });
+  await act("storage-B", { kind: "storage-lock", containerId: id, acquire: false, pose });
   const first = await act("storage-A", action("deposit", 3));
   assert.deepEqual([first.inventory.items.wood, first.world.storage?.containers[id].items.wood], [2, 3]);
   assert.equal(first.stats?.stamina, 43); assert.equal(first.stats?.skills.farming.experience, 30);
@@ -120,5 +135,5 @@ try {
   assert.equal(afterA.world.daySerial, afterB.world.daySerial);
   assert.equal(weatherFor(roomId, afterA.world.daySerial!), weatherFor(roomId, afterB.world.daySerial!));
   assert.equal(afterA.world.forestState?.daySerial, afterB.world.forestState?.daySerial);
-  console.log("Storage containers: atomic transfers, capacity, legacy saves, map UI, Family sharing, proximity and CAS passed");
+  console.log("Storage containers: atomic transfers, confirm batches, single-user lock, capacity, Family sharing and CAS passed");
 } finally { close(); }
