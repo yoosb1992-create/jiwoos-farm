@@ -20,6 +20,7 @@ import "./family-rooms";
 import "./editor-graphics";
 import "./environment-assets";
 import "./graphics-foundation";
+import "./y-sort";
 import "./graphics-first-pass";
 import "./graphics-composition";
 import "./initial-farm-composition";
