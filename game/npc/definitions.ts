@@ -1,7 +1,7 @@
 import type { NpcDefinition } from "./types";
 import type { MapRegistry } from "../maps/MapRegistry";
 import { npcCellSafe } from "./navigation";
-const asset = (id:string) => ({assetId:`npc_${id}`,textureKey:`npc-${id}`,source:{kind:"spritesheet" as const,path:`/assets/npc/${id}.png`,frameWidth:32,frameHeight:36},frameSize:{width:32,height:36},displayScale:{x:1,y:1},origin:{x:.5,y:.5}});
+const asset = (id:string) => ({assetId:`npc_${id}`,textureKey:`npc-${id}`,source:{kind:"spritesheet" as const,path:`/assets/npc/${id}.png`,frameWidth:32,frameHeight:36},frameSize:{width:32,height:36},displayScale:{x:1,y:1},origin:{x:.5,y:.5},groundAnchor:{x:.5,y:31/36}});
 const step = (minute:number,mapId:string,x:number,y:number,tx:number,ty:number,activity:string): NpcDefinition["schedule"][number] => ({minute,mapId,from:{x,y},to:{x:tx,y:ty},facing:"down",activity});
 export const NPC_DEFINITIONS: readonly NpcDefinition[] = [
  {id:"daon",name:"다온",displayName:"다온 · 상점 주인",personality:"꼼꼼하고 다정한 씨앗 수집가",asset:asset("daon"),fallbackColor:0xb46c42,speed:42,
