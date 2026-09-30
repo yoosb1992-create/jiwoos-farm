@@ -164,4 +164,4 @@ try {
   close();
 }
 
-console.log("Tool gameplay integration: visual lifecycle + hoe/seed/water/axe/pickaxe + Family snapshot passed");
+console.log("Tool gameplay integration: start effect before visual + hoe/seed/water/axe/pickaxe + Family snapshot passed");
