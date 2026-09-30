@@ -36,7 +36,7 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
       { ...area(22, 28, 13, 14), tileType: "path", depth: 1 },
       { ...area(28, 31, 11, 13), tileType: "path", depth: 1 },
       { ...area(31, 35, 9, 11), tileType: "path", depth: 1 },
-      { ...area(35, 43, 9, 10), tileType: "path", depth: 1 },
+      { ...area(35, 46, 9, 10), tileType: "path", depth: 1 },
       { ...area(24, 30, 15, 20), tileType: "water", depth: 1 },
     ],
     farmAreas: [area(9, 18, 8, 14)], collisionRegions: [area(24, 30, 15, 20)],
@@ -74,6 +74,14 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
       farmDressing("south_lamp_west", "rustic_lamp", 18.0, 22.2),
       farmDressing("south_lamp_east", "rustic_lamp", 23.1, 22.2),
       farmDressing("east_stump", "stump", 35.4, 4.9),
+
+      // East meadow: give the widened half of the farm a destination without
+      // blocking future build clearings or the main walking lane.
+      { ...farmDressing("east_meadow_flower_bed", "flower_bed", 41.8, 6.7), collision: { x: -42, y: -8, width: 84, height: 14 } },
+      { ...farmDressing("east_meadow_shrub_north", "flowering_bush", 44.5, 5.6), collision: { x: -28, y: -10, width: 56, height: 18 } },
+      { ...farmDressing("east_meadow_lamp", "rustic_lamp", 41.0, 11.4), collision: { x: -8, y: -10, width: 16, height: 16 } },
+      { ...farmDressing("east_meadow_bench", "bench", 44.4, 11.7), collision: { x: -48, y: -14, width: 96, height: 18 } },
+      { ...farmDressing("east_meadow_shrub_south", "green_shrub", 47.0, 19.2), collision: { x: -26, y: -9, width: 52, height: 16 } },
 
       farmTree("farm_tree_house_west", 1.6, 5.2, "tree_variant_a"),
       farmTree("farm_tree_house_east", 10.4, 4.2, "tree_variant_b"),
