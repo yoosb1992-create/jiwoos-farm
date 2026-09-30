@@ -63,6 +63,15 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
       farmDressing("pond_large_rock", "pond_rock_large", 30.7, 20.5),
       farmDressing("pond_flowering_bush", "flowering_bush", 32.4, 20.7),
       farmDressing("pond_shrub", "green_shrub", 22.4, 18.8),
+      // Curated starter clusters: cozy yard, pond rest spot, and lantern-marked south lane.
+      farmDressing("yard_flower_bed_east", "flower_bed", 8.2, 5.8),
+      farmDressing("yard_shrub_west", "flowering_bush", 1.8, 8.7),
+      farmDressing("yard_lamp_south", "rustic_lamp", 4.0, 13.4),
+      farmDressing("pond_bench", "bench", 22.5, 17.2),
+      farmDressing("pond_lamp", "rustic_lamp", 23.0, 21.3),
+      farmDressing("pond_flower_bed", "flower_bed", 32.0, 17.4),
+      farmDressing("south_lamp_west", "rustic_lamp", 18.0, 22.2),
+      farmDressing("south_lamp_east", "rustic_lamp", 23.1, 22.2),
       farmDressing("east_stump", "stump", 35.4, 4.9),
 
       farmTree("farm_tree_house_west", 1.6, 5.2, "tree_variant_a"),
