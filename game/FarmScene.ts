@@ -215,7 +215,7 @@ export class FarmScene extends Phaser.Scene {
     const playerAsset = this.playerVisualProfile.asset;
     const playerSize = displayedSize(playerAsset);
     this.player = this.physics.add.sprite(0, 0, playerAsset.textureKey).setDisplaySize(playerSize.width, playerSize.height)
-      .setOrigin(playerAsset.origin.x, playerAsset.origin.y).setDepth(20).setCollideWorldBounds(true);
+      .setOrigin(playerAsset.origin.x, playerAsset.origin.y).setCollideWorldBounds(true);
     const box = physicsBoxForScale(playerAsset.collisionBox, { x: this.player.scaleX, y: this.player.scaleY });
     this.player.body!.setSize(box.width, box.height).setOffset(box.offsetX, box.offsetY);
     this.playerAnimations = new PlayerAnimationController(this.player, this.facing, this.playerVisualProfile);
@@ -281,6 +281,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
+    this.updatePlayerDepth();
     this.remotePlayers?.update(this.currentMapId, delta);
     if (this.toolNotice && performance.now() >= this.toolNoticeUntil) { this.toolNotice = ""; this.emitHud(); }
     if (!this.family && !this.isPaused()) this.advanceClock(delta);
@@ -341,6 +342,15 @@ export class FarmScene extends Phaser.Scene {
   private setCameraZoom(value: number) {
     this.cameraZoom = clampCameraZoom(value);
     this.cameras.main.setZoom(this.cameraZoom);
+  }
+
+  private updatePlayerDepth() {
+    if (!this.player || !this.worldRenderer) return;
+    this.player.setDepth(this.worldRenderer.depthForAsset(
+      { x: this.player.x, y: this.player.y },
+      this.playerVisualProfile.asset,
+      { width: this.player.displayWidth, height: this.player.displayHeight },
+    ));
   }
 
   private touchPointerDown(pointer: Phaser.Input.Pointer) {
@@ -509,6 +519,7 @@ export class FarmScene extends Phaser.Scene {
       this.facing = position.facing;
     }
     else { const point = tilePoint(spawn.tileX, spawn.tileY); this.player.setPosition(point.x, point.y); this.facing = spawn.facing; }
+    this.updatePlayerDepth();
     this.cameras.main.startFollow(this.player, true, GAME_CONFIG.cameraFollowLerp, GAME_CONFIG.cameraFollowLerp).setZoom(this.cameraZoom);
     this.lockedWarpId = map.warps.find((warp) => pointInTileRect(this.player.x, this.player.y, warp.area))?.id ?? null;
     this.message = `${map.name}에 도착했어요.`; this.save(false); this.emitHud();
