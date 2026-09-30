@@ -9,7 +9,7 @@ import { initialPlaceables, placementError } from "../placeables/system";
 const farm = MAP_DEFINITIONS.farm;
 const contains = (rect: TileRect, x: number, y: number) => x >= rect.startX && x <= rect.endX && y >= rect.startY && y <= rect.endY;
 
-assert.deepEqual([farm.width, farm.height], [42, 26], "initial composition preserves the farm map size");
+assert.deepEqual([farm.width, farm.height], [52, 26], "initial composition preserves the farm map size");
 assert.deepEqual(farm.farmAreas, [{ startX: 9, endX: 18, startY: 8, endY: 14 }]);
 assert.deepEqual(farm.collisionRegions, [{ startX: 24, endX: 30, startY: 15, endY: 20 }]);
 assert.deepEqual(farm.warps.find(warp => warp.id === "house_door")?.area, { startX: 4, endX: 6, startY: 8, endY: 9 });
@@ -17,7 +17,7 @@ assert.deepEqual(farm.warps.find(warp => warp.id === "exit_south")?.area, { star
 
 const trees = farm.objects.filter(object => ["tree", "tree_variant_a", "tree_variant_b"].includes(object.assetId));
 const treeAssets = { tree: WORLD_OBJECT_ASSETS.tree, tree_variant_a: WORLD_OBJECT_ASSETS.tree_variant_a, tree_variant_b: WORLD_OBJECT_ASSETS.tree_variant_b } as const;
-assert.equal(trees.length, 12, "the farm boundary uses a restrained set of oversized trees");
+assert.equal(trees.length, 15, "the expanded farm boundary uses a restrained set of oversized trees");
 for (const tree of trees) {
   assert.ok(tree.id.startsWith("farm_tree_"));
   assert.deepEqual(tree.collision, treeAssets[tree.assetId as keyof typeof treeAssets].defaultCollisionBox, `${tree.id}: crown size must not enlarge trunk collision`);
