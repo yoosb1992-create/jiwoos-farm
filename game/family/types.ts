@@ -7,7 +7,7 @@ import type { ToolKey } from "../events";
 import type { ForestState } from "../forest/resources";
 import type { ToolProgression } from "../tools/types";
 import type { PlayerStats } from "../player/stats";
-import type { StorageData, ContainerId, StorageDirection, StorageTransfer } from "../storage/types";
+import type { StorageData, ContainerId, StorageDirection, StorageTransfer, StorageLock } from "../storage/types";
 import type { PlaceablesData, PlaceableId } from "../placeables/types";
 import type { BuildingsData, BuildingId } from "../buildings/types";
 import type { FarmProgress, ExpansionId } from "../farm/expansions";
@@ -17,7 +17,7 @@ import type { AnimalSpeciesId, RanchState } from "../animals/types";
 import type { WateringCanState } from "../tools/wateringCan";
 import type { FarmTreeState } from "../farm/trees";
 export interface FamilyPose extends PlayerData { selectedTool: ToolKey; moving: boolean }
-export interface FamilyWorld { ranchState?: RanchState; mineProgress?: MineProgress; mineDaily?: MineDailyState; buildings?: BuildingsData; farmProgress?: FarmProgress; placeables?: PlaceablesData; storage?: StorageData; daySerial?:number; forestState?: ForestState; farmTreeState?: FarmTreeState; day: number; timeMinutes: number; money: number; farm: FarmTileData[] }
+export interface FamilyWorld { storageLock?: StorageLock; ranchState?: RanchState; mineProgress?: MineProgress; mineDaily?: MineDailyState; buildings?: BuildingsData; farmProgress?: FarmProgress; placeables?: PlaceablesData; storage?: StorageData; daySerial?:number; forestState?: ForestState; farmTreeState?: FarmTreeState; day: number; timeMinutes: number; money: number; farm: FarmTileData[] }
 export interface FamilySnapshot { wateringCan?: WateringCanState; fishingProgress?: FishingProgress; fishingCast?: FishingCast | null; fishingNotice?: string; npcTimeMinutes?: number; toolProgression?: ToolProgression; stats?: PlayerStats; revision: number; serverNow: number; world: FamilyWorld; inventory: InventoryData; sleep?: { waiting: string[]; agreed: number; online: number; voted: boolean } }
 export type FamilyAction =
   | { kind: "animal-buy"; species: AnimalSpeciesId; homeBuildingId: string; pose: FamilyPose }
@@ -39,6 +39,7 @@ export type FamilyAction =
   | { kind: "consume-food"; itemId: import("../data/food").FoodItemId; pose: FamilyPose }
   | { kind: "storage"; containerId: ContainerId; direction: StorageDirection; itemId: import("../data/items").ItemId; quantity: number; pose: FamilyPose }
   | { kind: "storage-batch"; containerId: ContainerId; transfers: StorageTransfer[]; pose: FamilyPose }
+  | { kind: "storage-lock"; containerId: ContainerId; acquire: boolean; pose: FamilyPose }
   | { kind: "place"; definitionId: PlaceableId; tileX: number; tileY: number; pose: FamilyPose }
   | { kind: "place-remove"; instanceId: string; pose: FamilyPose }
   | { kind: "machine-start"; instanceId: string; processId: string; pose: FamilyPose }
