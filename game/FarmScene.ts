@@ -34,7 +34,7 @@ import { normalizeToolProgression, upgradeTool } from "./tools/progression";
 import type { ToolProgression } from "./tools/types";
 import { canPerformAction, initialPlayerStats, normalizePlayerStats, recordSuccessfulAction, restoreStamina } from "./player/stats";
 import type { PlayerStats } from "./player/stats";
-import { initialStorage, normalizeStorage, starterStorage, transferItem } from "./storage/container";
+import { initialStorage, normalizeStorage, starterStorage, transferItem, transferItemsAtomically } from "./storage/container";
 import { isContainerId } from "./storage/definitions";
 import type { ContainerId, StorageData, StorageDirection, StorageTransfer } from "./storage/types";
 import type { ItemId } from "./data/items";
@@ -68,6 +68,7 @@ import { resolveToolTarget, type ToolInputSource, type ToolUseContext } from "./
 import { EMPTY_WATER_ACTION_DEFINITION, TOOL_ACTION_DEFINITIONS, WATER_REFILL_ACTION_DEFINITION } from "./actions/toolActionDefinitions";
 import { facingFromMovement, mergeMovementInput, type MovementVector } from "./input/MovementInput";
 import { isGameCanvasPointerEvent } from "./input/worldPointer";
+import { clampCameraZoom, pinchCameraZoom, pointerDistance, wheelCameraZoom } from "./input/cameraZoom";
 import { advanceRelationshipEvent, availableRelationshipEvents, completeRelationshipEvent, startRelationshipEvent } from "./relationship-events/system";
 import type { RelationshipEventRunView } from "./relationship-events/types";
 import { initialWateringCan, normalizeWateringCan, refillWateringCan, type WateringCanState } from "./tools/wateringCan";
@@ -165,6 +166,10 @@ export class FarmScene extends Phaser.Scene {
   private transitioning = false;
   private lateNightWarned = false;
   private lockedWarpId: string | null = null;
+  private cameraZoom = GAME_CONFIG.cameraZoom;
+  private touchPoints = new Map<number, { x:number; y:number; startX:number; startY:number; worldX:number; worldY:number; pinched:boolean }>();
+  private pinchGesture?: { distance:number; zoom:number };
+  private touchNavigation?: { worldX:number; worldY:number; action:boolean; startedAt:number };
   private message = "갈색 밭 가까이에서 괭이를 사용하세요.";
   private commandHandler = (event: Event) => this.handleCommand((event as CustomEvent<Command>).detail);
 
@@ -219,15 +224,27 @@ export class FarmScene extends Phaser.Scene {
     this.actionKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, _currentlyOver: Phaser.GameObjects.GameObject[], event: Event) => {
       if (!isGameCanvasPointerEvent(event?.target, this.game.canvas)) return;
+      if (pointer.wasTouch) { this.touchPointerDown(pointer); return; }
+      this.touchNavigation = undefined;
       this.useAtWorld(pointer.worldX, pointer.worldY, "pointer");
     });
-    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.previewBuilding(pointer.worldX, pointer.worldY));
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (pointer.wasTouch) { this.touchPointerMove(pointer); return; }
+      this.previewBuilding(pointer.worldX, pointer.worldY);
+    });
+    this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => { if (pointer.wasTouch) this.touchPointerUp(pointer); });
+    this.input.on("pointerupoutside", (pointer: Phaser.Input.Pointer) => { if (pointer.wasTouch) this.touchPointerUp(pointer, true); });
+    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _over: Phaser.GameObjects.GameObject[], _dx: number, dy: number, _dz: number, event: WheelEvent) => {
+      event?.preventDefault?.();
+      this.setCameraZoom(wheelCameraZoom(this.cameraZoom, dy));
+    });
     gameEvents.addEventListener("command", this.commandHandler);
     const cleanup = () => {
       if (!this.sceneLive) return;
       try { this.save(false); } catch { /* Continue cleanup if local storage is full. */ }
       if (this.sleepTimer !== undefined) window.clearTimeout(this.sleepTimer);
       this.sceneLive = false;
+      this.touchPoints.clear(); this.touchNavigation = undefined; this.pinchGesture = undefined;
       this.playerActionVisuals.destroy();
       gameEvents.removeEventListener("command", this.commandHandler);
       this.family?.stop(); this.remotePlayers?.destroy(); this.npcRenderer.destroy();
@@ -267,7 +284,9 @@ export class FarmScene extends Phaser.Scene {
       x: (this.cursors.right.isDown || this.wasd.D.isDown ? 1 : 0) - (this.cursors.left.isDown || this.wasd.A.isDown ? 1 : 0),
       y: (this.cursors.down.isDown || this.wasd.S.isDown ? 1 : 0) - (this.cursors.up.isDown || this.wasd.W.isDown ? 1 : 0),
     };
-    const movement = mergeMovementInput(keyboard, this.virtualMovement);
+    const manualMovement = mergeMovementInput(keyboard, this.virtualMovement);
+    if (manualMovement.x || manualMovement.y) this.touchNavigation = undefined;
+    const movement = manualMovement.x || manualMovement.y ? manualMovement : this.touchNavigationMovement();
     this.facing = facingFromMovement(movement, this.facing);
     const movementSpeed = GAME_CONFIG.playerSpeed * (this.running ? 1.65 : 1);
     this.player.setVelocity(movement.x * movementSpeed, movement.y * movementSpeed);
@@ -303,6 +322,152 @@ export class FarmScene extends Phaser.Scene {
     }
   }
 
+  private setCameraZoom(value: number) {
+    this.cameraZoom = clampCameraZoom(value);
+    this.cameras.main.setZoom(this.cameraZoom);
+  }
+
+  private touchPointerDown(pointer: Phaser.Input.Pointer) {
+    this.touchPoints.set(pointer.id, {
+      x:pointer.x, y:pointer.y, startX:pointer.x, startY:pointer.y,
+      worldX:pointer.worldX, worldY:pointer.worldY, pinched:false,
+    });
+    if (this.touchPoints.size >= 2) {
+      const [a,b] = [...this.touchPoints.values()].slice(0,2);
+      a.pinched = true; b.pinched = true;
+      this.pinchGesture = { distance: Math.max(1, pointerDistance(a,b)), zoom: this.cameraZoom };
+      this.touchNavigation = undefined;
+    }
+  }
+
+  private touchPointerMove(pointer: Phaser.Input.Pointer) {
+    const touch = this.touchPoints.get(pointer.id);
+    if (!touch) return;
+    touch.x=pointer.x; touch.y=pointer.y; touch.worldX=pointer.worldX; touch.worldY=pointer.worldY;
+    if (Math.hypot(touch.x-touch.startX,touch.y-touch.startY)>10) {
+      // A moving finger is either a pinch participant or a cancelled tap.
+    }
+    if (this.touchPoints.size >= 2) {
+      const [a,b] = [...this.touchPoints.values()].slice(0,2);
+      a.pinched = true; b.pinched = true;
+      this.pinchGesture ??= { distance: Math.max(1,pointerDistance(a,b)), zoom:this.cameraZoom };
+      this.setCameraZoom(pinchCameraZoom(this.pinchGesture.zoom,this.pinchGesture.distance,pointerDistance(a,b)));
+    }
+  }
+
+  private touchPointerUp(pointer: Phaser.Input.Pointer, cancelled=false) {
+    const touch = this.touchPoints.get(pointer.id);
+    if (!touch) return;
+    this.touchPoints.delete(pointer.id);
+    if (this.touchPoints.size < 2) this.pinchGesture = undefined;
+    const moved = Math.hypot(touch.x-touch.startX,touch.y-touch.startY)>12;
+    if (!cancelled && !touch.pinched && !moved) this.queueTouchNavigation(touch.worldX,touch.worldY);
+  }
+
+  private faceToward(worldX:number, worldY:number) {
+    const dx=worldX-this.player.x, dy=worldY-this.player.y;
+    if (Math.abs(dx)>Math.abs(dy)) this.facing=dx<0?"left":"right";
+    else if (Math.abs(dy)>1) this.facing=dy<0?"up":"down";
+  }
+
+  private tappedNpc(worldX:number, worldY:number) {
+    return this.npcs.sampleWorld(this.daySerial,this.npcTime())
+      .filter(n=>n.mapId===this.currentMapId && Math.hypot(n.x-worldX,n.y-worldY)<=34)
+      .sort((a,b)=>Math.hypot(a.x-worldX,a.y-worldY)-Math.hypot(b.x-worldX,b.y-worldY))[0];
+  }
+
+  private contextualTouchTool(worldX:number, worldY:number): ToolKey | null {
+    const map=this.mapRegistry.require(this.currentMapId);
+    const tx=Math.floor(worldX/GAME_CONFIG.tileSize), ty=Math.floor(worldY/GAME_CONFIG.tileSize);
+    if (this.currentMapId==="farm") {
+      const treeContext=resolveToolTarget({tool:"axe",facing:this.facing,mapId:"farm",inputSource:"mobile",
+        player:{x:this.player.x,y:this.player.y},playerAnchor:this.playerAnimations.playerInteractionAnchor(),
+        targetWorld:{x:worldX,y:worldY},map,farmTreeState:this.farmTreeState});
+      if (treeContext.targetKind==="farm_tree") return "axe";
+      const tile=this.farm.get(`${tx},${ty}`);
+      if (tile) {
+        if (tile.cropType && tile.cropStage!==null && isMatureCrop(tile.cropType,tile.cropStage)) return "hand";
+        if (tile.cropStage!==null && !tile.wateredToday) return "water";
+        if (!tile.tilled) return "hoe";
+        if (tile.cropStage===null && this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId)>0) return "seed";
+        if (!tile.wateredToday) return "water";
+        return this.selectedTool;
+      }
+    }
+    if (this.currentMapId===FAIRY_FOREST_ID) {
+      for (const tool of ["axe","pickaxe","hand"] as const) {
+        const context=resolveToolTarget({tool,facing:this.facing,mapId:this.currentMapId,inputSource:"mobile",
+          player:{x:this.player.x,y:this.player.y},playerAnchor:this.playerAnimations.playerInteractionAnchor(),
+          targetWorld:{x:worldX,y:worldY},map});
+        if (context.targetKind==="forest_resource") {
+          const object=map.objects.find(o=>o.id===context.targetObjectId), kind=object&&resourceKind(object);
+          if (kind && FOREST_RESOURCES[kind].tool===tool) return tool;
+        }
+      }
+    }
+    if (mineFloorFromMapId(this.currentMapId)!==null) {
+      const context=resolveToolTarget({tool:"pickaxe",facing:this.facing,mapId:this.currentMapId,inputSource:"mobile",
+        player:{x:this.player.x,y:this.player.y},playerAnchor:this.playerAnimations.playerInteractionAnchor(),
+        targetWorld:{x:worldX,y:worldY},map});
+      if (context.targetKind==="mine_resource") return "pickaxe";
+    }
+    if (tx>=0&&ty>=0&&tx<map.width&&ty<map.height&&getTileTypeInMap(map,tx,ty)==="water") {
+      return this.selectedTool==="fishing_rod" ? "fishing_rod" : "water";
+    }
+    return null;
+  }
+
+  private touchActionAvailable(worldX:number, worldY:number) {
+    const map=this.mapRegistry.require(this.currentMapId);
+    if (map.objects.some(o=>o.interaction&&pointInTileRect(worldX,worldY,o.interaction.area))) return true;
+    if (this.placeables.instances.some(p=>p.mapId===this.currentMapId&&Math.hypot(worldX-(p.tileX+.5)*GAME_CONFIG.tileSize,worldY-(p.tileY+.5)*GAME_CONFIG.tileSize)<=34)) return true;
+    if (this.tappedNpc(worldX,worldY)) return true;
+    return this.contextualTouchTool(worldX,worldY)!==null;
+  }
+
+  private queueTouchNavigation(worldX:number, worldY:number) {
+    if (this.isPaused()||this.toolActions.isActive()) return;
+    const map=this.mapRegistry.require(this.currentMapId);
+    const margin=8;
+    const x=Phaser.Math.Clamp(worldX,margin,map.width*GAME_CONFIG.tileSize-margin);
+    const y=Phaser.Math.Clamp(worldY,margin,map.height*GAME_CONFIG.tileSize-margin);
+    this.touchNavigation={worldX:x,worldY:y,action:this.touchActionAvailable(x,y),startedAt:performance.now()};
+  }
+
+  private performContextualTouchAction(worldX:number, worldY:number) {
+    this.faceToward(worldX,worldY);
+    if (this.buildingMode || this.placing) { this.useAtWorld(worldX,worldY,"mobile"); return; }
+    if (this.openMachineAt(worldX,worldY) || this.openRanchAt(worldX,worldY)) return;
+    const map=this.mapRegistry.require(this.currentMapId);
+    const object=map.objects.find(o=>o.interaction&&pointInTileRect(worldX,worldY,o.interaction.area));
+    if (object?.interaction) { this.performWorldAction(object.interaction.action,object.interaction.containerId); return; }
+    const tapped=this.tappedNpc(worldX,worldY);
+    if (tapped) {
+      const near=nearestNpc(this.npcs.sampleWorld(this.daySerial,this.npcTime()),this.familyPose(),map);
+      if (near?.npcId===tapped.npcId) { this.openNpcDialogue(tapped.npcId); return; }
+    }
+    const tool=this.contextualTouchTool(worldX,worldY);
+    if (tool) {
+      if (this.selectedTool!==tool) { this.selectedTool=tool; this.emitHud(); }
+      this.useAtWorld(worldX,worldY,"mobile");
+    }
+  }
+
+  private touchNavigationMovement(): MovementVector {
+    const nav=this.touchNavigation;
+    if (!nav) return {x:0,y:0};
+    if (performance.now()-nav.startedAt>8000) { this.touchNavigation=undefined; return {x:0,y:0}; }
+    const dx=nav.worldX-this.player.x, dy=nav.worldY-this.player.y, distance=Math.hypot(dx,dy);
+    const stopDistance=nav.action?64:8;
+    if (distance<=stopDistance) {
+      this.touchNavigation=undefined;
+      this.player.setVelocity(0,0);
+      if (nav.action) this.performContextualTouchAction(nav.worldX,nav.worldY);
+      return {x:0,y:0};
+    }
+    return distance>0?{x:dx/distance,y:dy/distance}:{x:0,y:0};
+  }
+
   private loadMap(mapId: MapId, spawnId?: string, position?: { x: number; y: number; facing: Facing }) {
     if (mapId === FAIRY_FOREST_ID) this.syncForest();
     if (mineFloorFromMapId(mapId) !== null) this.syncMine();
@@ -328,7 +493,7 @@ export class FarmScene extends Phaser.Scene {
       this.facing = position.facing;
     }
     else { const point = tilePoint(spawn.tileX, spawn.tileY); this.player.setPosition(point.x, point.y); this.facing = spawn.facing; }
-    this.cameras.main.startFollow(this.player, true, GAME_CONFIG.cameraFollowLerp, GAME_CONFIG.cameraFollowLerp).setZoom(GAME_CONFIG.cameraZoom);
+    this.cameras.main.startFollow(this.player, true, GAME_CONFIG.cameraFollowLerp, GAME_CONFIG.cameraFollowLerp).setZoom(this.cameraZoom);
     this.lockedWarpId = map.warps.find((warp) => pointInTileRect(this.player.x, this.player.y, warp.area))?.id ?? null;
     this.message = `${map.name}에 도착했어요.`; this.save(false); this.emitHud();
   }
