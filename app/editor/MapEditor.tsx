@@ -64,7 +64,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   const cloudRevision = useRef(0);
   const cloudSyncedAt = useRef(0);
   const importRef = useRef<HTMLInputElement>(null);
-  const history = useRef(new EditorHistory<MapEditorDocument>(cloneEditorDocument, 75));
+  const history = useRef(new EditorHistory<MapEditorDocument>(cloneEditorDocument, 30));
   const documentRef = useRef(document);
   documentRef.current = document;
   const map = document.maps.find((entry) => entry.id === mapId) ?? document.maps[0];
@@ -76,7 +76,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
 
   useEffect(() => {
     if (cloudStatus === "checking" && !hasLocalDraft.current) return;
-    const timer = window.setTimeout(() => { repository.save(document); hasLocalDraft.current = true; }, 450);
+    const timer = window.setTimeout(() => { if (repository.save(document)) hasLocalDraft.current = true; }, 750);
     return () => window.clearTimeout(timer);
   }, [cloudStatus, document]);
 
@@ -144,8 +144,8 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   }, []);
 
   useEffect(() => {
-    if (cloudStatus !== "ready" || cloudConflict || document.updatedAt <= cloudSyncedAt.current || validateEditorDocument(document).length) return;
-    const timer = window.setTimeout(() => saveCloud(document), 2800);
+    if (cloudStatus !== "ready" || cloudConflict || document.updatedAt <= cloudSyncedAt.current) return;
+    const timer = window.setTimeout(() => { void saveCloud(document); }, 2800);
     return () => window.clearTimeout(timer);
   }, [cloudConflict, cloudStatus, document, saveCloud]);
   const pushHistory = useCallback(() => history.current.push(documentRef.current), []);
@@ -211,7 +211,8 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   const validate = () => { const next = validateEditorDocument(documentRef.current); setIssues(next); setNotice(next.length ? `${next.length}개 검증 오류를 수정해 주세요.` : "검증을 통과했습니다."); return next; };
   const save = async () => {
     if (validate().length) return;
-    repository.save(documentRef.current); setNotice("로컬 편집 작업을 저장했습니다.");
+    const localSaved = repository.save(documentRef.current);
+    setNotice(localSaved ? "로컬 편집 작업을 저장했습니다." : "기기 로컬 저장 용량이 부족합니다. 클라우드 저장을 계속 시도합니다.");
     if (cloudStatus !== "signed-out") await saveCloud(documentRef.current);
   };
   const load = () => { const loaded = repository.load(); if (!loaded) { setNotice("불러올 정상 편집 문서가 없습니다."); return; } pushHistory(); replaceDocument(loaded); setMapId(loaded.maps[0].id); setSelection(null); setIssues([]); setNotice("저장된 편집 문서를 불러왔습니다."); };
