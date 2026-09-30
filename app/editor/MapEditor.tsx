@@ -47,6 +47,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   const [snapMode, setSnapMode] = useState<SnapMode>("tile");
   const [layers, setLayers] = useState(initialLayers);
   const [selection, setSelection] = useState<Selection>(null);
+  const [inspectorObjectId, setInspectorObjectId] = useState<string | null>(null);
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [notice, setNotice] = useState("편집 문서는 게임 저장과 별도로 자동 보관됩니다.");
   const [confirmReset, setConfirmReset] = useState(false);
