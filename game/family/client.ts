@@ -77,7 +77,10 @@ export class FamilyClient {
   private stateTimer?: ReturnType<typeof setTimeout>;
   private presenceTimer?: ReturnType<typeof setTimeout>;
   private realtimeStarted = false;
-  setPresence(pose: () => FamilyPose, onPresence: (snapshot: FamilyPresenceSnapshot) => void) { this.pose = pose; this.onPresence = onPresence; }
+  setPresence(pose: () => FamilyPose, onPresence: (snapshot: FamilyPresenceSnapshot) => void) {
+    this.pose = pose; this.onPresence = onPresence;
+    if (this.live) this.startRealtimePresence();
+  }
   private async heartbeat() {
     if (!this.pose || !this.live) return;
     const snapshot = await familyFetch<FamilyPresenceSnapshot>("/api/family/presence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId, pose: this.pose() }) });
