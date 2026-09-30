@@ -3,7 +3,8 @@ import { GAME_CONFIG } from "../config";
 import { Inventory, normalizeSaveData } from "../domain";
 import { sellMarketGoods } from "../economy/sales";
 import { FISH_DEFINITIONS } from "../fishing/definitions";
-import { beginFishing, eligibleFish, fishingSpotError, fishingStage, initialFishingProgress, normalizeFishingProgress, reelFishing, rollFish } from "../fishing/system";
+import { beginFishing, eligibleFish, failFishing, fishingSpotError, fishingStage, initialFishingProgress, normalizeFishingProgress, reelFishing, rollFish } from "../fishing/system";
+import { fishingCatchGrade, fishingMazeCanMove, fishingMazeDifficulty, fishingMazeWalls, generateFishingMaze } from "../fishing/maze";
 import { parseFamilyPose } from "../family/personal";
 import { initialPlayerStats } from "../player/stats";
 import { worldMinute } from "../world/calendar";
@@ -14,6 +15,26 @@ import { FamilyState } from "../../server/family/state";
 import { familyTestDB } from "./family-db";
 
 const pose = { mapId: "farm", x: 25.5 * 32, y: 14.5 * 32, facing: "down", selectedTool: "fishing_rod", moving: false } as const;
+
+const mazeFish = ["minnow", "crucian", "carp", "catfish"] as const;
+assert.deepEqual(mazeFish.map(id => fishingMazeDifficulty(id).size), [4, 5, 6, 7], "harder fish use larger mazes");
+assert.deepEqual(mazeFish.map(id => fishingMazeDifficulty(id).attempts), [3, 3, 3, 2], "rare fish keeps fewer trace retries");
+assert.deepEqual([fishingCatchGrade(1), fishingCatchGrade(2), fishingCatchGrade(3)], ["perfect", "good", "catch"]);
+for (const fishId of mazeFish) {
+  const first = generateFishingMaze("1:7", fishId), second = generateFishingMaze("1:7", fishId);
+  assert.deepEqual(first, second, `${fishId}: maze generation is deterministic for a cast`);
+  assert.equal(first.passages.length, first.size * first.size - 1, `${fishId}: perfect maze has one spanning tree`);
+  assert.ok(fishingMazeWalls(first).length > first.size * 2, `${fishId}: maze exposes real obstacle walls`);
+  const queue = [first.start], seen = new Set([`${first.start.x},${first.start.y}`]);
+  for (let i = 0; i < queue.length; i++) {
+    const cell = queue[i];
+    for (const next of [{x:cell.x+1,y:cell.y},{x:cell.x-1,y:cell.y},{x:cell.x,y:cell.y+1},{x:cell.x,y:cell.y-1}]) {
+      if (next.x < 0 || next.y < 0 || next.x >= first.size || next.y >= first.size || !fishingMazeCanMove(first, cell, next)) continue;
+      const key = `${next.x},${next.y}`; if (!seen.has(key)) { seen.add(key); queue.push(next); }
+    }
+  }
+  assert.ok(seen.has(`${first.goal.x},${first.goal.y}`), `${fishId}: goal is always reachable`);
+}
 assert.ok(parseFamilyPose(pose));
 assert.equal(fishingSpotError("farm_pond", pose), null);
 for (const invalid of [
@@ -46,6 +67,8 @@ assert.equal(fishingStage(cast, cast.expiresAt + 1), "missed");
 assert.ok(beginFishing(personal, cast, pose, "farm_pond", "single", "single", 1, "clear", 600, stats).error);
 assert.ok(reelFishing(cast, cast.id, personal, inventory, stats, 1, 600).error);
 assert.ok(reelFishing(cast, "wrong", personal, inventory, stats, 1, 604).error);
+assert.equal(failFishing(cast, cast.id).cast, null);
+assert.ok(failFishing(cast, "wrong").error);
 assert.deepEqual([inventory.count(cast.fishId === "minnow" ? "fish_minnow" : FISH_DEFINITIONS[cast.fishId].itemId), stats.stamina, stats.skills.fishing.experience], [0, 100, 0]);
 const caught = reelFishing(cast, cast.id, personal, inventory, stats, 1, 604);
 assert.equal(caught.fish?.id, cast.fishId);
@@ -60,7 +83,8 @@ for (let i = 0; i < 4; i++) {
 assert.equal(stats.skills.fishing.level, 2);
 assert.equal(personal.caughtFishIds.length, new Set(personal.caughtFishIds).size);
 castResult = beginFishing(personal, null, pose, "farm_pond", "single", "single", 1, "clear", 700, stats);
-const missed = reelFishing(castResult.cast!, castResult.cast!.id, castResult.progress!, inventory, stats, 1, 717);
+const missedAt = castResult.cast!.expiresAt - worldMinute(1, 0) + 1;
+const missed = reelFishing(castResult.cast!, castResult.cast!.id, castResult.progress!, inventory, stats, 1, missedAt);
 assert.equal(missed.failed, true);
 const beforeFailed = structuredClone({ inventory: inventory.serialize(), stats, progress: castResult.progress });
 assert.ok(reelFishing(castResult.cast!, castResult.cast!.id, castResult.progress!, inventory, low, 1, 704).error);
