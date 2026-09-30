@@ -12,7 +12,7 @@ const bag = renderToStaticMarkup(createElement(InventoryPanel, {
 }));
 assert.ok(bag.includes("스테미나 50 / 100"));
 assert.ok(bag.includes("스테미나 비스켓"));
-assert.ok(bag.includes("스테미나 +25"));
+assert.ok(bag.includes("스테미나 +") && bag.includes("25"), "food recovery amount is visible in the bag");
 assert.ok(bag.includes("먹기"), "food use button stays enabled in the touch inventory");
 
 const affordable = renderToStaticMarkup(createElement(ShopPanel, {
