@@ -136,12 +136,32 @@ const characterProfile = (lifeStage: CharacterLifeStage, textureKey: string): Ch
   },
 });
 
+const adultCharacterProfile = (): CharacterVisualProfile => {
+  const legacy = characterProfile("adult", "player-default");
+  return {
+    ...legacy,
+    spriteProfileId: "adult-farmer-v1",
+    interactionAnchor: { x: 24, y: 62.3 },
+    asset: {
+      ...legacy.asset,
+      source: { kind: "spritesheet", path: "/assets/graphics-vertical-slice/player/adult-farmer-48.png", frameWidth: 48, frameHeight: 72 },
+      frameSize: { width: 48, height: 72 },
+      displayScale: { x: 1, y: 1 },
+      origin: { x: 0.5, y: 57 / 72 },
+      visualFootprint: { width: 48, height: 72 },
+      groundAnchor: { x: 0.5, y: 70 / 72 },
+      shadow: { anchor: { x: 0.5, y: 70 / 72 }, width: 22, height: 8, alpha: 0.24 },
+      collisionBox: { width: 18, height: 22, offsetX: 15, offsetY: 48 },
+    },
+  };
+};
+
 /** Child and teen intentionally use the proven current sheet until their own PNGs
  * arrive. Each profile is independently replaceable without a save migration. */
 export const CHARACTER_VISUAL_PROFILES = {
   child: characterProfile("child", "player-child-default"),
   teen: characterProfile("teen", "player-teen-default"),
-  adult: characterProfile("adult", "player-default"),
+  adult: adultCharacterProfile(),
 } as const satisfies Record<CharacterLifeStage, CharacterVisualProfile>;
 
 export const DEFAULT_CHARACTER_LIFE_STAGE: CharacterLifeStage = "adult";
@@ -179,6 +199,35 @@ export const TILE_ASSETS = {
 export type TileAssetId = keyof typeof TILE_ASSETS;
 
 /** Assets that may be placed as map objects: buildings, foliage, furniture, and decorations. */
+const verticalSliceObject = (
+  assetId: string,
+  textureKey: string,
+  filename: string,
+  frameSize: { width: number; height: number },
+  options: {
+    origin?: { x: number; y: number };
+    groundAnchor?: { x: number; y: number };
+    shadow?: { anchor: { x: number; y: number }; width: number; height: number; alpha: number };
+    defaultCollisionBox?: { x: number; y: number; width: number; height: number };
+  } = {},
+) => {
+  const origin = options.origin ?? { x: 0.5, y: 0.94 };
+  const groundAnchor = options.groundAnchor ?? origin;
+  return {
+    assetId,
+    textureKey,
+    source: { kind: "image" as const, path: `/assets/graphics-vertical-slice/objects/${filename}.png` },
+    frameSize,
+    displayScale: { x: 1, y: 1 },
+    origin,
+    visualFootprint: frameSize,
+    groundAnchor,
+    shadow: options.shadow ?? { anchor: groundAnchor, width: Math.min(frameSize.width * 0.68, 72), height: 9, alpha: 0.16 },
+    ...(options.defaultCollisionBox ? { defaultCollisionBox: options.defaultCollisionBox } : {}),
+    fallback: { fill: 0xa87543, stroke: 0x513b2b },
+  };
+};
+
 export const WORLD_OBJECT_ASSETS = {
   house: { assetId: "house", textureKey: "building-house", source: { kind: "image", path: "/assets/graphics-first-pass/objects/farm-house.png" }, frameSize: { width: 224, height: 192 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, visualFootprint: { width: 224, height: 192 }, groundAnchor: { x: 0.5, y: 0.96 }, shadow: { anchor: { x: 0.5, y: 0.96 }, width: 168, height: 30, alpha: 0.2 }, defaultCollisionBox: { x: -96, y: -80, width: 192, height: 135 }, fallback: { wall: 0xe7bb72, roof: 0xb94e43, trim: 0x8b5c3a, door: 0x6f402d } },
   tree: { assetId: "tree", textureKey: "world-tree", source: { kind: "image", path: "/assets/graphics-first-pass/objects/tree.png" }, frameSize: { width: 128, height: 160 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.92 }, visualFootprint: { width: 128, height: 160 }, groundAnchor: { x: 0.5, y: 0.92 }, shadow: { anchor: { x: 0.5, y: 0.92 }, width: 42, height: 13, alpha: 0.18 }, defaultCollisionBox: { x: -11, y: -9, width: 22, height: 18 }, fallback: { trunk: 0x765033, crown: 0x356c42, highlight: 0x43814c } },
@@ -202,6 +251,22 @@ export const WORLD_OBJECT_ASSETS = {
   chicken: { assetId: "chicken", textureKey: "animal-chicken", source: { kind: "image", path: "/assets/objects/chicken.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xf3ead4, stroke: 0x7c5140 } },
   feed_trough: { assetId: "feed_trough", textureKey: "animal-feed-trough", source: { kind: "image", path: "/assets/objects/feed-trough.png" }, frameSize: { width: 40, height: 24 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x9c7042, stroke: 0x503522 } },
   shop_counter: { assetId: "shop_counter", textureKey: "furniture-shop-counter", source: { kind: "image", path: "/assets/objects/shop-counter.png" }, frameSize: { width: 224, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x9c6543, stroke: 0x60402f } },
+  fence_horizontal: verticalSliceObject("fence_horizontal", "farm-fence-horizontal", "fence-horizontal", { width: 128, height: 64 }, { defaultCollisionBox: { x: -60, y: -12, width: 120, height: 20 } }),
+  fence_vertical: verticalSliceObject("fence_vertical", "farm-fence-vertical", "fence-vertical", { width: 64, height: 80 }, { defaultCollisionBox: { x: -10, y: -48, width: 20, height: 56 } }),
+  fence_corner: verticalSliceObject("fence_corner", "farm-fence-corner", "fence-corner", { width: 96, height: 80 }, { defaultCollisionBox: { x: -34, y: -18, width: 68, height: 28 } }),
+  gate: verticalSliceObject("gate", "farm-gate", "gate", { width: 128, height: 72 }),
+  flowering_bush: verticalSliceObject("flowering_bush", "farm-flowering-bush", "flowering-bush", { width: 96, height: 64 }),
+  green_shrub: verticalSliceObject("green_shrub", "farm-green-shrub", "green-shrub", { width: 88, height: 60 }),
+  flower_bed: verticalSliceObject("flower_bed", "farm-flower-bed", "flower-bed", { width: 104, height: 56 }),
+  mailbox: verticalSliceObject("mailbox", "farm-mailbox", "mailbox", { width: 56, height: 80 }),
+  bench: verticalSliceObject("bench", "farm-bench", "bench", { width: 112, height: 72 }),
+  rustic_lamp: verticalSliceObject("rustic_lamp", "farm-rustic-lamp", "rustic-lamp", { width: 64, height: 96 }),
+  stone_well: verticalSliceObject("stone_well", "farm-stone-well", "stone-well", { width: 112, height: 104 }, { defaultCollisionBox: { x: -36, y: -18, width: 72, height: 28 } }),
+  tree_variant_a: verticalSliceObject("tree_variant_a", "farm-tree-variant-a", "tree-variant-a", { width: 128, height: 160 }, { origin: { x: 0.5, y: 0.92 }, defaultCollisionBox: { x: -11, y: -9, width: 22, height: 18 } }),
+  tree_variant_b: verticalSliceObject("tree_variant_b", "farm-tree-variant-b", "tree-variant-b", { width: 128, height: 160 }, { origin: { x: 0.5, y: 0.92 }, defaultCollisionBox: { x: -11, y: -9, width: 22, height: 18 } }),
+  pond_rock_large: verticalSliceObject("pond_rock_large", "farm-pond-rock-large", "pond-rock-large", { width: 112, height: 88 }),
+  stump: verticalSliceObject("stump", "farm-stump", "stump", { width: 80, height: 72 }),
+  farm_crate: verticalSliceObject("farm_crate", "farm-crate", "farm-crate", { width: 72, height: 68 }),
 } as const;
 export type WorldObjectAssetId = keyof typeof WORLD_OBJECT_ASSETS;
 

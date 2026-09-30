@@ -74,6 +74,16 @@ life stage는 `spriteProfileId`와 분리되고 body, hair, outfit, accessory ID
 
 현재 항목들은 모두 기존 AssetManager/definitions 에셋을 가리킨다. 새 PNG가 없는 항목은 기존 PNG를 사용하며 파일 누락·불완전 spritesheet는 기존 생성형 fallback으로 복구한다. Map Editor는 같은 `TILE_ASSETS`와 `WORLD_OBJECT_ASSETS`를 읽기 때문에 새 path, 표시 크기, origin을 자동 반영하고 이미지 로드 실패 시 기존 도형 fallback을 표시한다.
 
+## Graphics 1.4 vertical slice
+
+성인 기본 프로필은 `48 × 72` 프레임, `16 × 3` 배열(`768 × 216`)의 48프레임 시트를 사용한다. 행은 idle, walk, tool이고 각 행 안에서 down/up/left/right가 4프레임씩 이어진다. `FarmScene`은 실제 프레임 번호를 알지 않으며 기존 `CharacterVisualProfile.animations` 계약만 읽는다.
+
+시각적 신장 비율은 child `0.72~0.78`, teen `0.86~0.92`, adult `1.0`을 기준으로 한다. 이번 단계에서는 adult만 새 시트를 사용한다. child와 teen은 각각 독립 프로필을 유지하면서 검증된 기존 시트를 fallback으로 사용하므로 저장 데이터 마이그레이션이 없다.
+
+성인 프레임의 접지점은 두 발 중앙(`24, 70`), 충돌은 하체 `18 × 22`(`15, 48`), 상호작용 anchor는 (`24, 62.3`)이다. 프레임이 커져도 기존 월드 좌표에 대한 충돌 하단과 상호작용 anchor의 상대 위치가 각각 `+13`, `+5.3` 픽셀로 유지된다. 따라서 농사·물주기·낚시·NPC 상호작용 좌표 계약은 바뀌지 않는다.
+
+신규 농장 dressing은 각각 독립 투명 PNG이며 `WORLD_OBJECT_ASSETS`에 frameSize, origin, visualFootprint, groundAnchor, shadow를 정의한다. 울타리·우물·나무만 필요한 배치에서 명시적 collision을 사용하고, 관목·꽃밭·우체통·벤치·가로등·상자·그루터기는 기본적으로 시각 장식이다. Map Editor 문서 schema는 그대로이며 새 asset id만 동일 팔레트에서 선택할 수 있다.
+
 ## 다음 단계 PNG 제작 목록
 
 - 32×32 seamless grass(조용한 base), path, water center

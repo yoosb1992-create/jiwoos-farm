@@ -22,6 +22,7 @@ import "./graphics-foundation";
 import "./graphics-first-pass";
 import "./graphics-composition";
 import "./initial-farm-composition";
+import "./farm-vertical-slice";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale, playerAnimationFrames, playerAnimationName } from "../assets/definitions";
@@ -144,14 +145,18 @@ for (const definition of Object.values(PLAYER_ASSET.animations)) {
   assert.ok(definition.fps > 0, "animation FPS는 양수여야 함");
 }
 assert.equal(PLAYER_ASSET.source?.kind, "spritesheet", "실제 PNG 시트를 연결해야 함");
-assert.equal(PLAYER_ASSET.source?.path, "/assets/player/player-main.png");
-for (const filename of ["player-main.png", "player-dev.png"]) {
+assert.equal(PLAYER_ASSET.source?.path, "/assets/graphics-vertical-slice/player/adult-farmer-48.png");
+for (const [filename, width, height] of [["player-main.png", 512, 108], ["player-dev.png", 512, 108]] as const) {
   const playerPng = readFileSync(new URL(`../../public/assets/player/${filename}`, import.meta.url));
   assert.equal(playerPng.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
-  assert.equal(playerPng.readUInt32BE(16), 512, `${filename}: 16열`);
-  assert.equal(playerPng.readUInt32BE(20), 108, `${filename}: 3행`);
+  assert.equal(playerPng.readUInt32BE(16), width, `${filename}: 16열`);
+  assert.equal(playerPng.readUInt32BE(20), height, `${filename}: 3행`);
   assert.equal(playerPng[25], 6, `${filename}: 투명 RGBA PNG`);
 }
+const adultPng = readFileSync(new URL("../../public/assets/graphics-vertical-slice/player/adult-farmer-48.png", import.meta.url));
+assert.equal(adultPng.readUInt32BE(16), 768, "adult sheet: 16 columns of 48px");
+assert.equal(adultPng.readUInt32BE(20), 216, "adult sheet: 3 rows of 72px");
+assert.equal(adultPng[25], 6, "adult sheet: transparent RGBA PNG");
 assert.equal(Math.max(...configuredFrames), 47, "48프레임 시트 범위를 넘지 않아야 함");
 // Exercise the actual loader/fallback registration paths without a DOM renderer.
 for (const availableFrames of [48, 0, 20]) {
@@ -214,7 +219,7 @@ const fallbackSprite = {
 new PlayerAnimationController(fallbackSprite as never).playTool("right");
 assert.deepEqual(fallbackAnimations, ["tool_right", "idle_right"], "단일 프레임 fallback도 도구 상태에 고정되면 안 됨");
 const scaledPlayer = { ...PLAYER_ASSET, displayScale: { x: 2, y: 1.5 } };
-assert.deepEqual(displayedSize(scaledPlayer), { width: 64, height: 54 }, "scale 변경은 표현 크기에만 반영되어야 함");
+assert.deepEqual(displayedSize(scaledPlayer), { width: 96, height: 108 }, "scale 변경은 표현 크기에만 반영되어야 함");
 const compensatedBox = physicsBoxForScale(PLAYER_ASSET.collisionBox, scaledPlayer.displayScale);
 assert.equal(compensatedBox.width * scaledPlayer.displayScale.x, PLAYER_ASSET.collisionBox.width, "시각 배율이 충돌 폭을 바꾸면 안 됨");
 assert.equal(compensatedBox.height * scaledPlayer.displayScale.y, PLAYER_ASSET.collisionBox.height, "시각 배율이 충돌 높이를 바꾸면 안 됨");

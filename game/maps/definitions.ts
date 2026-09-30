@@ -13,12 +13,15 @@ export const TILE_TYPE_DEFINITIONS: Record<TileTypeId, { walkable: boolean; farm
 };
 
 const area = (startX: number, endX: number, startY: number, endY: number): TileRect => ({ startX, endX, startY, endY });
-const farmTree = (id: string, tileX: number, tileY: number): MapObjectDefinition => ({
+const farmTree = (id: string, tileX: number, tileY: number, assetId: "tree" | "tree_variant_a" | "tree_variant_b" = "tree"): MapObjectDefinition => ({
   id,
-  assetId: "tree",
+  assetId,
   position: { tileX, tileY },
   collision: { x: -11, y: -9, width: 22, height: 18 },
   depth: 3,
+});
+const farmDressing = (id: string, assetId: MapObjectDefinition["assetId"], tileX: number, tileY: number, depth = 3): MapObjectDefinition => ({
+  id, assetId, position: { tileX, tileY }, depth,
 });
 
 export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
@@ -39,18 +42,41 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
     objects: [
       { id: "house", assetId: "house", position: { tileX: 5, tileY: 5 }, collision: { x: -96, y: -80, width: 192, height: 135 }, label: "집", depth: 4 },
       { id: "sell_basket", assetId: "sell_basket", position: { tileX: 33, tileY: 7.5 }, collision: { x: -45, y: -38, width: 90, height: 76 }, interaction: { action: "sell", area: area(31, 35, 6, 9) }, label: "판매 바구니", depth: 3 },
-      farmTree("farm_tree_house_west", 1.6, 5.2),
-      farmTree("farm_tree_house_east", 10.4, 4.2),
+      // House yard: lived-in props frame, but never cover, the doorway route.
+      farmDressing("yard_mailbox", "mailbox", 8.9, 7.2),
+      farmDressing("yard_flower_bed", "flower_bed", 2.5, 8.2),
+      farmDressing("yard_shrub", "green_shrub", 9.6, 6.7),
+      farmDressing("yard_bench", "bench", 1.9, 11.5),
+      farmDressing("yard_lamp", "rustic_lamp", 7.7, 8.7),
+      { ...farmDressing("yard_well", "stone_well", 12.1, 5.3), collision: { x: -36, y: -18, width: 72, height: 28 } },
+      { ...farmDressing("yard_fence_west", "fence_horizontal", 2.1, 12.7), collision: { x: -60, y: -12, width: 120, height: 20 } },
+
+      // Field edge: short fence fragments and props soften the farm rectangle.
+      { ...farmDressing("field_fence_north_west", "fence_horizontal", 10.8, 7.2), collision: { x: -60, y: -12, width: 120, height: 20 } },
+      { ...farmDressing("field_fence_north_east", "fence_horizontal", 16.3, 7.2), collision: { x: -60, y: -12, width: 120, height: 20 } },
+      { ...farmDressing("field_fence_west", "fence_vertical", 8.75, 11.5), collision: { x: -10, y: -48, width: 20, height: 56 } },
+      farmDressing("field_fence_corner", "fence_corner", 8.2, 7.4),
+      farmDressing("field_gate", "gate", 19.4, 12.5),
+      farmDressing("field_crate", "farm_crate", 19.3, 8.0),
+
+      // Pond and outer-edge dressing hide hard terrain corners without changing water collision.
+      farmDressing("pond_large_rock", "pond_rock_large", 30.7, 20.5),
+      farmDressing("pond_flowering_bush", "flowering_bush", 32.4, 20.7),
+      farmDressing("pond_shrub", "green_shrub", 22.4, 18.8),
+      farmDressing("east_stump", "stump", 35.4, 4.9),
+
+      farmTree("farm_tree_house_west", 1.6, 5.2, "tree_variant_a"),
+      farmTree("farm_tree_house_east", 10.4, 4.2, "tree_variant_b"),
       farmTree("farm_tree_north_1", 16.2, 2.8),
-      farmTree("farm_tree_north_2", 22.4, 3.3),
-      farmTree("farm_tree_north_3", 28.8, 2.7),
+      farmTree("farm_tree_north_2", 22.4, 3.3, "tree_variant_a"),
+      farmTree("farm_tree_north_3", 28.8, 2.7, "tree_variant_b"),
       farmTree("farm_tree_north_east", 39.3, 4.5),
-      farmTree("farm_tree_west_mid", 1.8, 15.8),
+      farmTree("farm_tree_west_mid", 1.8, 15.8, "tree_variant_b"),
       farmTree("farm_tree_west_south", 2.5, 22.8),
-      farmTree("farm_tree_east_mid", 39.5, 12.7),
+      farmTree("farm_tree_east_mid", 39.5, 12.7, "tree_variant_a"),
       farmTree("farm_tree_east_pond", 39.2, 19.3),
-      farmTree("farm_tree_south_east", 37.2, 23.5),
-      farmTree("farm_tree_south_pond", 30.8, 24.2),
+      farmTree("farm_tree_south_east", 37.2, 23.5, "tree_variant_b"),
+      farmTree("farm_tree_south_pond", 30.8, 24.2, "tree_variant_a"),
     ],
     spawns: [
       { id: "house_front", tileX: 7, tileY: 8, facing: "down" },

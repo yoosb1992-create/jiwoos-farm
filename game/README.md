@@ -50,9 +50,9 @@ working copy를 별도 registry로 주입하며 실제 게임 저장에는 쓰�
 
 ## 0.5 플레이어 spritesheet 규격
 
-현재 `PLAYER_ASSET.source`는 `/assets/player/player-main.png`에 연결되어 1차 실제 플레이어 캐릭터를 표시한다. 기존 `public/assets/player/player-dev.png`는 비교 및 수동 전환용으로 보존한다. 자동 복구는 기존 생성형 fallback 캐릭터를 사용한다. PNG가 없거나, 로딩에 실패하거나, 정의된 마지막 프레임까지 들어 있지 않은 시트가 로드되면 `AssetManager`가 불완전한 텍스처를 버리고 같은 fallback으로 복구한다.
+현재 adult `PLAYER_ASSET.source`는 `/assets/graphics-vertical-slice/player/adult-farmer-48.png`에 연결된다. 프레임당 48×72px, 가로 16칸×세로 3줄(전체 768×216px)이며 기존 12 animation×4 frame 계약을 유지한다. child/teen은 아직 `/assets/player/player-main.png`를 독립 fallback profile로 사용하고 `public/assets/player/player-dev.png`도 보존한다. PNG가 없거나 정의된 마지막 프레임까지 들어 있지 않으면 `AssetManager`가 프로필 규격에 맞는 생성형 fallback으로 복구한다.
 
-개발 기준 시트는 투명 배경 PNG, 프레임당 32×36px, 가로 16칸×세로 3줄(전체 512×108px), 왼쪽 위부터 0번인 행 우선 번호를 사용한다. 최종 디자인은 이 크기나 프레임 수에 고정되지 않는다. 다른 규격을 사용할 때 `source.frameWidth/frameHeight`, `frameSize`, `displayScale`, `origin`, `collisionBox`, 그리고 아래 프레임 범위를 함께 조정하면 된다.
+시트는 투명 배경 PNG이며 왼쪽 위부터 0번인 행 우선 번호를 사용한다. life stage마다 다른 프레임 크기를 쓸 수 있고, `source.frameWidth/frameHeight`, `frameSize`, `displayScale`, `origin`, `collisionBox`, `interactionAnchor`를 프로필 안에서 함께 정의한다.
 
 물리적인 시트 행은 3줄이다. 1행(0–15)은 대기, 2행(16–31)은 걷기, 3행(32–47)은 도구 사용이며, 각 행 안에서 방향별로 4프레임씩 연속 배치한다.
 
@@ -76,9 +76,9 @@ working copy를 별도 registry로 주입하며 실제 게임 저장에는 쓰�
 ```ts
 source: {
   kind: "spritesheet",
-  path: "/assets/player/player-main.png",
-  frameWidth: 32,
-  frameHeight: 36,
+  path: "/assets/graphics-vertical-slice/player/adult-farmer-48.png",
+  frameWidth: 48,
+  frameHeight: 72,
 },
 ```
 
@@ -95,7 +95,7 @@ source: {
 회귀 테스트는 PNG 헤더/크기, 48개 프레임 범위, 정상 텍스처 등록, 누락/불완전 텍스처 fallback, 중복 애니메이션 재등록, 이동/도구 후 대기 복귀를 확인한다. 실제 브라우저 검증은 실행환경의 Chromium 다운로드 시간 초과로 수행하지 못했다. 손상 PNG 디코딩 실패 후 게임 실행, 모바일 터치와 키보드의 실제 재생, 벽/나무 충돌은 다음 실사용 확인 항목이다.
 
 
-### 3단계 실제 플레이어 그래픽 1차
+### 3단계 실제 플레이어 그래픽 1차 체크포인트
 
 `public/assets/player/player-main.png`는 이미지 생성 도구로 새로 제작한 독자적인 캐릭터다. 적갈색 짧은 머리, 청록색 작업 조끼, 크림색 소매, 겨자색 목수건, 어두운 자주색 바지와 갈색 부츠를 48프레임에서 공유한다. 상용 게임의 원본 이미지나 캐릭터를 참조하지 않았다.
 

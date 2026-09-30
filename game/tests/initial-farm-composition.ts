@@ -15,11 +15,12 @@ assert.deepEqual(farm.collisionRegions, [{ startX: 24, endX: 30, startY: 15, end
 assert.deepEqual(farm.warps.find(warp => warp.id === "house_door")?.area, { startX: 4, endX: 6, startY: 8, endY: 9 });
 assert.deepEqual(farm.warps.find(warp => warp.id === "exit_south")?.area, { startX: 19, endX: 22, startY: 24, endY: 25 });
 
-const trees = farm.objects.filter(object => object.assetId === "tree");
+const trees = farm.objects.filter(object => ["tree", "tree_variant_a", "tree_variant_b"].includes(object.assetId));
+const treeAssets = { tree: WORLD_OBJECT_ASSETS.tree, tree_variant_a: WORLD_OBJECT_ASSETS.tree_variant_a, tree_variant_b: WORLD_OBJECT_ASSETS.tree_variant_b } as const;
 assert.equal(trees.length, 12, "the farm boundary uses a restrained set of oversized trees");
 for (const tree of trees) {
   assert.ok(tree.id.startsWith("farm_tree_"));
-  assert.deepEqual(tree.collision, WORLD_OBJECT_ASSETS.tree.defaultCollisionBox, `${tree.id}: crown size must not enlarge trunk collision`);
+  assert.deepEqual(tree.collision, treeAssets[tree.assetId as keyof typeof treeAssets].defaultCollisionBox, `${tree.id}: crown size must not enlarge trunk collision`);
   assert.ok(tree.position.tileX >= 0 && tree.position.tileX < farm.width && tree.position.tileY >= 0 && tree.position.tileY < farm.height);
   assert.ok(!farm.farmAreas.some(area => contains(area, tree.position.tileX, tree.position.tileY)), `${tree.id}: farmable area stays clear`);
   assert.ok(!farm.warps.some(warp => contains(warp.area, tree.position.tileX, tree.position.tileY)), `${tree.id}: warp stays clear`);

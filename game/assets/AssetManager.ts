@@ -75,11 +75,16 @@ export class AssetManager {
 
   private createPlayerFallback() {
     const { frameSize, fallback, textureKey } = this.playerAsset;
+    const centerX = frameSize.width / 2;
+    const groundY = frameSize.height * (this.playerAsset.groundAnchor?.y ?? .86);
+    const headRadius = Math.max(6, Math.min(frameSize.width, frameSize.height) * .19);
+    const torsoWidth = headRadius * 1.65;
+    const torsoTop = groundY - headRadius * 2.45;
     const graphics = this.scene.add.graphics();
-    graphics.fillStyle(fallback.shadow).fillRoundedRect(4, 15, 24, 18, 5)
-      .fillStyle(fallback.skin).fillCircle(16, 12, 9)
-      .fillStyle(fallback.hair).fillRect(8, 5, 16, 5)
-      .fillStyle(fallback.shirt).fillRect(8, 16, 16, 11)
+    graphics.fillStyle(fallback.shadow).fillEllipse(centerX, groundY, Math.min(24, frameSize.width * .58), 8)
+      .fillStyle(fallback.shirt).fillRoundedRect(centerX - torsoWidth / 2, torsoTop, torsoWidth, headRadius * 1.9, 4)
+      .fillStyle(fallback.skin).fillCircle(centerX, torsoTop - headRadius * .5, headRadius)
+      .fillStyle(fallback.hair).fillRect(centerX - headRadius, torsoTop - headRadius * 1.18, headRadius * 2, headRadius * .55)
       .generateTexture(textureKey, frameSize.width, frameSize.height).destroy();
   }
 
@@ -141,6 +146,22 @@ export class AssetManager {
       WORLD_OBJECT_ASSETS.chicken_coop,
       WORLD_OBJECT_ASSETS.chicken,
       WORLD_OBJECT_ASSETS.feed_trough,
+      WORLD_OBJECT_ASSETS.fence_horizontal,
+      WORLD_OBJECT_ASSETS.fence_vertical,
+      WORLD_OBJECT_ASSETS.fence_corner,
+      WORLD_OBJECT_ASSETS.gate,
+      WORLD_OBJECT_ASSETS.flowering_bush,
+      WORLD_OBJECT_ASSETS.green_shrub,
+      WORLD_OBJECT_ASSETS.flower_bed,
+      WORLD_OBJECT_ASSETS.mailbox,
+      WORLD_OBJECT_ASSETS.bench,
+      WORLD_OBJECT_ASSETS.rustic_lamp,
+      WORLD_OBJECT_ASSETS.stone_well,
+      WORLD_OBJECT_ASSETS.tree_variant_a,
+      WORLD_OBJECT_ASSETS.tree_variant_b,
+      WORLD_OBJECT_ASSETS.pond_rock_large,
+      WORLD_OBJECT_ASSETS.stump,
+      WORLD_OBJECT_ASSETS.farm_crate,
     ]) {
       if (this.scene.textures.exists(asset.textureKey)) continue;
       const g = this.scene.add.graphics(); const f = asset.fallback; const { width, height } = displayedSize(asset);
