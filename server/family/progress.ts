@@ -3,20 +3,24 @@ import { MAP_DEFINITIONS } from "../../game/maps/definitions";
 import { Inventory, type InventoryData } from "../../game/domain";
 import { getQuest } from "../../game/quests/definitions";
 import { applyQuestAction, recordNpcGreeting } from "../../game/quests/engine";
-import { FamilyRooms, FamilyError } from "./rooms";
+import { FamilyRooms, FamilyError, type FamilyDB } from "./rooms";
 import { FamilyState } from "./state";
 import { normalizeProgress, talkToNpc, type ProgressSnapshot, type ProgressAction, type ProgressResult } from "../../game/npc/progress";
 import { NpcController } from "../../game/npc/NpcController";
 import { NPC_DEFINITIONS, getNpc } from "../../game/npc/definitions";
 import { MapRegistry } from "../../game/maps/MapRegistry";
+import type { MapDefinition } from "../../game/maps/types";
 import { parseFamilyPose } from "../../game/family/personal";
 import { ITEM_DEFINITIONS, type ItemId } from "../../game/data/items";
 import { giftToNpc } from "../../game/npc/gifts";
 import { getRelationshipEvent } from "../../game/relationship-events/definitions";
 import { completeRelationshipEvent, startRelationshipEvent } from "../../game/relationship-events/system";
 import { weatherFor } from "../../game/weather/system";
-const npcs=new NpcController(NPC_DEFINITIONS,new MapRegistry());
 export class FamilyProgress extends FamilyRooms {
+ private readonly npcs:NpcController;
+ constructor(db:FamilyDB,now=()=>Date.now(),private readonly maps:Record<string,MapDefinition>=MAP_DEFINITIONS){
+  super(db,now);this.npcs=new NpcController(NPC_DEFINITIONS,new MapRegistry(maps));
+ }
  private async progressRow(playerId:string):Promise<ProgressSnapshot>{
   await this.db.prepare("INSERT OR IGNORE INTO family_player_progress (player_id,revision,progress_json,updated_at) VALUES (?,0,?,?)").bind(playerId,JSON.stringify(normalizeProgress(null)),this.now()).run();
   const row=await this.db.prepare("SELECT revision, progress_json FROM family_player_progress WHERE player_id=?").bind(playerId).first<{revision:number;progress_json:string}>();
@@ -34,9 +38,10 @@ export class FamilyProgress extends FamilyRooms {
   const progress=await this.progressRow(member.playerId);
   const conflict=()=>new FamilyError(409,"개인 기록이 갱신됐어요. 다시 대화해 주세요.");
   if(progress.revision!==expectedRevision)throw conflict();
-  const state=new FamilyState(this.db,this.now),snapshot=await state.read(userId,roomId);
-  const npc=npcs.sample(snapshot.world.day,snapshot.npcTimeMinutes??snapshot.world.timeMinutes).find(n=>n.npcId===npcId);
-  if(!npc||npc.mapId!==pose.mapId||Math.hypot(npc.x-pose.x,npc.y-pose.y)>96||!npcLineClear(MAP_DEFINITIONS[pose.mapId],pose,npc))throw new FamilyError(400,"주민 가까이에서 이야기해 주세요.");
+  const state=new FamilyState(this.db,this.now,this.maps),snapshot=await state.read(userId,roomId);
+  const npc=this.npcs.sample(snapshot.world.day,snapshot.npcTimeMinutes??snapshot.world.timeMinutes).find(n=>n.npcId===npcId);
+  const npcMap=this.maps[pose.mapId];
+  if(!npc||!npcMap||npc.mapId!==pose.mapId||Math.hypot(npc.x-pose.x,npc.y-pose.y)>96||!npcLineClear(npcMap,pose,npc))throw new FamilyError(400,"주민 가까이에서 이야기해 주세요.");
   const row=await this.db.prepare("SELECT world_json,inventories_json FROM family_state WHERE room_id=? AND revision=?").bind(roomId,snapshot.revision).first<{world_json:string;inventories_json:string}>();
   if(!row)throw conflict();
   const world=JSON.parse(row.world_json),inventories=JSON.parse(row.inventories_json) as Record<string,InventoryData>;
