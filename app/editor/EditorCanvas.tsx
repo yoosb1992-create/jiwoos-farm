@@ -30,18 +30,19 @@ interface Props {
   snapMode: SnapMode;
   selection: Selection;
   onSelect: (selection: Selection) => void;
+  onInspectObject: (id: string) => void;
   onCommit: (mutate: (map: MapDefinition) => void) => void;
   onBeginContinuous: () => void;
   onContinuous: (mutate: (map: MapDefinition) => void) => void;
 }
 
-export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId, layers, snapMode, selection, onSelect, onCommit, onBeginContinuous, onContinuous }: Props) {
+export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId, layers, snapMode, selection, onSelect, onInspectObject, onCommit, onBeginContinuous, onContinuous }: Props) {
   const patternPrefix = useId().replace(/:/g, "");
   const [failedImages, setFailedImages] = useState<Set<string>>(() => new Set());
   const markImageFailed = (path: string) => setFailedImages((previous) => new Set(previous).add(path));
   const tileFill = (type: TileTypeId) => `url(#${patternPrefix}-${type})`;
   const svgRef = useRef<SVGSVGElement>(null);
-  const dragObject = useRef<(ObjectDragGrab & { position: { tileX: number; tileY: number }; moved: boolean }) | null>(null);
+  const dragObject = useRef<(ObjectDragGrab & { position: { tileX: number; tileY: number }; moved: boolean; touchTap: boolean; startClientX: number; startClientY: number }) | null>(null);
   const [dragPreview, setDragPreview] = useState<{ id: string; tileX: number; tileY: number } | null>(null);
   const pan = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number } | null>(null);
   const painting = useRef(false);
@@ -129,11 +130,14 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     if (painting.current) { pendingTap.current = null; paint(p); }
     if (draft) setDraft({ ...draft, end: p });
     if (dragObject.current) {
-      const position = objectDragPosition(dragObject.current, p, (value) => snap(value, snapMode));
-      dragObject.current.position = position;
-      dragObject.current.moved = true;
-      setDragPreview({ id: dragObject.current.id, ...position });
-      event.preventDefault();
+      const movedPixels = Math.hypot(event.clientX - dragObject.current.startClientX, event.clientY - dragObject.current.startClientY);
+      if (movedPixels >= 8) {
+        const position = objectDragPosition(dragObject.current, p, (value) => snap(value, snapMode));
+        dragObject.current.position = position;
+        dragObject.current.moved = true;
+        setDragPreview({ id: dragObject.current.id, ...position });
+        event.preventDefault();
+      }
     }
   };
   const pointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -162,6 +166,10 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
       });
       return;
     }
+    if (completedDrag?.touchTap) {
+      onInspectObject(completedDrag.id);
+      return;
+    }
     if (!draft) return;
     const rect = normalizeRect(draft.start, draft.end);
     onCommit((target) => {
@@ -177,12 +185,26 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     setDraft(null);
   };
   const startObjectDrag = (event: React.PointerEvent, id: string) => {
-    event.stopPropagation(); onSelect({ kind: "object", id });
+    event.stopPropagation();
+    const alreadySelected = selection?.kind === "object" && selection.id === id;
+    if (event.pointerType === "touch" && !alreadySelected) {
+      onSelect({ kind: "object", id });
+      return;
+    }
+    onSelect({ kind: "object", id });
+    if (event.pointerType !== "touch") onInspectObject(id);
     if (tool !== "select") return;
     const object = map.objects.find((entry) => entry.id === id);
     if (!object) return;
     const grab = beginObjectDrag(object, point(event));
-    dragObject.current = { ...grab, position: { ...object.position }, moved: false };
+    dragObject.current = {
+      ...grab,
+      position: { ...object.position },
+      moved: false,
+      touchTap: event.pointerType === "touch",
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+    };
     svgRef.current?.setPointerCapture(event.pointerId);
   };
   const draftRect = draft ? normalizeRect(draft.start, draft.end) : null;
