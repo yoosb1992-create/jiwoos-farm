@@ -294,6 +294,13 @@ export class FarmScene extends Phaser.Scene {
       this.playerAnimations.playMovement(this.facing, false);
       return;
     }
+    if (this.fishingCast) {
+      this.running = false; this.leftShiftRunning = false; this.touchNavigation = undefined;
+      this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0);
+      this.playerAnimations.playMovement(this.facing, false);
+      if (Phaser.Input.Keyboard.JustDown(this.actionKey)) this.handleActiveFishingInput();
+      return;
+    }
     if (!this.oreHintShown && !this.toolProgression.pickaxe && this.currentMapId === FAIRY_FOREST_ID) {
       const nearOre = this.mapRegistry.require(FAIRY_FOREST_ID).objects.some(o =>
         resourceKind(o) === "ore" && Math.hypot(o.position.tileX * GAME_CONFIG.tileSize - this.player.x, o.position.tileY * GAME_CONFIG.tileSize - this.player.y) <= 60);
@@ -541,6 +548,7 @@ export class FarmScene extends Phaser.Scene {
 
   private useFacingTile(inputSource: "keyboard" | "mobile" = "keyboard") {
     if(this.isPaused()||this.npcRequest||this.toolActions.isActive()) return;
+    if (this.fishingCast) { this.handleActiveFishingInput(); return; }
     const point = this.playerAnimations.interactionPoint(this.facing);
     if (this.buildingMode) { this.buildAt(point.x, point.y); return; }
     if (this.placing) { this.placeAt(point.x, point.y); return; }
@@ -964,33 +972,38 @@ export class FarmScene extends Phaser.Scene {
 
   private useFishing(context: ToolUseContext) {
     if (this.family && (this.family.busy || !this.family.snapshot)) return;
+    if (this.fishingCast) { this.handleActiveFishingInput(); return; }
     const pose = this.familyPoseForTool(context);
     this.toolActions.execute("fishing_rod", context.facing, () => {
       if (context.targetKind !== "fishing_water") { this.say("물가 가까이에서 물을 향해 던져 주세요."); return; }
-      const error = fishingSpotError(this.fishingCast?.spotId ?? "farm_pond", pose);
+      const error = fishingSpotError("farm_pond", pose);
       if (error) { this.say(error); return; }
-      if (this.fishingCast) {
-        const castId = this.fishingCast.id;
-        const stage = fishingStage(this.fishingCast, worldMinute(this.daySerial, this.timeMinutes));
-        if (stage === "waiting") { this.say("아직 입질이 없어요. 조금만 기다려 주세요."); return; }
-        if (stage === "bite") {
-          this.fishingMinigame = { castId, fishId: this.fishingCast.fishId };
-          this.virtualMovement = { x: 0, y: 0 }; this.touchNavigation = undefined; this.player.setVelocity(0, 0);
-          this.say("물고기가 걸렸어요! 미로에서 길을 그려 끌어올리세요."); return;
-        }
-        if (this.family) { void this.family.act({ kind: "fish-reel", castId, pose }); return; }
-        const result = reelFishing(this.fishingCast, castId, this.fishingProgress, this.inventory, this.stats, this.daySerial, this.timeMinutes);
-        if (result.error) { this.say(result.error); return; }
-        this.fishingCast = result.cast ?? null;
-        this.save(false); this.say(result.message ?? "낚시를 마쳤어요."); return;
-      }
       if (this.family) { void this.family.act({ kind: "fish-cast", spotId: "farm_pond", pose }); return; }
       const result = beginFishing(this.fishingProgress, null, pose, "farm_pond", this.forestScope, "single", this.daySerial,
         weatherFor(this.forestScope, this.daySerial).id, this.timeMinutes, this.stats);
       if (result.error || !result.cast || !result.progress) { this.say(result.error ?? "낚시를 시작할 수 없어요."); return; }
       this.fishingProgress = result.progress; this.fishingCast = result.cast;
+      this.touchNavigation = undefined; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0);
       this.save(false); this.say("찌를 던졌어요. 입질이 오면 행동 버튼을 누르세요.");
     }, undefined, context);
+  }
+
+  private handleActiveFishingInput() {
+    const cast = this.fishingCast;
+    if (!cast || this.fishingMinigame) return;
+    const stage = fishingStage(cast, worldMinute(this.daySerial, this.timeMinutes));
+    if (stage === "waiting") { this.say("찌를 던져두었습니다. 입질이 올 때까지 기다려 주세요."); return; }
+    if (stage === "bite") {
+      this.fishingMinigame = { castId: cast.id, fishId: cast.fishId };
+      this.virtualMovement = { x: 0, y: 0 }; this.touchNavigation = undefined; this.player.setVelocity(0, 0);
+      this.say("입질! 미로에서 길을 그려 물고기를 끌어올리세요."); return;
+    }
+    const pose = this.familyPose();
+    if (this.family) { void this.family.act({ kind: "fish-reel", castId: cast.id, pose }); return; }
+    const result = reelFishing(cast, cast.id, this.fishingProgress, this.inventory, this.stats, this.daySerial, this.timeMinutes);
+    if (result.error) { this.say(result.error); return; }
+    this.fishingCast = result.cast ?? null;
+    this.save(false); this.say(result.message ?? "낚시를 마쳤어요.");
   }
 
   private resolveFishingMinigame(value: unknown) {
@@ -1365,7 +1378,11 @@ export class FarmScene extends Phaser.Scene {
     }, GAME_CONFIG.day.sleepTransitionMs);
   }
 
-  private selectTool(tool: ToolKey) { if (tool === "pickaxe" && !this.toolProgression.pickaxe) { this.say("제작대에서 곡괭이를 해금해 주세요."); return; } this.selectedTool = tool; this.say(`${ITEM_DEFINITIONS[tool].name}을(를) 선택했어요.`); }
+  private selectTool(tool: ToolKey) {
+    if (this.fishingCast && tool !== "fishing_rod") { this.say("낚싯줄을 드리운 동안에는 낚싯대를 유지해 주세요."); return; }
+    if (tool === "pickaxe" && !this.toolProgression.pickaxe) { this.say("제작대에서 곡괭이를 해금해 주세요."); return; }
+    this.selectedTool = tool; this.say(`${ITEM_DEFINITIONS[tool].name}을(를) 선택했어요.`);
+  }
   private getObjective() {
     const tiles = [...this.farm.values()];
     if (Object.values(CROP_DEFINITIONS).some(c => this.inventory.count(c.harvestItemId) > 0)) return { objective: "수확물을 판매해 보세요", progress: 95 };
