@@ -141,6 +141,14 @@ export class FarmScene extends Phaser.Scene {
   private facing: Facing = "down";
   private virtualMovement: MovementVector = { x: 0, y: 0 };
   private running = false;
+  private leftShiftRunning = false;
+  private readonly runKeyDownHandler = (event: KeyboardEvent) => {
+    if (event.code === "ShiftLeft") this.leftShiftRunning = true;
+  };
+  private readonly runKeyUpHandler = (event: KeyboardEvent) => {
+    if (event.code === "ShiftLeft") this.leftShiftRunning = false;
+  };
+  private readonly runBlurHandler = () => { this.leftShiftRunning = false; };
   private controlsEditing = false;
   private menuInputBlocked = false;
   private currentMapId: MapId;
@@ -222,6 +230,9 @@ export class FarmScene extends Phaser.Scene {
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys("W,A,S,D,ONE,TWO,THREE,FOUR,FIVE,SIX,SEVEN") as Record<string, Phaser.Input.Keyboard.Key>;
     this.actionKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    window.addEventListener("keydown", this.runKeyDownHandler);
+    window.addEventListener("keyup", this.runKeyUpHandler);
+    window.addEventListener("blur", this.runBlurHandler);
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, _currentlyOver: Phaser.GameObjects.GameObject[], event: Event) => {
       if (!isGameCanvasPointerEvent(event?.target, this.game.canvas)) return;
       if (pointer.wasTouch) { this.touchPointerDown(pointer); return; }
@@ -247,6 +258,9 @@ export class FarmScene extends Phaser.Scene {
       this.touchPoints.clear(); this.touchNavigation = undefined; this.pinchGesture = undefined;
       this.playerActionVisuals.destroy();
       gameEvents.removeEventListener("command", this.commandHandler);
+      window.removeEventListener("keydown", this.runKeyDownHandler);
+      window.removeEventListener("keyup", this.runKeyUpHandler);
+      window.removeEventListener("blur", this.runBlurHandler);
       if (this.family && this.storageOpen) void this.family.act({ kind:"storage-lock", containerId:this.storageOpen, acquire:false, pose:this.familyPose() });
       this.family?.stop(); this.remotePlayers?.destroy(); this.npcRenderer.destroy();
     };
@@ -289,7 +303,7 @@ export class FarmScene extends Phaser.Scene {
     if (manualMovement.x || manualMovement.y) this.touchNavigation = undefined;
     const movement = manualMovement.x || manualMovement.y ? manualMovement : this.touchNavigationMovement();
     this.facing = facingFromMovement(movement, this.facing);
-    const movementSpeed = GAME_CONFIG.playerSpeed * (this.running ? 1.65 : 1);
+    const movementSpeed = GAME_CONFIG.playerSpeed * (this.running || this.leftShiftRunning ? 1.65 : 1);
     this.player.setVelocity(movement.x * movementSpeed, movement.y * movementSpeed);
     this.playerAnimations.playMovement(this.facing, Boolean(movement.x || movement.y));
     if (Phaser.Input.Keyboard.JustDown(this.actionKey)) this.useFacingTile();
