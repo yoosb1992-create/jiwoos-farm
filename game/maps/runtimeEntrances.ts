@@ -6,7 +6,7 @@ export const RUNTIME_ENTRANCE_ANCHOR_IDS = new Set([FAIRY_FOREST_ENTRANCE_ANCHOR
 
 type EntranceKind = "fairy_forest" | "mine";
 
-const DEFAULT_ANCHORS: Record<EntranceKind, MapObjectDefinition> = {
+export const DEFAULT_RUNTIME_ENTRANCE_ANCHORS: Record<EntranceKind, MapObjectDefinition> = {
   fairy_forest: {
     id: FAIRY_FOREST_ENTRANCE_ANCHOR_ID,
     assetId: "tree_variant_b",
@@ -26,7 +26,7 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 export function ensureRuntimeEntranceAnchors(maps: Record<string, MapDefinition>) {
   const road = maps.road;
   if (!road) return maps;
-  for (const definition of Object.values(DEFAULT_ANCHORS)) {
+  for (const definition of Object.values(DEFAULT_RUNTIME_ENTRANCE_ANCHORS)) {
     if (!road.objects.some((object) => object.id === definition.id)) road.objects.push(structuredClone(definition));
   }
   return maps;
@@ -40,7 +40,7 @@ export interface RuntimeEntranceLayout {
 }
 
 export function runtimeEntranceLayout(road: MapDefinition, kind: EntranceKind): RuntimeEntranceLayout {
-  const fallback = DEFAULT_ANCHORS[kind];
+  const fallback = DEFAULT_RUNTIME_ENTRANCE_ANCHORS[kind];
   const anchor = road.objects.find((object) => object.id === fallback.id) ?? fallback;
   const maxX = Math.max(0, road.width - 2), maxY = Math.max(0, road.height - 2);
 
