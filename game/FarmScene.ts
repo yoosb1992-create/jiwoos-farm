@@ -14,8 +14,9 @@ import { gameEvents, type HudState, type ToolKey } from "./events";
 import { advanceFarmDay, Inventory, LocalStorageSaveRepository, purchaseInventoryItem, type FarmTileData, type SaveData } from "./domain";
 import { sellMarketGoods } from "./economy/sales";
 import { FISH_DEFINITIONS } from "./fishing/definitions";
-import { beginFishing, fishingSpotError, fishingStage, initialFishingProgress, normalizeFishingProgress, reelFishing } from "./fishing/system";
+import { beginFishing, failFishing, fishingSpotError, fishingStage, initialFishingProgress, normalizeFishingProgress, reelFishing } from "./fishing/system";
 import type { FishingCast, FishingProgress } from "./fishing/types";
+import { isFishingCatchGrade, type FishingMinigameResult, type FishingMinigameState } from "./fishing/maze";
 import { AssetManager } from "./assets/AssetManager";
 import { DEFAULT_CHARACTER_VISUAL_PROFILE, displayedSize, physicsBoxForScale, type CharacterVisualProfile, type Facing } from "./assets/definitions";
 import { WorldRenderer } from "./rendering/WorldRenderer";
@@ -115,6 +116,7 @@ export class FarmScene extends Phaser.Scene {
   private wateringCan: WateringCanState = initialWateringCan();
   private fishingProgress: FishingProgress = initialFishingProgress();
   private fishingCast: FishingCast | null = null;
+  private fishingMinigame?: FishingMinigameState;
   private storage: StorageData = initialStorage();
   private storageOpen?: ContainerId;
   private storageBusy = false;
@@ -320,7 +322,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private npcTime() { return this.family ? Math.min(GAME_CONFIG.day.endMinutes, this.npcMinute + Math.min(2000, Math.max(0, performance.now()-this.npcClockReceived))/REAL_MS_PER_GAME_MINUTE) : this.timeMinutes + this.timeAccumulator/REAL_MS_PER_GAME_MINUTE; }
-  private isPaused() { return this.controlsEditing || this.menuInputBlocked || this.inventoryOpen || !!this.storageOpen || !!this.machineOpen || !!this.ranchOpen || this.buildingOpen || this.journalOpen || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.craftingOpen || this.transitioning; }
+  private isPaused() { return !!this.fishingMinigame || this.controlsEditing || this.menuInputBlocked || this.inventoryOpen || !!this.storageOpen || !!this.machineOpen || !!this.ranchOpen || this.buildingOpen || this.journalOpen || !!this.dialogue || this.helpOpen || this.sleepPrompt || this.shopOpen || this.craftingOpen || this.transitioning; }
   private advanceClock(delta: number) {
     this.timeAccumulator += delta;
     const elapsed = Math.floor(this.timeAccumulator / REAL_MS_PER_GAME_MINUTE);
@@ -969,6 +971,13 @@ export class FarmScene extends Phaser.Scene {
       if (error) { this.say(error); return; }
       if (this.fishingCast) {
         const castId = this.fishingCast.id;
+        const stage = fishingStage(this.fishingCast, worldMinute(this.daySerial, this.timeMinutes));
+        if (stage === "waiting") { this.say("아직 입질이 없어요. 조금만 기다려 주세요."); return; }
+        if (stage === "bite") {
+          this.fishingMinigame = { castId, fishId: this.fishingCast.fishId };
+          this.virtualMovement = { x: 0, y: 0 }; this.touchNavigation = undefined; this.player.setVelocity(0, 0);
+          this.say("물고기가 걸렸어요! 미로에서 길을 그려 끌어올리세요."); return;
+        }
         if (this.family) { void this.family.act({ kind: "fish-reel", castId, pose }); return; }
         const result = reelFishing(this.fishingCast, castId, this.fishingProgress, this.inventory, this.stats, this.daySerial, this.timeMinutes);
         if (result.error) { this.say(result.error); return; }
@@ -982,6 +991,32 @@ export class FarmScene extends Phaser.Scene {
       this.fishingProgress = result.progress; this.fishingCast = result.cast;
       this.save(false); this.say("찌를 던졌어요. 입질이 오면 행동 버튼을 누르세요.");
     }, undefined, context);
+  }
+
+  private resolveFishingMinigame(value: unknown) {
+    if (!this.fishingMinigame || !value || typeof value !== "object") return;
+    const result = value as FishingMinigameResult;
+    if (result.castId !== this.fishingMinigame.castId || typeof result.success !== "boolean" ||
+        (result.success && result.grade !== undefined && !isFishingCatchGrade(result.grade))) return;
+    const castId = this.fishingMinigame.castId;
+    this.fishingMinigame = undefined; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0);
+    if (!this.fishingCast || this.fishingCast.id !== castId) { this.say("이미 끝난 낚시예요. 다시 던져 주세요."); return; }
+    if (this.family) {
+      const action = result.success
+        ? { kind: "fish-reel" as const, castId, grade: result.grade, pose: this.familyPose() }
+        : { kind: "fish-fail" as const, castId, pose: this.familyPose() };
+      this.emitHud();
+      void this.family.act(action);
+      return;
+    }
+    if (result.success) {
+      const caught = reelFishing(this.fishingCast, castId, this.fishingProgress, this.inventory, this.stats, this.daySerial, this.timeMinutes, result.grade);
+      if (caught.error) { this.say(caught.error); return; }
+      this.fishingCast = caught.cast ?? null; this.save(false); this.say(caught.message ?? "물고기를 낚았어요."); return;
+    }
+    const failed = failFishing(this.fishingCast, castId);
+    if (failed.error) { this.say(failed.error); return; }
+    this.fishingCast = null; this.save(false); this.say(failed.message);
   }
 
   private useForestResource(context: ToolUseContext) {
@@ -1082,6 +1117,8 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
+    if (command.type === "fishing-maze-result") { this.resolveFishingMinigame(command.value); return; }
+    if (this.fishingMinigame) { this.running = false; this.virtualMovement = { x: 0, y: 0 }; return; }
     if (command.type === "controls-edit") { this.controlsEditing = command.value === true; this.running = false; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); return; }
     if (command.type === "menu-open") { this.menuInputBlocked = command.value === true; this.running = false; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); return; }
     if (command.type === "run") { this.running = !this.toolActions.isActive() && command.value === true; return; }
@@ -1347,7 +1384,7 @@ export class FarmScene extends Phaser.Scene {
     const step = this.getObjective();
     const date = calendarDate(this.daySerial);
     const relationshipEvents=this.dialogue&&!this.dialogue.eventId?availableRelationshipEvents(personal,this.dialogue.npcId,this.relationshipEventContext()).map(event=>({id:event.id,title:event.title})):[];
-    const hud: HudState = { wateringCan:normalizeWateringCan(this.wateringCan), relationshipEvents,ranchState:this.ranchState, ranchOpen:this.ranchOpen, ranchBusy:this.ranchBusy, buildingDefinitionId:this.buildingDefinitionId, fishingStage: fishingStage(this.fishingCast, worldMinute(this.daySerial, this.timeMinutes)), marketCount: [...Object.values(CROP_DEFINITIONS).map(c => c.harvestItemId), ...Object.values(FISH_DEFINITIONS).map(f => f.itemId), "egg" as const].reduce((n,id) => n + this.inventory.count(id), 0), buildings:normalizeBuildings(this.buildings, this.daySerial), farmProgress:normalizeFarmProgress(this.farmProgress), buildingOpen:this.buildingOpen, buildingMode:this.buildingMode, buildingBusy:this.buildingBusy, placeables:normalizePlaceables(this.placeables, worldMinute(this.daySerial, this.timeMinutes)), placing:this.placing, machineOpen:this.machineOpen, machineBusy:this.machineBusy, worldTimeMinute:worldMinute(this.daySerial, this.timeMinutes), storageOpen:this.storageOpen, storageBusy:this.storageBusy, storage:normalizeStorage(this.storage), stats: normalizePlayerStats(this.stats), toolNotice:this.toolNotice, inventoryOpen:this.inventoryOpen, toolProgression: { ...this.toolProgression }, craftingOpen:this.craftingOpen,craftingBusy:this.craftingBusy,craftingItems:this.inventory.serialize().items,villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
+    const hud: HudState = { wateringCan:normalizeWateringCan(this.wateringCan), relationshipEvents,ranchState:this.ranchState, ranchOpen:this.ranchOpen, ranchBusy:this.ranchBusy, buildingDefinitionId:this.buildingDefinitionId, fishingStage: fishingStage(this.fishingCast, worldMinute(this.daySerial, this.timeMinutes)), fishingMinigame:this.fishingMinigame, marketCount: [...Object.values(CROP_DEFINITIONS).map(c => c.harvestItemId), ...Object.values(FISH_DEFINITIONS).map(f => f.itemId), "egg" as const].reduce((n,id) => n + this.inventory.count(id), 0), buildings:normalizeBuildings(this.buildings, this.daySerial), farmProgress:normalizeFarmProgress(this.farmProgress), buildingOpen:this.buildingOpen, buildingMode:this.buildingMode, buildingBusy:this.buildingBusy, placeables:normalizePlaceables(this.placeables, worldMinute(this.daySerial, this.timeMinutes)), placing:this.placing, machineOpen:this.machineOpen, machineBusy:this.machineBusy, worldTimeMinute:worldMinute(this.daySerial, this.timeMinutes), storageOpen:this.storageOpen, storageBusy:this.storageBusy, storage:normalizeStorage(this.storage), stats: normalizePlayerStats(this.stats), toolNotice:this.toolNotice, inventoryOpen:this.inventoryOpen, toolProgression: { ...this.toolProgression }, craftingOpen:this.craftingOpen,craftingBusy:this.craftingBusy,craftingItems:this.inventory.serialize().items,villageOpen:this.journalOpen,villagers,quests:this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), npcBusy:this.npcRequest, dialogue:this.dialogue, money: this.money, selectedCrop: this.selectedCrop, seedCounts: Object.fromEntries(Object.values(CROP_DEFINITIONS).map(c => [c.id, this.inventory.count(c.seedItemId)])), seeds: this.inventory.count(getCropDefinition(this.selectedCrop).seedItemId), harvest: Object.values(CROP_DEFINITIONS).reduce((n,c) => n + this.inventory.count(c.harvestItemId), 0), resources: { wood:this.inventory.count("wood"),stone:this.inventory.count("stone"),wild_herb:this.inventory.count("wild_herb"),moon_mushroom:this.inventory.count("moon_mushroom"),fairy_bloom:this.inventory.count("fairy_bloom") }, selectedTool: this.selectedTool,
       objective: step.objective, message: this.message, progress: step.progress, day: date.day, daySerial:this.daySerial, year: date.year, season: date.season, weather: weatherFor(this.forestScope, this.daySerial).id, timeText: this.formatTime(), sleepPrompt: this.sleepPrompt,
       transitioning: this.transitioning, shopOpen: this.shopOpen, mapId: this.currentMapId, mapName: this.mapRegistry.require(this.currentMapId).name };
     gameEvents.dispatchEvent(new CustomEvent("hud", { detail: hud }));
@@ -1395,6 +1432,7 @@ export class FarmScene extends Phaser.Scene {
     this.wateringCan = normalizeWateringCan(snapshot.wateringCan);
     this.fishingProgress = normalizeFishingProgress(snapshot.fishingProgress);
     this.fishingCast = snapshot.fishingCast ?? null;
+    if (this.fishingMinigame && this.fishingCast?.id !== this.fishingMinigame.castId) this.fishingMinigame = undefined;
     if (snapshot.fishingNotice) this.message = snapshot.fishingNotice;
     this.storage = normalizeStorage(snapshot.world.storage);
     this.placeables = normalizePlaceables(snapshot.world.placeables, worldMinute(this.daySerial, this.timeMinutes));
@@ -1436,7 +1474,7 @@ export class FarmScene extends Phaser.Scene {
     this.farmTreeState=normalizeFarmTreeState(data.farmTreeState,farmTreeIds(this.mapRegistry.require("farm")));
     this.forestDayInstalled=0;
     this.mineProgress=normalizeMineProgress(data.mineProgress); this.mineDaily=normalizeMineDaily(data.mineDaily,this.daySerial,this.forestScope); this.mineDayInstalled=0;
-    this.day = calendarDate(this.daySerial).day; this.timeMinutes = data.timeMinutes; this.money = data.money; this.toolProgression = normalizeToolProgression(data.toolProgression); this.stats = normalizePlayerStats(data.stats); this.wateringCan = normalizeWateringCan(data.wateringCan); this.fishingProgress = normalizeFishingProgress(data.fishingProgress); this.fishingCast = null; this.storage = normalizeStorage(data.storage); this.placeables = normalizePlaceables(data.placeables, worldMinute(this.daySerial, this.timeMinutes)); this.buildings = normalizeBuildings(data.buildings, this.daySerial); this.ranchState = normalizeRanchState(data.ranchState, this.buildings); this.farmProgress = normalizeFarmProgress(data.farmProgress); this.selectedTool = data.selectedTool === "pickaxe" && !this.toolProgression.pickaxe ? "hand" : data.selectedTool;
+    this.day = calendarDate(this.daySerial).day; this.timeMinutes = data.timeMinutes; this.money = data.money; this.toolProgression = normalizeToolProgression(data.toolProgression); this.stats = normalizePlayerStats(data.stats); this.wateringCan = normalizeWateringCan(data.wateringCan); this.fishingProgress = normalizeFishingProgress(data.fishingProgress); this.fishingCast = null; this.fishingMinigame = undefined; this.storage = normalizeStorage(data.storage); this.placeables = normalizePlaceables(data.placeables, worldMinute(this.daySerial, this.timeMinutes)); this.buildings = normalizeBuildings(data.buildings, this.daySerial); this.ranchState = normalizeRanchState(data.ranchState, this.buildings); this.farmProgress = normalizeFarmProgress(data.farmProgress); this.selectedTool = data.selectedTool === "pickaxe" && !this.toolProgression.pickaxe ? "hand" : data.selectedTool;
     this.inventory = new Inventory(data.inventory); this.facing = data.player.facing;
     const savedFloor = mineFloorFromMapId(data.player.mapId);
     this.currentMapId = savedFloor !== null && savedFloor > this.mineProgress.deepestUnlockedFloor ? mineMapId(1) : data.player.mapId;
