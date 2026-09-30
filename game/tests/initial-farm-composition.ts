@@ -56,7 +56,7 @@ const connectedBy = (allowed: Set<string>, start: [number, number], target: [num
 for (const target of [[20, 25], [25, 14], [33, 9]] as const) {
   assert.ok(connectedBy(pathTiles, [5, 9], [...target]), `authored path connects the house yard to ${target.join(",")}`);
 }
-assert.ok(pathTiles.size < 150, "the previous full-width path rectangle is no longer present");
+assert.ok(pathTiles.size < 190, "the expanded farm still avoids a full-width path rectangle");
 
 const pixelOverlaps = (left: { x: number; y: number; width: number; height: number }, right: { x: number; y: number; width: number; height: number }) =>
   left.x < right.x + right.width && left.x + left.width > right.x && left.y < right.y + right.height && left.y + left.height > right.y;
