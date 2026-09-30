@@ -28,6 +28,9 @@ assert.ok(!sceneSource.includes("_currentlyOver: Phaser.GameObjects.GameObject[]
 assert.ok(sceneSource.includes("queueTouchNavigation"), "mobile tap can create navigation");
 assert.ok(sceneSource.includes("touchNavigationMovement"), "tap navigation feeds movement");
 assert.ok(sceneSource.includes("performContextualTouchAction"), "tap action resolves after approach");
+assert.ok(sceneSource.includes(">22"), "mobile taps tolerate normal finger jitter");
+assert.ok(sceneSource.includes("deferredTouchAction"), "Family contextual touch is queued instead of dropped while syncing");
+assert.ok(sceneSource.includes("deferredMobileAction"), "mobile action-button presses are queued during Family sync");
 for (const token of ["openMachineAt", "openRanchAt", "tappedNpc", "contextualTouchTool"]) {
   assert.ok(sceneSource.includes(token), `${token} participates in contextual touch action`);
 }
