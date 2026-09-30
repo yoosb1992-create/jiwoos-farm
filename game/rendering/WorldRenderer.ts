@@ -17,8 +17,18 @@ import { BUILDING_DEFINITIONS } from "../buildings/definitions";
 import type { BuildingInstance } from "../buildings/types";
 import type { AnimalInstance } from "../animals/types";
 import { ANIMAL_DEFINITIONS } from "../animals/definitions";
+import { FARM_TREE_RESOURCE, isFarmTreeObject } from "../farm/trees";
+import type { CropId } from "../data/crops";
 
 const farmKey = (tile: Pick<FarmTileData, "x" | "y">) => `${tile.x},${tile.y}`;
+
+const PLANTED_SEED_ACCENTS: Record<CropId, number> = {
+  sproutberry: 0xb9d35b,
+  sunpotato: 0xe6b443,
+  heartberry: 0xe75c65,
+  morningcarrot: 0xf08b32,
+};
+export const plantedSeedAccent = (cropId: CropId) => PLANTED_SEED_ACCENTS[cropId];
 
 export const collisionRectCenter = (position: { x: number; y: number }, collision: { x: number; y: number; width: number; height: number }) => ({
   x: position.x + collision.x + collision.width / 2,
@@ -39,7 +49,7 @@ export class WorldRenderer {
   private currentMapId?: MapId;
   constructor(private readonly scene: Phaser.Scene, private readonly maps: MapRegistry) {}
 
-  renderMap(mapId: MapId, farm: Iterable<FarmTileData>) {
+  renderMap(mapId: MapId, farm: Iterable<FarmTileData>, hiddenObjectIds: ReadonlySet<string> = new Set()) {
     this.destroy();
     const map = this.maps.require(mapId);
     this.currentMapId = mapId;
@@ -52,7 +62,7 @@ export class WorldRenderer {
     this.addTerrainComposition(map);
     if (mapId === "farm") this.addFarmDecorations();
     for (const region of map.collisionRegions) this.addCollisionRegion(region);
-    for (const object of map.objects) this.addObject(object);
+    for (const object of map.objects) if (!hiddenObjectIds.has(object.id)) this.addObject(object);
     if (map.boundary.enabled) this.createBoundary(map);
     this.root.add(this.scene.add.text(20, 18, map.name, { fontFamily: "sans-serif", fontSize: "20px", color: "#fff4d8", fontStyle: "bold", backgroundColor: "#4f633dcc", padding: { x: 10, y: 5 } }).setDepth(30));
     if (mapId === "farm") this.createFarmViews(farm);
@@ -176,6 +186,28 @@ export class WorldRenderer {
     for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { label.destroy(); this.forestHitLabels.delete(id); }
   }
 
+  renderFarmTreeHits(hits: Record<string, number>) {
+    if (!this.root || this.currentMapId !== "farm") return;
+    const map = this.maps.get("farm");
+    if (!map) return;
+    const active = new Set<string>();
+    for (const object of map.objects) {
+      const count = hits[object.id];
+      if (!isFarmTreeObject(object) || !Number.isInteger(count) || count <= 0 || count >= FARM_TREE_RESOURCE.hits) continue;
+      active.add(object.id);
+      const existing = this.forestHitLabels.get(object.id);
+      if (existing) existing.setText(`${count}/${FARM_TREE_RESOURCE.hits}`);
+      else {
+        const position = tilePoint(object.position.tileX, object.position.tileY);
+        const label = this.scene.add.text(position.x, position.y - 34, `${count}/${FARM_TREE_RESOURCE.hits}`, {
+          fontFamily: "sans-serif", fontSize: "12px", color: "#fff8d3", backgroundColor: "#493727dd", padding: { x: 3, y: 1 },
+        }).setOrigin(.5).setDepth(9);
+        this.root.add(label); this.forestHitLabels.set(object.id, label);
+      }
+    }
+    for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { label.destroy(); this.forestHitLabels.delete(id); }
+  }
+
   renderFarmTile(tile: FarmTileData) {
     let view = this.farmViews.get(farmKey(tile));
     if (!view && this.root && this.currentMapId === "farm") {
@@ -190,6 +222,14 @@ export class WorldRenderer {
     this.addFarmBorder(view, tile);
     if (tile.cropType && tile.cropStage !== null) {
       const stage = CROP_DEFINITIONS[tile.cropType].stages[tile.cropStage];
+      if (tile.cropStage === 0) {
+        const planted = this.scene.add.graphics();
+        planted.fillStyle(0x5f3e2d, .95).fillEllipse(0, 5, 21, 10)
+          .lineStyle(1, 0x3f2c23, .8).strokeEllipse(0, 5, 21, 10)
+          .fillStyle(plantedSeedAccent(tile.cropType), 1)
+          .fillCircle(-5, 2, 2).fillCircle(0, 5, 2).fillCircle(5, 2, 2);
+        view.add(planted);
+      }
       view.add(this.makeImage(0, 0, CROP_ASSETS[stage.assetId as CropAssetId]));
     }
   }

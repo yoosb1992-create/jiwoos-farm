@@ -67,6 +67,7 @@ import { facingFromMovement, mergeMovementInput, type MovementVector } from "./i
 import { advanceRelationshipEvent, availableRelationshipEvents, completeRelationshipEvent, startRelationshipEvent } from "./relationship-events/system";
 import type { RelationshipEventRunView } from "./relationship-events/types";
 import { initialWateringCan, normalizeWateringCan, refillWateringCan, waterCrop, type WateringCanState } from "./tools/wateringCan";
+import { emptyFarmTreeState, farmTreeIds, findFarmTree, normalizeFarmTreeState, strikeFarmTree, type FarmTreeState } from "./farm/trees";
 
 export const REAL_MS_PER_GAME_MINUTE = GAME_CONFIG.day.realMsPerGameMinute;
 type Command = { type: string; value?: unknown };
@@ -95,6 +96,7 @@ export class FarmScene extends Phaser.Scene {
   private obstacles!: Phaser.Physics.Arcade.StaticGroup;
   private obstacleCollider?: Phaser.Physics.Arcade.Collider;
   private farm = new Map<string, FarmTileData>();
+  private farmTreeState: FarmTreeState = emptyFarmTreeState();
   private assetManager!: AssetManager;
   private worldRenderer!: WorldRenderer;
   private forestEffects!: ForestGatheringEffects;
@@ -286,11 +288,13 @@ export class FarmScene extends Phaser.Scene {
     this.currentMapId = mapId;
     this.buildingMode = false; this.buildPreview?.setVisible(false);
     const map = this.mapRegistry.require(mapId), width = map.width * GAME_CONFIG.tileSize, height = map.height * GAME_CONFIG.tileSize;
-    this.obstacleCollider?.destroy(); this.obstacles = this.worldRenderer.renderMap(mapId, this.farm.values());
+    const hiddenObjects = mapId === "farm" ? new Set(this.farmTreeState.depleted) : undefined;
+    this.obstacleCollider?.destroy(); this.obstacles = this.worldRenderer.renderMap(mapId, this.farm.values(), hiddenObjects);
     this.worldRenderer.renderPlaceables(this.placeables.instances);
     this.worldRenderer.renderBuildings(this.buildings.instances);
     this.worldRenderer.renderAnimals(this.ranchState.animals, this.buildings.instances);
     if (mapId === FAIRY_FOREST_ID) this.worldRenderer.renderForestHits((this.family ? this.sharedForestState : this.forestState)?.hits ?? {});
+    if (mapId === "farm") this.worldRenderer.renderFarmTreeHits(this.farmTreeState.hits);
     const mineFloor = mineFloorFromMapId(mapId);
     if (mineFloor !== null) this.worldRenderer.renderMineHits(this.mineDaily.floors[mineFloor]?.hits ?? {});
     this.physics.world.setBounds(0, 0, width, height); this.cameras.main.setBounds(0, 0, width, height);
@@ -348,6 +352,9 @@ export class FarmScene extends Phaser.Scene {
     }
     if (mineFloorFromMapId(this.currentMapId) !== null) {
       return this.selectedTool === "pickaxe" && Boolean(findMineResource(this.mapRegistry.require(this.currentMapId), { x: worldX, y: worldY }, this.player));
+    }
+    if (this.currentMapId === "farm" && this.selectedTool === "axe") {
+      return Boolean(findFarmTree(this.mapRegistry.require("farm"), { x: worldX, y: worldY }, this.playerAnimations.playerInteractionAnchor(), this.farmTreeState));
     }
     if (this.currentMapId !== "farm" || !["hoe", "seed", "water", "hand"].includes(this.selectedTool)) return false;
     const x = Math.floor(worldX / GAME_CONFIG.tileSize), y = Math.floor(worldY / GAME_CONFIG.tileSize);
@@ -598,7 +605,8 @@ export class FarmScene extends Phaser.Scene {
     if (this.tryRefillWateringCan(worldX, worldY)) return;
     if (this.currentMapId === FAIRY_FOREST_ID) { this.useForestResource(worldX, worldY); return; }
     if (mineFloorFromMapId(this.currentMapId) !== null) { this.useMineResource(worldX, worldY); return; }
-    if (this.selectedTool === "axe" || this.selectedTool === "pickaxe") { this.say("도끼는 숲에서, 곡괭이는 숲이나 광산에서 사용해 주세요."); return; }
+    if (this.currentMapId === "farm" && this.selectedTool === "axe") { this.useFarmTree(worldX, worldY); return; }
+    if (this.selectedTool === "axe" || this.selectedTool === "pickaxe") { this.say("도끼는 농장 나무나 숲에서, 곡괭이는 숲이나 광산에서 사용해 주세요."); return; }
     if (this.currentMapId !== "farm") { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
     const x = Math.floor(worldX / GAME_CONFIG.tileSize), y = Math.floor(worldY / GAME_CONFIG.tileSize);
     if (!isFarmTile(this.mapRegistry.require("farm"), this.farmProgress, x, y) && !TILE_TYPE_DEFINITIONS[getTileTypeInMap(this.mapRegistry.require("farm"), x, y)].farmable) { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
@@ -616,6 +624,36 @@ export class FarmScene extends Phaser.Scene {
     const executed = this.toolActions.execute(this.selectedTool, this.facing, (tool) => { changed = this.applyTool(tool, tile); });
     if (!executed || !changed) return;
     this.worldRenderer.renderFarmTile(tile); this.save(false); this.emitHud();
+  }
+
+  private useFarmTree(worldX: number, worldY: number) {
+    const map = this.mapRegistry.require("farm");
+    const object = findFarmTree(map, { x: worldX, y: worldY }, this.playerAnimations.playerInteractionAnchor(), this.farmTreeState);
+    if (!object) { this.say("나무 가까이에서 나무를 바라보고 도끼를 사용해 주세요."); return; }
+    if (!this.family && !canPerformAction(this.stats, "axe")) { this.say("체력이 부족합니다. 잠을 자고 회복하세요."); return; }
+    this.toolActions.execute("axe", this.facing, (tool) => {
+      if (this.family) {
+        void this.family!.act({ kind: "farm-tree-hit", nodeId: object.id, tool: "axe", pose: this.familyPose() }).then((accepted) => {
+          if (!accepted || !this.sceneLive || this.currentMapId !== "farm") return;
+          const count = this.farmTreeState.hits[object.id] ?? 0;
+          this.say(this.farmTreeState.depleted.includes(object.id)
+            ? "나무를 베어 목재 3개를 얻었어요."
+            : `나무 ${count}/3회`);
+        });
+        return;
+      }
+      const result = strikeFarmTree(this.farmTreeState, object, tool, this.toolProgression);
+      if (result.state === this.farmTreeState) { this.say(result.message); return; }
+      this.farmTreeState = result.state;
+      recordSuccessfulAction(this.stats, "axe");
+      if (result.drop) this.inventory.add(result.drop, result.quantity);
+      if (result.remaining === 0) {
+        const position = { x: this.player.x, y: this.player.y, facing: this.facing };
+        this.loadMap("farm", undefined, position);
+      } else this.worldRenderer.renderFarmTreeHits(this.farmTreeState.hits);
+      this.say(result.message);
+      this.save(false);
+    });
   }
 
   private tryRefillWateringCan(worldX: number, worldY: number): boolean {
@@ -1017,6 +1055,12 @@ export class FarmScene extends Phaser.Scene {
       this.syncMine(true);
       if (position) this.loadMap(this.currentMapId, undefined, position);
     } else if (floor !== null) this.worldRenderer.renderMineHits(this.mineDaily.floors[floor]?.hits ?? {});
+    const nextFarmTreeState = normalizeFarmTreeState(snapshot.world.farmTreeState, farmTreeIds(this.mapRegistry.require("farm")));
+    const farmTreeDepletedChanged = JSON.stringify(this.farmTreeState.depleted) !== JSON.stringify(nextFarmTreeState.depleted);
+    this.farmTreeState = nextFarmTreeState;
+    if (this.currentMapId === "farm" && farmTreeDepletedChanged) {
+      this.loadMap("farm", undefined, { x: this.player.x, y: this.player.y, facing: this.facing });
+    } else if (this.currentMapId === "farm") this.worldRenderer.renderFarmTreeHits(this.farmTreeState.hits);
     this.day = calendarDate(this.daySerial).day; this.timeMinutes = snapshot.world.timeMinutes; this.money = snapshot.world.money;
     this.inventory = new Inventory(snapshot.inventory);
     this.toolProgression = normalizeToolProgression(snapshot.toolProgression);
@@ -1047,7 +1091,7 @@ export class FarmScene extends Phaser.Scene {
     }
     this.emitHud();
   }
-  private snapshot(): SaveData { return { version: 4, wateringCan:this.wateringCan, ranchState:this.ranchState, mineProgress:this.mineProgress, mineDaily:this.mineDaily, buildings:normalizeBuildings(this.buildings, this.daySerial), farmProgress:this.farmProgress, placeables:normalizePlaceables(this.placeables, worldMinute(this.daySerial, this.timeMinutes)), storage:this.storage, stats:this.stats, fishingProgress:this.fishingProgress, playerProgress:this.playerProgress, toolProgression:this.toolProgression, forestState:this.forestState, daySerial:this.daySerial, day: this.day, timeMinutes: this.timeMinutes, money: this.money, selectedTool: this.selectedTool,
+  private snapshot(): SaveData { return { version: 4, wateringCan:this.wateringCan, ranchState:this.ranchState, mineProgress:this.mineProgress, mineDaily:this.mineDaily, buildings:normalizeBuildings(this.buildings, this.daySerial), farmProgress:this.farmProgress, placeables:normalizePlaceables(this.placeables, worldMinute(this.daySerial, this.timeMinutes)), storage:this.storage, stats:this.stats, fishingProgress:this.fishingProgress, playerProgress:this.playerProgress, toolProgression:this.toolProgression, forestState:this.forestState, farmTreeState:this.farmTreeState, daySerial:this.daySerial, day: this.day, timeMinutes: this.timeMinutes, money: this.money, selectedTool: this.selectedTool,
     player: { x: this.player.x, y: this.player.y, facing: this.facing, mapId: this.currentMapId }, inventory: this.inventory.serialize(), farm: [...this.farm.values()].map((tile) => ({ ...tile })), savedAt: Date.now() }; }
   private save(notify: boolean) { if (!this.player || this.testMode) return; if (this.family) { this.family.savePersonal(this.familyPose(), this.daySerial); return; } this.repository.save(this.snapshot()); if (notify) this.say("이 브라우저에 현재 장소와 농장 상태를 저장했어요."); }
   private syncForest(force = false) {
@@ -1063,6 +1107,7 @@ export class FarmScene extends Phaser.Scene {
   private applySavedState(data: SaveData) {
     this.playerProgress=normalizeProgress(data.playerProgress);this.daySerial=data.daySerial??data.day;
     this.forestState=normalizeForestState(data.forestState,this.daySerial);
+    this.farmTreeState=normalizeFarmTreeState(data.farmTreeState,farmTreeIds(this.mapRegistry.require("farm")));
     this.forestDayInstalled=0;
     this.mineProgress=normalizeMineProgress(data.mineProgress); this.mineDaily=normalizeMineDaily(data.mineDaily,this.daySerial,this.forestScope); this.mineDayInstalled=0;
     this.day = calendarDate(this.daySerial).day; this.timeMinutes = data.timeMinutes; this.money = data.money; this.toolProgression = normalizeToolProgression(data.toolProgression); this.stats = normalizePlayerStats(data.stats); this.wateringCan = normalizeWateringCan(data.wateringCan); this.fishingProgress = normalizeFishingProgress(data.fishingProgress); this.fishingCast = null; this.storage = normalizeStorage(data.storage); this.placeables = normalizePlaceables(data.placeables, worldMinute(this.daySerial, this.timeMinutes)); this.buildings = normalizeBuildings(data.buildings, this.daySerial); this.ranchState = normalizeRanchState(data.ranchState, this.buildings); this.farmProgress = normalizeFarmProgress(data.farmProgress); this.selectedTool = data.selectedTool === "pickaxe" && !this.toolProgression.pickaxe ? "hand" : data.selectedTool;

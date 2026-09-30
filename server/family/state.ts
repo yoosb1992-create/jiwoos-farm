@@ -31,6 +31,7 @@ import { generateMineFloor, MINE_PLAYABLE_FLOORS, mineMapId } from "../../game/m
 import { emptyMineDaily, initialMineProgress, mineResourceKind, normalizeMineDaily, normalizeMineProgress, strikeMineNode } from "../../game/mine/resources";
 import { advanceRanchDay, buyAnimal, collectAnimalProduce, feedCoop, initialRanchState, normalizeRanchState, petAnimal } from "../../game/animals/system";
 import { normalizeWateringCan, refillWateringCan, waterCrop, type WateringCanState } from "../../game/tools/wateringCan";
+import { emptyFarmTreeState, farmTreeIds, farmTreeInFacingReach, isFarmTreeObject, normalizeFarmTreeState, strikeFarmTree } from "../../game/farm/trees";
 
 interface StoredWorld extends FamilyWorld { clockAnchor: number; sleepVotes?: string[]; sleepSessions?: Record<string, string> }
 interface StateRow { revision: number; world_json: string; inventories_json: string }
@@ -38,6 +39,7 @@ type FamilyInventory = InventoryData & { wateringCan?: WateringCanState; toolPro
 export const initialFamilyWorld = (now: number): StoredWorld => ({
   day: 1, daySerial: 1, timeMinutes: GAME_CONFIG.day.startMinutes, clockAnchor: now, money: GAME_CONFIG.startingMoney,
   forestState: emptyForestState(1),
+  farmTreeState: emptyFarmTreeState(),
   mineProgress: initialMineProgress(), mineDaily: emptyMineDaily(1),
   storage: initialStorage(),
   placeables: initialPlaceables(),
@@ -51,7 +53,7 @@ function currentWorld(stored: StoredWorld, now: number, roomId: string): FamilyW
   waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
   const timeMinutes = Math.min(GAME_CONFIG.day.endMinutes, stored.timeMinutes + Math.floor(Math.max(0, now - stored.clockAnchor) / GAME_CONFIG.day.realMsPerGameMinute));
   const buildings = normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day);
-  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), mineProgress: normalizeMineProgress(stored.mineProgress), mineDaily: normalizeMineDaily(stored.mineDaily, stored.daySerial ?? stored.day, roomId), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), buildings, ranchState: normalizeRanchState(stored.ranchState, buildings), farmProgress: normalizeFarmProgress(stored.farmProgress), money: stored.money, farm: stored.farm,
+  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), farmTreeState: normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(MAP_DEFINITIONS.farm)), mineProgress: normalizeMineProgress(stored.mineProgress), mineDaily: normalizeMineDaily(stored.mineDaily, stored.daySerial ?? stored.day, roomId), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), buildings, ranchState: normalizeRanchState(stored.ranchState, buildings), farmProgress: normalizeFarmProgress(stored.farmProgress), money: stored.money, farm: stored.farm,
     timeMinutes };
 }
 export class FamilyState extends FamilyRooms {
@@ -178,6 +180,20 @@ export class FamilyState extends FamilyRooms {
           observedX < 0 || observedY < 0 || observedX >= map.width || observedY >= map.height || getTileTypeInMap(map, observedX, observedY) !== "water")
         throw new FamilyError(400, "현재 위치를 동기화한 뒤 물가에서 채워 주세요.");
       if (!refillWateringCan(wateringCan)) throw new FamilyError(409, "물뿌리개가 이미 가득 찼어요.");
+    } else if (action.kind === "farm-tree-hit") {
+      if (pose.mapId !== "farm" || action.tool !== "axe" || pose.selectedTool !== "axe") throw new FamilyError(400, "농장에서 도끼를 선택해 주세요.");
+      if (typeof action.nodeId !== "string" || action.nodeId.length > 64) throw new FamilyError(400, "올바른 농장 나무가 아닙니다.");
+      const node = MAP_DEFINITIONS.farm.objects.find((object) => object.id === action.nodeId && isFarmTreeObject(object));
+      if (!node) throw new FamilyError(400, "농장에 없는 나무입니다.");
+      if (!farmTreeInFacingReach(MAP_DEFINITIONS.farm, node, pose)) throw new FamilyError(400, "나무 가까이에서 나무를 바라보고 도끼를 사용해 주세요.");
+      const farmTreeState = normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(MAP_DEFINITIONS.farm));
+      if (farmTreeState.depleted.includes(node.id)) throw await conflict();
+      if (!canPerformAction(stats, "axe")) throw new FamilyError(409, "체력이 부족합니다. 잠을 자고 회복하세요.");
+      const result = strikeFarmTree(farmTreeState, node, action.tool, toolProgression);
+      if (result.state === farmTreeState) throw new FamilyError(409, result.message);
+      stored.farmTreeState = result.state;
+      if (result.drop) inventory.add(result.drop, result.quantity);
+      recordSuccessfulAction(stats, "axe");
     } else if (action.kind === "forest-gather") {
       const daySerial = stored.daySerial ?? stored.day;
       if (pose.mapId !== "fairy_forest" || !Number.isSafeInteger(action.daySerial) || action.daySerial !== daySerial) throw new FamilyError(400, "현재 날짜의 요정의 숲에서 채집해 주세요.");
@@ -365,7 +381,7 @@ export class FamilyState extends FamilyRooms {
     const result = await this.db.prepare(`UPDATE family_state SET world_json = ?, inventories_json = ?, revision = revision + 1, updated_at = ? WHERE room_id = ? AND revision = ?`)
       .bind(JSON.stringify(stored), JSON.stringify(inventories), this.now(), roomId, expectedRevision).run();
     if (result.meta.changes !== 1) throw await conflict();
-    if (action.kind === "tool" || action.kind === "forest-gather" || action.kind === "mine-hit") {
+    if (action.kind === "tool" || action.kind === "farm-tree-hit" || action.kind === "forest-gather" || action.kind === "mine-hit") {
       const visual = { id: crypto.randomUUID(), tool: action.tool, facing: pose.facing, expiresAt: this.now() + 2500 };
       // Visual delivery must never turn a committed farm action into a failed command.
       try { await this.db.prepare("UPDATE family_presence SET pose_json = json_set(pose_json, '$.action', json(?)) WHERE room_id = ? AND user_id = ?")

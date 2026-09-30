@@ -24,6 +24,7 @@ import "./graphics-composition";
 import "./initial-farm-composition";
 import "./farm-vertical-slice";
 import "./inplay-polish";
+import "./inplay-farm-fixes";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale, playerAnimationFrames, playerAnimationName } from "../assets/definitions";
@@ -97,7 +98,7 @@ const save: SaveData = {
 };
 const repository = new LocalStorageSaveRepository();
 repository.save(save);
-assert.deepEqual(repository.load(), {...save, wateringCan:initialWateringCan(), ranchState:initialRanchState(), fishingProgress:initialFishingProgress(), mineProgress:initialMineProgress(), mineDaily:emptyMineDaily(save.day), buildings:initialBuildings(), farmProgress:initialFarmProgress(), placeables:initialPlaceables(), storage:initialStorage(), stats:initialPlayerStats(), daySerial:save.day, playerProgress:normalizeProgress(null)}, "날짜·시간·농장·인벤토리·돈·위치를 동일하게 복원해야 함");
+assert.deepEqual(repository.load(), {...save, wateringCan:initialWateringCan(), ranchState:initialRanchState(), fishingProgress:initialFishingProgress(), mineProgress:initialMineProgress(), mineDaily:emptyMineDaily(save.day), buildings:initialBuildings(), farmProgress:initialFarmProgress(), placeables:initialPlaceables(), storage:initialStorage(), stats:initialPlayerStats(), farmTreeState:{ hits:{}, depleted:[] }, daySerial:save.day, playerProgress:normalizeProgress(null)}, "날짜·시간·농장·인벤토리·돈·위치를 동일하게 복원해야 함");
 
 storage.clear();
 storage.set("jiwoos-farm.save.v2", JSON.stringify({

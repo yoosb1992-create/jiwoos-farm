@@ -28,6 +28,7 @@ import type { FishingProgress } from "./fishing/types";
 import { normalizeRanchState } from "./animals/system";
 import type { RanchState } from "./animals/types";
 import { normalizeWateringCan, type WateringCanState } from "./tools/wateringCan";
+import { farmTreeIds, normalizeFarmTreeState, type FarmTreeState } from "./farm/trees";
 
 export interface FarmTileData {
   x: number;
@@ -53,6 +54,7 @@ export interface SaveData {
   stats?: PlayerStats;
   toolProgression?: ToolProgression;
   forestState?: ForestState;
+  farmTreeState?: FarmTreeState;
   playerProgress?: PlayerProgress;
   daySerial?: number;
   version: 4;
@@ -185,6 +187,7 @@ const normalizeV4 = (value: unknown): SaveData | null => {
     playerProgress: normalizeProgress(value.playerProgress),
     daySerial,
     ...(Object.hasOwn(value, "forestState") ? { forestState: normalizeForestState(value.forestState, daySerial) } : {}),
+    farmTreeState: normalizeFarmTreeState(value.farmTreeState, farmTreeIds(MAP_DEFINITIONS.farm)),
     day: calendarDate(daySerial).day,
     timeMinutes,
     money: nonNegativeInteger(value.money, GAME_CONFIG.startingMoney),
