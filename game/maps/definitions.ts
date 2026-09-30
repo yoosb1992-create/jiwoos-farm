@@ -1,5 +1,5 @@
 import { GAME_CONFIG } from "../config";
-import type { MapDefinition, MapId, TileRect, TileTypeId } from "./types";
+import type { MapDefinition, MapId, MapObjectDefinition, TileRect, TileTypeId } from "./types";
 
 export const TILE_TYPE_DEFINITIONS: Record<TileTypeId, { walkable: boolean; farmable: boolean; graphicAssetId: "tile_grass" | "tile_path" | "tile_water" | "tile_farm_empty" | "tile_wood_floor" | "tile_stone_floor" | "tile_mine_floor" | "tile_mine_wall" }> = {
   grass: { walkable: true, farmable: false, graphicAssetId: "tile_grass" },
@@ -13,20 +13,44 @@ export const TILE_TYPE_DEFINITIONS: Record<TileTypeId, { walkable: boolean; farm
 };
 
 const area = (startX: number, endX: number, startY: number, endY: number): TileRect => ({ startX, endX, startY, endY });
+const farmTree = (id: string, tileX: number, tileY: number): MapObjectDefinition => ({
+  id,
+  assetId: "tree",
+  position: { tileX, tileY },
+  collision: { x: -11, y: -9, width: 22, height: 18 },
+  depth: 3,
+});
 
 export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
   farm: {
     id: "farm", name: "지우네 농장", width: 42, height: 26, baseTileType: "grass",
     terrainRegions: [
-      { ...area(3, 37, 10, 12), tileType: "path", depth: 1 },
+      // Authored route: front yard -> field lane -> pond bank / south exit.
+      { ...area(3, 8, 9, 11), tileType: "path", depth: 1 },
+      { ...area(7, 8, 12, 16), tileType: "path", depth: 1 },
+      { ...area(7, 22, 15, 16), tileType: "path", depth: 1 },
+      { ...area(19, 22, 13, 25), tileType: "path", depth: 1 },
+      { ...area(22, 28, 13, 14), tileType: "path", depth: 1 },
+      { ...area(28, 31, 11, 13), tileType: "path", depth: 1 },
+      { ...area(31, 35, 9, 11), tileType: "path", depth: 1 },
       { ...area(24, 30, 15, 20), tileType: "water", depth: 1 },
-      { ...area(19, 22, 13, 22), tileType: "path", depth: 1 },
-      { ...area(19, 22, 23, 25), tileType: "path", depth: 1 },
     ],
     farmAreas: [area(9, 18, 8, 14)], collisionRegions: [area(24, 30, 15, 20)],
     objects: [
       { id: "house", assetId: "house", position: { tileX: 5, tileY: 5 }, collision: { x: -96, y: -80, width: 192, height: 135 }, label: "집", depth: 4 },
       { id: "sell_basket", assetId: "sell_basket", position: { tileX: 33, tileY: 7.5 }, collision: { x: -45, y: -38, width: 90, height: 76 }, interaction: { action: "sell", area: area(31, 35, 6, 9) }, label: "판매 바구니", depth: 3 },
+      farmTree("farm_tree_house_west", 1.6, 5.2),
+      farmTree("farm_tree_house_east", 10.4, 4.2),
+      farmTree("farm_tree_north_1", 16.2, 2.8),
+      farmTree("farm_tree_north_2", 22.4, 3.3),
+      farmTree("farm_tree_north_3", 28.8, 2.7),
+      farmTree("farm_tree_north_east", 39.3, 4.5),
+      farmTree("farm_tree_west_mid", 1.8, 15.8),
+      farmTree("farm_tree_west_south", 2.5, 22.8),
+      farmTree("farm_tree_east_mid", 39.5, 12.7),
+      farmTree("farm_tree_east_pond", 39.2, 19.3),
+      farmTree("farm_tree_south_east", 37.2, 23.5),
+      farmTree("farm_tree_south_pond", 30.8, 24.2),
     ],
     spawns: [
       { id: "house_front", tileX: 7, tileY: 8, facing: "down" },

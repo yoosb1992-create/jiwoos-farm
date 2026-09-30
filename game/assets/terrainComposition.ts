@@ -70,19 +70,58 @@ export interface TerrainDecorationPlacement {
   flipX?: boolean;
 }
 
-/** Sparse, authored placements keep important paths, farmable tiles, warps and
- * interactions clear. This is visual composition data, not a random system. */
+/** Authored placements compose a lived-in starting farm while keeping paths,
+ * farmable tiles, warps and interaction anchors clear. They are deterministic
+ * visual data only and never participate in gameplay or save serialization. */
 export const FARM_TERRAIN_DECORATIONS: readonly TerrainDecorationPlacement[] = [
-  { assetId: "decor_white_flowers", tileX: 2.6, tileY: 15.1 },
-  { assetId: "decor_color_flowers", tileX: 37.2, tileY: 14.4 },
-  { assetId: "decor_short_grass", tileX: 2.8, tileY: 6.7, alpha: 0.9 },
-  { assetId: "decor_short_grass", tileX: 36.2, tileY: 20.9, alpha: 0.84, flipX: true },
-  { assetId: "decor_long_grass", tileX: 23.2, tileY: 17.1 },
-  { assetId: "decor_long_grass", tileX: 31.1, tileY: 18.7, flipX: true },
-  { assetId: "decor_small_rock", tileX: 22.5, tileY: 20.8 },
-  { assetId: "decor_twig", tileX: 35.1, tileY: 22.1, alpha: 0.88 },
-  { assetId: "decor_reeds", tileX: 23.7, tileY: 16.4 },
-  { assetId: "decor_reeds", tileX: 30.6, tileY: 19.4, flipX: true },
-  { assetId: "decor_lily_pads", tileX: 27.3, tileY: 17.4, depth: 2.2 },
-  { assetId: "decor_pond_rocks", tileX: 30.8, tileY: 15.4 },
+  // House yard: decorate the lawn edges, never the door or front-yard route.
+  { assetId: "decor_white_flowers", tileX: 2.1, tileY: 8.3 },
+  { assetId: "decor_color_flowers", tileX: 8.5, tileY: 6.7, flipX: true },
+  { assetId: "decor_short_grass", tileX: 1.8, tileY: 11.8, alpha: 0.86 },
+  { assetId: "decor_long_grass", tileX: 10.8, tileY: 6.3 },
+  { assetId: "decor_small_rock", tileX: 9.3, tileY: 4.9 },
+  { assetId: "decor_twig", tileX: 2.5, tileY: 12.9, alpha: 0.88 },
+
+  // Field border: the 9..18,8..14 farmable rectangle itself stays unobscured.
+  { assetId: "decor_white_flowers", tileX: 8.1, tileY: 8.1 },
+  { assetId: "decor_color_flowers", tileX: 19.1, tileY: 7.3 },
+  { assetId: "decor_short_grass", tileX: 7.8, tileY: 13.8, alpha: 0.9 },
+  { assetId: "decor_long_grass", tileX: 19.2, tileY: 9.0, flipX: true },
+  { assetId: "decor_small_rock", tileX: 13.4, tileY: 7.0 },
+  { assetId: "decor_twig", tileX: 17.4, tileY: 17.0, alpha: 0.82 },
+
+  // Pond: shore plants and stones frame the collision rectangle; lily pads sit on water.
+  { assetId: "decor_reeds", tileX: 23.5, tileY: 15.5 },
+  { assetId: "decor_reeds", tileX: 23.7, tileY: 20.5, flipX: true },
+  { assetId: "decor_reeds", tileX: 30.7, tileY: 17.0, flipX: true },
+  { assetId: "decor_reeds", tileX: 29.7, tileY: 20.6 },
+  { assetId: "decor_lily_pads", tileX: 26.2, tileY: 17.1, depth: 2.2 },
+  { assetId: "decor_lily_pads", tileX: 28.6, tileY: 18.6, depth: 2.2, flipX: true },
+  { assetId: "decor_pond_rocks", tileX: 23.6, tileY: 20.4 },
+  { assetId: "decor_pond_rocks", tileX: 30.6, tileY: 15.5, flipX: true },
+  { assetId: "decor_pond_rocks", tileX: 30.7, tileY: 20.4 },
+  { assetId: "decor_long_grass", tileX: 32.0, tileY: 16.2 },
+  { assetId: "decor_short_grass", tileX: 32.1, tileY: 20.1, alpha: 0.88 },
+
+  // South exit: decorations point toward the road but leave the 19..22 warp open.
+  { assetId: "decor_white_flowers", tileX: 17.7, tileY: 23.0 },
+  { assetId: "decor_color_flowers", tileX: 23.5, tileY: 22.8 },
+  { assetId: "decor_short_grass", tileX: 17.5, tileY: 24.7, alpha: 0.86 },
+  { assetId: "decor_long_grass", tileX: 23.7, tileY: 24.6, flipX: true },
+  { assetId: "decor_small_rock", tileX: 17.8, tileY: 20.8 },
+  { assetId: "decor_twig", tileX: 23.8, tileY: 21.7, alpha: 0.84 },
+
+  // Outer boundary clusters imply a finite homestead without filling future clearings.
+  { assetId: "decor_white_flowers", tileX: 4.6, tileY: 2.1 },
+  { assetId: "decor_color_flowers", tileX: 34.2, tileY: 3.0 },
+  { assetId: "decor_short_grass", tileX: 12.5, tileY: 2.0, alpha: 0.82 },
+  { assetId: "decor_long_grass", tileX: 33.8, tileY: 23.8, flipX: true },
+  { assetId: "decor_small_rock", tileX: 5.4, tileY: 23.7 },
+  { assetId: "decor_twig", tileX: 35.0, tileY: 15.0, alpha: 0.82 },
+  { assetId: "decor_white_flowers", tileX: 3.7, tileY: 18.2 },
+  { assetId: "decor_color_flowers", tileX: 37.0, tileY: 8.8 },
+  { assetId: "decor_short_grass", tileX: 6.2, tileY: 20.8, alpha: 0.84 },
+  { assetId: "decor_long_grass", tileX: 36.5, tileY: 21.0 },
+  { assetId: "decor_small_rock", tileX: 35.8, tileY: 6.5 },
+  { assetId: "decor_twig", tileX: 14.8, tileY: 22.8, alpha: 0.8 },
 ] as const;
