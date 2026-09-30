@@ -124,4 +124,20 @@ export const FARM_TERRAIN_DECORATIONS: readonly TerrainDecorationPlacement[] = [
   { assetId: "decor_long_grass", tileX: 36.5, tileY: 21.0 },
   { assetId: "decor_small_rock", tileX: 35.8, tileY: 6.5 },
   { assetId: "decor_twig", tileX: 14.8, tileY: 22.8, alpha: 0.8 },
+
+  // Expanded east meadow: sparse clusters break up the wide lawn while the
+  // centre line remains open for movement, buildings and later content.
+  { assetId: "decor_white_flowers", tileX: 40.2, tileY: 2.3 },
+  { assetId: "decor_color_flowers", tileX: 43.2, tileY: 3.4, flipX: true },
+  { assetId: "decor_short_grass", tileX: 46.0, tileY: 2.8, alpha: 0.84 },
+  { assetId: "decor_small_rock", tileX: 49.4, tileY: 5.1 },
+  { assetId: "decor_long_grass", tileX: 40.4, tileY: 7.4, flipX: true },
+  { assetId: "decor_color_flowers", tileX: 47.2, tileY: 7.8 },
+  { assetId: "decor_short_grass", tileX: 48.6, tileY: 11.9, alpha: 0.86 },
+  { assetId: "decor_twig", tileX: 41.3, tileY: 15.2, alpha: 0.82 },
+  { assetId: "decor_long_grass", tileX: 44.0, tileY: 17.4 },
+  { assetId: "decor_color_flowers", tileX: 49.0, tileY: 16.4, flipX: true },
+  { assetId: "decor_white_flowers", tileX: 50.0, tileY: 20.2 },
+  { assetId: "decor_small_rock", tileX: 44.8, tileY: 22.4 },
+  { assetId: "decor_short_grass", tileX: 48.6, tileY: 23.5, alpha: 0.84 },
 ] as const;
