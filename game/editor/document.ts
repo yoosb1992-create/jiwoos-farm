@@ -1,6 +1,7 @@
 import { MAP_DEFINITIONS } from "../maps/definitions";
 import type { MapDefinition } from "../maps/types";
 import { cloneMapDefinitions } from "../maps/MapRegistry";
+import { ensureRuntimeEntranceAnchors } from "../maps/runtimeEntrances";
 import { EDITOR_DOCUMENT_VERSION, type MapEditorDocument } from "./types";
 import { validateEditorDocument } from "./validation";
 
@@ -11,7 +12,7 @@ export const createBuiltInEditorDocument = (): MapEditorDocument => ({
 });
 
 export const documentToRegistry = (document: MapEditorDocument) =>
-  Object.fromEntries(document.maps.map((map) => [map.id, structuredClone(map)])) as Record<string, MapDefinition>;
+  ensureRuntimeEntranceAnchors(Object.fromEntries(document.maps.map((map) => [map.id, structuredClone(map)])) as Record<string, MapDefinition>);
 
 export const cloneEditorDocument = (document: MapEditorDocument) => structuredClone(document) as MapEditorDocument;
 
@@ -22,7 +23,11 @@ export const touchEditorDocument = (document: MapEditorDocument, now = Date.now(
 
 export const parseEditorDocument = (value: unknown) => {
   const issues = validateEditorDocument(value);
-  return issues.length ? { document: null, issues } : { document: cloneEditorDocument(value as MapEditorDocument), issues };
+  if (issues.length) return { document: null, issues };
+  const document = cloneEditorDocument(value as MapEditorDocument);
+  const maps = ensureRuntimeEntranceAnchors(Object.fromEntries(document.maps.map((map) => [map.id, map])) as Record<string, MapDefinition>);
+  document.maps = Object.values(maps);
+  return { document, issues };
 };
 
 export class LocalMapEditorRepository {
