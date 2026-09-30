@@ -9,6 +9,7 @@ import type { EditorLayer, EditorTool, Selection, SnapMode } from "@/game/editor
 import { clampEditorZoom, createPinchStart, updatePinchViewport, type PinchStart } from "@/game/editor/viewport";
 import { beginObjectDrag, moveMapObject, objectDragPosition, type ObjectDragGrab } from "@/game/editor/objectDrag";
 import { applySceneryStamp, type SceneryStampId } from "@/game/editor/sceneryStamps";
+import { appendTerrainPaintCell, editorGridStep } from "@/game/editor/terrainPaint";
 
 const tileColors: Record<TileTypeId, string> = {
   grass: "#83b85e", path: "#c9aa71", water: "#66a8ca", farm: "#9b7049", wood_floor: "#b77b4c", stone_floor: "#c8bd9f", mine_floor: "#56565d", mine_wall: "#303138",
@@ -46,6 +47,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
   const [dragPreview, setDragPreview] = useState<{ id: string; tileX: number; tileY: number } | null>(null);
   const pan = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number } | null>(null);
   const painting = useRef(false);
+  const lastPaintedTile = useRef<string | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<PinchStart | null>(null);
   const suppressEdit = useRef(false);
@@ -57,13 +59,10 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     return { x: Math.max(0, Math.min(map.width - 0.001, (event.clientX - box.left) / box.width * map.width)), y: Math.max(0, Math.min(map.height - 0.001, (event.clientY - box.top) / box.height * map.height)) };
   };
   const paint = (p: { x: number; y: number }) => {
-    const x = Math.floor(p.x), y = Math.floor(p.y);
-    onContinuous((target) => {
-      const previous = target.terrainRegions.at(-1);
-      if (previous?.startX === x && previous.startY === y && previous.endX === x && previous.endY === y && previous.tileType === terrain) return;
-      target.terrainRegions = target.terrainRegions.filter((entry) => !(entry.startX === x && entry.endX === x && entry.startY === y && entry.endY === y));
-      target.terrainRegions.push({ startX: x, endX: x, startY: y, endY: y, tileType: terrain });
-    });
+    const x = Math.floor(p.x), y = Math.floor(p.y), key = `${terrain}:${x},${y}`;
+    if (lastPaintedTile.current === key) return;
+    lastPaintedTile.current = key;
+    onContinuous((target) => { appendTerrainPaintCell(target.terrainRegions, terrain, x, y); });
   };
   const placeObject = (p: { x: number; y: number }) => onCommit((target) => {
     const base = objectAssetId.replace(/[^a-z0-9_]/gi, "_");
@@ -93,7 +92,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     if (suppressEdit.current) return;
     if ((event.target as Element).closest("[data-editor-item]")) return;
     const p = point(event);
-    if (tool === "terrain") { painting.current = true; onBeginContinuous(); if (event.pointerType === "touch") pendingTap.current = { kind: "terrain", point: p }; else paint(p); return; }
+    if (tool === "terrain") { painting.current = true; lastPaintedTile.current = null; onBeginContinuous(); if (event.pointerType === "touch") pendingTap.current = { kind: "terrain", point: p }; else paint(p); return; }
     if (tool === "object") {
       if (event.pointerType === "touch") pendingTap.current = { kind: "object", point: p }; else placeObject(p);
       return;
@@ -145,7 +144,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     if (suppressEdit.current) {
       pinch.current = null;
       if (pointers.current.size === 0) suppressEdit.current = false;
-      painting.current = false; dragObject.current = null; setDragPreview(null); pan.current = null; pendingTap.current = null; setDraft(null); return;
+      painting.current = false; lastPaintedTile.current = null; dragObject.current = null; setDragPreview(null); pan.current = null; pendingTap.current = null; setDraft(null); return;
     }
     if (pendingTap.current) {
       const pending = pendingTap.current; pendingTap.current = null;
@@ -154,7 +153,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
       if (pending.kind === "stamp") placeStamp(pending.point);
       if (pending.kind === "spawn") placeSpawn(pending.point);
     }
-    painting.current = false;
+    painting.current = false; lastPaintedTile.current = null;
     pan.current = null;
     const completedDrag = dragObject.current;
     dragObject.current = null;
@@ -208,6 +207,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     svgRef.current?.setPointerCapture(event.pointerId);
   };
   const draftRect = draft ? normalizeRect(draft.start, draft.end) : null;
+  const gridStep = editorGridStep(map.width, map.height);
 
   const resetViewport = () => setViewport({ zoom: 1, panX: 0, panY: 0 });
   return <div className="editor-stage-scroll" onWheel={(event) => { if (!event.ctrlKey && Math.abs(event.deltaY) < 1) return; event.preventDefault(); setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom * (event.deltaY > 0 ? .9 : 1.1)) })); }}>
@@ -245,6 +245,6 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     {layers.warp && map.warps.map((warp) => <g data-editor-item key={warp.id} onPointerDown={(event) => { event.stopPropagation(); onSelect({ kind: "warp", id: warp.id }); }}><rect x={warp.area.startX} y={warp.area.startY} width={warp.area.endX - warp.area.startX + 1} height={warp.area.endY - warp.area.startY + 1} fill="#994cff55" stroke="#c78aff" strokeWidth=".11" /><text x={(warp.area.startX + warp.area.endX + 1) / 2} y={(warp.area.startY + warp.area.endY + 1) / 2} textAnchor="middle" fontSize=".4" fill="#fff">⇢ {warp.id}</text></g>)}
     {layers.spawn && map.spawns.map((spawn) => <g data-editor-item key={spawn.id} transform={`translate(${spawn.tileX} ${spawn.tileY})`} onPointerDown={(event) => { event.stopPropagation(); onSelect({ kind: "spawn", id: spawn.id }); }}><circle r=".34" fill="#32d6d0" stroke="#eaffff" strokeWidth=".08" /><text y="-.48" textAnchor="middle" fontSize=".36" fill="#fff">{spawn.id}</text><text y=".13" textAnchor="middle" fontSize=".35">{spawn.facing === "up" ? "↑" : spawn.facing === "down" ? "↓" : spawn.facing === "left" ? "←" : "→"}</text></g>)}
     {draftRect && <rect x={draftRect.startX} y={draftRect.startY} width={draftRect.endX - draftRect.startX + 1} height={draftRect.endY - draftRect.startY + 1} fill="#fff4" stroke="#fff" strokeWidth=".12" pointerEvents="none" />}
-    {layers.grid && <g className="editor-grid" pointerEvents="none">{Array.from({ length: map.width + 1 }, (_, x) => <line key={`x${x}`} x1={x} y1={0} x2={x} y2={map.height} />)}{Array.from({ length: map.height + 1 }, (_, y) => <line key={`y${y}`} x1={0} y1={y} x2={map.width} y2={y} />)}</g>}
-  </svg></div><div className="editor-viewport-controls"><button onClick={() => setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom + .25) }))}>＋</button><b>{Math.round(viewport.zoom * 100)}%</b><button onClick={() => setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom - .25) }))}>－</button><button onClick={resetViewport}>초기화</button></div><span className="editor-scale-note">한 손가락 편집 · 두 손가락 이동/확대 · 격자 {GAME_CONFIG.tileSize}px</span></div>;
+    {layers.grid && <g className="editor-grid" pointerEvents="none">{Array.from({ length: Math.floor(map.width / gridStep) + 1 }, (_, index) => { const x = index * gridStep; return <line key={`x${x}`} x1={x} y1={0} x2={x} y2={map.height} />; })}{Array.from({ length: Math.floor(map.height / gridStep) + 1 }, (_, index) => { const y = index * gridStep; return <line key={`y${y}`} x1={0} y1={y} x2={map.width} y2={y} />; })}</g>}
+  </svg></div><div className="editor-viewport-controls"><button onClick={() => setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom + .25) }))}>＋</button><b>{Math.round(viewport.zoom * 100)}%</b><button onClick={() => setViewport((current) => ({ ...current, zoom: clampEditorZoom(current.zoom - .25) }))}>－</button><button onClick={resetViewport}>초기화</button></div><span className="editor-scale-note">한 손가락 편집 · 두 손가락 이동/확대 · 격자 {gridStep === 1 ? GAME_CONFIG.tileSize + "px" : `${gridStep}타일 간격 자동 축소`}</span></div>;
 }
