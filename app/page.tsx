@@ -27,6 +27,7 @@ import { FamilyStatus } from "./family/FamilyStatus";
 import type { FamilySession } from "@/game/family/types";
 import { MapEditor } from "./editor/MapEditor";
 import { documentToRegistry } from "@/game/editor/document";
+import { PublishedWorldRepository } from "@/game/editor/worldPreset";
 import type { MapEditorDocument } from "@/game/editor/types";
 import type { MapDefinition } from "@/game/maps/types";
 import {
@@ -94,8 +95,21 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
     const update = (event: Event) => setHud((event as CustomEvent<HudState>).detail);
     gameEvents.addEventListener("hud", update);
     let cancelled = false;
-    import("@/game/createGame").then(({ createGame }) => {
-      if (!cancelled && !gameRef.current) gameRef.current = createGame("game-canvas", { maps: editorMaps, initialMapId, testMode, family });
+    Promise.all([
+      import("@/game/createGame"),
+      editorMaps ? Promise.resolve(null) : new PublishedWorldRepository().load(),
+    ]).then(([{ createGame }, worldResult]) => {
+      const publishedMaps = worldResult?.status === "ok" && worldResult.preset
+        ? documentToRegistry(worldResult.preset.document)
+        : undefined;
+      if (!cancelled && !gameRef.current) {
+        gameRef.current = createGame("game-canvas", {
+          maps: editorMaps ?? publishedMaps,
+          initialMapId,
+          testMode,
+          family,
+        });
+      }
     });
     return () => {
       cancelled = true;
