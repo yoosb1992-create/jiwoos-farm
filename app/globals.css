@@ -18,7 +18,7 @@ button { font:inherit; touch-action:manipulation; }
 .quest-kicker { display:block; color:#96713b; font-weight:800; font-size:11px; letter-spacing:.08em; margin-bottom:4px; }.quest-card strong { font-size:15px; }.quest-card small { display:block; margin-top:7px; font-size:12px; line-height:1.35; color:#5e543e; }
 .quest-kicker i { display:none; float:right; font-style:normal; }
 .growth-track { height:7px; margin-top:9px; border-radius:8px; overflow:hidden; background:#c5ad76; box-shadow:inset 0 1px 2px #6b503e77; }.growth-track i { display:block; height:100%; background:linear-gradient(90deg,#65a04d,#d2c94a); transition:width .35s; }
-.save-row { position:absolute; right:18px; top:77px; display:flex; gap:6px; z-index:35; }.save-row button { min-width:46px; border:2px solid #62402d; border-radius:9px; background:#f7e9be; color:#4c392d; padding:6px 9px; font-weight:800; box-shadow:0 3px 0 #583829; cursor:pointer; }.save-row button:active{ transform:translateY(2px); box-shadow:0 1px 0 #583829; }
+.save-row { position:absolute; right:18px; top:132px; display:none; width:min(300px,calc(100vw - 36px)); max-height:calc(100dvh - 150px); overflow-y:auto; flex-direction:column; gap:6px; z-index:72; padding:8px; border:2px solid #62402d; border-radius:12px; background:#5d3b2eea; box-shadow:0 6px 20px #17251d77; overscroll-behavior:contain; }.save-row.open{display:flex}.save-row button { min-width:46px; border:2px solid #62402d; border-radius:9px; background:#f7e9be; color:#4c392d; padding:6px 9px; font-weight:800; box-shadow:0 3px 0 #583829; cursor:pointer; }.save-row button:active{ transform:translateY(2px); box-shadow:0 1px 0 #583829; }
 .modal-shade { position:absolute; inset:0; z-index:39; display:grid; place-items:center; background:#18312655; backdrop-filter:blur(1px); }
 .bag-card{width:min(540px,calc(100% - 24px));max-height:min(78dvh,620px);overflow:auto;overscroll-behavior:contain;padding:18px;border:3px solid #71452f;border-radius:16px;background:#fff3d1;color:#3e3427;box-shadow:0 8px 24px #172b2399}
 .bag-card header{display:flex;align-items:center;justify-content:space-between;gap:12px}.bag-card h2{margin:0;font-size:21px}.bag-card p{margin:8px 0 14px;font-size:13px}.bag-card button{min-width:64px;min-height:44px;border:2px solid #62402d;border-radius:9px;background:#f7e9be;color:#4c392d;font-weight:800}
@@ -43,7 +43,7 @@ button { font:inherit; touch-action:manipulation; }
 .quickbar button { position:relative; width:68px; height:66px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; border:2px solid #b4773c; border-radius:10px; background:linear-gradient(#f4d890,#d6ad62); color:#3f3428; box-shadow:inset 0 0 0 2px #ffe8ad,0 3px 0 #402b20; cursor:pointer; transition:.12s; }.quickbar button:hover { transform:translateY(-3px); }.quickbar button.selected { border-color:#fff2a4; transform:translateY(-6px); background:linear-gradient(#fff1a5,#efc75f); box-shadow:0 0 0 3px #6c9b4a,0 6px 0 #402b20; }.quickbar button:disabled { opacity:.55; cursor:not-allowed; transform:none; }
 .quickbar button em { position:absolute; top:3px; left:6px; font-size:11px; font-style:normal; font-weight:900; color:#765238; }.quickbar button span { font-size:25px; line-height:1; }.quickbar button small { font-size:11px; font-weight:800; }.quickbar .sell-slot { width:81px; background:linear-gradient(#b9d790,#83ad64); border-color:#55763d; }
 .action-button { display:none; position:absolute; z-index:35; right:17px; bottom:112px; width:64px; height:64px; border:3px solid #fff2b1; border-radius:50%; color:white; background:#b9663e; box-shadow:0 5px 0 #6d3929; font-weight:900; }
-.mobile-menu-toggle,.virtual-joystick { display:none; }
+.virtual-joystick { display:none; }.mobile-menu-toggle{display:block;position:absolute;z-index:73;right:18px;top:78px;width:46px;height:46px;border:2px solid #62402d;border-radius:12px;background:#f7e9be;color:#4c392d;box-shadow:0 3px 0 #583829;font-size:20px;font-weight:900;cursor:pointer}
 .mode-switch { position:absolute; z-index:38; left:50%; top:12px; transform:translateX(-50%); display:flex; align-items:center; gap:8px; }.mode-switch button { border:2px solid #523626; border-radius:9px; background:#fff0bd; color:#493829; padding:6px 10px; box-shadow:0 3px 0 #4e3023; font-size:12px; font-weight:900; cursor:pointer; }.mode-switch span { color:#fff5c7; background:#5c3c2de6; border-radius:6px; padding:5px 8px; font-size:10px; font-weight:900; letter-spacing:.08em; }
 
 /* Development map editor: intentionally separate from the in-game HUD. */
@@ -145,14 +145,21 @@ button { font:inherit; touch-action:manipulation; }
 
 
 /* 2.0 playtest mobile cleanup: keep the playfield clear and group utility UI in the right menu. */
-.desktop-left-ui{display:contents}
+.desktop-left-ui{display:none}
 .mobile-menu-only{display:none}
 .run-button{display:none}
 .custom-mobile-control{--mobile-control-base-size:66px}
 .virtual-joystick.custom-mobile-control{--mobile-control-base-size:116px}
 .control-editor-backdrop{position:absolute;inset:0;z-index:54;background:#13231b55;touch-action:none}
-.mobile-menu-backdrop{display:none}
+.mobile-menu-backdrop{display:block;position:absolute;inset:0;z-index:70;background:#17251d38;touch-action:none;overscroll-behavior:contain}
 .control-editor-panel{display:none}
+.mobile-menu-summary{display:grid;gap:8px;margin-bottom:2px}
+.mobile-menu-objective{display:grid;gap:5px;padding:9px 10px;border:2px solid #71452f;border-radius:9px;background:#fff3d1;color:#3e3427}
+.mobile-menu-objective>b{font-size:11px;color:#8c6939}.mobile-menu-objective>strong{font-size:13px}.mobile-menu-objective>small{font-size:11px;line-height:1.35}.mobile-menu-objective .growth-track{margin-top:2px}
+.mobile-test-note{display:block;padding:7px 9px;border-radius:7px;background:#fff3d1;color:#65472e;font-weight:800}
+.save-row .family-status{position:static;inset:auto;width:100%;max-width:none;margin:0;background:#fff3d8;box-shadow:none;font-size:12px}
+.save-row .family-status .family-panel-body{max-height:190px}
+
 @media (max-width:700px), (pointer:coarse){
   .desktop-left-ui{display:none}
   .mobile-menu-only{display:block}
