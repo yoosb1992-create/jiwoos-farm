@@ -1439,12 +1439,12 @@ export class FarmScene extends Phaser.Scene {
     player: { x: this.player.x, y: this.player.y, facing: this.facing, mapId: this.currentMapId }, inventory: this.inventory.serialize(), farm: [...this.farm.values()].map((tile) => ({ ...tile })), savedAt: Date.now() }; }
   private save(notify: boolean) { if (!this.player || this.testMode) return; if (this.family) { this.family.savePersonal(this.familyPose(), this.daySerial); return; } this.repository.save(this.snapshot()); if (notify) this.say("이 브라우저에 현재 장소와 농장 상태를 저장했어요."); }
   private syncForest(force = false) {
-    if (this.testMode || (!force && this.forestDayInstalled === this.daySerial)) return;
+    if (!force && this.forestDayInstalled === this.daySerial) return;
     if (!this.family && this.forestState.daySerial !== this.daySerial) this.forestState = emptyForestState(this.daySerial);
     if (installFairyForest(this.mapRegistry, this.forestScope, this.daySerial, this.family ? this.sharedForestState ?? undefined : this.forestState)) this.forestDayInstalled = this.daySerial;
   }
   private syncMine(force = false) {
-    if (this.testMode || (!force && this.mineDayInstalled === this.daySerial)) return;
+    if (!force && this.mineDayInstalled === this.daySerial) return;
     this.mineDaily = normalizeMineDaily(this.mineDaily, this.daySerial, this.forestScope);
     if (installMine(this.mapRegistry, this.forestScope, this.daySerial, this.mineDaily)) this.mineDayInstalled = this.daySerial;
   }
