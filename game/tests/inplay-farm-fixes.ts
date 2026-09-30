@@ -20,7 +20,7 @@ import { familyTestDB } from "./family-db";
 const farm = MAP_DEFINITIONS.farm;
 const ids = farmTreeIds(farm);
 const trees = farm.objects.filter(isFarmTreeObject);
-assert.equal(trees.length, 12, "authored farm_tree_* objects are the only farm lumber nodes");
+assert.equal(trees.length, 15, "expanded authored farm_tree_* objects are the only farm lumber nodes");
 assert.deepEqual(normalizeFarmTreeState(undefined, ids), emptyFarmTreeState(), "old saves keep every farm tree");
 
 const tree = trees[0];
