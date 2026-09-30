@@ -7,6 +7,7 @@ export interface HudState {
   ranchBusy?: boolean;
   buildingDefinitionId?: import("./buildings/types").BuildingId;
   fishingStage?: "idle" | "waiting" | "bite" | "missed";
+  fishingMinigame?: import("./fishing/maze").FishingMinigameState;
   marketCount?: number;
   buildings?: import("./buildings/types").BuildingsData;
   farmProgress?: import("./farm/expansions").FarmProgress;
