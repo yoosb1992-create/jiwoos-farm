@@ -8,6 +8,15 @@ export const editorDrafts = sqliteTable("editor_drafts", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+export const worldPresets = sqliteTable("world_presets", {
+  id: text("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  documentVersion: integer("document_version").notNull(),
+  documentJson: text("document_json").notNull(),
+  revision: integer("revision").notNull().default(1),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 
 export const familyRooms = sqliteTable("family_rooms", {
   id: text("id").primaryKey(), name: text("name").notNull(), inviteCode: text("invite_code").notNull().unique(),
