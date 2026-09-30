@@ -8,6 +8,7 @@ import type { EditorLayer, EditorTool, MapEditorDocument, Selection, SnapMode, V
 import { referencedSpawnCount, validateEditorDocument } from "@/game/editor/validation";
 import { TILE_TYPE_DEFINITIONS } from "@/game/maps/definitions";
 import type { MapDefinition, TileTypeId } from "@/game/maps/types";
+import { RUNTIME_ENTRANCE_ANCHOR_IDS } from "@/game/maps/runtimeEntrances";
 import { EditorCanvas } from "./EditorCanvas";
 import { MapInspector } from "./MapInspector";
 import { CloudMapEditorRepository, type CloudEditorDraft } from "@/game/editor/cloud";
@@ -149,11 +150,17 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     return () => window.clearTimeout(timer);
   }, [cloudConflict, cloudStatus, document, saveCloud]);
   const pushHistory = useCallback(() => history.current.push(documentRef.current), []);
-  const mutateMap = useCallback((mutate: (map: MapDefinition) => void, recordHistory = true) => {
+  const mutateMap = useCallback((mutate: (map: MapDefinition) => void, recordHistory = true, terrainOnly = false) => {
     if (recordHistory) pushHistory();
-    const next = cloneEditorDocument(documentRef.current);
-    const target = next.maps.find((entry) => entry.id === mapId);
-    if (!target) return;
+    const current = documentRef.current;
+    const index = current.maps.findIndex((entry) => entry.id === mapId);
+    if (index < 0) return;
+    const source = current.maps[index];
+    const target = terrainOnly
+      ? { ...source, terrainRegions: source.terrainRegions.map((region) => ({ ...region })) }
+      : structuredClone(source);
+    const next: MapEditorDocument = { ...current, maps: current.maps.slice() };
+    next.maps[index] = target;
     mutate(target); replaceDocument(touchEditorDocument(next));
   }, [mapId, pushHistory, replaceDocument]);
   const applyMapSize = () => {
@@ -170,6 +177,10 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
 
   const removeSelection = useCallback(() => {
     if (!selection || !map) return;
+    if (selection.kind === "object" && RUNTIME_ENTRANCE_ANCHOR_IDS.has(selection.id)) {
+      setNotice("요정의 숲/광산 입구 기준점은 삭제할 수 없습니다. 선택/이동해서 원하는 위치로 배치하세요.");
+      return;
+    }
     if (selection.kind === "spawn") {
       const refs = referencedSpawnCount(documentRef.current, map.id, selection.id);
       if (refs) { setNotice(`${selection.id} 시작 위치를 ${refs}개 맵 이동 구역이 참조 중입니다. 먼저 맵 이동 목적지를 변경하세요.`); return; }
@@ -184,6 +195,10 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     setSelection(null); setInspectorObjectId(null); setNotice("선택 항목을 삭제했습니다.");
   }, [map, mutateMap, selection]);
   const renameSelectedId = (kind: "object" | "spawn" | "warp", previous: string, nextId: string) => {
+    if (kind === "object" && RUNTIME_ENTRANCE_ANCHOR_IDS.has(previous) && nextId !== previous) {
+      setNotice("요정의 숲/광산 입구 기준점의 ID는 변경할 수 없습니다. 위치와 표시 이름은 변경할 수 있습니다.");
+      return;
+    }
     pushHistory();
     const next = cloneEditorDocument(documentRef.current);
     const target = next.maps.find((entry) => entry.id === mapId);
@@ -342,7 +357,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
         <div className="panel-title"><span>레이어</span><small>표시 / 숨김</small></div>
         <div className="layer-list">{(Object.keys(layerLabels) as EditorLayer[]).map((id) => <label key={id}><input type="checkbox" checked={layers[id]} onChange={() => setLayers((current) => ({ ...current, [id]: !current[id] }))} />{layerLabels[id]}</label>)}</div>
       </aside>
-      <section className="editor-center"><EditorCanvas map={map} tool={tool} terrain={terrain} objectAssetId={objectAssetId} sceneryStampId={sceneryStampId} layers={layers} snapMode={snapMode} selection={selection} onSelect={setSelection} onInspectObject={(id) => { setSelection({ kind: "object", id }); setInspectorObjectId(id); }} onCommit={(mutate) => mutateMap(mutate)} onBeginContinuous={pushHistory} onContinuous={(mutate) => mutateMap(mutate, false)} /><footer className="editor-status"><span>{notice}</span><b>{mapIssues.length ? `${mapIssues.length}개 오류` : "준비됨"}</b></footer>{mapIssues.length > 0 && <div className="validation-panel">{mapIssues.slice(0, 8).map((issue, index) => <p key={`${issue.path}-${index}`}><b>{issue.mapId ?? "문서"}.{issue.path}</b> {issue.message}</p>)}</div>}</section>
+      <section className="editor-center"><EditorCanvas map={map} tool={tool} terrain={terrain} objectAssetId={objectAssetId} sceneryStampId={sceneryStampId} layers={layers} snapMode={snapMode} selection={selection} onSelect={setSelection} onInspectObject={(id) => { setSelection({ kind: "object", id }); setInspectorObjectId(id); }} onCommit={(mutate) => mutateMap(mutate)} onBeginContinuous={pushHistory} onContinuous={(mutate) => mutateMap(mutate, false, true)} /><footer className="editor-status"><span>{notice}</span><b>{mapIssues.length ? `${mapIssues.length}개 오류` : "준비됨"}</b></footer>{mapIssues.length > 0 && <div className="validation-panel">{mapIssues.slice(0, 8).map((issue, index) => <p key={`${issue.path}-${index}`}><b>{issue.mapId ?? "문서"}.{issue.path}</b> {issue.message}</p>)}</div>}</section>
       <MapInspector map={map} maps={document.maps} selection={selection?.kind === "object" && inspectorObjectId !== selection.id ? null : selection} update={(mutate) => mutateMap(mutate)} renameId={renameSelectedId} remove={removeSelection} spawnReferences={(spawnId) => referencedSpawnCount(document, map.id, spawnId)} onClose={() => { if (selection?.kind === "object") setInspectorObjectId(null); else setSelection(null); }} />
     </div>
     <section className="mobile-tool-dock">
