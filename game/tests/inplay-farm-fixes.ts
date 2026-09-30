@@ -64,7 +64,7 @@ try {
   const a = await rooms.create("farm-tree-A", "농장 나무", "지우");
   await rooms.join("farm-tree-B", a.room.inviteCode, "수빈");
   const roomId = a.room.id;
-  const action = (pose = facingPose) => ({
+  const action = (pose: { x: number; y: number; facing: "up" | "down" | "left" | "right" } = facingPose) => ({
     kind: "farm-tree-hit", nodeId: tree.id, tool: "axe", pose: { mapId: "farm", ...pose, selectedTool: "axe", moving: false },
   });
   const first = await service.act("farm-tree-A", roomId, 0, action());
@@ -100,7 +100,7 @@ try {
   const seedRoom = await rooms.create("seed-A", "씨앗 농장", "씨앗");
   await rooms.join("seed-B", seedRoom.room.inviteCode, "관찰자");
   const seedRoomId = seedRoom.room.id, tile = (await service.read("seed-A", seedRoomId)).world.farm[0];
-  const toolPose = { mapId: "farm", x: (tile.x + .5) * 32, y: (tile.y + .5) * 32, facing: "down" as const, moving: false };
+  const toolPose = { mapId: "farm", x: (tile.x + .5) * 32, y: (tile.y - 1) * 32, facing: "down" as const, moving: false };
   const tilled = await service.act("seed-A", seedRoomId, 0, { kind: "tool", tool: "hoe", x: tile.x, y: tile.y, pose: { ...toolPose, selectedTool: "hoe" } });
   const planted = await service.act("seed-A", seedRoomId, tilled.revision, { kind: "tool", tool: "seed", cropId: "sproutberry", x: tile.x, y: tile.y, pose: { ...toolPose, selectedTool: "seed" } });
   assert.equal(planted.world.farm[0].cropStage, 0);

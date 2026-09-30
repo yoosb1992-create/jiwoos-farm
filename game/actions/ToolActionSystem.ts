@@ -2,37 +2,8 @@ import type { ToolKey } from "../events";
 import type { Facing } from "../assets/definitions";
 import { GAME_CONFIG } from "../config";
 import { TOOL_ACTION_DEFINITIONS, shouldTriggerToolEffect, type ToolActionDefinition, type ToolActionStyle } from "./toolActionDefinitions";
-
-export type ToolActionContext = {
-  tool: ToolKey;
-  facing: Facing;
-  mapId: string;
-  player: { x: number; y: number };
-  targetWorld: { x: number; y: number };
-  targetTile: { x: number; y: number };
-  targetObjectId?: string;
-};
-
-/** Capture every coordinate used by an action before animation/movement locking.
- * Gameplay callbacks must consume this immutable snapshot instead of sampling
- * the animated player again. */
-export const captureToolActionContext = (
-  tool: ToolKey,
-  facing: Facing,
-  mapId: string,
-  player: { x: number; y: number },
-  targetWorld: { x: number; y: number },
-): ToolActionContext => ({
-  tool,
-  facing,
-  mapId,
-  player: { ...player },
-  targetWorld: { ...targetWorld },
-  targetTile: {
-    x: Math.floor(targetWorld.x / GAME_CONFIG.tileSize),
-    y: Math.floor(targetWorld.y / GAME_CONFIG.tileSize),
-  },
-});
+import type { ToolUseContext } from "./ToolTargetResolver";
+export type { ToolUseContext as ToolActionContext } from "./ToolTargetResolver";
 
 export interface ToolAnimationPort {
   playAction(request: {
@@ -40,6 +11,7 @@ export interface ToolAnimationPort {
     style: ToolActionStyle;
     facing: Facing;
     definition: ToolActionDefinition;
+    context?: ToolUseContext;
     onFrame: (frame: number) => void;
     onComplete: () => void;
   }): void;
@@ -57,7 +29,7 @@ export class ToolActionSystem {
 
   isActive() { return this.actionActive; }
 
-  execute(tool: ToolKey, facing: Facing, action: (tool: ToolKey) => void, definitionOverride?: ToolActionDefinition) {
+  execute(tool: ToolKey, facing: Facing, action: (tool: ToolKey) => void, definitionOverride?: ToolActionDefinition, context?: ToolUseContext) {
     const now = this.now();
     if (this.actionActive || now < this.lockedUntil) return false;
     this.lockedUntil = now + GAME_CONFIG.toolActionCooldownMs;
@@ -87,7 +59,7 @@ export class ToolActionSystem {
       // refill remains complete-triggered below.
       if (shouldTriggerToolEffect(definition.effectTiming, "start")) applyEffect();
       this.animations.playAction({
-        tool, style: definition.style, facing, definition,
+        tool, style: definition.style, facing, definition, context,
         onFrame: (frame) => { if (shouldTriggerToolEffect(definition.effectTiming, "frame", frame)) applyEffect(); },
         onComplete: complete,
       });

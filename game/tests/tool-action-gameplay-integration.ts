@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
-import { captureToolActionContext, ToolActionSystem, type ToolAnimationPort } from "../actions/ToolActionSystem";
+import { ToolActionSystem, type ToolAnimationPort } from "../actions/ToolActionSystem";
+import { resolveToolTarget } from "../actions/ToolTargetResolver";
 import { DEFAULT_CROP_ID } from "../data/crops";
 import { Inventory, type FarmTileData } from "../domain";
 import { applyFamilyFarmSnapshot } from "../family/applySnapshot";
@@ -7,7 +8,7 @@ import { applyFarmToolEffect, hasPlantedCrop } from "../farm/toolBehavior";
 import { emptyFarmTreeState, FARM_TREE_RESOURCE, isFarmTreeObject, strikeFarmTree } from "../farm/trees";
 import { MAP_DEFINITIONS } from "../maps/definitions";
 import { isGameCanvasPointerEvent } from "../input/worldPointer";
-import { playerInteractionAnchorFromPosition } from "../player/interaction";
+import { interactionTargetPointFromPosition, playerInteractionAnchorFromPosition } from "../player/interaction";
 import { initialPlayerStats } from "../player/stats";
 import { initialWateringCan } from "../tools/wateringCan";
 import { weatherFor } from "../weather/system";
@@ -102,11 +103,21 @@ for (let hit = 1; hit <= FARM_TREE_RESOURCE.hits; hit += 1) {
 assert.ok(treeState.depleted.includes(tree.id), "third axe action depletes the farm tree");
 assert.equal(inventory.count("wood"), 3, "the final axe action awards wood once");
 
-const captured = captureToolActionContext("hoe", "down", "farm", { x: 304, y: 224 }, { x: 304, y: 272 });
+const capturePlayer = { x: 304, y: 224 };
+const captured = resolveToolTarget({
+  tool: "hoe", facing: "down", mapId: "farm", inputSource: "keyboard", player: capturePlayer,
+  playerAnchor: playerInteractionAnchorFromPosition(capturePlayer), targetWorld: { x: 304, y: 272 },
+  map: MAP_DEFINITIONS.farm, farmTile: tile,
+});
 const movedPlayer = { x: 999, y: 999 };
 assert.deepEqual(captured.player, { x: 304, y: 224 });
 assert.deepEqual(captured.targetTile, { x: 9, y: 8 });
+assert.equal(captured.targetKind, "farm_tile");
 assert.notDeepEqual(captured.player, movedPlayer, "animation-time player movement cannot change the captured action target");
+let visualContext: typeof captured | undefined;
+const contextBridge = new ToolActionSystem({ playAction: (request) => { visualContext = request.context; request.onComplete(); } }, () => 50_000);
+assert.equal(contextBridge.execute("hoe", "down", () => undefined, undefined, captured), true);
+assert.equal(visualContext, captured, "animation and VFX receive the exact immutable gameplay context");
 assert.ok(visualCount >= 8, "all gameplay mutations were paired with a visual action");
 
 const canvasTarget = new EventTarget();
@@ -115,12 +126,37 @@ assert.equal(isGameCanvasPointerEvent(canvasTarget, canvasTarget), true, "direct
 assert.equal(isGameCanvasPointerEvent(mobileActionButton, canvasTarget), false,
   "window-level touch from the mobile action button cannot consume the real command with a visual-only action");
 
+const routePlayer = { x: (tile.x + .5) * 32, y: (tile.y - .5) * 32 - playerInteractionAnchorFromPosition({ x: 0, y: 0 }).y };
+const routeFront = interactionTargetPointFromPosition(routePlayer, "down");
+for (const inputSource of ["keyboard", "mobile", "pointer"] as const) {
+  const routeTile: FarmTileData = { x: tile.x, y: tile.y, tilled: false, wateredToday: false, cropType: null, cropStage: null, plantedDay: null };
+  const resolved = resolveToolTarget({
+    tool: "hoe", facing: "down", mapId: "farm", inputSource, player: routePlayer,
+    playerAnchor: playerInteractionAnchorFromPosition(routePlayer), targetWorld: routeFront,
+    map: MAP_DEFINITIONS.farm, farmTile: routeTile,
+  });
+  assert.equal(resolved.targetKind, "farm_tile", `${inputSource} input uses the shared target resolver`);
+  assert.deepEqual(resolved.targetTile, { x: tile.x, y: tile.y });
+  let inputVisuals = 0, inputRenders = 0, inputSnapshot: FarmTileData | undefined;
+  const inputActions = new ToolActionSystem({ playAction: ({ context, onComplete }) => {
+    assert.equal(context, resolved); inputVisuals += 1; onComplete();
+  } }, () => 60_000);
+  assert.equal(inputActions.execute(resolved.tool, resolved.facing, () => {
+    const result = applyFarmToolEffect("hoe", routeTile, effectContext());
+    if (result.changed) { inputRenders += 1; inputSnapshot = { ...routeTile }; }
+  }, undefined, resolved), true);
+  assert.equal(routeTile.tilled, true);
+  assert.deepEqual([inputVisuals, inputRenders, inputSnapshot?.tilled], [1, 1, true],
+    `${inputSource} follows resolver → effect → visual → renderer/snapshot`);
+}
+
 const { db, close } = familyTestDB();
 try {
   const rooms = new FamilyRooms(db, () => 300_000);
   const service = new FamilyState(db, () => 300_000);
   const session = await rooms.create("pipeline-family", "도구 통합", "지우");
   const roomId = session.room.id;
+  await service.read("pipeline-family", roomId);
   const dryDay = Array.from({ length: 40 }, (_, index) => index + 1).find((day) => weatherFor(roomId, day).id !== "rain")!;
   await db.prepare("UPDATE family_state SET world_json=json_set(world_json, '$.day', ?, '$.daySerial', ?) WHERE room_id=?")
     .bind(dryDay, dryDay, roomId).run();
@@ -156,7 +192,7 @@ try {
   assert.equal(familySnapshot.world.farm[0].cropStage, 0);
   assert.equal(familySnapshot.world.farm[0].wateredToday, true);
   assert.equal(familySnapshot.inventory.items.sproutberry_seed, 7);
-  assert.equal(familySnapshot.wateringCan.currentWater, familySnapshot.wateringCan.capacity - 1);
+  assert.equal(familySnapshot.wateringCan!.currentWater, familySnapshot.wateringCan!.capacity - 1);
 
   const localFarm = new Map<string, FarmTileData>(initial.world.farm.map((entry) => [`${entry.x},${entry.y}`, { ...entry }]));
   let rendered = 0;

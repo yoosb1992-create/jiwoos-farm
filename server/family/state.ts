@@ -6,11 +6,12 @@ import { advanceFarmDay, Inventory, purchaseInventoryItem, type InventoryData } 
 import { sellMarketGoods } from "../../game/economy/sales";
 import { beginFishing, fishingSpotError, normalizeFishingCast, normalizeFishingProgress, reelFishing } from "../../game/fishing/system";
 import type { FishingCast, FishingProgress } from "../../game/fishing/types";
-import { DEFAULT_CROP_ID, isCropId, getCropDefinition, isMatureCrop } from "../../game/data/crops";
+import { DEFAULT_CROP_ID, isCropId } from "../../game/data/crops";
 import { GENERAL_STORE_LISTINGS } from "../../game/data/shop";
 import { getTileTypeInMap, MAP_DEFINITIONS, pointInTileRect } from "../../game/maps/definitions";
 import { parseFamilyPose } from "../../game/family/personal";
-import { interactionTargetPointFromPosition, playerFeetPointFromPosition } from "../../game/player/interaction";
+import { interactionTargetPointFromPosition, playerFeetPointFromPosition, playerInteractionAnchorFromPosition } from "../../game/player/interaction";
+import { resolveToolTarget } from "../../game/actions/ToolTargetResolver";
 import type { FamilyAction, FamilySnapshot, FamilyWorld } from "../../game/family/types";
 import { getRecipe } from "../../game/crafting/definitions";
 import { craft } from "../../game/crafting/engine";
@@ -30,9 +31,9 @@ import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeFo
 import { generateMineFloor, MINE_PLAYABLE_FLOORS, mineMapId } from "../../game/mine/generation";
 import { emptyMineDaily, initialMineProgress, mineResourceKind, normalizeMineDaily, normalizeMineProgress, strikeMineNode } from "../../game/mine/resources";
 import { advanceRanchDay, buyAnimal, collectAnimalProduce, feedCoop, initialRanchState, normalizeRanchState, petAnimal } from "../../game/animals/system";
-import { normalizeWateringCan, refillWateringCan, waterCrop, type WateringCanState } from "../../game/tools/wateringCan";
+import { normalizeWateringCan, refillWateringCan, type WateringCanState } from "../../game/tools/wateringCan";
 import { emptyFarmTreeState, farmTreeIds, farmTreeInFacingReach, isFarmTreeObject, normalizeFarmTreeState, strikeFarmTree } from "../../game/farm/trees";
-import { undoTilledFarmTile } from "../../game/farm/toolBehavior";
+import { applyFarmToolEffect } from "../../game/farm/toolBehavior";
 
 interface StoredWorld extends FamilyWorld { clockAnchor: number; sleepVotes?: string[]; sleepSessions?: Record<string, string> }
 interface StateRow { revision: number; world_json: string; inventories_json: string }
@@ -132,7 +133,6 @@ export class FamilyState extends FamilyRooms {
     let fishingNotice: string | undefined;
     const cropId = action.kind === "tool" && action.tool === "seed" ? action.cropId ?? DEFAULT_CROP_ID : DEFAULT_CROP_ID;
     if (!isCropId(cropId)) throw new FamilyError(400, "없는 씨앗 종류입니다.");
-    const crop = getCropDefinition(cropId);
     const near = (kind: "sleep" | "open_shop" | "craft") => {
       const feet = playerFeetPointFromPosition(pose), target = interactionTargetPointFromPosition(pose, pose.facing);
       return (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).some((o) => o.interaction?.action === kind &&
@@ -140,35 +140,36 @@ export class FamilyState extends FamilyRooms {
     };
     if (action.kind === "tool") {
       if (pose.mapId !== "farm" || !Number.isInteger(action.x) || !Number.isInteger(action.y) || !["hoe", "seed", "water", "hand", "pickaxe"].includes(action.tool)) throw new FamilyError(400, "올바른 농사 행동이 아닙니다.");
+      if (pose.selectedTool !== action.tool) throw new FamilyError(400, "선택한 도구와 요청한 도구가 다릅니다.");
       const tile = stored.farm.find((t) => t.x === action.x && t.y === action.y);
       if (!tile || Math.hypot(pose.x - (tile.x + .5) * GAME_CONFIG.tileSize, pose.y - (tile.y + .5) * GAME_CONFIG.tileSize) > GAME_CONFIG.farmInteractionDistance) throw new FamilyError(400, "밭 가까이에서 행동해 주세요.");
-      if (action.tool === "hoe") {
-        if (tile.tilled) throw new FamilyError(409, "이미 갈아 둔 밭이에요.");
-        if (!canPerformAction(stats, "hoe")) throw new FamilyError(409, "체력이 부족합니다. 잠을 자고 회복하세요.");
-        tile.tilled = true; if (weatherFor(roomId, stored.daySerial ?? stored.day).id === "rain") tile.wateredToday = true;
-        recordSuccessfulAction(stats, "hoe");
+      const targetWorld = interactionTargetPointFromPosition(pose, pose.facing);
+      const targetTile = stored.farm.find((entry) => entry.x === Math.floor(targetWorld.x / GAME_CONFIG.tileSize) && entry.y === Math.floor(targetWorld.y / GAME_CONFIG.tileSize));
+      const resolved = resolveToolTarget({
+        tool: action.tool,
+        facing: pose.facing,
+        mapId: pose.mapId,
+        inputSource: "family",
+        player: pose,
+        playerAnchor: playerInteractionAnchorFromPosition(pose),
+        targetWorld,
+        map: MAP_DEFINITIONS.farm,
+        farmTile: targetTile,
+        farmTreeState: normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(MAP_DEFINITIONS.farm)),
+      });
+      if (resolved.targetKind !== "farm_tile" || resolved.targetTile.x !== tile.x || resolved.targetTile.y !== tile.y) {
+        throw new FamilyError(400, "바라보는 바로 앞의 밭에서 도구를 사용해 주세요.");
       }
-      else if (action.tool === "seed") {
-        if (!tile.tilled || tile.cropType) throw new FamilyError(409, "비어 있는 갈아놓은 밭에 심어 주세요.");
-        if (!inventory.consume(crop.seedItemId)) throw new FamilyError(409, "씨앗이 없습니다.");
-        Object.assign(tile, { cropType: cropId, cropStage: 0, plantedDay: calendarDate(stored.daySerial ?? stored.day).day, wateredToday: weatherFor(roomId, stored.daySerial ?? stored.day).id === "rain" });
-      } else if (action.tool === "water") {
-        const error = waterCrop(tile, stats, wateringCan);
-        if (error) throw new FamilyError(409, error);
-      } else if (action.tool === "pickaxe") {
-        if (pose.selectedTool !== "pickaxe") throw new FamilyError(400, "곡괭이를 선택해 주세요.");
-        const target = interactionTargetPointFromPosition(pose, pose.facing);
-        if (Math.floor(target.x / GAME_CONFIG.tileSize) !== tile.x || Math.floor(target.y / GAME_CONFIG.tileSize) !== tile.y) {
-          throw new FamilyError(400, "바라보는 바로 앞의 밭에서 곡괭이를 사용해 주세요.");
-        }
-        const error = undoTilledFarmTile(tile, stats, toolProgression);
-        if (error) throw new FamilyError(409, error);
-      } else {
-        if (!tile.cropType || tile.cropStage === null || !isMatureCrop(tile.cropType, tile.cropStage)) throw new FamilyError(409, "아직 수확할 수 없습니다.");
-        inventory.add(getCropDefinition(tile.cropType).harvestItemId);
-        Object.assign(tile, { cropType: null, cropStage: null, plantedDay: null, wateredToday: false });
-        recordSuccessfulAction(stats, "harvest");
-      }
+      const result = applyFarmToolEffect(action.tool, tile, {
+        selectedCrop: cropId,
+        inventory,
+        stats,
+        wateringCan,
+        toolProgression,
+        day: calendarDate(stored.daySerial ?? stored.day).day,
+        raining: weatherFor(roomId, stored.daySerial ?? stored.day).id === "rain",
+      });
+      if (!result.changed) throw new FamilyError(409, result.message);
     } else if (action.kind === "water-refill") {
       if (pose.selectedTool !== "water") throw new FamilyError(400, "물뿌리개를 선택해 주세요.");
       const map = MAP_DEFINITIONS[pose.mapId];
@@ -210,7 +211,13 @@ export class FamilyState extends FamilyRooms {
       const forest = generateResourceForest(roomId, daySerial);
       const node = forest.objects.find(o => o.id === action.nodeId), kind = node && resourceKind(node);
       if (!node || !kind) throw new FamilyError(400, "현재 숲에 없는 자원입니다.");
-      if (Math.hypot(pose.x - node.position.tileX * GAME_CONFIG.tileSize, pose.y - node.position.tileY * GAME_CONFIG.tileSize) > 58) throw new FamilyError(400, "숲 자원 가까이에서 사용해 주세요.");
+      const forestTarget = resolveToolTarget({
+        tool: action.tool, facing: pose.facing, mapId: pose.mapId, inputSource: "family", player: pose,
+        playerAnchor: playerInteractionAnchorFromPosition(pose), targetWorld: interactionTargetPointFromPosition(pose, pose.facing), map: forest,
+      });
+      if (forestTarget.targetKind !== "forest_resource" || forestTarget.targetObjectId !== node.id) {
+        throw new FamilyError(400, "바라보는 바로 앞의 숲 자원에 도구를 사용해 주세요.");
+      }
       if (action.tool !== FOREST_RESOURCES[kind].tool || pose.selectedTool !== action.tool) throw new FamilyError(400, "해당 자원에 맞는 도구를 선택해 주세요.");
       if (kind === "ore" && toolProgression.pickaxe < 1) throw new FamilyError(400, "먼저 곡괭이를 해금해 주세요.");
       const forestState = normalizeForestState(stored.forestState, daySerial, new Set(forest.objects.map(o => o.id)));
@@ -240,7 +247,13 @@ export class FamilyState extends FamilyRooms {
       const floorMap = generateMineFloor(roomId, daySerial, action.floor);
       const node = floorMap.objects.find(o => o.id === action.nodeId && mineResourceKind(o));
       if (!node) throw new FamilyError(400, "현재 층에 없는 자원입니다.");
-      if (Math.hypot(pose.x - node.position.tileX * GAME_CONFIG.tileSize, pose.y - node.position.tileY * GAME_CONFIG.tileSize) > 58) throw new FamilyError(400, "광석 가까이에서 곡괭이를 사용해 주세요.");
+      const mineTarget = resolveToolTarget({
+        tool: action.tool, facing: pose.facing, mapId: pose.mapId, inputSource: "family", player: pose,
+        playerAnchor: playerInteractionAnchorFromPosition(pose), targetWorld: interactionTargetPointFromPosition(pose, pose.facing), map: floorMap,
+      });
+      if (mineTarget.targetKind !== "mine_resource" || mineTarget.targetObjectId !== node.id) {
+        throw new FamilyError(400, "바라보는 바로 앞의 광석에 곡괭이를 사용해 주세요.");
+      }
       const daily = normalizeMineDaily(stored.mineDaily, daySerial, roomId);
       if (daily.floors[action.floor]?.depleted.includes(node.id)) throw await conflict();
       if (!canPerformAction(stats, "pickaxe")) throw new FamilyError(409, "체력이 부족합니다. 잠을 자고 회복하세요.");

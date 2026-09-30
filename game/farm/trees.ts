@@ -26,6 +26,19 @@ export const isFarmTreeObject = (object: MapObjectDefinition) =>
 
 export const farmTreeIds = (map: MapDefinition) => new Set(map.objects.filter(isFarmTreeObject).map((object) => object.id));
 
+const pointToRectDistance = (point: { x: number; y: number }, rect: { x: number; y: number; width: number; height: number }) => {
+  const dx = Math.max(rect.x - point.x, 0, point.x - (rect.x + rect.width));
+  const dy = Math.max(rect.y - point.y, 0, point.y - (rect.y + rect.height));
+  return Math.hypot(dx, dy);
+};
+
+/** Resource hits use the authored trunk collision, never the 128x160 crown. */
+export const farmTreeTrunkRect = (object: MapObjectDefinition) => {
+  const position = { x: object.position.tileX * GAME_CONFIG.tileSize, y: object.position.tileY * GAME_CONFIG.tileSize };
+  const collision = object.collision ?? { x: -11, y: -9, width: 22, height: 18 };
+  return { x: position.x + collision.x, y: position.y + collision.y, width: collision.width, height: collision.height };
+};
+
 /** SaveData v4 and old Family worlds may omit this field. Unknown object ids are
  * discarded so editor changes cannot turn arbitrary map objects into resources. */
 export function normalizeFarmTreeState(value: unknown, knownIds: Set<string>): FarmTreeState {
@@ -47,14 +60,14 @@ export function findFarmTree(
   map: MapDefinition,
   target: { x: number; y: number },
   player: { x: number; y: number },
-  state: FarmTreeState,
+  state: FarmTreeState = emptyFarmTreeState(),
 ) {
   return map.objects.filter((object) => isFarmTreeObject(object) && !state.depleted.includes(object.id))
     .map((object) => {
-      const x = object.position.tileX * GAME_CONFIG.tileSize, y = object.position.tileY * GAME_CONFIG.tileSize;
-      return { object, targetDistance: Math.hypot(x - target.x, y - target.y), reach: Math.hypot(x - player.x, y - player.y) };
+      const trunk = farmTreeTrunkRect(object);
+      return { object, targetDistance: pointToRectDistance(target, trunk), reach: pointToRectDistance(player, trunk) };
     })
-    .filter((candidate) => candidate.targetDistance <= 30 && candidate.reach <= 64)
+    .filter((candidate) => candidate.targetDistance <= 24 && candidate.reach <= 54)
     .sort((a, b) => a.targetDistance - b.targetDistance)[0]?.object;
 }
 

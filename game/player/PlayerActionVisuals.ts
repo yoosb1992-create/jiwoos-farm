@@ -3,6 +3,7 @@ import type { ToolKey } from "../events";
 import type { Facing } from "../assets/definitions";
 import type { ToolAnimationPort } from "../actions/ToolActionSystem";
 import { TOOL_OVERLAY_ASSET, type ToolActionDefinition, type ToolActionStyle } from "../actions/toolActionDefinitions";
+import type { ToolUseContext } from "../actions/ToolTargetResolver";
 import { PlayerAnimationController } from "./PlayerAnimationController";
 
 type ActionState = { tool: ToolKey; style: ToolActionStyle; facing: Facing; frame: number; definition: ToolActionDefinition };
@@ -42,6 +43,7 @@ export class PlayerActionVisuals implements ToolAnimationPort {
     style: ToolActionStyle;
     facing: Facing;
     definition: ToolActionDefinition;
+    context?: ToolUseContext;
     onFrame: (frame: number) => void;
     onComplete: () => void;
   }) {
@@ -57,7 +59,7 @@ export class PlayerActionVisuals implements ToolAnimationPort {
         this.syncOverlay();
         if (!this.cuePlayed && frame === request.definition.visualCue.frame) {
           this.cuePlayed = true;
-          this.playVfx(request.definition.vfx, request.facing);
+          this.playVfx(request.definition.vfx, request.facing, request.context);
         }
         request.onFrame(frame);
       },
@@ -89,10 +91,12 @@ export class PlayerActionVisuals implements ToolAnimationPort {
       .setDepth(this.player.depth + (facing === "up" ? -.1 : .1));
   }
 
-  private playVfx(vfx: ToolActionDefinition["vfx"], facing: Facing) {
+  private playVfx(vfx: ToolActionDefinition["vfx"], facing: Facing, context?: ToolUseContext) {
     const d = direction(facing);
-    const x = this.player.x + d.x * 25;
-    const y = this.player.y + d.y * 20 + 7;
+    const target = context?.targetWorld;
+    const useTarget = target && Math.hypot(target.x - context.player.x, target.y - context.player.y) <= 64;
+    const x = useTarget ? target.x : this.player.x + d.x * 25;
+    const y = useTarget ? target.y : this.player.y + d.y * 20 + 7;
     const graphics = this.scene.add.graphics().setPosition(x, y).setDepth(this.player.depth + .2);
     if (vfx === "soil") graphics.fillStyle(0x9b6844, .9).fillCircle(-6, 2, 3).fillCircle(2, -1, 2).fillCircle(7, 3, 2);
     else if (vfx === "seed") graphics.fillStyle(0x6f492d, .95).fillCircle(-4, 1, 2).fillCircle(1, 3, 2).fillStyle(0x8fbd57, .9).fillCircle(5, -1, 2);

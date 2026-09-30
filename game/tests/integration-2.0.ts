@@ -257,7 +257,7 @@ try {
     [a.room.playerId]: { items: { sproutberry_seed: 8, wood: 4 }, toolProgression: { axe: 2, pickaxe: 1 }, stats: { ...initialPlayerStats(), stamina: 70 }, fishingProgress: { castSequence: 2, caughtFishIds: ["minnow"] } },
     [b.room.playerId]: { items: { sproutberry_seed: 8 }, toolProgression: { axe: 1, pickaxe: 0 }, stats: { ...initialPlayerStats(), stamina: 91 }, fishingProgress: initialFishingProgress() },
   }), roomId).run();
-  const farmPose: FamilyPose = { mapId: "farm", x: 9.5 * 32, y: 8.5 * 32, facing: "down", selectedTool: "hoe", moving: false };
+  const farmPose: FamilyPose = { mapId: "farm", x: 9.5 * 32, y: 7 * 32, facing: "down", selectedTool: "hoe", moving: false };
   const base = await state.read("integration-A", roomId), hoe = { kind: "tool", tool: "hoe", x: 9, y: 8, pose: farmPose } as const;
   const race = await Promise.allSettled([state.act("integration-A", roomId, base.revision, hoe), state.act("integration-B", roomId, base.revision, hoe)]);
   assert.equal(race.filter(result => result.status === "fulfilled").length, 1, "integrated world CAS has one winner");

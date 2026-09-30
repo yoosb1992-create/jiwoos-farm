@@ -62,12 +62,12 @@ try {
   await state.read("stamina-A", id);
   await db.prepare("UPDATE family_state SET world_json=json_set(world_json, '$.daySerial', ?, '$.day', ?) WHERE room_id=?")
     .bind(dryDay, calendarDate(dryDay).day, id).run();
-  const pose = { mapId: "farm", x: 304, y: 272, facing: "down", moving: false, selectedTool: "hoe" };
+  const pose = { mapId: "farm", x: 304, y: 224, facing: "down", moving: false, selectedTool: "hoe" };
   const bed = { ...pose, mapId: "farmhouse", x: 304, y: 224 };
   await presence.heartbeat("stamina-A", id, pose, crypto.randomUUID());
   await presence.heartbeat("stamina-B", id, pose, crypto.randomUUID());
   const act = async (user: string, action: object) => state.act(user, id, (await state.read(user, id)).revision, action);
-  const tool = (name: string, x = 9, y = 8) => ({ kind: "tool", tool: name, x, y, pose });
+  const tool = (name: string, x = 9, y = 8) => ({ kind: "tool", tool: name, x, y, pose: { ...pose, x: (x + .5) * 32, y: (y - 1) * 32, selectedTool: name } });
   const first = await act("stamina-A", tool("hoe"));
   assert.deepEqual([first.stats?.stamina, first.stats?.skills.farming.experience], [96, 3]);
   assert.deepEqual([(await state.read("stamina-B", id)).stats?.stamina, (await state.read("stamina-B", id)).stats?.skills.farming.experience], [100, 0]);
@@ -107,7 +107,7 @@ try {
   const nodes = generateResourceForest(id, dryDay).objects;
   const tree = nodes.find(n => resourceKind(n) === "tree")!, ore = nodes.find(n => resourceKind(n) === "ore")!;
   const forest = (node: typeof tree, selectedTool: "axe" | "pickaxe") => ({ kind: "forest-gather", nodeId: node.id, daySerial: dryDay, tool: selectedTool,
-    pose: { ...pose, mapId: "fairy_forest", x: node.position.tileX * 32 - 35, y: node.position.tileY * 32, selectedTool } });
+    pose: { ...pose, mapId: "fairy_forest", x: node.position.tileX * 32 - 35, y: node.position.tileY * 32, facing: "right", selectedTool } });
   await assert.rejects(act("stamina-A", forest(tree, "axe")), (e: unknown) => e instanceof FamilyError && e.status === 409 && /체력/.test(e.message));
   assert.equal((await state.read("stamina-A", id)).world.forestState?.hits[tree.id], undefined);
   privateData[a.room.playerId].stats.stamina = 100;

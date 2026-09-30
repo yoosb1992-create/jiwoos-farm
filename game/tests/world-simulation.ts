@@ -68,22 +68,22 @@ try {
   await state.read("weather-A", roomId);
   await db.prepare("UPDATE family_state SET world_json=json_set(world_json, '$.daySerial', ?, '$.day', ?, '$.forestState', json(?)) WHERE room_id=?")
     .bind(rainyDay - 1, calendarDate(rainyDay - 1).day, JSON.stringify(emptyForestState(rainyDay - 1)), roomId).run();
-  const farmPose = { mapId: "farm", x: 304, y: 272, facing: "down", selectedTool: "hoe", moving: false };
+  const farmPose = { mapId: "farm", x: 304, y: 224, facing: "down", selectedTool: "hoe", moving: false };
   const sleepPose = { ...farmPose, mapId: "farmhouse", x: 304, y: 224 };
   await presence.heartbeat("weather-A", roomId, farmPose, crypto.randomUUID());
   await presence.heartbeat("weather-B", roomId, farmPose, crypto.randomUUID());
   const act = async (user: string, action: object) => state.act(user, roomId, (await state.read(user, roomId)).revision, action);
   await act("weather-A", { kind: "tool", tool: "hoe", x: 9, y: 8, pose: farmPose });
-  await act("weather-A", { kind: "tool", tool: "seed", x: 9, y: 8, pose: farmPose });
+  await act("weather-A", { kind: "tool", tool: "seed", x: 9, y: 8, pose: { ...farmPose, selectedTool: "seed" } });
   await act("weather-A", { kind: "sleep", pose: sleepPose });
   const next = await act("weather-B", { kind: "sleep", pose: sleepPose });
   assert.equal(next.world.daySerial, rainyDay);
   assert.equal(next.world.day, calendarDate(rainyDay).day);
   assert.equal(next.world.farm[0].wateredToday, true, "rain waters crops after the previous day's growth");
   assert.equal(next.world.farm[0].cropStage, 0);
-  const rainyHoe = await act("weather-A", { kind: "tool", tool: "hoe", x: 10, y: 8, pose: farmPose });
+  const rainyHoe = await act("weather-A", { kind: "tool", tool: "hoe", x: 10, y: 8, pose: { ...farmPose, x: 336 } });
   assert.equal(rainyHoe.world.farm.find(t => t.x === 10 && t.y === 8)?.wateredToday, true);
-  const rainyPlanting = await act("weather-A", { kind: "tool", tool: "seed", x: 10, y: 8, pose: farmPose });
+  const rainyPlanting = await act("weather-A", { kind: "tool", tool: "seed", x: 10, y: 8, pose: { ...farmPose, x: 336, selectedTool: "seed" } });
   assert.equal(rainyPlanting.world.farm.find(t => t.x === 10 && t.y === 8)?.wateredToday, true, "seeds planted during rain are watered");
   const otherPlayer = await new FamilyState(db, () => now).read("weather-B", roomId);
   assert.deepEqual(otherPlayer.world, (await state.read("weather-A", roomId)).world);

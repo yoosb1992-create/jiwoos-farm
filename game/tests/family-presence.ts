@@ -27,7 +27,7 @@ try {
   await presence.heartbeat("A", a.room.id, pose, sessionA);
   await presence.heartbeat("B", a.room.id, pose, sessionB);
   const state = new FamilyState(db, () => now);
-  await state.act("A", a.room.id, 0, { kind: "tool", tool: "hoe", x: 9, y: 8, pose: { ...pose, x: 304, y: 272 } });
+  await state.act("A", a.room.id, 0, { kind: "tool", tool: "hoe", x: 9, y: 8, pose: { ...pose, x: 336, y: 272, facing: "left", moving: false } });
   const acted = await presence.heartbeat("A", a.room.id, { ...pose, action: { id: "spoof" } }, sessionA);
   const action = acted.players.find(p => p.playerId === a.room.playerId)!.action!;
   assert.equal(action.tool, "hoe"); assert.notEqual(action.id, "spoof");

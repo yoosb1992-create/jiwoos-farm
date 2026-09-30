@@ -10,7 +10,7 @@ try {
   const rooms = new FamilyRooms(db, () => now), state = new FamilyState(db, () => now);
   const a = await rooms.create("A", "공유 농장", "지우"); await rooms.join("B", a.room.inviteCode, "아빠");
   const other = await rooms.create("C", "다른 농장", "엄마");
-  const pose: FamilyPose = { mapId: "farm", x: 304, y: 272, facing: "down", selectedTool: "hoe", moving: false };
+  const pose: FamilyPose = { mapId: "farm", x: 304, y: 224, facing: "down", selectedTool: "hoe", moving: false };
   const roomId = a.room.id, initial = await state.read("A", roomId);
   assert.deepEqual(initial.world.forestState, { daySerial: 1, depleted: [], hits: {} });
   assert.deepEqual(initial.world, (await state.read("B", roomId)).world);
@@ -18,21 +18,21 @@ try {
   const results = await Promise.allSettled([state.act("A", roomId, 0, hoe), state.act("B", roomId, 0, hoe)]);
   assert.equal(results.filter((r) => r.status === "fulfilled").length, 1, "only one writer may win a revision");
   assert.equal((await state.read("B", roomId)).world.farm[0].tilled, true);
-  const planted = await state.act("A", roomId, 1, { ...hoe, tool: "seed" });
+  const planted = await state.act("A", roomId, 1, { ...hoe, tool: "seed", pose: { ...pose, selectedTool: "seed" } });
   assert.equal(planted.inventory.items.sproutberry_seed, 7);
   assert.equal((await state.read("B", roomId)).inventory.items.sproutberry_seed, 8);
-  await assert.rejects(state.act("A", roomId, 1, { ...hoe, tool: "seed" }), (e: unknown) => e instanceof FamilyError && e.status === 409);
+  await assert.rejects(state.act("A", roomId, 1, { ...hoe, tool: "seed", pose: { ...pose, selectedTool: "seed" } }), (e: unknown) => e instanceof FamilyError && e.status === 409);
   assert.equal((await state.read("A", roomId)).inventory.items.sproutberry_seed, 7, "retry must not consume twice");
   let revision = planted.revision;
   for (let day = 0; day < 3; day++) {
     const current = await state.read("B", roomId);
-    if (!current.world.farm[0].wateredToday) revision = (await state.act("B", roomId, revision, { ...hoe, tool: "water" })).revision;
+    if (!current.world.farm[0].wateredToday) revision = (await state.act("B", roomId, revision, { ...hoe, tool: "water", pose: { ...pose, selectedTool: "water" } })).revision;
     const sleep = await state.act("A", roomId, revision, { kind: "sleep", pose: { ...pose, mapId: "farmhouse", x: 304, y: 224 } });
     revision = sleep.revision;
   }
   const mature = await state.read("B", roomId); assert.equal(mature.world.farm[0].cropStage, 3); assert.equal(mature.world.day, 4);
   assert.deepEqual(mature.world.forestState, { daySerial: 4, depleted: [], hits: {} }, "sleep resets shared forest day");
-  const harvest = await state.act("B", roomId, revision, { ...hoe, tool: "hand" });
+  const harvest = await state.act("B", roomId, revision, { ...hoe, tool: "hand", pose: { ...pose, selectedTool: "hand" } });
   assert.equal(harvest.inventory.items.sproutberry, 1); assert.equal((await state.read("A", roomId)).inventory.items.sproutberry, 0);
   const sold = await state.act("B", roomId, harvest.revision, { kind: "sell", pose });
   assert.equal(sold.world.money, 155); assert.equal((await state.read("A", roomId)).world.money, 155);

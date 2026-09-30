@@ -18,8 +18,14 @@ const afterSuccess = { can: structuredClone(can), stats: structuredClone(stats) 
 assert.match(waterCrop(first, stats, can)!, /이미/);
 assert.deepEqual({ can, stats }, afterSuccess, "already-watered crops consume neither water nor stamina");
 
+const emptyTilled = { ...crop(), cropType: null, cropStage: null };
+const emptyTilledStats = initialPlayerStats(), emptyTilledCan = initialWateringCan();
+assert.equal(waterCrop(emptyTilled, emptyTilledStats, emptyTilledCan), null);
+assert.equal(emptyTilled.wateredToday, true, "empty tilled soil can be watered");
+assert.equal(emptyTilledCan.currentWater, 29);
+
 for (const [tile, playerStats, wateringCan, message] of [
-  [{ ...crop(), cropType: null, cropStage: null }, initialPlayerStats(), initialWateringCan(), /씨앗/],
+  [{ ...crop(), tilled: false, cropType: null, cropStage: null }, initialPlayerStats(), initialWateringCan(), /갈아 놓은/],
   [crop(), { ...initialPlayerStats(), stamina: 2 }, initialWateringCan(), /체력/],
   [crop(), initialPlayerStats(), { currentWater: 0, capacity: 30 }, /비었어요/],
 ] as const) {
@@ -52,13 +58,17 @@ try {
   const world = JSON.parse(row!.world_json);
   world.daySerial = dryDay; world.day = calendarDate(dryDay).day;
   for (const x of [9, 10, 11]) Object.assign(world.farm.find((tile: FarmTileData) => tile.x === x && tile.y === 8), crop(), { x });
+  Object.assign(world.farm.find((tile: FarmTileData) => tile.x === 12 && tile.y === 8), crop(), { x: 12, cropType: null, cropStage: null, plantedDay: null });
   await db.prepare("UPDATE family_state SET world_json=? WHERE room_id=?").bind(JSON.stringify(world), roomId).run();
 
-  const pose = (x = 304) => ({ mapId: "farm", x, y: 272, facing: "down" as const, selectedTool: "water" as const, moving: false });
+  const pose = (x = 304) => ({ mapId: "farm", x, y: 224, facing: "down" as const, selectedTool: "water" as const, moving: false });
   const act = async (user: string, action: object) => state.act(user, roomId, (await state.read(user, roomId)).revision, action);
   const firstWater = await act("water-A", { kind: "tool", tool: "water", x: 9, y: 8, pose: pose() });
   assert.deepEqual([firstWater.wateringCan?.currentWater, firstWater.stats?.stamina, firstWater.stats?.skills.farming.experience], [29, 97, 2]);
   assert.equal((await state.read("water-B", roomId)).wateringCan?.currentWater, 30, "family members have separate water state");
+  const emptyShared = await act("water-B", { kind: "tool", tool: "water", x: 12, y: 8, pose: pose(400) });
+  assert.equal(emptyShared.world.farm.find(tile => tile.x === 12 && tile.y === 8)?.wateredToday, true, "Family also waters empty tilled soil");
+  assert.deepEqual([emptyShared.wateringCan?.currentWater, emptyShared.stats?.stamina], [29, 97]);
 
   const invalidRefill = { ...pose(), facing: "up" as const };
   await presence.heartbeat("water-A", roomId, invalidRefill, crypto.randomUUID());
@@ -83,7 +93,7 @@ try {
   assert.equal(repeated.filter(result => result.status === "rejected" && result.reason instanceof FamilyError && result.reason.status === 409).length, 1);
   const afterRetry = await state.read("water-A", roomId);
   assert.deepEqual([afterRetry.wateringCan?.currentWater, afterRetry.stats?.stamina, afterRetry.stats?.skills.farming.experience], [29, 94, 4], "retry does not double-consume water/stamina or duplicate XP");
-  assert.equal((await state.read("water-B", roomId)).wateringCan?.currentWater, 30);
+  assert.equal((await state.read("water-B", roomId)).wateringCan?.currentWater, 29);
   const inventoryRow = await db.prepare("SELECT inventories_json FROM family_state WHERE room_id=?").bind(roomId).first<{ inventories_json: string }>();
   const inventories = JSON.parse(inventoryRow!.inventories_json);
   inventories[a.room.playerId].wateringCan.currentWater = 0;

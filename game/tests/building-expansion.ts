@@ -125,7 +125,7 @@ try {
   assert.equal((openedA.inventory.items.wood_plank ?? 0) + (openedB.inventory.items.wood_plank ?? 0), 5);
   await assert.rejects(act("shed-B", expansion), (e: unknown) => e instanceof FamilyError && e.status === 409);
   assert.equal((await state.read("shed-A", roomId)).world.money, 140);
-  const fieldPose = { ...farmPose, x: 8.5 * 32, y: 18 * 32, selectedTool: "hoe" };
+  const fieldPose = { ...farmPose, x: 9.5 * 32, y: 18 * 32, selectedTool: "hoe" };
   await act("shed-B", action("tool", { tool: "hoe", x: 10, y: 18 }, fieldPose));
   await act("shed-B", action("tool", { tool: "seed", cropId: "sproutberry", x: 10, y: 18 }, { ...fieldPose, selectedTool: "seed" }));
   const growing = (await state.read("shed-A", roomId)).world.farm.find(t => t.x === 10 && t.y === 18)!;
@@ -145,7 +145,7 @@ try {
   assert.ok(rainyDay);
   await db.prepare("UPDATE family_state SET world_json=json_set(world_json,'$.daySerial',?,'$.day',?) WHERE room_id=?")
     .bind(rainyDay, (rainyDay - 1) % 28 + 1, roomId).run();
-  await act("shed-B", action("tool", { tool: "hoe", x: 11, y: 18 }, fieldPose));
+  await act("shed-B", action("tool", { tool: "hoe", x: 11, y: 18 }, { ...fieldPose, x: 10.5 * 32 }));
   assert.equal((await state.read("shed-A", roomId)).world.farm.find(t => t.x === 11 && t.y === 18)?.wateredToday, true, "expanded field receives rain");
   const machine = await act("shed-B", action("place", { definitionId: "wood_processor", tileX: 7, tileY: 13 }, { ...farmPose, x: 208, y: 432 }));
   assert.equal(machine.world.placeables?.instances.length, 1);

@@ -13,9 +13,9 @@ export function normalizeWateringCan(value: unknown): WateringCanState {
   return { currentWater, capacity };
 }
 
-/** Validate everything before mutating crop, stamina, XP, or water. */
+/** Validate everything before mutating soil, stamina, XP, or water. */
 export function waterCrop(tile: FarmTileData, stats: PlayerStats, wateringCan: WateringCanState): string | null {
-  if (tile.cropStage === null || !tile.cropType) return "먼저 씨앗을 심어 주세요.";
+  if (!tile.tilled) return "갈아 놓은 밭에 물을 주세요.";
   if (tile.wateredToday) return "오늘은 이미 촉촉하게 물을 주었어요.";
   if (wateringCan.currentWater <= 0) return "물뿌리개가 비었어요. 물가에서 다시 채워 주세요.";
   if (!canPerformAction(stats, "water")) return "체력이 부족합니다. 잠을 자고 회복하세요.";
