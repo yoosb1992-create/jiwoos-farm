@@ -178,6 +178,7 @@ export class FarmScene extends Phaser.Scene {
   private touchPoints = new Map<number, { x:number; y:number; startX:number; startY:number; worldX:number; worldY:number; pinched:boolean }>();
   private pinchGesture?: { distance:number; zoom:number };
   private touchNavigation?: { worldX:number; worldY:number; action:boolean; startedAt:number };
+  private deferredTouchAction?: { worldX:number; worldY:number; queuedAt:number };
   private message = "갈색 밭 가까이에서 괭이를 사용하세요.";
   private commandHandler = (event: Event) => this.handleCommand((event as CustomEvent<Command>).detail);
 
@@ -256,7 +257,7 @@ export class FarmScene extends Phaser.Scene {
       try { this.save(false); } catch { /* Continue cleanup if local storage is full. */ }
       if (this.sleepTimer !== undefined) window.clearTimeout(this.sleepTimer);
       this.sceneLive = false;
-      this.touchPoints.clear(); this.touchNavigation = undefined; this.pinchGesture = undefined;
+      this.touchPoints.clear(); this.touchNavigation = undefined; this.deferredTouchAction = undefined; this.pinchGesture = undefined;
       this.playerActionVisuals.destroy();
       gameEvents.removeEventListener("command", this.commandHandler);
       window.removeEventListener("keydown", this.runKeyDownHandler);
@@ -283,6 +284,11 @@ export class FarmScene extends Phaser.Scene {
   update(_time: number, delta: number) {
     this.updatePlayerDepth();
     this.remotePlayers?.update(this.currentMapId, delta);
+    if (this.deferredTouchAction && this.family && !this.family.busy && this.family.snapshot && !this.isPaused() && !this.toolActions.isActive()) {
+      const pending = this.deferredTouchAction;
+      this.deferredTouchAction = undefined;
+      if (performance.now() - pending.queuedAt < 2000) this.performContextualTouchAction(pending.worldX, pending.worldY);
+    }
     if (this.toolNotice && performance.now() >= this.toolNoticeUntil) { this.toolNotice = ""; this.emitHud(); }
     if (!this.family && !this.isPaused()) this.advanceClock(delta);
     this.npcRenderer.update(this.npcs.sampleWorld(this.daySerial, this.npcTime()), this.currentMapId, this.familyPose(), this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), this.mapRegistry.require(this.currentMapId));
@@ -386,7 +392,7 @@ export class FarmScene extends Phaser.Scene {
     if (!touch) return;
     this.touchPoints.delete(pointer.id);
     if (this.touchPoints.size < 2) this.pinchGesture = undefined;
-    const moved = Math.hypot(touch.x-touch.startX,touch.y-touch.startY)>12;
+    const moved = Math.hypot(touch.x-touch.startX,touch.y-touch.startY)>22;
     if (!cancelled && !touch.pinched && !moved) this.queueTouchNavigation(touch.worldX,touch.worldY);
   }
 
@@ -461,6 +467,10 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private performContextualTouchAction(worldX:number, worldY:number) {
+    if (this.family && (this.family.busy || !this.family.snapshot)) {
+      this.deferredTouchAction = { worldX, worldY, queuedAt: performance.now() };
+      return;
+    }
     this.faceToward(worldX,worldY);
     if (this.buildingMode || this.placing) { this.useAtWorld(worldX,worldY,"mobile"); return; }
     if (this.openMachineAt(worldX,worldY) || this.openRanchAt(worldX,worldY)) return;
