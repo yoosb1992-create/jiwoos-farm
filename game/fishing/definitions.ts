@@ -13,4 +13,4 @@ export const FISH_DEFINITIONS: Record<FishId, FishDefinition> = {
   catfish: { id: "catfish", itemId: "fish_catfish", name: "메기", seasons: ["summer", "autumn"], weather: ["rain"], startMinutes: 1080, endMinutes: 1430, spots: ["farm_pond"], weight: 7, rarity: "rare", sellPrice: 75 },
 };
 export const FISH_BITE_DELAY_MINUTES = 4;
-export const FISH_BITE_WINDOW_MINUTES = 12;
+export const FISH_BITE_WINDOW_MINUTES = 60;
