@@ -1,7 +1,7 @@
-import type { Inventory } from "../domain";
+import { Inventory } from "../domain";
 import { ITEM_DEFINITIONS, type ItemId } from "../data/items";
 import { CONTAINER_DEFINITIONS, isContainerId } from "./definitions";
-import type { ContainerData, ContainerId, StorageData } from "./types";
+import type { ContainerData, ContainerId, StorageData, StorageTransfer } from "./types";
 
 export const isStorableItemId = (value: unknown): value is ItemId =>
   typeof value === "string" && Object.hasOwn(ITEM_DEFINITIONS, value) &&
@@ -51,6 +51,30 @@ export function transferItem(inventory: Inventory, storage: StorageData, contain
     if (inChest < amount) return "보관함에 아이템이 부족해요.";
     if (!Number.isSafeInteger(inBag + amount)) return "가방 수량이 너무 많아요.";
     container.items[itemId] = inChest - amount; inventory.add(itemId, amount);
+  }
+  return null;
+}
+
+
+/** Validate a complete storage edit against cloned state, then commit all moves. */
+export function transferItemsAtomically(
+  inventory: Inventory,
+  storage: StorageData,
+  containerId: unknown,
+  transfers: unknown,
+): string | null {
+  if (!isContainerId(containerId) || !Array.isArray(transfers) || transfers.length < 1 || transfers.length > 100)
+    return "보관함 변경 내용을 확인해 주세요.";
+  const previewInventory = new Inventory(inventory.serialize());
+  const previewStorage = normalizeStorage(storage);
+  for (const transfer of transfers as StorageTransfer[]) {
+    if (!transfer || typeof transfer !== "object") return "보관함 변경 내용을 확인해 주세요.";
+    const error = transferItem(previewInventory, previewStorage, containerId, transfer.direction, transfer.itemId, transfer.quantity);
+    if (error) return error;
+  }
+  for (const transfer of transfers as StorageTransfer[]) {
+    const error = transferItem(inventory, storage, containerId, transfer.direction, transfer.itemId, transfer.quantity);
+    if (error) return error;
   }
   return null;
 }
