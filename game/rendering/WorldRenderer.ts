@@ -168,7 +168,7 @@ export class WorldRenderer {
         this.trackWorld(label); this.forestHitLabels.set(object.id, label);
       }
     }
-    for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { label.destroy(); this.forestHitLabels.delete(id); }
+    for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { this.destroyWorldView(label); this.forestHitLabels.delete(id); }
   }
 
   renderMineHits(hits: Record<string, number>) {
@@ -190,7 +190,7 @@ export class WorldRenderer {
         this.trackWorld(label); this.forestHitLabels.set(object.id, label);
       }
     }
-    for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { label.destroy(); this.forestHitLabels.delete(id); }
+    for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { this.destroyWorldView(label); this.forestHitLabels.delete(id); }
   }
 
   renderFarmTreeHits(hits: Record<string, number>) {
@@ -212,7 +212,7 @@ export class WorldRenderer {
         this.trackWorld(label); this.forestHitLabels.set(object.id, label);
       }
     }
-    for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { label.destroy(); this.forestHitLabels.delete(id); }
+    for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { this.destroyWorldView(label); this.forestHitLabels.delete(id); }
   }
 
   renderFarmTile(tile: FarmTileData) {
