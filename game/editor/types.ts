@@ -8,7 +8,7 @@ export interface MapEditorDocument {
   updatedAt: number;
 }
 
-export type EditorTool = "select" | "terrain" | "object" | "collision" | "farm" | "spawn" | "warp";
+export type EditorTool = "select" | "terrain" | "object" | "stamp" | "collision" | "farm" | "spawn" | "warp";
 export type EditorLayer = "terrain" | "objects" | "collision" | "farm" | "spawn" | "warp" | "grid";
 export type SnapMode = "tile" | "half" | "free";
 export type Selection =
