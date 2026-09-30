@@ -7,7 +7,7 @@ import { ITEM_DEFINITIONS, type ItemId } from "../data/items";
 import { MAP_DEFINITIONS } from "../maps/definitions";
 import { initialPlayerStats } from "../player/stats";
 import { CONTAINER_DEFINITIONS } from "../storage/definitions";
-import { initialStorage, isStorableItemId, normalizeStorage, transferItem } from "../storage/container";
+import { initialStorage, isStorableItemId, normalizeStorage, transferItem, transferItemsAtomically } from "../storage/container";
 import { FamilyError, FamilyRooms } from "../../server/family/rooms";
 import { FamilyState } from "../../server/family/state";
 import { familyTestDB } from "./family-db";
@@ -46,6 +46,18 @@ assert.equal(transferItem(supply, fill, id, "deposit", kinds[0], 1), null, "exis
 assert.equal(transferItem(supply, fill, id, "withdraw", kinds[1], 1), null);
 assert.equal(transferItem(supply, fill, id, "deposit", overflow, 1), null, "emptied stack frees capacity");
 assert.deepEqual(normalizeStorage({ containers: { [id]: { items: { wood: 3, fake: 99, stone: -1 } } } }).containers[id].items, { wood: 3 });
+const batchBag = new Inventory({ items: { wood: 5, stone: 2 } }), batchChest = initialStorage();
+assert.equal(transferItemsAtomically(batchBag, batchChest, id, [
+  { direction: "deposit", itemId: "wood", quantity: 3 },
+  { direction: "deposit", itemId: "stone", quantity: 1 },
+]), null);
+assert.deepEqual([batchBag.count("wood"), batchBag.count("stone"), batchChest.containers[id].items.wood, batchChest.containers[id].items.stone], [2, 1, 3, 1]);
+const batchBefore = [batchBag.serialize(), structuredClone(batchChest)];
+assert.match(transferItemsAtomically(batchBag, batchChest, id, [
+  { direction: "withdraw", itemId: "wood", quantity: 2 },
+  { direction: "deposit", itemId: "stone", quantity: 99 },
+])!, /부족/);
+assert.deepEqual([batchBag.serialize(), batchChest], batchBefore, "failed batch must commit nothing");
 
 const saved = { version: 4, day: 3, daySerial: 31, timeMinutes: 500, money: 222, selectedTool: "axe",
   player: { mapId: "farmhouse", x: 96, y: 160, facing: "up" }, inventory: bag.serialize(), storage: fill,
@@ -61,8 +73,8 @@ const obj = MAP_DEFINITIONS.farmhouse.objects.find(o => o.interaction?.container
 assert.equal(obj.interaction?.action, "storage");
 assert.ok(MAP_DEFINITIONS.farmhouse.objects.some(o => o.interaction?.action === "sleep"));
 assert.ok(MAP_DEFINITIONS.farmhouse.objects.some(o => o.interaction?.action === "craft"));
-const markup = renderToStaticMarkup(createElement(StoragePanel, { containerId: id, storage: fill, items: supply.serialize().items, busy: false, onTransfer: () => {}, onClose: () => {} }));
-assert.ok(markup.includes("내 가방") && markup.includes("가족 보관함") && markup.includes("전부 넣기") && markup.includes("전부 꺼내기") && markup.includes("이동 수량"));
+const markup = renderToStaticMarkup(createElement(StoragePanel, { containerId: id, storage: fill, items: supply.serialize().items, busy: false, onCommit: () => {}, onClose: () => {} }));
+assert.ok(markup.includes("내 가방") && markup.includes("가족 보관함") && markup.includes("전부 넣기") && markup.includes("전부 꺼내기") && markup.includes("확인") && markup.includes("실제 저장에 반영되지 않습니다"));
 
 const { db, close } = familyTestDB();
 try {
@@ -91,6 +103,11 @@ try {
   }
   const third = await act("storage-A", action("deposit", 2));
   assert.equal(third.world.storage?.containers[id].items.wood, 3);
+  const batch = await act("storage-A", { kind: "storage-batch", containerId: id, transfers: [
+    { direction: "withdraw", itemId: "wood", quantity: 1 },
+    { direction: "deposit", itemId: "wood", quantity: 1 },
+  ], pose });
+  assert.equal(batch.world.storage?.containers[id].items.wood, 3, "Family batch commits the confirmed draft atomically");
   const revision = third.revision;
   const race = await Promise.allSettled([state.act("storage-A", roomId, revision, action("withdraw", 3)), state.act("storage-B", roomId, revision, action("withdraw", 3))]);
   assert.equal(race.filter(result => result.status === "fulfilled").length, 1);
