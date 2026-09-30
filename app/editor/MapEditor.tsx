@@ -14,6 +14,7 @@ import { CloudMapEditorRepository, type CloudEditorDraft } from "@/game/editor/c
 import { shouldAdoptCloudDraft } from "@/game/editor/sync";
 import { SCENERY_STAMPS, type SceneryStampId } from "@/game/editor/sceneryStamps";
 import { PublishedWorldRepository, type PublishedWorldPreset } from "@/game/editor/worldPreset";
+import { MAP_DIMENSION_MIN, MAP_TILE_BUDGET, mapSizeError, parseMapDimension } from "@/game/editor/mapSize";
 
 const tools: { id: EditorTool; label: string; hint: string }[] = [
   { id: "select", label: "선택 / 이동", hint: "오브젝트를 선택하고 드래그" }, { id: "terrain", label: "지형 타일", hint: "드래그하여 연속 칠하기" },
@@ -29,7 +30,6 @@ const repository = new LocalMapEditorRepository();
 const cloudRepository = new CloudMapEditorRepository();
 const worldRepository = new PublishedWorldRepository();
 const protectedMapIds = new Set(["farm", "farmhouse", "road", "town", "general_store"]);
-const clampMapDimension = (value: number) => Math.max(8, Math.min(200, Math.round(Number.isFinite(value) ? value : 8)));
 
 export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocument, mapId: string) => void; onExit: () => void }) {
   const initialDraft = useRef<{ document: MapEditorDocument; fromLocal: boolean } | null>(null);
@@ -48,6 +48,11 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   const [layers, setLayers] = useState(initialLayers);
   const [selection, setSelection] = useState<Selection>(null);
   const [inspectorObjectId, setInspectorObjectId] = useState<string | null>(null);
+  const [mapSizeDraft, setMapSizeDraft] = useState(() => ({
+    mapId: document.maps[0]?.id ?? "farm",
+    width: String(document.maps[0]?.width ?? 20),
+    height: String(document.maps[0]?.height ?? 14),
+  }));
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [notice, setNotice] = useState("편집 문서는 게임 저장과 별도로 자동 보관됩니다.");
   const [confirmReset, setConfirmReset] = useState(false);
@@ -63,6 +68,11 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   const documentRef = useRef(document);
   documentRef.current = document;
   const map = document.maps.find((entry) => entry.id === mapId) ?? document.maps[0];
+
+  useEffect(() => {
+    if (!map) return;
+    setMapSizeDraft({ mapId: map.id, width: String(map.width), height: String(map.height) });
+  }, [map?.id, map?.width, map?.height]);
 
   useEffect(() => {
     if (cloudStatus === "checking" && !hasLocalDraft.current) return;
@@ -146,6 +156,15 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     if (!target) return;
     mutate(target); replaceDocument(touchEditorDocument(next));
   }, [mapId, pushHistory, replaceDocument]);
+  const applyMapSize = () => {
+    if (!map) return;
+    const width = parseMapDimension(mapSizeDraft.width), height = parseMapDimension(mapSizeDraft.height);
+    const error = mapSizeError(width, height);
+    if (error) { setNotice(error); return; }
+    if (width === map.width && height === map.height) { setNotice(`맵 크기는 이미 ${width}×${height}입니다.`); return; }
+    mutateMap((target) => { target.width = width; target.height = height; });
+    setNotice(`맵 크기를 ${width}×${height}로 적용했습니다. 축소로 범위를 벗어난 항목은 검증에서 확인할 수 있습니다.`);
+  };
   const undo = useCallback(() => { const next = history.current.undo(documentRef.current); if (next) { replaceDocument(touchEditorDocument(next)); setSelection(null); setNotice("실행 취소했습니다."); } }, [replaceDocument]);
   const redo = useCallback(() => { const next = history.current.redo(documentRef.current); if (next) { replaceDocument(touchEditorDocument(next)); setSelection(null); setNotice("다시 실행했습니다."); } }, [replaceDocument]);
 
@@ -309,8 +328,9 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
         <div className="panel-title"><span>맵</span><small>{document.maps.length}개</small></div>
         <select className="map-select" value={map.id} onChange={(event) => { setMapId(event.target.value); setSelection(null); }}>{document.maps.map((entry) => <option key={entry.id} value={entry.id}>{entry.name} · {entry.id}</option>)}</select>
         <label className="map-name-field"><span>맵 이름</span><input value={map.name} onChange={(event) => mutateMap((target) => { target.name = event.target.value; })} /></label>
-        <div className="map-size-fields"><label><span>가로 타일</span><input type="number" min="8" max="200" value={map.width} onChange={(event) => mutateMap((target) => { target.width = clampMapDimension(Number(event.target.value)); })} /></label><label><span>세로 타일</span><input type="number" min="8" max="200" value={map.height} onChange={(event) => mutateMap((target) => { target.height = clampMapDimension(Number(event.target.value)); })} /></label></div>
-        <small className="editor-help">맵을 줄였을 때 바깥에 남는 오브젝트·영역은 검증 오류로 표시됩니다.</small>
+        <div className="map-size-fields"><label><span>가로 타일</span><input type="number" min={MAP_DIMENSION_MIN} step="1" value={mapSizeDraft.mapId === map.id ? mapSizeDraft.width : String(map.width)} onChange={(event) => setMapSizeDraft({ mapId: map.id, width: event.target.value, height: mapSizeDraft.mapId === map.id ? mapSizeDraft.height : String(map.height) })} /></label><label><span>세로 타일</span><input type="number" min={MAP_DIMENSION_MIN} step="1" value={mapSizeDraft.mapId === map.id ? mapSizeDraft.height : String(map.height)} onChange={(event) => setMapSizeDraft({ mapId: map.id, width: mapSizeDraft.mapId === map.id ? mapSizeDraft.width : String(map.width), height: event.target.value })} /></label></div>
+        <button className="map-size-apply" onClick={applyMapSize}>맵 크기 적용</button>
+        <small className="editor-help">숫자를 입력해도 즉시 바뀌지 않습니다. 적용 버튼을 눌러야 반영됩니다. 한 축의 200타일 제한은 제거했고, 브라우저 보호를 위해 전체 {MAP_TILE_BUDGET.toLocaleString("ko-KR")}타일까지 허용합니다. 맵을 줄였을 때 바깥에 남는 오브젝트·영역은 검증 오류로 표시됩니다.</small>
         <div className="compact-buttons"><button onClick={createBlank}>빈 맵</button><button onClick={duplicateMap}>복제</button><button onClick={deleteMap} disabled={protectedMapIds.has(map.id)}>삭제</button></div>
         <div className="panel-title"><span>도구</span><small>{tools.find((entry) => entry.id === tool)?.hint}</small></div>
         <div className="tool-list">{tools.map((entry) => <button key={entry.id} className={tool === entry.id ? "active" : ""} onClick={() => selectTool(entry.id)}>{entry.label}</button>)}</div>
@@ -330,7 +350,8 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
         {tool === "terrain" && <div className="palette">{Object.keys(TILE_TYPE_DEFINITIONS).map((id) => <button key={id} className={terrain === id ? "active" : ""} onClick={() => setTerrain(id as TileTypeId)}>{tileLabels[id as TileTypeId]}</button>)}</div>}
         {tool === "object" && <div className="palette">{Object.keys(WORLD_OBJECT_ASSETS).map((id) => <button key={id} className={objectAssetId === id ? "active" : ""} onClick={() => setObjectAssetId(id as WorldObjectAssetId)}>{objectLabels[id as WorldObjectAssetId]}</button>)}</div>}
         {tool === "stamp" && <div className="palette scenery-palette">{Object.values(SCENERY_STAMPS).map((stamp) => <button key={stamp.id} className={sceneryStampId === stamp.id ? "active" : ""} onClick={() => setSceneryStampId(stamp.id)}><b>{stamp.label}</b><small>{stamp.hint}</small></button>)}</div>}
-        <div className="map-size-fields"><label>가로 <input type="number" min="8" max="200" value={map.width} onChange={(event) => mutateMap((target) => { target.width = clampMapDimension(Number(event.target.value)); })} /></label><label>세로 <input type="number" min="8" max="200" value={map.height} onChange={(event) => mutateMap((target) => { target.height = clampMapDimension(Number(event.target.value)); })} /></label></div>
+        <div className="map-size-fields"><label>가로 <input type="number" min={MAP_DIMENSION_MIN} step="1" value={mapSizeDraft.mapId === map.id ? mapSizeDraft.width : String(map.width)} onChange={(event) => setMapSizeDraft({ mapId: map.id, width: event.target.value, height: mapSizeDraft.mapId === map.id ? mapSizeDraft.height : String(map.height) })} /></label><label>세로 <input type="number" min={MAP_DIMENSION_MIN} step="1" value={mapSizeDraft.mapId === map.id ? mapSizeDraft.height : String(map.height)} onChange={(event) => setMapSizeDraft({ mapId: map.id, width: mapSizeDraft.mapId === map.id ? mapSizeDraft.width : String(map.width), height: event.target.value })} /></label></div>
+        <button className="map-size-apply" onClick={applyMapSize}>맵 크기 적용</button>
         <label>맞춤 단위 <select value={snapMode} onChange={(event) => setSnapMode(event.target.value as SnapMode)}><option value="tile">1타일</option><option value="half">0.5타일</option><option value="free">자유</option></select></label>
         <div className="layer-list">{(Object.keys(layerLabels) as EditorLayer[]).map((id) => <label key={id}><input type="checkbox" checked={layers[id]} onChange={() => setLayers((current) => ({ ...current, [id]: !current[id] }))} />{layerLabels[id]}</label>)}</div>
         <button onClick={() => importRef.current?.click()}>JSON 가져오기</button><button onClick={() => void exportJson()}>JSON 공유</button><button onClick={() => void refreshCloud()}>클라우드 불러오기</button><button onClick={usePublishedWorld} disabled={!publishedPreset}>초기월드 불러오기</button><button onClick={() => void publishInitialWorld()} disabled={worldStatus === "saving"}>★ 초기월드 적용</button>{cloudStatus === "signed-out" && <a className="editor-signin" href="/editor-login" target="_top">클라우드 로그인</a>}
