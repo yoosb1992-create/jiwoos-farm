@@ -7,6 +7,7 @@ import type { WeatherId } from "../weather/types";
 import { FISH_BITE_DELAY_MINUTES, FISH_BITE_WINDOW_MINUTES, FISH_DEFINITIONS, FISHING_SPOTS } from "./definitions";
 import type { FishDefinition, FishId, FishingCast, FishingProgress, FishingSpotId } from "./types";
 import type { FamilyPose } from "../family/types";
+import { fishingCatchGradeLabel, type FishingCatchGrade } from "./maze";
 import { interactionTargetPointFromPosition, playerFeetPointFromPosition } from "../player/interaction";
 
 export const initialFishingProgress = (): FishingProgress => ({ castSequence: 0, caughtFishIds: [] });
@@ -74,7 +75,7 @@ export function beginFishing(progress: FishingProgress, active: FishingCast | nu
     biteAt, expiresAt: biteAt + FISH_BITE_WINDOW_MINUTES } satisfies FishingCast };
 }
 export function reelFishing(cast: FishingCast | null, castId: string, progress: FishingProgress, inventory: Inventory,
-  stats: PlayerStats, daySerial: number, timeMinutes: number) {
+  stats: PlayerStats, daySerial: number, timeMinutes: number, grade?: FishingCatchGrade) {
   if (!cast || cast.id !== castId) return { error: "이미 끝난 낚시예요. 다시 던져 주세요." };
   if (cast.daySerial !== daySerial) return { cast: null, failed: true, message: "날짜가 바뀌어 낚시가 취소됐어요." };
   const stage = fishingStage(cast, worldMinute(daySerial, timeMinutes));
@@ -86,5 +87,11 @@ export function reelFishing(cast: FishingCast | null, castId: string, progress: 
   inventory.add(fish.itemId);
   recordSuccessfulAction(stats, "fish");
   if (!progress.caughtFishIds.includes(fish.id)) progress.caughtFishIds.push(fish.id);
-  return { cast: null, fish, message: `${fish.name}를 낚았어요!` };
+  return { cast: null, fish, message: `${fishingCatchGradeLabel(grade)}${fish.name}를 낚았어요!` };
+}
+
+/** A maze timeout, exhausted trace count or explicit give-up ends only the active cast. */
+export function failFishing(cast: FishingCast | null, castId: string) {
+  if (!cast || cast.id !== castId) return { error: "이미 끝난 낚시예요. 다시 던져 주세요." };
+  return { cast: null, failed: true, message: "물고기가 빠져나갔어요. 다시 던져 보세요." };
 }
