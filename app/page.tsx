@@ -198,7 +198,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
         <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen((open) => !open)} aria-label="게임 메뉴" aria-expanded={mobileMenuOpen} aria-controls="mobile-game-menu">☰</button>
         {mobileMenuOpen && <div className="mobile-menu-backdrop" aria-hidden="true" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); setMobileMenuOpen(false); }} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} />}
         <div id="mobile-game-menu" className={`save-row ${mobileMenuOpen ? "open" : ""}`} role={mobileMenuOpen ? "dialog" : undefined} aria-modal={mobileMenuOpen || undefined} aria-label={mobileMenuOpen ? "게임 메뉴" : undefined} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
-          {mobileMenuOpen && <div className="mobile-menu-summary mobile-menu-only">
+          {mobileMenuOpen && <div className="mobile-menu-summary">
             <section className="mobile-menu-objective"><b>오늘 할 일</b><strong>{hud.objective}</strong><div className="growth-track"><i style={{ width: `${hud.progress}%` }} /></div><small>{hud.message}</small></section>
             {family && <FamilyStatus session={family} mapId={hud.mapId} />}
             {testMode && <small className="mobile-test-note">테스트 플레이 · 저장 비활성</small>}
@@ -210,11 +210,11 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
           <button onClick={() => { command(hud.buildingMode ? "building-mode" : "building-open"); setMobileMenuOpen(false); }}>{hud.buildingMode ? "건설 취소" : "🏠 건설·확장"}</button>
           <button onClick={()=>{command("village-open",true);setMobileMenuOpen(false);}}>주민·의뢰</button>
           <button className="mobile-menu-only" onClick={openControlEditor}>🎮 조작 UI 설정</button>
-          {!family && <button className="mobile-menu-only" onClick={() => { setMobileMenuOpen(false); onOpenEditor(); }}>{testMode ? "← 편집기로 돌아가기" : "🛠 맵 편집"}</button>}
-          <button className="mobile-menu-only" onClick={() => { setMobileMenuOpen(false); onHome(); }}>{family ? "농장 나가기" : "처음으로"}</button>
+          {!family && <button onClick={() => { setMobileMenuOpen(false); onOpenEditor(); }}>{testMode ? "← 편집기로 돌아가기" : "🛠 맵 편집"}</button>}
+          <button onClick={() => { setMobileMenuOpen(false); onHome(); }}>{family ? "농장 나가기" : "처음으로"}</button>
           <button onClick={toggleHelp}>?</button>
         </div>
-        {showHelp && <div className="modal-shade"><div className="help-card"><button aria-label="도움말 닫기" onClick={toggleHelp}>×</button><b>농사와 마을 생활</b><p><kbd>WASD</kbd> / 방향키로 이동 · 가까운 밭을 클릭하거나 <kbd>Space</kbd>로 행동</p><p>괭이 → 씨앗 → 물 → 잠자기 → 다음 날 물 주기 순서로 키워 보세요.</p><p>집 안 침대에서 잠들고, 농장 남쪽 길을 따라 마을 상점에 갈 수 있어요. 주민 가까이에서 행동하면 대화합니다. 메뉴의 주민·의뢰에서 개인 기록을 확인하세요.</p></div></div>}
+        {showHelp && <div className="modal-shade"><div className="help-card"><button aria-label="도움말 닫기" onClick={toggleHelp}>×</button><b>농사와 마을 생활</b><p><kbd>WASD</kbd> / 방향키로 이동 · <kbd>왼쪽 Shift</kbd>로 달리기 · 가까운 밭을 클릭하거나 <kbd>Space</kbd>로 행동</p><p>괭이 → 씨앗 → 물 → 잠자기 → 다음 날 물 주기 순서로 키워 보세요.</p><p>집 안 침대에서 잠들고, 농장 남쪽 길을 따라 마을 상점에 갈 수 있어요. 주민 가까이에서 행동하면 대화합니다. 메뉴의 주민·의뢰에서 개인 기록을 확인하세요.</p></div></div>}
         {hud.villageOpen && <VillageJournal hud={hud} onClose={()=>command("village-open",false)} />}
         {hud.dialogue && <NpcDialogue dialogue={hud.dialogue} onNext={()=>command("dialogue-next")} onClose={()=>command("dialogue-close")}>{!hud.dialogue.eventId && <><NpcRelationshipActions items={hud.craftingItems??{}} eventOptions={hud.relationshipEvents??[]} busy={hud.npcBusy??false} onGift={itemId=>command("npc-gift",itemId)} onEvent={eventId=>command("relationship-event-start",eventId)} /><NpcQuests quests={(hud.quests??[]).filter(q=>q.giver===hud.dialogue!.npcId)} busy={hud.npcBusy} onAction={action=>command("quest-action",action)} /></>}</NpcDialogue>}
         {hud.sleepPrompt && <div className="modal-shade"><div className="sleep-card" role="dialog" aria-modal="true" aria-label="잠자기 확인"><span>🌙</span><b>{family ? "잠자기에 동의할까요? 접속한 가족 모두 동의하면 다음 날이 됩니다." : "오늘 하루를 마치고 잠드시겠습니까?"}</b><p>물을 준 작물은 잠든 사이 한 단계 자랍니다.</p><div><button onClick={() => command("sleep-confirm")}>확인</button><button onClick={() => command("sleep-cancel")}>취소</button></div></div></div>}
