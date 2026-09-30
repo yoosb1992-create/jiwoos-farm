@@ -41,14 +41,18 @@ export const groundAnchorPoint = (
   };
 };
 
-/** Shared y-sort contract for oversized objects and actors. Existing explicit
- * depths remain valid; renderers can opt into this without changing map data. */
+/** Shared y-sort contract for oversized objects and actors. Ground/terrain
+ * layers stay below this range; UI/labels stay above WORLD_OVERLAY_DEPTH. */
+export const WORLD_Y_SORT_BASE = 10;
+export const WORLD_OVERLAY_DEPTH = 30;
+export const depthFromWorldY = (worldY: number, layerBase = WORLD_Y_SORT_BASE) =>
+  layerBase + worldY / 10_000;
 export const depthFromGroundAnchor = (
   position: { x: number; y: number },
   asset: VisualAssetDefinition,
   displaySize = displayedSize(asset),
-  layerBase = 10,
-) => layerBase + groundAnchorPoint(position, asset, displaySize).y / 10_000;
+  layerBase = WORLD_Y_SORT_BASE,
+) => depthFromWorldY(groundAnchorPoint(position, asset, displaySize).y, layerBase);
 
 export const physicsBoxForScale = (
   box: { width: number; height: number; offsetX: number; offsetY: number },
@@ -240,17 +244,17 @@ export const WORLD_OBJECT_ASSETS = {
   forest_herb: { assetId: "forest_herb", textureKey: "forest-herb", source: { kind: "image", path: "/assets/objects/forest-herb.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { stem: 0x426d42, leaf: 0x80ad60 } },
   forest_moon_mushroom: { assetId: "forest_moon_mushroom", textureKey: "forest-moon-mushroom", source: { kind: "image", path: "/assets/objects/forest-moon-mushroom.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { stem: 0x9ed4ce, cap: 0x665f9d } },
   forest_fairy_bloom: { assetId: "forest_fairy_bloom", textureKey: "forest-fairy-bloom", source: { kind: "image", path: "/assets/objects/forest-fairy-bloom.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { stem: 0x4a824b, petal: 0xf3b9d7 } },
-  sell_basket: { assetId: "sell_basket", textureKey: "building-sell-basket", source: { kind: "image", path: "/assets/objects/sell-basket.png" }, frameSize: { width: 90, height: 76 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x9e543b, stroke: 0x673a2a } },
-  store: { assetId: "store", textureKey: "building-store", source: { kind: "image", path: "/assets/objects/store.png" }, frameSize: { width: 192, height: 160 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { wall: 0xe8c47d, roof: 0x558060, trim: 0x7d5136, door: 0x704934 } },
+  sell_basket: { assetId: "sell_basket", textureKey: "building-sell-basket", source: { kind: "image", path: "/assets/objects/sell-basket.png" }, frameSize: { width: 90, height: 76 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, groundAnchor: { x: 0.5, y: 0.9 }, fallback: { fill: 0x9e543b, stroke: 0x673a2a } },
+  store: { assetId: "store", textureKey: "building-store", source: { kind: "image", path: "/assets/objects/store.png" }, frameSize: { width: 192, height: 160 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, groundAnchor: { x: 0.5, y: 0.94 }, fallback: { wall: 0xe8c47d, roof: 0x558060, trim: 0x7d5136, door: 0x704934 } },
   bed: { assetId: "bed", textureKey: "furniture-bed", source: { kind: "image", path: "/assets/objects/bed.png" }, frameSize: { width: 96, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xefd99d, stroke: 0x8f6047 } },
   crafting_table: { assetId: "crafting_table", textureKey: "furniture-crafting-table", source: { kind: "image", path: "/assets/objects/crafting-table.png" }, frameSize: { width: 64, height: 48 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xae7951, stroke: 0x694635 } },
   storage_chest: { assetId: "storage_chest", textureKey: "furniture-storage-chest", source: { kind: "image", path: "/assets/objects/storage-chest.png" }, frameSize: { width: 64, height: 48 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xb77843, stroke: 0x38261f } },
-  wood_processor: { assetId: "wood_processor", textureKey: "world-wood-processor", source: { kind: "image", path: "/assets/objects/wood-processor.png" }, frameSize: { width: 40, height: 42 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xa87543, stroke: 0x41352b } },
-  work_shed: { assetId: "work_shed", textureKey: "building-work-shed", source: { kind: "image", path: "/assets/objects/work-shed.png" }, frameSize: { width: 96, height: 96 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xc99459, stroke: 0x543d2a } },
-  chicken_coop: { assetId: "chicken_coop", textureKey: "building-chicken-coop", source: { kind: "image", path: "/assets/objects/chicken-coop.png" }, frameSize: { width: 128, height: 96 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xd5a25f, stroke: 0x593b28 } },
-  chicken: { assetId: "chicken", textureKey: "animal-chicken", source: { kind: "image", path: "/assets/objects/chicken.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0xf3ead4, stroke: 0x7c5140 } },
-  feed_trough: { assetId: "feed_trough", textureKey: "animal-feed-trough", source: { kind: "image", path: "/assets/objects/feed-trough.png" }, frameSize: { width: 40, height: 24 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x9c7042, stroke: 0x503522 } },
-  shop_counter: { assetId: "shop_counter", textureKey: "furniture-shop-counter", source: { kind: "image", path: "/assets/objects/shop-counter.png" }, frameSize: { width: 224, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, fallback: { fill: 0x9c6543, stroke: 0x60402f } },
+  wood_processor: { assetId: "wood_processor", textureKey: "world-wood-processor", source: { kind: "image", path: "/assets/objects/wood-processor.png" }, frameSize: { width: 40, height: 42 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, groundAnchor: { x: 0.5, y: 0.9 }, fallback: { fill: 0xa87543, stroke: 0x41352b } },
+  work_shed: { assetId: "work_shed", textureKey: "building-work-shed", source: { kind: "image", path: "/assets/objects/work-shed.png" }, frameSize: { width: 96, height: 96 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, groundAnchor: { x: 0.5, y: 0.94 }, fallback: { fill: 0xc99459, stroke: 0x543d2a } },
+  chicken_coop: { assetId: "chicken_coop", textureKey: "building-chicken-coop", source: { kind: "image", path: "/assets/objects/chicken-coop.png" }, frameSize: { width: 128, height: 96 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, groundAnchor: { x: 0.5, y: 0.94 }, fallback: { fill: 0xd5a25f, stroke: 0x593b28 } },
+  chicken: { assetId: "chicken", textureKey: "animal-chicken", source: { kind: "image", path: "/assets/objects/chicken.png" }, frameSize: { width: 32, height: 32 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, groundAnchor: { x: 0.5, y: 0.82 }, fallback: { fill: 0xf3ead4, stroke: 0x7c5140 } },
+  feed_trough: { assetId: "feed_trough", textureKey: "animal-feed-trough", source: { kind: "image", path: "/assets/objects/feed-trough.png" }, frameSize: { width: 40, height: 24 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, groundAnchor: { x: 0.5, y: 0.82 }, fallback: { fill: 0x9c7042, stroke: 0x503522 } },
+  shop_counter: { assetId: "shop_counter", textureKey: "furniture-shop-counter", source: { kind: "image", path: "/assets/objects/shop-counter.png" }, frameSize: { width: 224, height: 56 }, displayScale: { x: 1, y: 1 }, origin: { x: 0.5, y: 0.5 }, groundAnchor: { x: 0.5, y: 0.86 }, fallback: { fill: 0x9c6543, stroke: 0x60402f } },
   fence_horizontal: verticalSliceObject("fence_horizontal", "farm-fence-horizontal", "fence-horizontal", { width: 128, height: 64 }, { defaultCollisionBox: { x: -60, y: -12, width: 120, height: 20 } }),
   fence_vertical: verticalSliceObject("fence_vertical", "farm-fence-vertical", "fence-vertical", { width: 64, height: 80 }, { defaultCollisionBox: { x: -10, y: -48, width: 20, height: 56 } }),
   fence_corner: verticalSliceObject("fence_corner", "farm-fence-corner", "fence-corner", { width: 96, height: 80 }, { defaultCollisionBox: { x: -34, y: -18, width: 68, height: 28 } }),
