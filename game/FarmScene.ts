@@ -247,6 +247,7 @@ export class FarmScene extends Phaser.Scene {
       this.touchPoints.clear(); this.touchNavigation = undefined; this.pinchGesture = undefined;
       this.playerActionVisuals.destroy();
       gameEvents.removeEventListener("command", this.commandHandler);
+      if (this.family && this.storageOpen) void this.family.act({ kind:"storage-lock", containerId:this.storageOpen, acquire:false, pose:this.familyPose() });
       this.family?.stop(); this.remotePlayers?.destroy(); this.npcRenderer.destroy();
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
@@ -646,7 +647,7 @@ export class FarmScene extends Phaser.Scene {
     if (action === "sleep") this.askToSleep();
     else if (action === "open_shop") { this.shopOpen = true; this.say("새봄 상점입니다. 필요한 씨앗을 골라 보세요."); }
     else if (action === "craft") { this.craftingOpen = true; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); this.say("제작대에서 재료를 가공할 수 있어요."); }
-    else if (action === "storage" && containerId && isContainerId(containerId)) { this.storageOpen = containerId; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); this.say("가방과 보관함 사이에서 아이템을 옮길 수 있어요."); }
+    else if (action === "storage" && containerId && isContainerId(containerId)) this.openStorage(containerId);
     else if (action === "sell") this.sellHarvest();
   }
 
@@ -1102,7 +1103,7 @@ export class FarmScene extends Phaser.Scene {
       if (this.currentMapId !== "farm" || this.inventory.count("wood_processor") < 1) { this.say("농장에서 가방의 목재 가공기를 배치해 주세요."); return; }
       this.placing = true; this.say("가까운 빈 땅을 누르거나 행동 버튼으로 배치하세요."); return;
     }
-    if (command.type === "storage-close") { if (!this.storageBusy) { this.storageOpen = undefined; this.emitHud(); } return; }
+    if (command.type === "storage-close") { if (!this.storageBusy) this.closeStorage(); return; }
     if (command.type === "storage-transfer") { this.transferStorage(command.value); return; }
     if (command.type === "storage-commit") { this.commitStorage(command.value); return; }
     if (command.type === "inventory-close") { this.inventoryOpen = false; this.virtualMovement = { x: 0, y: 0 }; this.emitHud(); return; }
@@ -1157,6 +1158,22 @@ export class FarmScene extends Phaser.Scene {
     if (command.type === "craft" && typeof command.value === "string") this.craftRecipe(command.value);
     if (command.type === "tool-upgrade" && typeof command.value === "string") this.upgradeToolAtTable(command.value);
     if (command.type === "sell") this.sellHarvest();
+  }
+
+  private openStorage(containerId: ContainerId) {
+    this.virtualMovement={x:0,y:0}; this.touchNavigation=undefined; this.player.setVelocity(0,0);
+    if (!this.family) { this.storageOpen=containerId; this.say("가방과 보관함 사이에서 아이템을 옮길 수 있어요."); return; }
+    if (this.storageBusy) return;
+    this.storageBusy=true; this.emitHud();
+    void this.family.act({ kind:"storage-lock", containerId, acquire:true, pose:this.familyPose() }).then(ok=>{
+      if (ok && this.sceneLive) { this.storageOpen=containerId; this.say("보관함을 열었어요. 현재는 나만 사용할 수 있어요."); }
+    }).finally(()=>{ if(this.sceneLive){this.storageBusy=false;this.emitHud();} });
+  }
+
+  private closeStorage() {
+    const containerId=this.storageOpen;
+    this.storageOpen=undefined; this.emitHud();
+    if (this.family && containerId) void this.family.act({ kind:"storage-lock", containerId, acquire:false, pose:this.familyPose() });
   }
 
   private transferStorage(value: unknown) {
