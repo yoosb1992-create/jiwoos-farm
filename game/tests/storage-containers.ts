@@ -108,7 +108,7 @@ try {
     { direction: "deposit", itemId: "wood", quantity: 1 },
   ], pose });
   assert.equal(batch.world.storage?.containers[id].items.wood, 3, "Family batch commits the confirmed draft atomically");
-  const revision = third.revision;
+  const revision = batch.revision;
   const race = await Promise.allSettled([state.act("storage-A", roomId, revision, action("withdraw", 3)), state.act("storage-B", roomId, revision, action("withdraw", 3))]);
   assert.equal(race.filter(result => result.status === "fulfilled").length, 1);
   const loser = race.find(result => result.status === "rejected") as PromiseRejectedResult;
