@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { FamilyClient, familyRetryDelay } from "../family/client";
+import { FamilyClient, familyPresenceDelay, familyRetryDelay } from "../family/client";
 import { Inventory } from "../domain";
 import type { FamilySnapshot } from "../family/types";
 const originalFetch = globalThis.fetch;
@@ -13,6 +13,8 @@ globalThis.fetch = (async (_url, init) => {
 const client = new FamilyClient({ room: { id: "r", playerId: "p", name: "농장", nickname: "지우", inviteCode: "ABCDEFGH" } }, (s) => received.push(s.revision), () => {});
 try {
   assert.deepEqual([0,1,2,3,4,20].map(familyRetryDelay), [1000,2000,4000,8000,16000,16000]);
+  assert.equal(familyPresenceDelay({ moving: true }), 180, "moving Family presence uses a faster fallback cadence");
+  assert.equal(familyPresenceDelay({ moving: false }), 850, "idle Family presence backs off");
   client.start(); // delayed initial GET
   const refresh = client.refresh();
   pending[1](Response.json(snapshot(2))); await refresh;
