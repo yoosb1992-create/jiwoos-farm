@@ -8,6 +8,7 @@ import type { MapDefinition, PixelRect, TileRect, TileTypeId } from "@/game/maps
 import type { EditorLayer, EditorTool, Selection, SnapMode } from "@/game/editor/types";
 import { clampEditorZoom, createPinchStart, updatePinchViewport, type PinchStart } from "@/game/editor/viewport";
 import { beginObjectDrag, moveMapObject, objectDragPosition, type ObjectDragGrab } from "@/game/editor/objectDrag";
+import { applySceneryStamp, type SceneryStampId } from "@/game/editor/sceneryStamps";
 
 const tileColors: Record<TileTypeId, string> = {
   grass: "#83b85e", path: "#c9aa71", water: "#66a8ca", farm: "#9b7049", wood_floor: "#b77b4c", stone_floor: "#c8bd9f", mine_floor: "#56565d", mine_wall: "#303138",
@@ -24,6 +25,7 @@ interface Props {
   tool: EditorTool;
   terrain: TileTypeId;
   objectAssetId: WorldObjectAssetId;
+  sceneryStampId: SceneryStampId;
   layers: Record<EditorLayer, boolean>;
   snapMode: SnapMode;
   selection: Selection;
@@ -33,7 +35,7 @@ interface Props {
   onContinuous: (mutate: (map: MapDefinition) => void) => void;
 }
 
-export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMode, selection, onSelect, onCommit, onBeginContinuous, onContinuous }: Props) {
+export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId, layers, snapMode, selection, onSelect, onCommit, onBeginContinuous, onContinuous }: Props) {
   const patternPrefix = useId().replace(/:/g, "");
   const [failedImages, setFailedImages] = useState<Set<string>>(() => new Set());
   const markImageFailed = (path: string) => setFailedImages((previous) => new Set(previous).add(path));
@@ -46,7 +48,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<PinchStart | null>(null);
   const suppressEdit = useRef(false);
-  const pendingTap = useRef<{ kind: "terrain" | "object" | "spawn"; point: { x: number; y: number } } | null>(null);
+  const pendingTap = useRef<{ kind: "terrain" | "object" | "stamp" | "spawn"; point: { x: number; y: number } } | null>(null);
   const [viewport, setViewport] = useState({ zoom: 1, panX: 0, panY: 0 });
   const [draft, setDraft] = useState<{ start: { x: number; y: number }; end: { x: number; y: number } } | null>(null);
   const point = (event: React.PointerEvent) => {
@@ -70,6 +72,9 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
     const collision = "defaultCollisionBox" in asset ? { ...(asset.defaultCollisionBox as PixelRect) } : undefined;
     target.objects.push({ id, assetId: objectAssetId, position: { tileX: snap(p.x, snapMode), tileY: snap(p.y, snapMode) }, collision, depth: 3 });
   });
+  const placeStamp = (p: { x: number; y: number }) => onCommit((target) => {
+    applySceneryStamp(target, sceneryStampId, snap(p.x, "half"), snap(p.y, "half"));
+  });
   const placeSpawn = (p: { x: number; y: number }) => onCommit((target) => {
     let id = "spawn", suffix = 2;
     while (target.spawns.some((entry) => entry.id === id)) id = `spawn_${suffix++}`;
@@ -90,6 +95,10 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
     if (tool === "terrain") { painting.current = true; onBeginContinuous(); if (event.pointerType === "touch") pendingTap.current = { kind: "terrain", point: p }; else paint(p); return; }
     if (tool === "object") {
       if (event.pointerType === "touch") pendingTap.current = { kind: "object", point: p }; else placeObject(p);
+      return;
+    }
+    if (tool === "stamp") {
+      if (event.pointerType === "touch") pendingTap.current = { kind: "stamp", point: p }; else placeStamp(p);
       return;
     }
     if (tool === "spawn") {
@@ -138,6 +147,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, layers, snapMo
       const pending = pendingTap.current; pendingTap.current = null;
       if (pending.kind === "terrain") paint(pending.point);
       if (pending.kind === "object") placeObject(pending.point);
+      if (pending.kind === "stamp") placeStamp(pending.point);
       if (pending.kind === "spawn") placeSpawn(pending.point);
     }
     painting.current = false;
