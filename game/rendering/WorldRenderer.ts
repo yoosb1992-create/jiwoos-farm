@@ -1,6 +1,6 @@
 import * as Phaser from "phaser";
 import type { FarmTileData } from "../domain";
-import { CROP_ASSETS, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, type CropAssetId } from "../assets/definitions";
+import { CROP_ASSETS, TILE_ASSETS, WORLD_OBJECT_ASSETS, WORLD_OVERLAY_DEPTH, depthFromGroundAnchor, displayedSize, type CropAssetId, type VisualAssetDefinition } from "../assets/definitions";
 import { FARM_TERRAIN_DECORATIONS, TERRAIN_COMPOSITION_ASSETS, type CardinalDirection, type CornerDirection, type TerrainCompositionAssetId } from "../assets/terrainComposition";
 import { TERRAIN_GRAPHICS_PROFILE } from "../assets/graphicsFoundation";
 import { CROP_DEFINITIONS } from "../data/crops";
@@ -38,6 +38,9 @@ export const collisionRectCenter = (position: { x: number; y: number }, collisio
 
 export class WorldRenderer {
   private root?: Phaser.GameObjects.Container;
+  /** Ground stays in one container; y-sorted world sprites must live on the scene
+   * display list so actors can interleave with trees, props and buildings. */
+  private readonly worldViews = new Set<Phaser.GameObjects.GameObject>();
   private obstacles?: Phaser.Physics.Arcade.StaticGroup;
   private readonly farmViews = new Map<string, Phaser.GameObjects.Container>();
   private readonly forestHitLabels = new Map<string, Phaser.GameObjects.Text>();
@@ -65,13 +68,16 @@ export class WorldRenderer {
     for (const region of map.collisionRegions) this.addCollisionRegion(region);
     for (const object of map.objects) if (!hiddenObjectIds.has(object.id)) this.addObject(object);
     if (map.boundary.enabled) this.createBoundary(map);
-    this.root.add(this.scene.add.text(20, 18, map.name, { fontFamily: "sans-serif", fontSize: "20px", color: "#fff4d8", fontStyle: "bold", backgroundColor: "#4f633dcc", padding: { x: 10, y: 5 } }).setDepth(30));
+    this.trackWorld(this.scene.add.text(20, 18, map.name, { fontFamily: "sans-serif", fontSize: "20px", color: "#fff4d8", fontStyle: "bold", backgroundColor: "#4f633dcc", padding: { x: 10, y: 5 } }).setDepth(WORLD_OVERLAY_DEPTH));
     if (mapId === "farm") this.createFarmViews(farm);
     return this.obstacles;
   }
 
   destroy() {
-    this.farmViews.clear(); this.forestHitLabels.clear(); this.placeableViews.clear(); this.placeableSignature = ""; this.buildingViews.clear(); this.buildingSignature = ""; this.animalViews.length = 0; this.animalSignature = ""; this.root?.destroy(true); this.root = undefined;
+    this.farmViews.clear(); this.forestHitLabels.clear(); this.placeableViews.clear(); this.placeableSignature = ""; this.buildingViews.clear(); this.buildingSignature = ""; this.animalViews.length = 0; this.animalSignature = "";
+    for (const view of this.worldViews) view.destroy();
+    this.worldViews.clear();
+    this.root?.destroy(true); this.root = undefined;
     this.obstacles?.clear(true, true); this.obstacles = undefined;
   }
 
@@ -81,16 +87,15 @@ export class WorldRenderer {
     const signature = JSON.stringify(current.map(p => [p.id, p.definitionId, p.tileX, p.tileY]));
     if (signature === this.placeableSignature) return;
     for (const { image, obstacle } of this.placeableViews.values()) {
-      this.root.remove(image, true);
-      if (obstacle) { this.root.remove(obstacle); this.obstacles.remove(obstacle, true, true); }
+      this.destroyWorldView(image);
+      if (obstacle) this.obstacles.remove(obstacle, true, true);
     }
     this.placeableViews.clear(); this.placeableSignature = signature;
     for (const instance of current) {
       const definition = PLACEABLE_DEFINITIONS[instance.definitionId], asset = WORLD_OBJECT_ASSETS[definition.assetId];
       const x = (instance.tileX + definition.footprint.width / 2) * GAME_CONFIG.tileSize;
       const y = (instance.tileY + definition.footprint.height / 2) * GAME_CONFIG.tileSize;
-      const image = this.makeImage(x, y, asset).setDepth(7);
-      this.root.add(image);
+      const image = this.trackWorld(this.makeImage(x, y, asset).setDepth(depthFromGroundAnchor({ x, y }, asset)));
       const obstacle = definition.collision ? this.addObstacle(x, y, definition.footprint.width * GAME_CONFIG.tileSize - 4, definition.footprint.height * GAME_CONFIG.tileSize - 4) : undefined;
       this.placeableViews.set(instance.id, { image, obstacle });
     }
@@ -103,15 +108,14 @@ export class WorldRenderer {
     const signature = JSON.stringify(current.map(b => [b.id, b.definitionId, b.tileX, b.tileY, b.status]));
     if (signature === this.buildingSignature) return;
     for (const { image, obstacle } of this.buildingViews.values()) {
-      this.root.remove(image, true); this.root.remove(obstacle); this.obstacles.remove(obstacle, true, true);
+      this.destroyWorldView(image); this.obstacles.remove(obstacle, true, true);
     }
     this.buildingViews.clear(); this.buildingSignature = signature;
     for (const instance of current) {
       const definition = BUILDING_DEFINITIONS[instance.definitionId], asset = WORLD_OBJECT_ASSETS[definition.assetId];
       const x = (instance.tileX + definition.footprint.width / 2) * GAME_CONFIG.tileSize;
       const y = (instance.tileY + definition.footprint.height / 2) * GAME_CONFIG.tileSize;
-      const image = this.makeImage(x, y, asset).setDepth(7).setAlpha(instance.status === "ready" ? 1 : .65);
-      this.root.add(image);
+      const image = this.trackWorld(this.makeImage(x, y, asset).setDepth(depthFromGroundAnchor({ x, y }, asset)).setAlpha(instance.status === "ready" ? 1 : .65));
       const obstacle = this.addObstacle(instance.tileX * GAME_CONFIG.tileSize + definition.collision.x + definition.collision.width / 2,
         instance.tileY * GAME_CONFIG.tileSize + definition.collision.y + definition.collision.height / 2,
         definition.collision.width, definition.collision.height);
@@ -126,20 +130,22 @@ export class WorldRenderer {
     const current = animals.filter(a => homes.has(a.homeBuildingId));
     const signature = JSON.stringify([current.map(a => [a.id, a.homeBuildingId, a.lastFedDaySerial, a.produceReady]), [...homes.keys()]]);
     if (signature === this.animalSignature) return;
-    for (const view of this.animalViews) this.root.remove(view, true);
+    for (const view of this.animalViews) this.destroyWorldView(view);
     this.animalViews.length = 0; this.animalSignature = signature;
     for (const home of homes.values()) {
       const troughAsset = WORLD_OBJECT_ASSETS.feed_trough;
-      const trough = this.makeImage((home.tileX + .7) * GAME_CONFIG.tileSize, (home.tileY + 3.25) * GAME_CONFIG.tileSize, troughAsset).setDepth(8);
-      this.root.add(trough); this.animalViews.push(trough);
+      const x = (home.tileX + .7) * GAME_CONFIG.tileSize, y = (home.tileY + 3.25) * GAME_CONFIG.tileSize;
+      const trough = this.trackWorld(this.makeImage(x, y, troughAsset).setDepth(depthFromGroundAnchor({ x, y }, troughAsset)));
+      this.animalViews.push(trough);
     }
     current.forEach((animal, index) => {
       const home = homes.get(animal.homeBuildingId)!;
       const sameHome = current.filter(a => a.homeBuildingId === animal.homeBuildingId), homeIndex = sameHome.findIndex(a => a.id === animal.id);
       const offsets = [{ x: 1.4, y: 3.35 }, { x: 2.2, y: 3.45 }, { x: 3, y: 3.3 }, { x: 2.6, y: 3.9 }];
       const offset = offsets[homeIndex % offsets.length], asset = WORLD_OBJECT_ASSETS[ANIMAL_DEFINITIONS[animal.species].assetId];
-      const image = this.makeImage((home.tileX + offset.x) * GAME_CONFIG.tileSize, (home.tileY + offset.y) * GAME_CONFIG.tileSize, asset).setDepth(9 + index * .001);
-      this.root!.add(image); this.animalViews.push(image);
+      const x = (home.tileX + offset.x) * GAME_CONFIG.tileSize, y = (home.tileY + offset.y) * GAME_CONFIG.tileSize;
+      const image = this.trackWorld(this.makeImage(x, y, asset).setDepth(depthFromGroundAnchor({ x, y }, asset) + index * .000001));
+      this.animalViews.push(image);
     });
   }
 
@@ -158,8 +164,8 @@ export class WorldRenderer {
         const position = tilePoint(object.position.tileX, object.position.tileY);
         const label = this.scene.add.text(position.x, position.y - 27, `${count}/${FOREST_RESOURCES[kind].hits}`, {
           fontFamily: "sans-serif", fontSize: "12px", color: "#fff8d3", backgroundColor: "#493727dd", padding: { x: 3, y: 1 },
-        }).setOrigin(.5).setDepth(9);
-        this.root.add(label); this.forestHitLabels.set(object.id, label);
+        }).setOrigin(.5).setDepth(WORLD_OVERLAY_DEPTH + .1);
+        this.trackWorld(label); this.forestHitLabels.set(object.id, label);
       }
     }
     for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { label.destroy(); this.forestHitLabels.delete(id); }
@@ -180,8 +186,8 @@ export class WorldRenderer {
         const position = tilePoint(object.position.tileX, object.position.tileY);
         const label = this.scene.add.text(position.x, position.y - 27, `${count}/${MINE_RESOURCES[kind].hits}`, {
           fontFamily: "sans-serif", fontSize: "12px", color: "#fff8d3", backgroundColor: "#493727dd", padding: { x: 3, y: 1 },
-        }).setOrigin(.5).setDepth(9);
-        this.root.add(label); this.forestHitLabels.set(object.id, label);
+        }).setOrigin(.5).setDepth(WORLD_OVERLAY_DEPTH + .1);
+        this.trackWorld(label); this.forestHitLabels.set(object.id, label);
       }
     }
     for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { label.destroy(); this.forestHitLabels.delete(id); }
@@ -202,8 +208,8 @@ export class WorldRenderer {
         const position = tilePoint(object.position.tileX, object.position.tileY);
         const label = this.scene.add.text(position.x, position.y - 34, `${count}/${FARM_TREE_RESOURCE.hits}`, {
           fontFamily: "sans-serif", fontSize: "12px", color: "#fff8d3", backgroundColor: "#493727dd", padding: { x: 3, y: 1 },
-        }).setOrigin(.5).setDepth(9);
-        this.root.add(label); this.forestHitLabels.set(object.id, label);
+        }).setOrigin(.5).setDepth(WORLD_OVERLAY_DEPTH + .1);
+        this.trackWorld(label); this.forestHitLabels.set(object.id, label);
       }
     }
     for (const [id, label] of this.forestHitLabels) if (!active.has(id)) { label.destroy(); this.forestHitLabels.delete(id); }
@@ -363,14 +369,14 @@ export class WorldRenderer {
     const position = tilePoint(object.position.tileX, object.position.tileY);
     const assetDisplaySize = displayedSize(asset);
     const finalDisplaySize = object.displaySizeOverride ?? assetDisplaySize;
-    const image = this.makeImage(position.x, position.y, asset).setDepth(object.depth ?? 3)
-      .setDisplaySize(finalDisplaySize.width, finalDisplaySize.height);
-    this.root!.add(image);
+    const image = this.trackWorld(this.makeImage(position.x, position.y, asset)
+      .setDisplaySize(finalDisplaySize.width, finalDisplaySize.height)
+      .setDepth(depthFromGroundAnchor(position, asset, finalDisplaySize)));
     if (object.collision) {
       const center = collisionRectCenter(position, object.collision);
       this.addObstacle(center.x, center.y, object.collision.width, object.collision.height);
     }
-    if (object.label) this.root!.add(this.scene.add.text(position.x, position.y + finalDisplaySize.height / 2 + 6, object.label, { fontFamily: "sans-serif", fontSize: "13px", color: "#fff4d8", fontStyle: "bold", backgroundColor: "#70402dcc", padding: { x: 7, y: 4 } }).setOrigin(0.5).setDepth(8));
+    if (object.label) this.trackWorld(this.scene.add.text(position.x, position.y + finalDisplaySize.height / 2 + 6, object.label, { fontFamily: "sans-serif", fontSize: "13px", color: "#fff4d8", fontStyle: "bold", backgroundColor: "#70402dcc", padding: { x: 7, y: 4 } }).setOrigin(0.5).setDepth(WORLD_OVERLAY_DEPTH + .2));
   }
 
   private addCollisionRegion(region: TileRect) {
@@ -399,7 +405,23 @@ export class WorldRenderer {
 
   private addObstacle(x: number, y: number, width: number, height: number) {
     const obstacle = this.scene.add.rectangle(x, y, width, height, 0, 0);
-    this.scene.physics.add.existing(obstacle, true); this.obstacles!.add(obstacle); this.root!.add(obstacle);
+    this.scene.physics.add.existing(obstacle, true); this.obstacles!.add(obstacle);
     return obstacle;
+  }
+
+  private trackWorld<T extends Phaser.GameObjects.GameObject>(view: T): T {
+    this.worldViews.add(view);
+    return view;
+  }
+
+  private destroyWorldView(view: Phaser.GameObjects.GameObject) {
+    this.worldViews.delete(view);
+    view.destroy();
+  }
+
+  /** Public narrow hook used by FarmScene to keep moving actors on the exact
+   * same ground-anchor depth contract as static world sprites. */
+  depthForAsset(position: { x: number; y: number }, asset: VisualAssetDefinition, displaySize = displayedSize(asset)) {
+    return depthFromGroundAnchor(position, asset, displaySize);
   }
 }
