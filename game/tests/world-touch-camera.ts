@@ -23,6 +23,8 @@ const sceneSource=readFileSync(new URL("../FarmScene.ts",import.meta.url),"utf8"
 assert.ok(gameSource.includes("activePointers: 3"), "Phaser keeps enough pointers for joystick/action/pinch");
 assert.ok(sceneSource.includes('this.input.on("wheel"'), "PC wheel zoom is connected");
 assert.ok(sceneSource.includes("pinchCameraZoom"), "mobile pinch zoom is connected");
+assert.ok(sceneSource.includes("pointer.downElement ?? pointer.event?.target"), "scene pointerdown uses Phaser Pointer DOM source instead of a nonexistent callback event argument");
+assert.ok(!sceneSource.includes("_currentlyOver: Phaser.GameObjects.GameObject[], event: Event"), "scene pointerdown does not expect a third native event argument");
 assert.ok(sceneSource.includes("queueTouchNavigation"), "mobile tap can create navigation");
 assert.ok(sceneSource.includes("touchNavigationMovement"), "tap navigation feeds movement");
 assert.ok(sceneSource.includes("performContextualTouchAction"), "tap action resolves after approach");
