@@ -149,7 +149,7 @@ export class FamilyClient {
     } finally {
       if (this.live) this.presenceTimer = setTimeout(
         () => void this.pollPresence(),
-        this.realtimeStarted ? FAMILY_PRESENCE_KEEPALIVE_MS : FAMILY_PRESENCE_FALLBACK_MS,
+        this.realtimeStarted ? FAMILY_PRESENCE_KEEPALIVE_MS : familyPresenceDelay(this.pose?.()),
       );
     }
   }
