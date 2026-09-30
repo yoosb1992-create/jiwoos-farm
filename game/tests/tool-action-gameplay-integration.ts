@@ -6,9 +6,11 @@ import { applyFamilyFarmSnapshot } from "../family/applySnapshot";
 import { applyFarmToolEffect, hasPlantedCrop } from "../farm/toolBehavior";
 import { emptyFarmTreeState, FARM_TREE_RESOURCE, isFarmTreeObject, strikeFarmTree } from "../farm/trees";
 import { MAP_DEFINITIONS } from "../maps/definitions";
+import { isGameCanvasPointerEvent } from "../input/worldPointer";
 import { playerInteractionAnchorFromPosition } from "../player/interaction";
 import { initialPlayerStats } from "../player/stats";
 import { initialWateringCan } from "../tools/wateringCan";
+import { weatherFor } from "../weather/system";
 import { FamilyRooms } from "../../server/family/rooms";
 import { FamilyState } from "../../server/family/state";
 import { familyTestDB } from "./family-db";
@@ -107,12 +109,21 @@ assert.deepEqual(captured.targetTile, { x: 9, y: 8 });
 assert.notDeepEqual(captured.player, movedPlayer, "animation-time player movement cannot change the captured action target");
 assert.ok(visualCount >= 8, "all gameplay mutations were paired with a visual action");
 
+const canvasTarget = new EventTarget();
+const mobileActionButton = new EventTarget();
+assert.equal(isGameCanvasPointerEvent(canvasTarget, canvasTarget), true, "direct world clicks still use pointer targeting");
+assert.equal(isGameCanvasPointerEvent(mobileActionButton, canvasTarget), false,
+  "window-level touch from the mobile action button cannot consume the real command with a visual-only action");
+
 const { db, close } = familyTestDB();
 try {
   const rooms = new FamilyRooms(db, () => 300_000);
   const service = new FamilyState(db, () => 300_000);
   const session = await rooms.create("pipeline-family", "도구 통합", "지우");
   const roomId = session.room.id;
+  const dryDay = Array.from({ length: 40 }, (_, index) => index + 1).find((day) => weatherFor(roomId, day).id !== "rain")!;
+  await db.prepare("UPDATE family_state SET world_json=json_set(world_json, '$.day', ?, '$.daySerial', ?) WHERE room_id=?")
+    .bind(dryDay, dryDay, roomId).run();
   const initial = await service.read("pipeline-family", roomId);
   const remoteTile = initial.world.farm[0];
   const anchor = playerInteractionAnchorFromPosition({ x: 0, y: 0 });
@@ -140,12 +151,6 @@ try {
   };
   await act("hoe");
   await act("seed");
-  // Other regression modules intentionally exercise rain/default snapshots in
-  // the same process. Pin this integration case to an unwatered planted tile
-  // so the next authoritative request proves the water mutation itself.
-  await db.prepare("UPDATE family_state SET world_json=json_set(world_json, '$.farm[0].wateredToday', json('false')) WHERE room_id=?")
-    .bind(roomId).run();
-  familySnapshot = await service.read("pipeline-family", roomId);
   await act("water");
   assert.equal(familySnapshot.world.farm[0].tilled, true);
   assert.equal(familySnapshot.world.farm[0].cropStage, 0);

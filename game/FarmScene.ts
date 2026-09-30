@@ -65,6 +65,7 @@ import { facingActionPriority } from "./player/interaction";
 import { captureToolActionContext, ToolActionSystem, type ToolActionContext } from "./actions/ToolActionSystem";
 import { EMPTY_WATER_ACTION_DEFINITION, TOOL_ACTION_DEFINITIONS, WATER_REFILL_ACTION_DEFINITION } from "./actions/toolActionDefinitions";
 import { facingFromMovement, mergeMovementInput, type MovementVector } from "./input/MovementInput";
+import { isGameCanvasPointerEvent } from "./input/worldPointer";
 import { advanceRelationshipEvent, availableRelationshipEvents, completeRelationshipEvent, startRelationshipEvent } from "./relationship-events/system";
 import type { RelationshipEventRunView } from "./relationship-events/types";
 import { initialWateringCan, normalizeWateringCan, refillWateringCan, type WateringCanState } from "./tools/wateringCan";
@@ -208,7 +209,10 @@ export class FarmScene extends Phaser.Scene {
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys("W,A,S,D,ONE,TWO,THREE,FOUR,FIVE,SIX,SEVEN") as Record<string, Phaser.Input.Keyboard.Key>;
     this.actionKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.useAtWorld(pointer.worldX, pointer.worldY));
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, _currentlyOver: Phaser.GameObjects.GameObject[], event: Event) => {
+      if (!isGameCanvasPointerEvent(event?.target, this.game.canvas)) return;
+      this.useAtWorld(pointer.worldX, pointer.worldY);
+    });
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.previewBuilding(pointer.worldX, pointer.worldY));
     gameEvents.addEventListener("command", this.commandHandler);
     const cleanup = () => {
