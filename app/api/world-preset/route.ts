@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { parseEditorDocument } from "@/game/editor/document";
 import type { MapEditorDocument } from "@/game/editor/types";
-import { WORLD_PRESET_ID, readPublishedWorldPreset } from "@/server/world/preset";
+import { WORLD_PRESET_ID, ensureWorldPresetStorage, readPublishedWorldPreset } from "@/server/world/preset";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +48,7 @@ export async function PUT(request: Request) {
 
   try {
     const db = database();
+    await ensureWorldPresetStorage(db);
     const current = await readPublishedWorldPreset(db);
     if (current && current.ownerId !== user.userId) {
       return json({ message: "이 초기 월드는 처음 게시한 계정에서만 갱신할 수 있습니다." }, 403);
