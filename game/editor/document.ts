@@ -27,7 +27,14 @@ export const parseEditorDocument = (value: unknown) => {
 
 export class LocalMapEditorRepository {
   static readonly key = "jiwoos-farm.map-editor.v1";
-  save(document: MapEditorDocument) { localStorage.setItem(LocalMapEditorRepository.key, JSON.stringify(document)); }
+  save(document: MapEditorDocument) {
+    try {
+      localStorage.setItem(LocalMapEditorRepository.key, JSON.stringify(document));
+      return true;
+    } catch {
+      return false;
+    }
+  }
   load() {
     const stored = localStorage.getItem(LocalMapEditorRepository.key);
     if (!stored) return null;
