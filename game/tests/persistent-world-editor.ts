@@ -43,6 +43,7 @@ missingCore.maps = missingCore.maps.filter((map) => map.id !== "town");
 assert.ok(validateEditorDocument(missingCore).some((issue) => issue.message.includes("town")), "core NPC/life maps stay protected");
 
 const editorSource = readFileSync(new URL("../../app/editor/MapEditor.tsx", import.meta.url), "utf8");
+const canvasSource = readFileSync(new URL("../../app/editor/EditorCanvas.tsx", import.meta.url), "utf8");
 const pageSource = readFileSync(new URL("../../app/page.tsx", import.meta.url), "utf8");
 const stateRouteSource = readFileSync(new URL("../../app/api/family/state/route.ts", import.meta.url), "utf8");
 const presetRouteSource = readFileSync(new URL("../../app/api/world-preset/route.ts", import.meta.url), "utf8");
@@ -53,5 +54,10 @@ for (const token of ["★ 초기월드로 적용", "초기월드 불러오기", 
 assert.ok(pageSource.includes("PublishedWorldRepository"), "normal gameplay loads the published initial world");
 assert.ok(stateRouteSource.includes("publishedWorldMaps"), "Family authority uses the same published world");
 assert.ok(presetRouteSource.includes("world_presets"), "published world is persisted independently from deploy source");
+assert.ok(editorSource.includes("inspectorObjectId"), "mobile object inspector state is separate from selection");
+assert.ok(editorSource.includes("맵·옵션"), "mobile editor surfaces map sizing/options");
+assert.ok(canvasSource.includes("alreadySelected"), "first mobile object tap selects without opening properties");
+assert.ok(canvasSource.includes("onInspectObject(completedDrag.id)"), "second stationary tap opens object properties");
+assert.ok(canvasSource.includes("movedPixels >= 8"), "selected mobile objects can drag without accidental inspector opening");
 
 console.log("Persistent world editor: scenery stamps, map linking, sizing UI and published-world runtime contract passed");
