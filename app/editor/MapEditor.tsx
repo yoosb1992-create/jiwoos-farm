@@ -162,7 +162,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
       else if (selection.kind === "collision") target.collisionRegions.splice(selection.index, 1);
       else target.farmAreas.splice(selection.index, 1);
     });
-    setSelection(null); setNotice("선택 항목을 삭제했습니다.");
+    setSelection(null); setInspectorObjectId(null); setNotice("선택 항목을 삭제했습니다.");
   }, [map, mutateMap, selection]);
   const renameSelectedId = (kind: "object" | "spawn" | "warp", previous: string, nextId: string) => {
     pushHistory();
@@ -176,6 +176,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
       for (const entry of next.maps) for (const warp of entry.warps) if (warp.targetMapId === target.id && warp.targetSpawnId === previous) warp.targetSpawnId = nextId;
     }
     replaceDocument(touchEditorDocument(next)); setSelection({ kind, id: nextId });
+    if (kind === "object" && inspectorObjectId === previous) setInspectorObjectId(nextId);
   };
 
   useEffect(() => {
@@ -325,7 +326,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     </div>
     <section className="mobile-tool-dock">
       <div className="mobile-tools">{tools.map((entry) => <button key={entry.id} className={tool === entry.id ? "active" : ""} onClick={() => selectTool(entry.id)}>{entry.label.replace(" / 이동", "")}</button>)}</div>
-      <div className="mobile-edit-actions"><button onClick={undo} disabled={!history.current.canUndo}>↶ 실행 취소</button><button onClick={redo} disabled={!history.current.canRedo}>↷ 다시 실행</button><button onClick={removeSelection} disabled={!selection}>삭제</button><details><summary>옵션</summary><div>
+      <div className="mobile-edit-actions"><button onClick={undo} disabled={!history.current.canUndo}>↶ 실행 취소</button><button onClick={redo} disabled={!history.current.canRedo}>↷ 다시 실행</button><button onClick={removeSelection} disabled={!selection}>삭제</button><details><summary>맵·옵션</summary><div>
         {tool === "terrain" && <div className="palette">{Object.keys(TILE_TYPE_DEFINITIONS).map((id) => <button key={id} className={terrain === id ? "active" : ""} onClick={() => setTerrain(id as TileTypeId)}>{tileLabels[id as TileTypeId]}</button>)}</div>}
         {tool === "object" && <div className="palette">{Object.keys(WORLD_OBJECT_ASSETS).map((id) => <button key={id} className={objectAssetId === id ? "active" : ""} onClick={() => setObjectAssetId(id as WorldObjectAssetId)}>{objectLabels[id as WorldObjectAssetId]}</button>)}</div>}
         {tool === "stamp" && <div className="palette scenery-palette">{Object.values(SCENERY_STAMPS).map((stamp) => <button key={stamp.id} className={sceneryStampId === stamp.id ? "active" : ""} onClick={() => setSceneryStampId(stamp.id)}><b>{stamp.label}</b><small>{stamp.hint}</small></button>)}</div>}
