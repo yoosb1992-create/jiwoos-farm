@@ -36,7 +36,7 @@ import { canPerformAction, initialPlayerStats, normalizePlayerStats, recordSucce
 import type { PlayerStats } from "./player/stats";
 import { initialStorage, normalizeStorage, starterStorage, transferItem } from "./storage/container";
 import { isContainerId } from "./storage/definitions";
-import type { ContainerId, StorageData, StorageDirection } from "./storage/types";
+import type { ContainerId, StorageData, StorageDirection, StorageTransfer } from "./storage/types";
 import type { ItemId } from "./data/items";
 import { initialPlaceables, normalizePlaceables, placeObject, placementError, removeObject } from "./placeables/system";
 import type { PlaceablesData } from "./placeables/types";
@@ -939,6 +939,7 @@ export class FarmScene extends Phaser.Scene {
     }
     if (command.type === "storage-close") { if (!this.storageBusy) { this.storageOpen = undefined; this.emitHud(); } return; }
     if (command.type === "storage-transfer") { this.transferStorage(command.value); return; }
+    if (command.type === "storage-commit") { this.commitStorage(command.value); return; }
     if (command.type === "inventory-close") { this.inventoryOpen = false; this.virtualMovement = { x: 0, y: 0 }; this.emitHud(); return; }
     if (command.type === "inventory-open") {
       if (this.isPaused()) return;
@@ -1005,6 +1006,21 @@ export class FarmScene extends Phaser.Scene {
     const error = transferItem(this.inventory, this.storage, this.storageOpen, direction, itemId, quantity);
     if (error) { this.say(error); return; }
     this.save(false); this.say("아이템을 옮겼어요.");
+  }
+
+  private commitStorage(value: unknown) {
+    if (!this.storageOpen || this.storageBusy || !Array.isArray(value)) return;
+    const transfers = value as StorageTransfer[];
+    if (this.family) {
+      this.storageBusy = true; this.emitHud();
+      void this.family.act({ kind: "storage-batch", containerId: this.storageOpen, transfers, pose: this.familyPose() })
+        .then(ok => { if (ok && this.sceneLive) this.say("보관함 변경사항을 반영했어요."); })
+        .finally(() => { if (this.sceneLive) { this.storageBusy = false; this.emitHud(); } });
+      return;
+    }
+    const error = transferItemsAtomically(this.inventory, this.storage, this.storageOpen, transfers);
+    if (error) { this.say(error); return; }
+    this.save(false); this.say("보관함 변경사항을 반영했어요.");
   }
 
   private consumeFoodItem(value: unknown) {
