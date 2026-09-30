@@ -66,7 +66,7 @@ assert.ok(Math.abs(adult.asset.frameSize.height * (adult.asset.groundAnchor!.y -
 const farm = MAP_DEFINITIONS.farm;
 const used = new Set(farm.objects.map(object => object.assetId));
 for (const id of objectIds) assert.ok(used.has(id), `${id}: authored into the vertical-slice farm`);
-assert.deepEqual([farm.width, farm.height], [42, 26]);
+assert.deepEqual([farm.width, farm.height], [52, 26]);
 assert.deepEqual(farm.farmAreas, [{ startX: 9, endX: 18, startY: 8, endY: 14 }]);
 assert.deepEqual(farm.collisionRegions, [{ startX: 24, endX: 30, startY: 15, endY: 20 }]);
 assert.deepEqual(farm.warps.find(warp => warp.id === "house_door")?.area, { startX: 4, endX: 6, startY: 8, endY: 9 });
