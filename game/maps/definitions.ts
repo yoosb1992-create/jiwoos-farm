@@ -1,5 +1,6 @@
 import { GAME_CONFIG } from "../config";
 import type { MapDefinition, MapId, MapObjectDefinition, TileRect, TileTypeId } from "./types";
+import { DEFAULT_RUNTIME_ENTRANCE_ANCHORS } from "./runtimeEntrances";
 
 export const TILE_TYPE_DEFINITIONS: Record<TileTypeId, { walkable: boolean; farmable: boolean; graphicAssetId: "tile_grass" | "tile_path" | "tile_water" | "tile_farm_empty" | "tile_wood_floor" | "tile_stone_floor" | "tile_mine_floor" | "tile_mine_wall" }> = {
   grass: { walkable: true, farmable: false, graphicAssetId: "tile_grass" },
@@ -124,7 +125,7 @@ export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
   road: {
     id: "road", name: "들꽃길", width: 30, height: 14, baseTileType: "grass",
     terrainRegions: [{ ...area(9, 12, 0, 13), tileType: "path" }, { ...area(1, 4, 4, 10), tileType: "water" }], farmAreas: [], collisionRegions: [area(1, 4, 4, 10)],
-    objects: [],
+    objects: [structuredClone(DEFAULT_RUNTIME_ENTRANCE_ANCHORS.fairy_forest), structuredClone(DEFAULT_RUNTIME_ENTRANCE_ANCHORS.mine)],
     spawns: [{ id: "farm_entrance", tileX: 10.5, tileY: 3, facing: "down" }, { id: "town_entrance", tileX: 10.5, tileY: 10.5, facing: "up" }],
     warps: [{ id: "to_farm", area: area(9, 12, 0, 1), targetMapId: "farm", targetSpawnId: "from_road" }, { id: "to_town", area: area(9, 12, 12, 13), targetMapId: "town", targetSpawnId: "from_road" }],
     boundary: { enabled: true, openings: [area(9, 12, 0, 1), area(9, 12, 12, 13)] },
