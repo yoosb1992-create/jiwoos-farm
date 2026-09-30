@@ -9,6 +9,7 @@ import type { FishingCast, FishingProgress } from "../../game/fishing/types";
 import { DEFAULT_CROP_ID, isCropId } from "../../game/data/crops";
 import { GENERAL_STORE_LISTINGS } from "../../game/data/shop";
 import { getTileTypeInMap, MAP_DEFINITIONS, pointInTileRect } from "../../game/maps/definitions";
+import type { MapDefinition } from "../../game/maps/types";
 import { parseFamilyPose } from "../../game/family/personal";
 import { interactionTargetPointFromPosition, playerFeetPointFromPosition, playerInteractionAnchorFromPosition } from "../../game/player/interaction";
 import { resolveToolTarget } from "../../game/actions/ToolTargetResolver";
@@ -26,7 +27,7 @@ import { startMachine, collectMachine } from "../../game/machines/system";
 import { constructBuilding, initialBuildings, normalizeBuildings } from "../../game/buildings/system";
 import { BUILDING_DEFINITIONS } from "../../game/buildings/definitions";
 import { FARM_EXPANSIONS, initialFarmProgress, normalizeFarmProgress, unlockExpansion } from "../../game/farm/expansions";
-import { FamilyError, FamilyRooms } from "./rooms";
+import { FamilyError, FamilyRooms, type FamilyDB } from "./rooms";
 import { emptyForestState, FOREST_RESOURCES, generateResourceForest, normalizeForestState, resourceKind, strikeForestNode, validForestNodeId } from "../../game/forest/resources";
 import { generateMineFloor, MINE_PLAYABLE_FLOORS, mineMapId } from "../../game/mine/generation";
 import { emptyMineDaily, initialMineProgress, mineResourceKind, normalizeMineDaily, normalizeMineProgress, strikeMineNode } from "../../game/mine/resources";
@@ -40,7 +41,7 @@ const STORAGE_LOCK_TTL_MS = 90_000;
 interface StoredWorld extends FamilyWorld { clockAnchor: number; sleepVotes?: string[]; sleepSessions?: Record<string, string> }
 interface StateRow { revision: number; world_json: string; inventories_json: string }
 type FamilyInventory = InventoryData & { wateringCan?: WateringCanState; toolProgression?: ToolProgression; stats?: PlayerStats; fishingProgress?: FishingProgress; fishingCast?: FishingCast | null };
-export const initialFamilyWorld = (now: number): StoredWorld => ({
+export const initialFamilyWorld = (now: number, maps: Record<string, MapDefinition> = MAP_DEFINITIONS): StoredWorld => ({
   day: 1, daySerial: 1, timeMinutes: GAME_CONFIG.day.startMinutes, clockAnchor: now, money: GAME_CONFIG.startingMoney,
   forestState: emptyForestState(1),
   farmTreeState: emptyFarmTreeState(),
@@ -49,21 +50,24 @@ export const initialFamilyWorld = (now: number): StoredWorld => ({
   placeables: initialPlaceables(),
   buildings: initialBuildings(), farmProgress: initialFarmProgress(),
   ranchState: initialRanchState(),
-  farm: MAP_DEFINITIONS.farm.farmAreas.flatMap((area) => Array.from({ length: area.endY - area.startY + 1 }, (_, j) =>
+  farm: maps.farm.farmAreas.flatMap((area) => Array.from({ length: area.endY - area.startY + 1 }, (_, j) =>
     Array.from({ length: area.endX - area.startX + 1 }, (_, i) => ({ x: area.startX + i, y: area.startY + j, tilled: false, wateredToday: false, cropType: null, cropStage: null, plantedDay: null }))).flat()),
 });
-function currentWorld(stored: StoredWorld, now: number, roomId: string): FamilyWorld {
+function currentWorld(stored: StoredWorld, now: number, roomId: string, maps: Record<string, MapDefinition> = MAP_DEFINITIONS): FamilyWorld {
   // Older room JSON has no weather field; derive rain for the current day on read.
   waterFarmForRain(stored.farm, weatherFor(roomId, stored.daySerial ?? stored.day));
   const timeMinutes = Math.min(GAME_CONFIG.day.endMinutes, stored.timeMinutes + Math.floor(Math.max(0, now - stored.clockAnchor) / GAME_CONFIG.day.realMsPerGameMinute));
   const buildings = normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day);
-  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), farmTreeState: normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(MAP_DEFINITIONS.farm)), mineProgress: normalizeMineProgress(stored.mineProgress), mineDaily: normalizeMineDaily(stored.mineDaily, stored.daySerial ?? stored.day, roomId), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), buildings, ranchState: normalizeRanchState(stored.ranchState, buildings), farmProgress: normalizeFarmProgress(stored.farmProgress), money: stored.money, farm: stored.farm,
+  return { day: calendarDate(stored.daySerial ?? stored.day).day, daySerial: stored.daySerial ?? stored.day, forestState: normalizeForestState(stored.forestState, stored.daySerial ?? stored.day), farmTreeState: normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(maps.farm)), mineProgress: normalizeMineProgress(stored.mineProgress), mineDaily: normalizeMineDaily(stored.mineDaily, stored.daySerial ?? stored.day, roomId), storage: normalizeStorage(stored.storage), placeables: normalizePlaceables(stored.placeables, worldMinute(stored.daySerial ?? stored.day, timeMinutes)), buildings, ranchState: normalizeRanchState(stored.ranchState, buildings), farmProgress: normalizeFarmProgress(stored.farmProgress), money: stored.money, farm: stored.farm,
     timeMinutes };
 }
 export class FamilyState extends FamilyRooms {
+  constructor(db: FamilyDB, now = () => Date.now(), private readonly maps: Record<string, MapDefinition> = MAP_DEFINITIONS) {
+    super(db, now);
+  }
   private async row(roomId: string): Promise<StateRow> {
     await this.db.prepare("INSERT OR IGNORE INTO family_state (room_id, revision, world_json, inventories_json, updated_at) VALUES (?, 0, ?, '{}', ?)")
-      .bind(roomId, JSON.stringify(initialFamilyWorld(this.now())), this.now()).run();
+      .bind(roomId, JSON.stringify(initialFamilyWorld(this.now(), this.maps)), this.now()).run();
     const row = await this.db.prepare("SELECT revision, world_json, inventories_json FROM family_state WHERE room_id = ?").bind(roomId).first<StateRow>();
     if (!row) throw new FamilyError(503, "공유 상태를 읽을 수 없습니다.");
     return row;
@@ -71,7 +75,7 @@ export class FamilyState extends FamilyRooms {
   private snapshot(row: StateRow, playerId: string, roomId: string): FamilySnapshot {
     const inventories = JSON.parse(row.inventories_json) as Record<string, FamilyInventory>;
     const clock = JSON.parse(row.world_json) as StoredWorld;
-    return { npcTimeMinutes: Math.min(GAME_CONFIG.day.endMinutes, clock.timeMinutes + Math.max(0, this.now()-clock.clockAnchor)/GAME_CONFIG.day.realMsPerGameMinute), revision: row.revision, serverNow: this.now(), world: currentWorld(JSON.parse(row.world_json), this.now(), roomId), inventory: inventories[playerId] ?? new Inventory().serialize(), wateringCan: normalizeWateringCan(inventories[playerId]?.wateringCan), toolProgression: normalizeToolProgression(inventories[playerId]?.toolProgression), stats: normalizePlayerStats(inventories[playerId]?.stats), fishingProgress: normalizeFishingProgress(inventories[playerId]?.fishingProgress), fishingCast: normalizeFishingCast(inventories[playerId]?.fishingCast, clock.daySerial ?? clock.day) };
+    return { npcTimeMinutes: Math.min(GAME_CONFIG.day.endMinutes, clock.timeMinutes + Math.max(0, this.now()-clock.clockAnchor)/GAME_CONFIG.day.realMsPerGameMinute), revision: row.revision, serverNow: this.now(), world: currentWorld(JSON.parse(row.world_json), this.now(), roomId, this.maps), inventory: inventories[playerId] ?? new Inventory().serialize(), wateringCan: normalizeWateringCan(inventories[playerId]?.wateringCan), toolProgression: normalizeToolProgression(inventories[playerId]?.toolProgression), stats: normalizePlayerStats(inventories[playerId]?.stats), fishingProgress: normalizeFishingProgress(inventories[playerId]?.fishingProgress), fishingCast: normalizeFishingCast(inventories[playerId]?.fishingCast, clock.daySerial ?? clock.day) };
   }
   private async online(roomId: string) {
     return (await this.db.prepare(`SELECT m.player_id AS playerId, m.nickname, p.session_id AS sessionId FROM family_members m JOIN family_presence p ON p.room_id = m.room_id AND p.user_id = m.user_id WHERE m.room_id = ? AND p.last_seen > ?`).bind(roomId, this.now() - FAMILY_PRESENCE_TTL_MS).all<{playerId: string; nickname: string; sessionId?: string}>()).results;
@@ -137,7 +141,7 @@ export class FamilyState extends FamilyRooms {
     if (!isCropId(cropId)) throw new FamilyError(400, "없는 씨앗 종류입니다.");
     const near = (kind: "sleep" | "open_shop" | "craft") => {
       const feet = playerFeetPointFromPosition(pose), target = interactionTargetPointFromPosition(pose, pose.facing);
-      return (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).some((o) => o.interaction?.action === kind &&
+      return (this.maps[pose.mapId]?.objects ?? []).some((o) => o.interaction?.action === kind &&
         (pointInTileRect(feet.x, feet.y, o.interaction.area) || pointInTileRect(target.x, target.y, o.interaction.area)));
     };
     if (action.kind === "tool") {
@@ -155,9 +159,9 @@ export class FamilyState extends FamilyRooms {
         player: pose,
         playerAnchor: playerInteractionAnchorFromPosition(pose),
         targetWorld,
-        map: MAP_DEFINITIONS.farm,
+        map: this.maps.farm,
         farmTile: targetTile,
-        farmTreeState: normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(MAP_DEFINITIONS.farm)),
+        farmTreeState: normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(this.maps.farm)),
       });
       if (resolved.targetKind !== "farm_tile" || resolved.targetTile.x !== tile.x || resolved.targetTile.y !== tile.y) {
         throw new FamilyError(400, "바라보는 바로 앞의 밭에서 도구를 사용해 주세요.");
@@ -174,7 +178,7 @@ export class FamilyState extends FamilyRooms {
       if (!result.changed) throw new FamilyError(409, result.message);
     } else if (action.kind === "water-refill") {
       if (pose.selectedTool !== "water") throw new FamilyError(400, "물뿌리개를 선택해 주세요.");
-      const map = MAP_DEFINITIONS[pose.mapId];
+      const map = this.maps[pose.mapId];
       const target = interactionTargetPointFromPosition(pose, pose.facing);
       const targetX = Math.floor(target.x / GAME_CONFIG.tileSize), targetY = Math.floor(target.y / GAME_CONFIG.tileSize);
       if (!map || targetX < 0 || targetY < 0 || targetX >= map.width || targetY >= map.height || getTileTypeInMap(map, targetX, targetY) !== "water")
@@ -195,10 +199,10 @@ export class FamilyState extends FamilyRooms {
     } else if (action.kind === "farm-tree-hit") {
       if (pose.mapId !== "farm" || action.tool !== "axe" || pose.selectedTool !== "axe") throw new FamilyError(400, "농장에서 도끼를 선택해 주세요.");
       if (typeof action.nodeId !== "string" || action.nodeId.length > 64) throw new FamilyError(400, "올바른 농장 나무가 아닙니다.");
-      const node = MAP_DEFINITIONS.farm.objects.find((object) => object.id === action.nodeId && isFarmTreeObject(object));
+      const node = this.maps.farm.objects.find((object) => object.id === action.nodeId && isFarmTreeObject(object));
       if (!node) throw new FamilyError(400, "농장에 없는 나무입니다.");
-      if (!farmTreeInFacingReach(MAP_DEFINITIONS.farm, node, pose)) throw new FamilyError(400, "나무 가까이에서 나무를 바라보고 도끼를 사용해 주세요.");
-      const farmTreeState = normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(MAP_DEFINITIONS.farm));
+      if (!farmTreeInFacingReach(this.maps.farm, node, pose)) throw new FamilyError(400, "나무 가까이에서 나무를 바라보고 도끼를 사용해 주세요.");
+      const farmTreeState = normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(this.maps.farm));
       if (farmTreeState.depleted.includes(node.id)) throw await conflict();
       if (!canPerformAction(stats, "axe")) throw new FamilyError(409, "체력이 부족합니다. 잠을 자고 회복하세요.");
       const result = strikeFarmTree(farmTreeState, node, action.tool, toolProgression);
@@ -274,7 +278,7 @@ export class FamilyState extends FamilyRooms {
       if (!observed || age < 0 || age > FAMILY_PRESENCE_TTL_MS || observed.mapId !== pose.mapId ||
           Math.hypot(observed.x - pose.x, observed.y - pose.y) > GAME_CONFIG.playerSpeed * Math.min(2.5, age / 1000 + .5))
         throw new FamilyError(400, "물가의 현재 위치를 동기화한 뒤 낚시해 주세요.");
-      const day = stored.daySerial ?? stored.day, time = currentWorld(stored, this.now(), roomId).timeMinutes;
+      const day = stored.daySerial ?? stored.day, time = currentWorld(stored, this.now(), roomId, this.maps).timeMinutes;
       if (action.kind === "fish-cast") {
         const result = beginFishing(fishingProgress, fishingCast, pose, action.spotId, roomId, member.playerId, day, weatherFor(roomId, day).id, time, stats);
         if (result.error || !result.cast || !result.progress) throw new FamilyError(409, result.error ?? "낚시를 시작할 수 없어요.");
@@ -304,7 +308,7 @@ export class FamilyState extends FamilyRooms {
       if (!result.purchased) throw new FamilyError(409, "공동 자금이 부족합니다.");
       stored.money = result.money;
     } else if (action.kind === "craft" || action.kind === "tool-upgrade") {
-      const table = (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).find(o => o.interaction?.action === "craft");
+      const table = (this.maps[pose.mapId]?.objects ?? []).find(o => o.interaction?.action === "craft");
       if (!table || !near("craft") || Math.hypot(pose.x - table.position.tileX * GAME_CONFIG.tileSize, pose.y - table.position.tileY * GAME_CONFIG.tileSize) > 90)
         throw new FamilyError(400, "제작대 가까이에서 제작해 주세요.");
       if (action.kind === "craft") {
@@ -322,7 +326,7 @@ export class FamilyState extends FamilyRooms {
       const result = consumeFood(inventory, stats, action.itemId);
       if (!result.consumed) throw new FamilyError(409, result.message);
     } else if (action.kind === "storage-lock" || action.kind === "storage" || action.kind === "storage-batch") {
-      const chest = (MAP_DEFINITIONS[pose.mapId]?.objects ?? []).find(o => o.interaction?.action === "storage" && o.interaction.containerId === action.containerId);
+      const chest = (this.maps[pose.mapId]?.objects ?? []).find(o => o.interaction?.action === "storage" && o.interaction.containerId === action.containerId);
       const feet = playerFeetPointFromPosition(pose), target = interactionTargetPointFromPosition(pose, pose.facing);
       const nearChest = Boolean(chest?.interaction &&
         (pointInTileRect(feet.x, feet.y, chest.interaction.area) || pointInTileRect(target.x, target.y, chest.interaction.area)) &&
@@ -398,11 +402,11 @@ export class FamilyState extends FamilyRooms {
       const players = [pose, ...nearby.results.flatMap(row => { try { const p = parseFamilyPose(JSON.parse(row.pose_json)); return p ? [p] : []; } catch { return []; } })];
       const buildings = normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day);
       const result = constructBuilding(buildings, normalizePlaceables(stored.placeables), stored.farm, inventory, stored.money,
-        MAP_DEFINITIONS.farm, action.definitionId, action.tileX, action.tileY, players, crypto.randomUUID(), stored.daySerial ?? stored.day);
+        this.maps.farm, action.definitionId, action.tileX, action.tileY, players, crypto.randomUUID(), stored.daySerial ?? stored.day);
       if (result.error) throw new FamilyError(409, result.error);
       stored.money = result.money; stored.buildings = buildings;
     } else if (action.kind === "place" || action.kind === "place-remove" || action.kind === "machine-start" || action.kind === "machine-collect") {
-      const time = currentWorld(stored, this.now(), roomId).timeMinutes;
+      const time = currentWorld(stored, this.now(), roomId, this.maps).timeMinutes;
       const now = worldMinute(stored.daySerial ?? stored.day, time);
       const placeables = normalizePlaceables(stored.placeables, now);
       if (action.kind === "place") {
@@ -411,7 +415,7 @@ export class FamilyState extends FamilyRooms {
           throw new FamilyError(400, "농장 가까운 칸에 배치해 주세요.");
         const nearby = await this.db.prepare("SELECT pose_json FROM family_presence WHERE room_id=? AND last_seen>?").bind(roomId, this.now() - FAMILY_PRESENCE_TTL_MS).all<{ pose_json: string }>();
         const players = [pose, ...nearby.results.flatMap(row => { try { const p = parseFamilyPose(JSON.parse(row.pose_json)); return p ? [p] : []; } catch { return []; } })];
-        const error = placeObject(placeables, inventory, action.definitionId, MAP_DEFINITIONS.farm, action.tileX, action.tileY, players, crypto.randomUUID(), normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day));
+        const error = placeObject(placeables, inventory, action.definitionId, this.maps.farm, action.tileX, action.tileY, players, crypto.randomUUID(), normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day));
         if (error) throw new FamilyError(409, error);
       } else {
         const instance = placeables.instances.find(p => p.id === action.instanceId && p.mapId === pose.mapId);
