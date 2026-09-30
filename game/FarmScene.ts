@@ -179,6 +179,7 @@ export class FarmScene extends Phaser.Scene {
   private pinchGesture?: { distance:number; zoom:number };
   private touchNavigation?: { worldX:number; worldY:number; action:boolean; startedAt:number };
   private deferredTouchAction?: { worldX:number; worldY:number; queuedAt:number };
+  private deferredMobileAction = false;
   private message = "갈색 밭 가까이에서 괭이를 사용하세요.";
   private commandHandler = (event: Event) => this.handleCommand((event as CustomEvent<Command>).detail);
 
@@ -257,7 +258,7 @@ export class FarmScene extends Phaser.Scene {
       try { this.save(false); } catch { /* Continue cleanup if local storage is full. */ }
       if (this.sleepTimer !== undefined) window.clearTimeout(this.sleepTimer);
       this.sceneLive = false;
-      this.touchPoints.clear(); this.touchNavigation = undefined; this.deferredTouchAction = undefined; this.pinchGesture = undefined;
+      this.touchPoints.clear(); this.touchNavigation = undefined; this.deferredTouchAction = undefined; this.deferredMobileAction = false; this.pinchGesture = undefined;
       this.playerActionVisuals.destroy();
       gameEvents.removeEventListener("command", this.commandHandler);
       window.removeEventListener("keydown", this.runKeyDownHandler);
@@ -288,6 +289,10 @@ export class FarmScene extends Phaser.Scene {
       const pending = this.deferredTouchAction;
       this.deferredTouchAction = undefined;
       if (performance.now() - pending.queuedAt < 2000) this.performContextualTouchAction(pending.worldX, pending.worldY);
+    }
+    if (this.deferredMobileAction && this.family && !this.family.busy && this.family.snapshot && !this.isPaused() && !this.toolActions.isActive()) {
+      this.deferredMobileAction = false;
+      this.useFacingTile("mobile");
     }
     if (this.toolNotice && performance.now() >= this.toolNoticeUntil) { this.toolNotice = ""; this.emitHud(); }
     if (!this.family && !this.isPaused()) this.advanceClock(delta);
@@ -1181,7 +1186,10 @@ export class FarmScene extends Phaser.Scene {
       this.virtualMovement = { x: Number(value?.x) || 0, y: Number(value?.y) || 0 };
     }
     if (command.type === "tool" && typeof command.value === "string" && Object.hasOwn(TOOL_ACTION_DEFINITIONS, command.value)) this.selectTool(command.value as ToolKey);
-    if (command.type === "action") this.useFacingTile("mobile");
+    if (command.type === "action") {
+      if (this.family && (this.family.busy || !this.family.snapshot)) this.deferredMobileAction = true;
+      else this.useFacingTile("mobile");
+    }
     if (command.type === "save") this.save(true);
     if (command.type === "load") { const data = this.repository.load(); if (data) this.restore(data, true); else this.say("아직 저장된 농장이 없어요."); }
     if (command.type === "help") { this.helpOpen = command.value === "open"; this.virtualMovement = { x: 0, y: 0 }; this.emitHud(); }
