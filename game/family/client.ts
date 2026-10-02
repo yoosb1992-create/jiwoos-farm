@@ -51,6 +51,8 @@ export interface FamilyRealtimePresenceChannel {
   stop(): void;
   /** Push a movement transition immediately instead of waiting for the next snapshot tick. */
   flush?(): void;
+  /** D1 fallback can still discover peers even when WebSocket upgrade is unavailable. */
+  syncPeers?(snapshot: FamilyPresenceSnapshot): void;
 }
 export class FamilyClient {
   progress?: ProgressSnapshot;
@@ -119,6 +121,7 @@ export class FamilyClient {
   private acceptFallbackPresence(snapshot: FamilyPresenceSnapshot) {
     if (!this.live) return;
     this.fallbackPresenceSnapshot = snapshot;
+    this.realtimePresence?.syncPeers?.(snapshot);
     if (!this.realtimeConnected) this.setRealtimeMode("d1-fallback");
     if (this.realtimeConnected && this.realtimePresenceSnapshot) {
       this.onPresence?.(overlayFamilyPresenceActions(this.realtimePresenceSnapshot, snapshot));
@@ -186,7 +189,8 @@ export class FamilyClient {
         this.setRealtimeMode("websocket");
       },
       onTransport: (transport) => {
-        if (!this.live || !this.realtimeConnected) return;
+        if (!this.live) return;
+        this.realtimeConnected = true;
         this.setRealtimeMode(transport === "webrtc" ? "webrtc" : "websocket");
       },
       onDisconnect: () => {

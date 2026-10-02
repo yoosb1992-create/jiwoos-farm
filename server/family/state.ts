@@ -149,23 +149,31 @@ export class FamilyState extends FamilyRooms {
       if (pose.mapId !== "farm" || !Number.isInteger(action.x) || !Number.isInteger(action.y) || !["hoe", "seed", "water", "hand", "pickaxe"].includes(action.tool)) throw new FamilyError(400, "올바른 농사 행동이 아닙니다.");
       if (pose.selectedTool !== action.tool) throw new FamilyError(400, "선택한 도구와 요청한 도구가 다릅니다.");
       const tile = stored.farm.find((t) => t.x === action.x && t.y === action.y);
-      if (!tile || Math.hypot(pose.x - (tile.x + .5) * GAME_CONFIG.tileSize, pose.y - (tile.y + .5) * GAME_CONFIG.tileSize) > GAME_CONFIG.farmInteractionDistance) throw new FamilyError(400, "밭 가까이에서 행동해 주세요.");
-      const targetWorld = interactionTargetPointFromPosition(pose, pose.facing);
-      const targetTile = stored.farm.find((entry) => entry.x === Math.floor(targetWorld.x / GAME_CONFIG.tileSize) && entry.y === Math.floor(targetWorld.y / GAME_CONFIG.tileSize));
-      const resolved = resolveToolTarget({
-        tool: action.tool,
-        facing: pose.facing,
-        mapId: pose.mapId,
-        inputSource: "family",
-        player: pose,
-        playerAnchor: playerInteractionAnchorFromPosition(pose),
-        targetWorld,
-        map: this.maps.farm,
-        farmTile: targetTile,
-        farmTreeState: normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(this.maps.farm)),
-      });
-      if (resolved.targetKind !== "farm_tile" || resolved.targetTile.x !== tile.x || resolved.targetTile.y !== tile.y) {
-        throw new FamilyError(400, "바라보는 바로 앞의 밭에서 도구를 사용해 주세요.");
+      const touchTarget = action.inputSource === "mobile" || action.inputSource === "pointer";
+      const targetDistance = tile
+        ? Math.hypot(pose.x - (tile.x + .5) * GAME_CONFIG.tileSize, pose.y - (tile.y + .5) * GAME_CONFIG.tileSize)
+        : Infinity;
+      if (!tile || targetDistance > (touchTarget ? 80 : GAME_CONFIG.farmInteractionDistance)) {
+        throw new FamilyError(400, "밭 가까이에서 행동해 주세요.");
+      }
+      if (!touchTarget) {
+        const targetWorld = interactionTargetPointFromPosition(pose, pose.facing);
+        const targetTile = stored.farm.find((entry) => entry.x === Math.floor(targetWorld.x / GAME_CONFIG.tileSize) && entry.y === Math.floor(targetWorld.y / GAME_CONFIG.tileSize));
+        const resolved = resolveToolTarget({
+          tool: action.tool,
+          facing: pose.facing,
+          mapId: pose.mapId,
+          inputSource: "family",
+          player: pose,
+          playerAnchor: playerInteractionAnchorFromPosition(pose),
+          targetWorld,
+          map: this.maps.farm,
+          farmTile: targetTile,
+          farmTreeState: normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(this.maps.farm)),
+        });
+        if (resolved.targetKind !== "farm_tile" || resolved.targetTile.x !== tile.x || resolved.targetTile.y !== tile.y) {
+          throw new FamilyError(400, "바라보는 바로 앞의 밭에서 도구를 사용해 주세요.");
+        }
       }
       const result = applyFarmToolEffect(action.tool, tile, {
         selectedCrop: cropId,

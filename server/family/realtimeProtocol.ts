@@ -44,6 +44,30 @@ export const parseFamilyRealtimeFrame = (
   }
 };
 
+export const parseFamilyRtcSignalValue = (raw: unknown): FamilyRtcSignal | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const signal = raw as Partial<FamilyRtcSignal> & { kind?: unknown };
+  if ((signal.kind === "offer" || signal.kind === "answer") && typeof signal.sdp === "string" && signal.sdp.length <= 24_000) {
+    return { kind: signal.kind, sdp: signal.sdp };
+  }
+  if (signal.kind === "ice") {
+    const candidate = (signal as { candidate?: unknown }).candidate;
+    if (!candidate || typeof candidate !== "object") return null;
+    const value = candidate as { candidate?: unknown; sdpMid?: unknown; sdpMLineIndex?: unknown; usernameFragment?: unknown };
+    if (typeof value.candidate !== "string" || value.candidate.length > 4_096) return null;
+    return {
+      kind: "ice",
+      candidate: {
+        candidate: value.candidate,
+        ...(typeof value.sdpMid === "string" || value.sdpMid === null ? { sdpMid: value.sdpMid as string | null } : {}),
+        ...(Number.isInteger(value.sdpMLineIndex) || value.sdpMLineIndex === null ? { sdpMLineIndex: value.sdpMLineIndex as number | null } : {}),
+        ...(typeof value.usernameFragment === "string" || value.usernameFragment === null ? { usernameFragment: value.usernameFragment as string | null } : {}),
+      },
+    };
+  }
+  return null;
+};
+
 export const parseFamilyRealtimeSignalFrame = (
   raw: unknown,
   expectedRoomId: string,
@@ -59,31 +83,9 @@ export const parseFamilyRealtimeSignalFrame = (
       signal?: unknown;
     };
     if (frame.type !== "signal" || frame.roomId !== expectedRoomId || frame.sessionId !== expectedSessionId ||
-        typeof frame.targetPlayerId !== "string" || !FAMILY_REALTIME_PLAYER_RE.test(frame.targetPlayerId) ||
-        !frame.signal || typeof frame.signal !== "object") return null;
-    const signal = frame.signal as Partial<FamilyRtcSignal> & { kind?: unknown };
-    if ((signal.kind === "offer" || signal.kind === "answer") && typeof signal.sdp === "string" && signal.sdp.length <= 24_000) {
-      return { targetPlayerId: frame.targetPlayerId, signal: { kind: signal.kind, sdp: signal.sdp } };
-    }
-    if (signal.kind === "ice") {
-      const candidate = (signal as { candidate?: unknown }).candidate;
-      if (!candidate || typeof candidate !== "object") return null;
-      const value = candidate as { candidate?: unknown; sdpMid?: unknown; sdpMLineIndex?: unknown; usernameFragment?: unknown };
-      if (typeof value.candidate !== "string" || value.candidate.length > 4_096) return null;
-      return {
-        targetPlayerId: frame.targetPlayerId,
-        signal: {
-          kind: "ice",
-          candidate: {
-            candidate: value.candidate,
-            ...(typeof value.sdpMid === "string" || value.sdpMid === null ? { sdpMid: value.sdpMid as string | null } : {}),
-            ...(Number.isInteger(value.sdpMLineIndex) || value.sdpMLineIndex === null ? { sdpMLineIndex: value.sdpMLineIndex as number | null } : {}),
-            ...(typeof value.usernameFragment === "string" || value.usernameFragment === null ? { usernameFragment: value.usernameFragment as string | null } : {}),
-          },
-        },
-      };
-    }
-    return null;
+        typeof frame.targetPlayerId !== "string" || !FAMILY_REALTIME_PLAYER_RE.test(frame.targetPlayerId)) return null;
+    const signal = parseFamilyRtcSignalValue(frame.signal);
+    return signal ? { targetPlayerId: frame.targetPlayerId, signal } : null;
   } catch {
     return null;
   }

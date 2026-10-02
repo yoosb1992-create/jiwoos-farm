@@ -8,6 +8,7 @@ const realtime = readFileSync(new URL("../family/realtimePresence.ts", import.me
 const worker = readFileSync(new URL("../../server/worker.ts", import.meta.url), "utf8");
 const direct = readFileSync(new URL("../../server/family/directRealtime.ts", import.meta.url), "utf8");
 const ticket = readFileSync(new URL("../../app/api/family/presence/ticket/route.ts", import.meta.url), "utf8");
+const rtc = readFileSync(new URL("../../app/api/family/presence/rtc/route.ts", import.meta.url), "utf8");
 
 for (const token of ["requireMember", "env.FAMILY_ROOM", "idFromName(roomId)", "stub.fetch", "가족농장 실시간 서버가 배포되지 않았습니다."]) {
   assert.ok(route.includes(token), `realtime route keeps ${token}`);
@@ -27,8 +28,12 @@ assert.ok(!direct.includes("oai-authenticated-user-id") && !direct.includes("req
 for (const token of ["familyRequest", "requireMember", "env.FAMILY_ROOM.idFromName(roomId)", "/ticket"]) {
   assert.ok(ticket.includes(token), `authenticated ticket route keeps ${token}`);
 }
+for (const token of ["familyRequest", "requireMember", "/rtc/signal", "/rtc/poll", "targetPlayerId"]) {
+  assert.ok(rtc.includes(token), `authenticated HTTP WebRTC signaling keeps ${token}`);
+}
 assert.ok(client.includes("FAMILY_PRESENCE_KEEPALIVE_MS = 1500"), "D1 presence is only a low-rate safety heartbeat while realtime is connected");
 assert.ok(client.includes("acceptRealtimePresence") && client.includes("acceptFallbackPresence"), "WebSocket and D1 presence have separate ingestion paths");
+assert.ok(client.includes("syncPeers") && realtime.includes("syncPeers(snapshot"), "D1 presence can discover WebRTC peers without a WebSocket connection");
 assert.ok(client.includes("flushPresence()"), "Family client can push movement-state transitions immediately");
 assert.ok(client.includes("/api/family/presence/ticket") && client.includes("getTicket"), "Family client obtains a fresh authenticated realtime ticket for each socket connection");
 assert.ok(client.includes("error.status === 409") && client.includes("attempt === 0"), "concurrent Family actions retry once on the latest authoritative revision");

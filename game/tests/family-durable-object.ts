@@ -37,7 +37,7 @@ const envSource = readFileSync(new URL("../../cloudflare-env.d.ts", import.meta.
 const viteSource = readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
 const realtimeSource = readFileSync(new URL("../family/realtimePresence.ts", import.meta.url), "utf8");
 
-for (const token of ["extends DurableObject", "acceptWebSocket", "serializeAttachment", "deserializeAttachment", "getWebSockets", "webSocketMessage", "parseFamilyRealtimeSignalFrame", 'url.pathname === "/ticket"', "realtime-ticket:", "x-family-realtime-ticket"]) {
+for (const token of ["extends DurableObject", "acceptWebSocket", "serializeAttachment", "deserializeAttachment", "getWebSockets", "webSocketMessage", "parseFamilyRealtimeSignalFrame", 'url.pathname === "/ticket"', "realtime-ticket:", "x-family-realtime-ticket", 'url.pathname === "/rtc/signal"', 'url.pathname === "/rtc/poll"', "rtc-signals:"]) {
   assert.ok(durableSource.includes(token), `Durable Object implements ${token}`);
 }
 assert.ok(routeSource.includes("env.FAMILY_ROOM.idFromName(roomId)"), "socket route selects one Durable Object identity per Family room");
@@ -51,5 +51,6 @@ assert.ok(durableSource.includes("getWebSockets(signal.targetPlayerId)"), "Durab
 assert.ok(durableSource.includes("this.ctx.storage.put") && durableSource.includes("this.ctx.storage.delete"), "realtime tickets are short-lived Durable Object state and are consumed on connect");
 assert.ok(realtimeSource.includes("RTCPeerConnection") && realtimeSource.includes("createDataChannel"), "browser realtime channel attempts a direct WebRTC peer connection");
 assert.ok(realtimeSource.includes("ordered: false") && realtimeSource.includes("maxRetransmits: 0"), "P2P movement uses unordered unretransmitted game data");
+assert.ok(realtimeSource.includes("/api/family/presence/rtc") && realtimeSource.includes("pollRtcSignals"), "P2P signaling has an authenticated HTTP path when WebSocket upgrade is unavailable");
 
 console.log("Family Durable Object: room authority, WebRTC signaling and fallback wiring passed");

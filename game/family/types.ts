@@ -35,11 +35,11 @@ export type FamilyAction =
   | { kind: "fish-reel"; castId: string; pose: FamilyPose }
   | { kind: "build"; definitionId: BuildingId; tileX: number; tileY: number; pose: FamilyPose }
   | { kind: "farm-expand"; expansionId: ExpansionId; pose: FamilyPose }
-  | { kind: "tool"; tool: ToolKey; cropId?: import("../data/crops").CropId; x: number; y: number; pose: FamilyPose }
+  | { kind: "tool"; tool: ToolKey; cropId?: import("../data/crops").CropId; x: number; y: number; inputSource?: "keyboard" | "mobile" | "pointer"; pose: FamilyPose }
   | { kind: "water-refill"; pose: FamilyPose }
-  | { kind: "forest-gather"; nodeId: string; daySerial: number; tool: ToolKey; pose: FamilyPose }
-  | { kind: "farm-tree-hit"; nodeId: string; tool: "axe"; pose: FamilyPose }
-  | { kind: "mine-hit"; floor: number; nodeId: string; daySerial: number; tool: ToolKey; pose: FamilyPose }
+  | { kind: "forest-gather"; nodeId: string; daySerial: number; tool: ToolKey; inputSource?: "keyboard" | "mobile" | "pointer"; pose: FamilyPose }
+  | { kind: "farm-tree-hit"; nodeId: string; tool: "axe"; inputSource?: "keyboard" | "mobile" | "pointer"; pose: FamilyPose }
+  | { kind: "mine-hit"; floor: number; nodeId: string; daySerial: number; tool: ToolKey; inputSource?: "keyboard" | "mobile" | "pointer"; pose: FamilyPose }
   | { kind: "buy"; listingId: string; pose: FamilyPose }
   | { kind: "craft"; recipeId: string; pose: FamilyPose }
   | { kind: "tool-upgrade"; upgradeId: string; pose: FamilyPose }

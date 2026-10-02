@@ -1,4 +1,4 @@
-import type { FamilyRealtimePresenceChannel, FamilyRealtimePresenceContext } from "./client";
+import { familyFetch, type FamilyRealtimePresenceChannel, type FamilyRealtimePresenceContext } from "./client";
 import { parseFamilyPose } from "./personal";
 import type { FamilyPose, FamilyPresence, FamilyPresenceSnapshot } from "./types";
 
@@ -84,6 +84,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
   private timer?: ReturnType<typeof setInterval>;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
   private connectTimer?: ReturnType<typeof setTimeout>;
+  private rtcSignalTimer?: ReturnType<typeof setTimeout>;
   private context?: FamilyRealtimePresenceContext;
   private reconnectAttempt = 0;
   private stopped = true;
@@ -106,6 +107,9 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     this.context = context;
     this.stopped = false;
     this.reconnectAttempt = 0;
+    this.clearTimer();
+    this.timer = setInterval(() => this.sendCurrent(), this.sendEveryMs);
+    this.scheduleRtcSignalPoll(0);
     void this.connect();
   }
 
@@ -114,6 +118,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     this.context = undefined;
     this.clearReconnect();
     this.clearConnectTimer();
+    this.clearRtcSignalTimer();
     this.closeRtcPeers();
     const socket = this.socket;
     this.socket = undefined;
@@ -141,22 +146,18 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
       if (this.socket !== socket || this.stopped || socket.readyState === 1) return;
       this.socket = undefined;
       try { socket.close(4000, "family realtime connect timeout"); } catch { /* browser may already be closing */ }
-      this.closeRtcPeers();
-      context.onDisconnect();
+      if (this.hasOpenRtcChannel()) context.onTransport?.("webrtc");
+      else context.onDisconnect();
       this.scheduleReconnect();
     }, this.connectTimeoutMs);
-
-    const send = () => this.sendCurrent(socket, context);
 
     socket.addEventListener("open", () => {
       if (this.socket !== socket || this.stopped) return;
       this.reconnectAttempt = 0;
       this.clearConnectTimer();
       context.onConnect();
-      context.onTransport?.("websocket");
-      send();
-      this.clearTimer();
-      this.timer = setInterval(send, this.sendEveryMs);
+      context.onTransport?.(this.hasOpenRtcChannel() ? "webrtc" : "websocket");
+      this.sendCurrent();
     });
     socket.addEventListener("message", (event) => {
       if (this.socket !== socket || typeof event.data !== "string") return;
@@ -176,11 +177,10 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     socket.addEventListener("close", () => {
       if (this.socket !== socket) return;
       this.clearConnectTimer();
-      this.clearTimer();
       this.socket = undefined;
-      this.closeRtcPeers();
       if (this.stopped) return;
-      context.onDisconnect();
+      if (this.hasOpenRtcChannel()) context.onTransport?.("webrtc");
+      else context.onDisconnect();
       this.scheduleReconnect();
     });
     socket.addEventListener("error", () => {
@@ -188,31 +188,41 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     });
   }
 
-  flush() {
-    const socket = this.socket;
-    const context = this.context;
-    if (!socket || !context || this.stopped) return;
-    this.sendCurrent(socket, context);
+  flush() { this.sendCurrent(); }
+
+  syncPeers(snapshot: FamilyPresenceSnapshot) {
+    if (this.stopped) return;
+    this.syncRtcPeers(snapshot);
   }
 
-  private sendCurrent(socket: FamilyPresenceSocket, context: FamilyRealtimePresenceContext) {
-    if (this.socket !== socket || socket.readyState !== 1) return;
+  private sendCurrent() {
+    const context = this.context;
+    if (!context || this.stopped) return;
+    const socket = this.socket;
+    const socketOpen = socket?.readyState === 1;
+    const rtcOpen = this.hasOpenRtcChannel();
+    if (!socketOpen && !rtcOpen) return;
     const pose = context.pose();
     if (!pose) return;
     const sequence = ++this.sequence;
     const clientSentAt = Date.now();
-    socket.send(JSON.stringify({
-      type: "presence",
-      roomId: context.roomId,
-      sessionId: context.sessionId,
-      pose,
-      sequence,
-      clientSentAt,
-    }));
+    if (socketOpen && socket) {
+      try {
+        socket.send(JSON.stringify({
+          type: "presence",
+          roomId: context.roomId,
+          sessionId: context.sessionId,
+          pose,
+          sequence,
+          clientSentAt,
+        }));
+      } catch { /* P2P or D1 fallback continues */ }
+    }
+    if (!rtcOpen) return;
     const direct = JSON.stringify({ type: "pose", pose, sequence, clientSentAt });
     for (const peer of this.rtcPeers.values()) {
       if (peer.channel?.readyState !== "open") continue;
-      try { peer.channel.send(direct); } catch { /* WebSocket fallback continues */ }
+      try { peer.channel.send(direct); } catch { /* next realtime frame retries */ }
     }
   }
 
@@ -284,7 +294,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
       if (peer.channel === channel) peer.channel = undefined;
       this.rtcPoses.delete(peer.playerId);
       this.emitCombinedSnapshot();
-      if (!this.hasOpenRtcChannel()) this.context?.onTransport?.("websocket");
+      this.reportBestTransport();
     };
     channel.onerror = () => {
       // connectionstatechange/channel close handles the fallback.
@@ -349,17 +359,47 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
   private sendRtcSignal(targetPlayerId: string, signal: FamilyRtcRelay["signal"]) {
     const socket = this.socket;
     const context = this.context;
-    if (!socket || socket.readyState !== 1 || !context) return;
+    if (!context) return;
+    if (socket?.readyState === 1) {
+      try {
+        socket.send(JSON.stringify({
+          type: "signal",
+          roomId: context.roomId,
+          sessionId: context.sessionId,
+          targetPlayerId,
+          signal,
+        }));
+        return;
+      } catch { /* fall through to authenticated HTTP signaling */ }
+    }
+    void familyFetch<{ queued: boolean }>("/api/family/presence/rtc", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ roomId: context.roomId, targetPlayerId, signal }),
+    }).catch(() => {});
+  }
+
+  private scheduleRtcSignalPoll(delay = this.hasOpenRtcChannel() ? 1200 : 250) {
+    if (this.stopped || !this.context || this.rtcSignalTimer !== undefined) return;
+    this.rtcSignalTimer = setTimeout(() => {
+      this.rtcSignalTimer = undefined;
+      void this.pollRtcSignals();
+    }, delay);
+  }
+
+  private async pollRtcSignals() {
+    const context = this.context;
+    if (!context || this.stopped) return;
     try {
-      socket.send(JSON.stringify({
-        type: "signal",
-        roomId: context.roomId,
-        sessionId: context.sessionId,
-        targetPlayerId,
-        signal,
-      }));
+      const payload = await familyFetch<{ signals: FamilyRtcRelay[] }>(
+        `/api/family/presence/rtc?roomId=${encodeURIComponent(context.roomId)}`,
+      );
+      if (this.context !== context || this.stopped) return;
+      for (const frame of payload.signals ?? []) if (isRtcRelay(frame)) await this.handleRtcRelay(frame);
     } catch {
-      // The WebSocket fallback remains available.
+      // HTTP signaling is a fallback path; normal Family/D1 state keeps running.
+    } finally {
+      if (this.context === context && !this.stopped) this.scheduleRtcSignalPoll();
     }
   }
 
@@ -388,7 +428,15 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     this.rtcPoses.delete(playerId);
     try { peer.channel?.close(); } catch { /* already closed */ }
     try { peer.connection.close(); } catch { /* already closed */ }
-    if (!this.hasOpenRtcChannel()) this.context?.onTransport?.("websocket");
+    this.reportBestTransport();
+  }
+
+  private reportBestTransport() {
+    const context = this.context;
+    if (!context || this.stopped) return;
+    if (this.hasOpenRtcChannel()) context.onTransport?.("webrtc");
+    else if (this.socket?.readyState === 1) context.onTransport?.("websocket");
+    else context.onDisconnect();
   }
 
   private closeRtcPeers() {
@@ -423,5 +471,10 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
   private clearConnectTimer() {
     if (this.connectTimer !== undefined) clearTimeout(this.connectTimer);
     this.connectTimer = undefined;
+  }
+
+  private clearRtcSignalTimer() {
+    if (this.rtcSignalTimer !== undefined) clearTimeout(this.rtcSignalTimer);
+    this.rtcSignalTimer = undefined;
   }
 }

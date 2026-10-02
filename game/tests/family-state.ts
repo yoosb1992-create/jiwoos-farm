@@ -37,6 +37,12 @@ try {
   const sold = await state.act("B", roomId, harvest.revision, { kind: "sell", pose });
   assert.equal(sold.world.money, 155); assert.equal((await state.read("A", roomId)).world.money, 155);
   assert.equal((await state.read("C", other.room.id)).world.farm[0].tilled, false);
+  const mobileTargeted = await state.act("C", other.room.id, 0, {
+    kind: "tool", tool: "hoe", x: 10, y: 8, inputSource: "mobile",
+    pose: { ...pose, x: 304, y: 224, facing: "down", selectedTool: "hoe" },
+  });
+  assert.equal(mobileTargeted.world.farm.find((tile) => tile.x === 10 && tile.y === 8)?.tilled, true,
+    "mobile tap may authoritatively apply the nearby tapped farm tile even when it is not the keyboard facing tile");
   await db.prepare("UPDATE family_state SET world_json=json_remove(world_json, '$.forestState') WHERE room_id=?").bind(other.room.id).run();
   assert.deepEqual((await state.read("C", other.room.id)).world.forestState, { daySerial: 1, depleted: [], hits: {} }, "legacy room JSON reads without a migration");
   await assert.rejects(state.read("C", roomId)); await assert.rejects(state.act("C", roomId, sold.revision, hoe));

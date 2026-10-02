@@ -937,7 +937,7 @@ export class FarmScene extends Phaser.Scene {
       if (!tile) { this.say("이곳에서는 농사 도구를 사용할 수 없어요."); return; }
       if (!inRange) { this.say("조금 더 가까이 가 주세요."); return; }
       if (this.family) {
-        void this.family.act({ kind: "tool", tool, cropId: this.selectedCrop, x, y, pose: pose! });
+        void this.family.act({ kind: "tool", tool, cropId: this.selectedCrop, x, y, inputSource: context.inputSource === "family" ? "keyboard" : context.inputSource, pose: pose! });
         return;
       }
       if (!this.applyTool(tool, tile)) return;
@@ -959,7 +959,7 @@ export class FarmScene extends Phaser.Scene {
       if (!inRange) return;
       if (!tile.tilled) return;
       if (this.family) {
-        void this.family.act({ kind: "tool", tool: "water", cropId: this.selectedCrop, x, y, pose: pose! }).then((accepted) => {
+        void this.family.act({ kind: "tool", tool: "water", cropId: this.selectedCrop, x, y, inputSource: context.inputSource === "family" ? "keyboard" : context.inputSource, pose: pose! }).then((accepted) => {
           if (accepted && this.sceneLive) this.say(`물을 주었어요. 물 ${this.wateringCan.currentWater} / ${this.wateringCan.capacity}`);
         });
         return;
@@ -980,7 +980,7 @@ export class FarmScene extends Phaser.Scene {
       if (!this.family && !canPerformAction(this.stats, "axe")) { this.say("체력이 부족합니다. 잠을 자고 회복하세요."); return; }
       if (this.family) {
         const wasStump = this.farmTreeState.stumps.includes(object.id);
-        void this.family!.act({ kind: "farm-tree-hit", nodeId: object.id, tool: "axe", pose: pose! }).then((accepted) => {
+        void this.family!.act({ kind: "farm-tree-hit", nodeId: object.id, tool: "axe", inputSource: context.inputSource === "family" ? "keyboard" : context.inputSource, pose: pose! }).then((accepted) => {
           if (!accepted || !this.sceneLive || this.currentMapId !== "farm") return;
           const count = this.farmTreeState.hits[object.id] ?? 0;
           if (this.farmTreeState.depleted.includes(object.id)) this.say("그루터기를 제거했어요.");
@@ -1067,7 +1067,7 @@ export class FarmScene extends Phaser.Scene {
         if (!daySerial) { this.say("가족 숲의 최신 상태를 받는 중이에요."); return; }
         const before = this.sharedForestState;
         const priorCount = this.inventory.count(FOREST_RESOURCES[kind].drop);
-        void this.family!.act({ kind: "forest-gather", nodeId: object.id, daySerial, tool, pose: this.familyPoseForTool(context) }).then(accepted => {
+        void this.family!.act({ kind: "forest-gather", nodeId: object.id, daySerial, tool, inputSource: context.inputSource === "family" ? "keyboard" : context.inputSource, pose: this.familyPoseForTool(context) }).then(accepted => {
           if (!accepted || !this.sceneLive || this.currentMapId !== FAIRY_FOREST_ID) return;
           const definition = FOREST_RESOURCES[kind];
           const delta = this.inventory.count(definition.drop) - priorCount;
@@ -1108,7 +1108,7 @@ export class FarmScene extends Phaser.Scene {
       if (this.family) {
         const daySerial = this.family.snapshot?.world.daySerial;
         if (!daySerial) { this.say("가족 광산 상태를 불러오는 중이에요."); return; }
-        void this.family.act({ kind: "mine-hit", floor, nodeId: node.id, daySerial, tool, pose: this.familyPoseForTool(context) }).then(accepted => {
+        void this.family.act({ kind: "mine-hit", floor, nodeId: node.id, daySerial, tool, inputSource: context.inputSource === "family" ? "keyboard" : context.inputSource, pose: this.familyPoseForTool(context) }).then(accepted => {
           if (!accepted || !this.sceneLive || this.currentMapId !== mineMapId(floor)) return;
           const depleted = this.mineDaily.floors[floor]?.depleted.includes(node.id);
           const count = this.mineDaily.floors[floor]?.hits[node.id] ?? 0;

@@ -2,23 +2,35 @@ import { DurableObject } from "cloudflare:workers";
 import type { FamilyPresenceSnapshot } from "../../game/family/types";
 import {
   FAMILY_REALTIME_MAX_FRAME_BYTES,
+  FAMILY_REALTIME_PLAYER_RE,
   FAMILY_REALTIME_SIGNAL_MAX_FRAME_BYTES,
   type FamilyRealtimeConnectionState,
   familyRealtimeSnapshot,
   parseFamilyRealtimeFrame,
   parseFamilyRealtimeSignalFrame,
+  parseFamilyRtcSignalValue,
+  type FamilyRtcSignal,
 } from "./realtimeProtocol";
 
 const header = (request: Request, name: string) => request.headers.get(name) ?? "";
 const REALTIME_TICKET_TTL_MS = 30_000;
+const RTC_SIGNAL_TTL_MS = 30_000;
+const RTC_SIGNAL_QUEUE_LIMIT = 64;
 
 interface FamilyRealtimeTicket {
   token: string;
   expiresAt: number;
   state: FamilyRealtimeConnectionState;
 }
+interface StoredRtcSignal {
+  fromPlayerId: string;
+  fromNickname: string;
+  signal: FamilyRtcSignal;
+  expiresAt: number;
+}
 
 const ticketKey = (sessionId: string) => `realtime-ticket:${sessionId}`;
+const rtcSignalKey = (playerId: string) => `rtc-signals:${playerId}`;
 
 const validConnection = (state: Partial<FamilyRealtimeConnectionState>): state is FamilyRealtimeConnectionState =>
   typeof state.roomId === "string" && state.roomId.length > 0 &&
@@ -54,6 +66,41 @@ export class FamilyRoomDurableObject extends DurableObject<Cloudflare.Env> {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/rtc/signal" && request.method === "POST") {
+      const fromPlayerId = header(request, "x-family-player-id");
+      const fromNickname = decodeURIComponent(header(request, "x-family-nickname"));
+      let body: unknown;
+      try { body = await request.json(); } catch { body = null; }
+      const targetPlayerId = body && typeof body === "object" ? (body as { targetPlayerId?: unknown }).targetPlayerId : undefined;
+      const signal = body && typeof body === "object" ? parseFamilyRtcSignalValue((body as { signal?: unknown }).signal) : null;
+      if (!FAMILY_REALTIME_PLAYER_RE.test(fromPlayerId) || typeof fromNickname !== "string" || !fromNickname ||
+          typeof targetPlayerId !== "string" || !FAMILY_REALTIME_PLAYER_RE.test(targetPlayerId) || !signal) {
+        return Response.json({ message: "WebRTC 연결 정보가 올바르지 않습니다." }, { status: 400 });
+      }
+      const key = rtcSignalKey(targetPlayerId);
+      const now = Date.now();
+      const queue = (await this.ctx.storage.get<StoredRtcSignal[]>(key) ?? [])
+        .filter((entry) => entry.expiresAt >= now)
+        .slice(-(RTC_SIGNAL_QUEUE_LIMIT - 1));
+      queue.push({ fromPlayerId, fromNickname, signal, expiresAt: now + RTC_SIGNAL_TTL_MS });
+      await this.ctx.storage.put(key, queue);
+      return Response.json({ queued: true }, { headers: { "cache-control": "no-store" } });
+    }
+
+    if (url.pathname === "/rtc/poll" && request.method === "GET") {
+      const playerId = header(request, "x-family-player-id");
+      if (!FAMILY_REALTIME_PLAYER_RE.test(playerId)) {
+        return Response.json({ message: "WebRTC 참가자 정보가 올바르지 않습니다." }, { status: 400 });
+      }
+      const key = rtcSignalKey(playerId);
+      const now = Date.now();
+      const queue = (await this.ctx.storage.get<StoredRtcSignal[]>(key) ?? []).filter((entry) => entry.expiresAt >= now);
+      await this.ctx.storage.delete(key);
+      return Response.json({
+        signals: queue.map(({ expiresAt: _expiresAt, ...entry }) => ({ type: "signal", ...entry })),
+      }, { headers: { "cache-control": "no-store" } });
+    }
+
     if (url.pathname === "/ticket" && request.method === "POST") {
       const state: FamilyRealtimeConnectionState = {
         roomId: header(request, "x-family-room-id"),
