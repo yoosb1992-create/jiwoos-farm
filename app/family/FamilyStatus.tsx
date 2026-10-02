@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { familyFetch, CONNECTION_LABELS, type FamilyConnection, type FamilyRealtimeMode } from "@/game/family/client";
+import { currentFamilyRealtimeMode, familyFetch, CONNECTION_LABELS, type FamilyConnection, type FamilyRealtimeMode } from "@/game/family/client";
 import { gameEvents } from "@/game/events";
 import { FAMILY_PRESENCE_TTL_MS } from "@/game/family/presence";
 import type { FamilyPresenceSnapshot, FamilySession, FamilySnapshot, FamilyPresence, FamilyRoomDetail } from "@/game/family/types";
@@ -12,13 +12,14 @@ export function FamilyRoster({ players, ownId, mapId }: { players: FamilyPresenc
 export function FamilyStatus({ session, mapId = "farm" }: { session: FamilySession; mapId?: string }) {
   const [presence, setPresence] = useState<{ snapshot: FamilyPresenceSnapshot; received: number } | null>(null);
   const [connection, setConnection] = useState<FamilyConnection>("connecting");
-  const [realtimeMode, setRealtimeMode] = useState<FamilyRealtimeMode>("connecting");
+  const [realtimeMode, setRealtimeMode] = useState<FamilyRealtimeMode>(() => currentFamilyRealtimeMode(session.room.id));
   const [sleep, setSleep] = useState<FamilySnapshot["sleep"]>();
   const [room, setRoom] = useState(session.room);
   const [copyMessage, setCopyMessage] = useState("");
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(0);
   useEffect(() => {
+    setRealtimeMode(currentFamilyRealtimeMode(session.room.id));
     const update = (event: Event) => { setPresence({ snapshot: (event as CustomEvent<FamilyPresenceSnapshot>).detail, received: Date.now() }); setNow(Date.now()); };
     const status = (event: Event) => { const d = (event as CustomEvent).detail; if (d.roomId === session.room.id) setConnection(d.state); };
     const realtimeStatus = (event: Event) => { const d = (event as CustomEvent).detail; if (d.roomId === session.room.id) setRealtimeMode(d.mode); };

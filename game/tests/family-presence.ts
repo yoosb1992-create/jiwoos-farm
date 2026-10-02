@@ -3,7 +3,7 @@ import { FamilyState } from "../../server/family/state";
 import { FamilyRooms } from "../../server/family/rooms";
 import { FamilyPresenceService } from "../../server/family/presence";
 import { familyTestDB } from "./family-db";
-import { FAMILY_PRESENCE_TTL_MS, interpolateFamilyPosition, mergeFamilyPresenceSnapshots, overlayFamilyPresenceActions, visibleFamilyPlayers } from "../family/presence";
+import { FAMILY_PRESENCE_TTL_MS, extrapolateFamilyPosition, familyPresenceVelocity, interpolateFamilyPosition, mergeFamilyPresenceSnapshots, overlayFamilyPresenceActions, visibleFamilyPlayers } from "../family/presence";
 import { RemotePlayers } from "../family/RemotePlayers";
 import type { FamilyPose } from "../family/types";
 const { db, close } = familyTestDB();
@@ -56,7 +56,12 @@ try {
   const overlaid = overlayFamilyPresenceActions({ players: [movementPlayer], serverNow: snapshot.serverNow + 100 }, { players: [actionPlayer], serverNow: snapshot.serverNow });
   assert.deepEqual([overlaid.players[0].x, overlaid.players[0].y], [777, 555], "D1 action metadata never replaces WebSocket movement coordinates");
   assert.equal(overlaid.players[0].action?.id, action.id, "D1 can still supply short-lived remote tool visuals");
-  const midway = interpolateFamilyPosition({ x: 0, y: 0 }, { x: 60, y: 60 }, 16); assert.ok(midway.x > 30 && midway.x < 40, "30Hz remote interpolation catches up smoothly within a few frames");
+  const priorMotion = { ...movementPlayer, x: 760, y: 555, lastSeen: movementPlayer.lastSeen - 33 };
+  const velocity = familyPresenceVelocity(priorMotion, movementPlayer);
+  assert.ok(velocity.x > 0 && velocity.y === 0, "remote velocity derives from actual packet-to-packet motion instead of facing guesses");
+  const extrapolated = extrapolateFamilyPosition(movementPlayer, velocity, movementPlayer.lastSeen + 33);
+  assert.ok(extrapolated.x > movementPlayer.x, "measured velocity fills the gap between 30Hz packets");
+  const midway = interpolateFamilyPosition({ x: 0, y: 0 }, { x: 60, y: 60 }, 16); assert.ok(midway.x > 20 && midway.x < 30, "remote interpolation smooths packet cadence without snapping every frame");
   assert.deepEqual(interpolateFamilyPosition({ x: 0, y: 0 }, { x: 120, y: 0 }, 16), { x: 120, y: 0 }, "large corrections snap instead of visibly trailing");
   // Exercise the actual renderer via its narrow Scene.add surface; physics access would fail.
   let sprites = 0, destroyed = 0; const labels: string[] = [], animations: string[] = [];

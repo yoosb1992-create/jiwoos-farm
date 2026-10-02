@@ -1,16 +1,26 @@
 import type * as Phaser from "phaser";
 import { PLAYER_ASSET, WORLD_OVERLAY_DEPTH, depthFromGroundAnchor, displayedSize, playerAnimationName } from "../assets/definitions";
-import { interpolateFamilyPosition, visibleFamilyPlayers } from "./presence";
+import { extrapolateFamilyPosition, familyPresenceVelocity, interpolateFamilyPosition, visibleFamilyPlayers, type FamilyPresenceVelocity } from "./presence";
 import type { FamilyPresence, FamilyPresenceSnapshot } from "./types";
 
 /** Decorative sprites only: remote family members never join Arcade physics/colliders. */
 export class RemotePlayers {
   private views = new Map<string, { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; target: FamilyPresence; actionId?: string; actionUntil?: number }>();
   private snapshot: FamilyPresenceSnapshot = { players: [], serverNow: 0 };
+  private velocities = new Map<string, FamilyPresenceVelocity>();
   private receivedAt = 0;
   constructor(private scene: Phaser.Scene, private ownId: string) {}
   receive(snapshot: FamilyPresenceSnapshot) {
     if (snapshot.serverNow < this.snapshot.serverNow) return;
+    const previous = new Map(this.snapshot.players.map((player) => [player.playerId, player]));
+    const ids = new Set(snapshot.players.map((player) => player.playerId));
+    for (const player of snapshot.players) {
+      const prior = previous.get(player.playerId);
+      if (!prior) this.velocities.set(player.playerId, { x: 0, y: 0 });
+      else if (!player.moving) this.velocities.set(player.playerId, { x: 0, y: 0 });
+      else if (player.lastSeen > prior.lastSeen) this.velocities.set(player.playerId, familyPresenceVelocity(prior, player));
+    }
+    for (const id of this.velocities.keys()) if (!ids.has(id)) this.velocities.delete(id);
     this.snapshot = snapshot; this.receivedAt = Date.now();
   }
   update(mapId: string, delta: number) {
@@ -27,7 +37,8 @@ export class RemotePlayers {
         view = { sprite, label, target: player }; this.views.set(player.playerId, view);
       }
       view.target = player;
-      const point = interpolateFamilyPosition(view.sprite, player, delta);
+      const target = extrapolateFamilyPosition(player, this.velocities.get(player.playerId) ?? { x: 0, y: 0 }, estimated.serverNow);
+      const point = interpolateFamilyPosition(view.sprite, target, delta);
       view.sprite.setPosition(point.x, point.y).setDepth(depthFromGroundAnchor(
         point,
         PLAYER_ASSET,
@@ -43,5 +54,5 @@ export class RemotePlayers {
       view.label.setText(`${player.nickname} ${{ up: "↑", down: "↓", left: "←", right: "→" }[player.facing]}`).setPosition(point.x, point.y - 22);
     }
   }
-  destroy() { for (const v of this.views.values()) { v.sprite.destroy(); v.label.destroy(); } this.views.clear(); }
+  destroy() { for (const v of this.views.values()) { v.sprite.destroy(); v.label.destroy(); } this.views.clear(); this.velocities.clear(); }
 }

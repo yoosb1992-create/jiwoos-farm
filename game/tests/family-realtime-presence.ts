@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { REALTIME_PRESENCE_SEND_MS, browserFamilyPresenceUrl, realtimePresenceReconnectDelay, WebSocketFamilyRealtimePresence } from "../family/realtimePresence";
+import { REALTIME_PRESENCE_CONNECT_TIMEOUT_MS, REALTIME_PRESENCE_SEND_MS, browserFamilyPresenceUrl, realtimePresenceReconnectDelay, WebSocketFamilyRealtimePresence } from "../family/realtimePresence";
 import type { FamilyPose, FamilyPresenceSnapshot } from "../family/types";
 import type { FamilyPresenceSocket } from "../family/realtimePresence";
 
@@ -27,6 +27,7 @@ class FakeSocket implements FamilyPresenceSocket {
 
 assert.equal(browserFamilyPresenceUrl({ roomId: "family room", sessionId: "session/1" }), "ws://localhost/api/family/presence/socket?roomId=family%20room&sessionId=session%2F1");
 assert.equal(REALTIME_PRESENCE_SEND_MS, 33, "movement frames target about 30Hz realtime delivery");
+assert.equal(REALTIME_PRESENCE_CONNECT_TIMEOUT_MS, 3500, "stuck websocket handshakes cannot remain in connecting forever");
 assert.equal(realtimePresenceReconnectDelay(0, 300), 300);
 assert.equal(realtimePresenceReconnectDelay(10, 300), 5000);
 
@@ -72,4 +73,26 @@ dropped.emitClose();
 assert.equal(disconnects, 1, "unexpected close reports a realtime disconnect so D1 fallback can continue");
 fallback.stop();
 
-console.log("Family realtime presence: injectable WebSocket movement channel contract passed");
+const hanging = new FakeSocket();
+let watchdogDisconnects = 0;
+const watchdog = new WebSocketFamilyRealtimePresence(
+  () => "wss://presence.test/hanging",
+  () => hanging,
+  60_000,
+  60_000,
+  5,
+);
+watchdog.start({
+  roomId: "room-a",
+  sessionId: "session-c",
+  pose: () => pose,
+  onSnapshot: () => {},
+  onConnect: () => {},
+  onDisconnect: () => { watchdogDisconnects++; },
+});
+await new Promise((resolve) => setTimeout(resolve, 15));
+assert.equal(hanging.closed, true, "a websocket handshake that never opens is actively closed");
+assert.equal(watchdogDisconnects, 1, "connect watchdog switches gameplay to D1 recovery mode");
+watchdog.stop();
+
+console.log("Family realtime presence: 30Hz socket, reconnect and connect-watchdog contract passed");

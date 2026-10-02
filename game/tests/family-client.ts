@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { FamilyClient, familyPresenceDelay, familyRetryDelay } from "../family/client";
+import { FamilyClient, currentFamilyRealtimeMode, familyPresenceDelay, familyRetryDelay } from "../family/client";
 import { Inventory } from "../domain";
 import type { FamilySnapshot } from "../family/types";
 const originalFetch = globalThis.fetch;
@@ -16,6 +16,7 @@ try {
   assert.equal(familyPresenceDelay({ moving: true }), 90, "moving Family presence stays near-realtime even on D1 fallback");
   assert.equal(familyPresenceDelay({ moving: false }), 450, "idle Family presence backs off without a visible freeze");
   client.start(); // delayed initial GET
+  assert.equal(currentFamilyRealtimeMode("r"), "connecting", "transport status is queryable even if the UI subscribes after startup");
   const refresh = client.refresh();
   pending[1](Response.json(snapshot(2))); await refresh;
   pending[0](Response.json(snapshot(1))); await new Promise((resolve) => setTimeout(resolve, 0));

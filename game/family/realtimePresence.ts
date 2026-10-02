@@ -4,6 +4,7 @@ import type { FamilyPresenceSnapshot } from "./types";
 export const REALTIME_PRESENCE_SEND_MS = 33;
 export const REALTIME_PRESENCE_RECONNECT_BASE_MS = 200;
 export const REALTIME_PRESENCE_RECONNECT_MAX_MS = 5000;
+export const REALTIME_PRESENCE_CONNECT_TIMEOUT_MS = 3500;
 
 export interface FamilyPresenceSocket {
   readonly readyState: number;
@@ -45,6 +46,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
   private socket?: FamilyPresenceSocket;
   private timer?: ReturnType<typeof setInterval>;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
+  private connectTimer?: ReturnType<typeof setTimeout>;
   private context?: FamilyRealtimePresenceContext;
   private reconnectAttempt = 0;
   private stopped = true;
@@ -54,6 +56,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     private readonly socketFactory: FamilyPresenceSocketFactory = (value) => new WebSocket(value) as unknown as FamilyPresenceSocket,
     private readonly sendEveryMs = REALTIME_PRESENCE_SEND_MS,
     private readonly reconnectBaseMs = REALTIME_PRESENCE_RECONNECT_BASE_MS,
+    private readonly connectTimeoutMs = REALTIME_PRESENCE_CONNECT_TIMEOUT_MS,
   ) {}
 
   start(context: FamilyRealtimePresenceContext) {
@@ -68,6 +71,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     this.stopped = true;
     this.context = undefined;
     this.clearReconnect();
+    this.clearConnectTimer();
     const socket = this.socket;
     this.socket = undefined;
     this.clearTimer();
@@ -86,6 +90,14 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
       return;
     }
     this.socket = socket;
+    this.clearConnectTimer();
+    this.connectTimer = setTimeout(() => {
+      if (this.socket !== socket || this.stopped || socket.readyState === 1) return;
+      this.socket = undefined;
+      try { socket.close(4000, "family realtime connect timeout"); } catch { /* browser may already be closing */ }
+      context.onDisconnect();
+      this.scheduleReconnect();
+    }, this.connectTimeoutMs);
 
     const send = () => {
       if (this.socket !== socket || socket.readyState !== 1) return;
@@ -102,6 +114,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     socket.addEventListener("open", () => {
       if (this.socket !== socket || this.stopped) return;
       this.reconnectAttempt = 0;
+      this.clearConnectTimer();
       context.onConnect();
       send();
       this.clearTimer();
@@ -118,6 +131,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     });
     socket.addEventListener("close", () => {
       if (this.socket !== socket) return;
+      this.clearConnectTimer();
       this.clearTimer();
       this.socket = undefined;
       if (this.stopped) return;
@@ -147,5 +161,10 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
   private clearReconnect() {
     if (this.reconnectTimer !== undefined) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = undefined;
+  }
+
+  private clearConnectTimer() {
+    if (this.connectTimer !== undefined) clearTimeout(this.connectTimer);
+    this.connectTimer = undefined;
   }
 }

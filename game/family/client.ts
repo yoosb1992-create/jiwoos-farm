@@ -18,6 +18,8 @@ export const familyPresenceDelay = (pose?: Pick<FamilyPose, "moving">) =>
 export const FAMILY_POLL_MS = FAMILY_STATE_POLL_MS;
 export type FamilyConnection = "connecting" | "connected" | "reconnecting" | "disconnected" | "syncing";
 export type FamilyRealtimeMode = "connecting" | "websocket" | "d1-fallback";
+const FAMILY_REALTIME_MODES = new Map<string, FamilyRealtimeMode>();
+export const currentFamilyRealtimeMode = (roomId: string): FamilyRealtimeMode => FAMILY_REALTIME_MODES.get(roomId) ?? "connecting";
 export const CONNECTION_LABELS: Record<FamilyConnection, string> = { connecting: "연결 중", connected: "연결됨", reconnecting: "재연결 중", disconnected: "연결 끊김", syncing: "최신 상태 동기화 중" };
 export const familyRetryDelay = (failures: number) => Math.min(16000, FAMILY_STATE_POLL_MS * 2 ** Math.min(4, failures));
 export class FamilyAPIError extends Error {
@@ -94,18 +96,21 @@ export class FamilyClient {
     if (this.live) this.startRealtimePresence();
   }
   private setRealtimeMode(mode: FamilyRealtimeMode) {
-    if (this.realtimeMode === mode) return;
+    const changed = this.realtimeMode !== mode || currentFamilyRealtimeMode(this.session.room.id) !== mode;
     this.realtimeMode = mode;
-    gameEvents.dispatchEvent(new CustomEvent("family-realtime", { detail: { roomId: this.session.room.id, mode } }));
+    FAMILY_REALTIME_MODES.set(this.session.room.id, mode);
+    if (changed) gameEvents.dispatchEvent(new CustomEvent("family-realtime", { detail: { roomId: this.session.room.id, mode } }));
   }
   private acceptRealtimePresence(snapshot: FamilyPresenceSnapshot) {
     if (!this.live) return;
+    this.setRealtimeMode("websocket");
     this.realtimePresenceSnapshot = snapshot;
     this.onPresence?.(overlayFamilyPresenceActions(snapshot, this.fallbackPresenceSnapshot));
   }
   private acceptFallbackPresence(snapshot: FamilyPresenceSnapshot) {
     if (!this.live) return;
     this.fallbackPresenceSnapshot = snapshot;
+    if (!this.realtimeConnected) this.setRealtimeMode("d1-fallback");
     if (this.realtimeConnected && this.realtimePresenceSnapshot) {
       this.onPresence?.(overlayFamilyPresenceActions(this.realtimePresenceSnapshot, snapshot));
       return;
@@ -142,6 +147,7 @@ export class FamilyClient {
     if (this.realtimeStarted) { this.realtimePresence?.stop(); this.realtimeStarted = false; }
     this.realtimeConnected = false;
     this.realtimePresenceSnapshot = undefined;
+    FAMILY_REALTIME_MODES.delete(this.session.room.id);
     // Wait for an already-sent D1 keepalive so leaving cannot be undone by its late response.
     void (this.heartbeatRequest ?? Promise.resolve()).catch(() => {}).then(() => familyFetch("/api/family/presence", {
       method: "DELETE", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId }),
