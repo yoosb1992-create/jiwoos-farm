@@ -88,12 +88,19 @@ const trunk = tilePoint(tree.position.tileX, tree.position.tileY);
 assert.equal(findFarmTree(MAP_DEFINITIONS.farm, trunk, { x: trunk.x - 32, y: trunk.y })?.id, tree.id);
 assert.equal(findFarmTree(MAP_DEFINITIONS.farm, { x: trunk.x, y: trunk.y - 100 }, { x: trunk.x - 32, y: trunk.y }), undefined,
   "the 128x160 crown is not a hit area");
-let treeState = emptyFarmTreeState(), wood = 0;
+let treeState = emptyFarmTreeState(), wood = 0, pineNeedles = 0, pineCones = 0;
 for (let hit = 0; hit < 3; hit++) {
   const result = strikeFarmTree(treeState, tree, "axe", { axe: 1, pickaxe: 1 });
-  treeState = result.state; wood += result.drop === "wood" ? result.quantity : 0;
+  treeState = result.state;
+  for (const drop of result.drops ?? []) {
+    if (drop.itemId === "wood") wood += drop.quantity;
+    if (drop.itemId === "pine_needles") pineNeedles += drop.quantity;
+    if (drop.itemId === "pine_cone") pineCones += drop.quantity;
+  }
 }
-assert.ok(treeState.depleted.includes(tree.id)); assert.equal(wood, 3);
+assert.ok(treeState.stumps.includes(tree.id)); assert.deepEqual([wood, pineNeedles, pineCones], [1, 1, 1]);
+for (let hit = 0; hit < 3; hit++) treeState = strikeFarmTree(treeState, tree, "axe", { axe: 1, pickaxe: 1 }).state;
+assert.ok(treeState.depleted.includes(tree.id), "stump needs three more Lv1 axe hits");
 assert.equal(strikeFarmTree(emptyFarmTreeState(), tree, "hand").state.hits[tree.id], undefined, "empty space/wrong tool changes nothing");
 
 // Pickaxe farm undo and existing mine behavior.
