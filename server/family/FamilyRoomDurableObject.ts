@@ -10,6 +10,15 @@ import {
 } from "./realtimeProtocol";
 
 const header = (request: Request, name: string) => request.headers.get(name) ?? "";
+const REALTIME_TICKET_TTL_MS = 30_000;
+
+interface FamilyRealtimeTicket {
+  token: string;
+  expiresAt: number;
+  state: FamilyRealtimeConnectionState;
+}
+
+const ticketKey = (sessionId: string) => `realtime-ticket:${sessionId}`;
 
 const validConnection = (state: Partial<FamilyRealtimeConnectionState>): state is FamilyRealtimeConnectionState =>
   typeof state.roomId === "string" && state.roomId.length > 0 &&
@@ -44,19 +53,50 @@ export class FamilyRoomDurableObject extends DurableObject<Cloudflare.Env> {
   }
 
   async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname === "/ticket" && request.method === "POST") {
+      const state: FamilyRealtimeConnectionState = {
+        roomId: header(request, "x-family-room-id"),
+        sessionId: header(request, "x-family-session-id"),
+        playerId: header(request, "x-family-player-id"),
+        nickname: decodeURIComponent(header(request, "x-family-nickname")),
+        lastSeen: Date.now(),
+      };
+      if (!validConnection(state)) {
+        return Response.json({ message: "실시간 접속 정보가 올바르지 않습니다." }, { status: 400 });
+      }
+      const token = crypto.randomUUID();
+      const ticket: FamilyRealtimeTicket = { token, expiresAt: Date.now() + REALTIME_TICKET_TTL_MS, state };
+      await this.ctx.storage.put(ticketKey(state.sessionId), ticket);
+      return Response.json({ ticket: token, expiresAt: ticket.expiresAt }, { headers: { "cache-control": "no-store" } });
+    }
+
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return Response.json({ message: "WebSocket 연결이 필요합니다." }, { status: 426 });
     }
 
-    const state: FamilyRealtimeConnectionState = {
-      roomId: header(request, "x-family-room-id"),
-      sessionId: header(request, "x-family-session-id"),
-      playerId: header(request, "x-family-player-id"),
-      nickname: decodeURIComponent(header(request, "x-family-nickname")),
-      lastSeen: Date.now(),
-    };
-    if (!validConnection(state)) {
-      return Response.json({ message: "실시간 접속 정보가 올바르지 않습니다." }, { status: 400 });
+    const sessionId = header(request, "x-family-session-id");
+    const token = header(request, "x-family-realtime-ticket");
+    let state: FamilyRealtimeConnectionState | null = null;
+    if (sessionId && token) {
+      const key = ticketKey(sessionId);
+      const ticket = await this.ctx.storage.get<FamilyRealtimeTicket>(key);
+      await this.ctx.storage.delete(key);
+      if (ticket && ticket.token === token && ticket.expiresAt >= Date.now() && ticket.state.sessionId === sessionId) {
+        state = { ...ticket.state, lastSeen: Date.now() };
+      }
+    } else {
+      const legacy: FamilyRealtimeConnectionState = {
+        roomId: header(request, "x-family-room-id"),
+        sessionId,
+        playerId: header(request, "x-family-player-id"),
+        nickname: decodeURIComponent(header(request, "x-family-nickname")),
+        lastSeen: Date.now(),
+      };
+      if (validConnection(legacy)) state = legacy;
+    }
+    if (!state || !validConnection(state)) {
+      return Response.json({ message: "실시간 접속 티켓이 만료되었거나 올바르지 않습니다." }, { status: 401 });
     }
 
     const pair = new WebSocketPair();

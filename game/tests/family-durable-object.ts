@@ -37,7 +37,7 @@ const envSource = readFileSync(new URL("../../cloudflare-env.d.ts", import.meta.
 const viteSource = readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
 const realtimeSource = readFileSync(new URL("../family/realtimePresence.ts", import.meta.url), "utf8");
 
-for (const token of ["extends DurableObject", "acceptWebSocket", "serializeAttachment", "deserializeAttachment", "getWebSockets", "webSocketMessage", "parseFamilyRealtimeSignalFrame"]) {
+for (const token of ["extends DurableObject", "acceptWebSocket", "serializeAttachment", "deserializeAttachment", "getWebSockets", "webSocketMessage", "parseFamilyRealtimeSignalFrame", 'url.pathname === "/ticket"', "realtime-ticket:", "x-family-realtime-ticket"]) {
   assert.ok(durableSource.includes(token), `Durable Object implements ${token}`);
 }
 assert.ok(routeSource.includes("env.FAMILY_ROOM.idFromName(roomId)"), "socket route selects one Durable Object identity per Family room");
@@ -48,6 +48,7 @@ assert.ok(viteSource.includes('main: "./server/worker.ts"'), "vinext build uses 
 assert.ok(viteSource.includes('name: "FAMILY_ROOM"') && viteSource.includes('class_name: "FamilyRoomDurableObject"'), "worker config binds FAMILY_ROOM to the room Durable Object");
 assert.ok(viteSource.includes('type: "durable-object"') && viteSource.includes('storage: "sqlite"'), "worker config provisions the Durable Object with SQLite storage");
 assert.ok(durableSource.includes("getWebSockets(signal.targetPlayerId)"), "Durable Object relays WebRTC signaling only to the target family player");
+assert.ok(durableSource.includes("this.ctx.storage.put") && durableSource.includes("this.ctx.storage.delete"), "realtime tickets are short-lived Durable Object state and are consumed on connect");
 assert.ok(realtimeSource.includes("RTCPeerConnection") && realtimeSource.includes("createDataChannel"), "browser realtime channel attempts a direct WebRTC peer connection");
 assert.ok(realtimeSource.includes("ordered: false") && realtimeSource.includes("maxRetransmits: 0"), "P2P movement uses unordered unretransmitted game data");
 

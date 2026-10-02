@@ -21,7 +21,7 @@ export interface FamilyPresenceSocket {
 }
 
 export type FamilyPresenceSocketFactory = (url: string) => FamilyPresenceSocket;
-export type FamilyPresenceUrlFactory = (context: Pick<FamilyRealtimePresenceContext, "roomId" | "sessionId">) => string;
+export type FamilyPresenceUrlFactory = (context: Pick<FamilyRealtimePresenceContext, "roomId" | "sessionId">, ticket?: string) => string;
 export type FamilyPeerFactory = (configuration: RTCConfiguration) => RTCPeerConnection;
 
 interface FamilyRtcPeer {
@@ -42,11 +42,11 @@ type FamilyRtcRelay = {
     | { kind: "ice"; candidate: RTCIceCandidateInit };
 };
 
-export const browserFamilyPresenceUrl: FamilyPresenceUrlFactory = ({ roomId, sessionId }) => {
+export const browserFamilyPresenceUrl: FamilyPresenceUrlFactory = ({ roomId, sessionId }, ticket = "") => {
   const location = globalThis.location;
   const protocol = location?.protocol === "https:" ? "wss:" : "ws:";
   const host = location?.host || "localhost";
-  return `${protocol}//${host}/family/realtime?roomId=${encodeURIComponent(roomId)}&sessionId=${encodeURIComponent(sessionId)}`;
+  return `${protocol}//${host}/family/realtime?roomId=${encodeURIComponent(roomId)}&sessionId=${encodeURIComponent(sessionId)}&ticket=${encodeURIComponent(ticket)}`;
 };
 
 export const realtimePresenceReconnectDelay = (attempt: number, base = REALTIME_PRESENCE_RECONNECT_BASE_MS) =>
@@ -106,7 +106,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     this.context = context;
     this.stopped = false;
     this.reconnectAttempt = 0;
-    this.connect();
+    void this.connect();
   }
 
   stop() {
@@ -121,13 +121,16 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     if (socket) socket.close(1000, "family presence stopped");
   }
 
-  private connect() {
+  private async connect() {
     const context = this.context;
     if (!context || this.stopped) return;
     let socket: FamilyPresenceSocket;
     try {
-      socket = this.socketFactory(this.url(context));
+      const ticket = context.getTicket ? await context.getTicket() : "";
+      if (this.context !== context || this.stopped) return;
+      socket = this.socketFactory(this.url(context, ticket));
     } catch {
+      if (this.context !== context || this.stopped) return;
       context.onDisconnect();
       this.scheduleReconnect();
       return;
@@ -403,7 +406,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     const delay = realtimePresenceReconnectDelay(this.reconnectAttempt++, this.reconnectBaseMs);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = undefined;
-      this.connect();
+      void this.connect();
     }, delay);
   }
 

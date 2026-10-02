@@ -7,6 +7,7 @@ const client = readFileSync(new URL("../family/client.ts", import.meta.url), "ut
 const realtime = readFileSync(new URL("../family/realtimePresence.ts", import.meta.url), "utf8");
 const worker = readFileSync(new URL("../../server/worker.ts", import.meta.url), "utf8");
 const direct = readFileSync(new URL("../../server/family/directRealtime.ts", import.meta.url), "utf8");
+const ticket = readFileSync(new URL("../../app/api/family/presence/ticket/route.ts", import.meta.url), "utf8");
 
 for (const token of ["requireMember", "env.FAMILY_ROOM", "idFromName(roomId)", "stub.fetch", "가족농장 실시간 서버가 배포되지 않았습니다."]) {
   assert.ok(route.includes(token), `realtime route keeps ${token}`);
@@ -19,12 +20,18 @@ assert.ok(realtime.includes("/family/realtime?roomId="), "browser movement socke
 assert.ok(realtime.includes("REALTIME_PRESENCE_SEND_MS = 16"), "direct movement continuously streams at roughly 60Hz");
 assert.ok(worker.includes("DIRECT_FAMILY_REALTIME_PATH") && worker.includes("handleDirectFamilyRealtime"), "custom Worker intercepts the raw realtime path before vinext");
 assert.ok(worker.includes("handler.fetch(request, env, ctx)"), "all non-realtime requests still delegate to vinext");
-for (const token of ["oai-authenticated-user-id", "requireMember", "env.FAMILY_ROOM.idFromName(roomId)", "stub.fetch"]) {
+for (const token of ["x-family-realtime-ticket", "env.FAMILY_ROOM.idFromName(roomId)", "stub.fetch"]) {
   assert.ok(direct.includes(token), `direct realtime entrance keeps ${token}`);
+}
+assert.ok(!direct.includes("oai-authenticated-user-id") && !direct.includes("requireMember"), "raw WebSocket entrance uses an authenticated one-time ticket instead of browser-inaccessible auth headers");
+for (const token of ["familyRequest", "requireMember", "env.FAMILY_ROOM.idFromName(roomId)", "/ticket"]) {
+  assert.ok(ticket.includes(token), `authenticated ticket route keeps ${token}`);
 }
 assert.ok(client.includes("FAMILY_PRESENCE_KEEPALIVE_MS = 1500"), "D1 presence is only a low-rate safety heartbeat while realtime is connected");
 assert.ok(client.includes("acceptRealtimePresence") && client.includes("acceptFallbackPresence"), "WebSocket and D1 presence have separate ingestion paths");
 assert.ok(client.includes("flushPresence()"), "Family client can push movement-state transitions immediately");
+assert.ok(client.includes("/api/family/presence/ticket") && client.includes("getTicket"), "Family client obtains a fresh authenticated realtime ticket for each socket connection");
+assert.ok(client.includes("error.status === 409") && client.includes("attempt === 0"), "concurrent Family actions retry once on the latest authoritative revision");
 assert.ok(client.includes('"webrtc"') && client.includes("onTransport"), "Family client exposes WebRTC P2P as a distinct realtime transport");
 assert.ok(client.includes("overlayFamilyPresenceActions(this.realtimePresenceSnapshot, snapshot)"), "D1 heartbeat can add action visuals without replacing WebSocket positions");
 assert.ok(client.includes("this.realtimeConnected ? FAMILY_PRESENCE_KEEPALIVE_MS"), "failed WebSocket reconnects automatically use the faster D1 safety path");

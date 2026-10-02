@@ -38,6 +38,7 @@ export interface FamilyRealtimePresenceContext {
   playerId: string;
   nickname: string;
   pose: () => FamilyPose | undefined;
+  getTicket?: () => Promise<string>;
   onSnapshot: (snapshot: FamilyPresenceSnapshot) => void;
   onConnect: () => void;
   onTransport?: (transport: "websocket" | "webrtc") => void;
@@ -170,6 +171,15 @@ export class FamilyClient {
       playerId: this.session.room.playerId,
       nickname: this.session.room.nickname,
       pose: () => this.live ? this.pose?.() : undefined,
+      getTicket: async () => {
+        const issued = await familyFetch<{ ticket: string }>("/api/family/presence/ticket", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId }),
+        });
+        if (!issued.ticket) throw new Error("missing realtime ticket");
+        return issued.ticket;
+      },
       onSnapshot: (snapshot) => this.acceptRealtimePresence(snapshot),
       onConnect: () => {
         this.realtimeConnected = true;
@@ -218,24 +228,53 @@ export class FamilyClient {
     if (this.connection !== "connected") this.setConnection("syncing");
     this.accept(await familyFetch<FamilySnapshot>(`/api/family/state?roomId=${encodeURIComponent(this.session.room.id)}`));
   }
+  private actionNeedsFreshPresence(action: FamilyAction) {
+    return action.kind === "water-refill" || action.kind === "mine-hit" || action.kind === "fish-cast" || action.kind === "fish-reel";
+  }
+  private async syncPresenceForAction(action: FamilyAction) {
+    if (this.realtimeConnected || !this.actionNeedsFreshPresence(action)) return;
+    const snapshot = await familyFetch<FamilyPresenceSnapshot>("/api/family/presence", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId, pose: action.pose }),
+    });
+    this.acceptFallbackPresence(snapshot);
+  }
   async act(action: FamilyAction): Promise<boolean> {
     if (!this.live || this.busy || !this.snapshot || this.connection !== "connected") { this.onMessage("연결 복구 후 다시 행동해 주세요. 이동은 계속할 수 있어요."); return false; }
     this.busy = true;
     try {
-      const snapshot = await familyFetch<FamilySnapshot>("/api/family/state", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, expectedRevision: this.snapshot.revision, action }) });
-      if (!this.live) return false;
-      this.accept(snapshot); this.onMessage(snapshot.fishingNotice ?? "가족 농장에 반영했어요."); return true;
-    } catch (error) {
-      if (!this.live) return false;
-      if (error instanceof FamilyAPIError && error.snapshot) {
-        this.accept(error.snapshot);
-        this.onMessage("다른 가족의 변경으로 새로고침됐어요. 다시 행동해 주세요.");
-      } else if (error instanceof FamilyAPIError && error.status < 500) {
-        this.onMessage(error.message);
-      } else {
-        this.failures = Math.max(1, this.failures);
-        this.setConnection("reconnecting");
-        this.onMessage("연결이 끊겼어요. 최신 상태를 받은 뒤 다시 행동해 주세요.");
+      try { await this.syncPresenceForAction(action); } catch { /* The action request still returns the useful validation message. */ }
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (!this.live || !this.snapshot) return false;
+        try {
+          const snapshot = await familyFetch<FamilySnapshot>("/api/family/state", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ roomId: this.session.room.id, expectedRevision: this.snapshot.revision, action }),
+          });
+          if (!this.live) return false;
+          this.accept(snapshot);
+          this.onMessage(snapshot.fishingNotice ?? "가족 농장에 반영했어요.");
+          return true;
+        } catch (error) {
+          if (!this.live) return false;
+          if (error instanceof FamilyAPIError && error.status === 409 && error.snapshot && attempt === 0) {
+            this.accept(error.snapshot);
+            continue;
+          }
+          if (error instanceof FamilyAPIError && error.snapshot) {
+            this.accept(error.snapshot);
+            this.onMessage(error.message);
+          } else if (error instanceof FamilyAPIError && error.status < 500) {
+            this.onMessage(error.message);
+          } else {
+            this.failures = Math.max(1, this.failures);
+            this.setConnection("reconnecting");
+            this.onMessage("연결이 끊겼어요. 최신 상태를 받은 뒤 다시 행동해 주세요.");
+          }
+          return false;
+        }
       }
       return false;
     } finally { this.busy = false; }

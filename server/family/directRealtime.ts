@@ -1,4 +1,3 @@
-import { FamilyRooms } from "./rooms";
 import { FAMILY_REALTIME_SESSION_RE } from "./realtimeProtocol";
 
 export const DIRECT_FAMILY_REALTIME_PATH = "/family/realtime";
@@ -25,36 +24,21 @@ export async function handleDirectFamilyRealtime(
     return response("다른 사이트의 연결은 허용하지 않습니다.", 403);
   }
 
-  const userId = request.headers.get("oai-authenticated-user-id");
-  if (!userId) return response("ChatGPT 로그인이 필요합니다.", 401);
-  if (!env.DB) return response("가족 농장 DB가 준비되지 않았습니다.", 503);
   if (!env.FAMILY_ROOM) return response("가족농장 실시간 서버가 배포되지 않았습니다.", 503);
 
   const roomId = url.searchParams.get("roomId") ?? "";
   const sessionId = url.searchParams.get("sessionId") ?? "";
-  if (!FAMILY_REALTIME_SESSION_RE.test(sessionId)) {
-    return response("접속 세션이 올바르지 않습니다.", 400);
-  }
-
-  let member;
-  try {
-    member = await new FamilyRooms(env.DB.withSession("first-primary")).requireMember(userId, roomId);
-  } catch (error) {
-    const status = typeof error === "object" && error && "status" in error &&
-      Number.isInteger((error as { status?: unknown }).status)
-      ? Number((error as { status: number }).status)
-      : 403;
-    return response(error instanceof Error ? error.message : "이 가족 농장에 접속할 수 없습니다.", status);
+  const ticket = url.searchParams.get("ticket") ?? "";
+  if (!FAMILY_REALTIME_SESSION_RE.test(sessionId) || !ticket || ticket.length > 128) {
+    return response("실시간 접속 티켓이 올바르지 않습니다.", 401);
   }
 
   const id = env.FAMILY_ROOM.idFromName(roomId);
   const stub = env.FAMILY_ROOM.get(id);
   const headers = new Headers({
     upgrade: "websocket",
-    "x-family-room-id": roomId,
     "x-family-session-id": sessionId,
-    "x-family-player-id": member.playerId,
-    "x-family-nickname": encodeURIComponent(member.nickname),
+    "x-family-realtime-ticket": ticket,
   });
   return stub.fetch(new Request("https://family-room.internal/connect", { headers }));
 }

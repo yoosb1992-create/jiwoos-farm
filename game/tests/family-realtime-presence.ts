@@ -25,7 +25,7 @@ class FakeSocket implements FamilyPresenceSocket {
   emitClose() { this.readyState = 3; for (const listener of this.listeners.get("close") ?? []) listener(); }
 }
 
-assert.equal(browserFamilyPresenceUrl({ roomId: "family room", sessionId: "session/1" }), "ws://localhost/family/realtime?roomId=family%20room&sessionId=session%2F1");
+assert.equal(browserFamilyPresenceUrl({ roomId: "family room", sessionId: "session/1" }, "ticket value"), "ws://localhost/family/realtime?roomId=family%20room&sessionId=session%2F1&ticket=ticket%20value");
 assert.equal(REALTIME_PRESENCE_SEND_MS, 16, "direct movement stream targets roughly 60Hz delivery");
 assert.equal(REALTIME_PRESENCE_CONNECT_TIMEOUT_MS, 3500, "stuck websocket handshakes cannot remain in connecting forever");
 assert.equal(FAMILY_RTC_DATA_LABEL, "family-movement");
