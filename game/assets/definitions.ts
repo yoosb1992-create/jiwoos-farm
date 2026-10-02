@@ -316,6 +316,8 @@ export const ITEM_ASSETS = {
   item_stamina_biscuit: itemAsset("item_stamina_biscuit", "item-stamina-biscuit", "🍪"),
   item_egg: itemAsset("item_egg", "item-egg", "🥚", { kind: "image", path: "/assets/items/egg.png" }),
   item_wood: itemAsset("item_wood", "item-wood", "▰", { kind: "image", path: "/assets/items/wood.png" }),
+  item_pine_needles: itemAsset("item_pine_needles", "item-pine-needles", "🌿"),
+  item_pine_cone: itemAsset("item_pine_cone", "item-pine-cone", "🌰"),
   item_stone: itemAsset("item_stone", "item-stone", "◆", { kind: "image", path: "/assets/items/stone.png" }),
   item_copper_ore: itemAsset("item_copper_ore", "item-copper-ore", "◆", { kind: "image", path: "/assets/items/copper-ore.png" }),
   item_wild_herb: itemAsset("item_wild_herb", "item-wild-herb", "❧", { kind: "image", path: "/assets/items/wild-herb.png" }),

@@ -73,7 +73,7 @@ import { clampCameraZoom, pinchCameraZoom, pointerDistance, wheelCameraZoom } fr
 import { advanceRelationshipEvent, availableRelationshipEvents, completeRelationshipEvent, startRelationshipEvent } from "./relationship-events/system";
 import type { RelationshipEventRunView } from "./relationship-events/types";
 import { initialWateringCan, normalizeWateringCan, refillWateringCan, type WateringCanState } from "./tools/wateringCan";
-import { emptyFarmTreeState, farmTreeIds, normalizeFarmTreeState, strikeFarmTree, type FarmTreeState } from "./farm/trees";
+import { advanceFarmTreeDay, emptyFarmTreeState, farmTreeIds, normalizeFarmTreeState, strikeFarmTree, type FarmTreeState } from "./farm/trees";
 import { applyFarmToolEffect } from "./farm/toolBehavior";
 
 export const REAL_MS_PER_GAME_MINUTE = GAME_CONFIG.day.realMsPerGameMinute;
@@ -537,7 +537,7 @@ export class FarmScene extends Phaser.Scene {
     this.buildingMode = false; this.buildPreview?.setVisible(false);
     const map = this.mapRegistry.require(mapId), width = map.width * GAME_CONFIG.tileSize, height = map.height * GAME_CONFIG.tileSize;
     const hiddenObjects = mapId === "farm" ? new Set(this.farmTreeState.depleted) : undefined;
-    this.obstacleCollider?.destroy(); this.obstacles = this.worldRenderer.renderMap(mapId, this.farm.values(), hiddenObjects);
+    this.obstacleCollider?.destroy(); this.obstacles = this.worldRenderer.renderMap(mapId, this.farm.values(), hiddenObjects, mapId === "farm" ? this.farmTreeState : undefined);
     this.worldRenderer.renderPlaceables(this.placeables.instances);
     this.worldRenderer.renderBuildings(this.buildings.instances);
     this.worldRenderer.renderAnimals(this.ranchState.animals, this.buildings.instances);
@@ -968,12 +968,13 @@ export class FarmScene extends Phaser.Scene {
       if (!object) { this.say("나무 가까이에서 나무를 바라보고 도끼를 사용해 주세요."); return; }
       if (!this.family && !canPerformAction(this.stats, "axe")) { this.say("체력이 부족합니다. 잠을 자고 회복하세요."); return; }
       if (this.family) {
+        const wasStump = this.farmTreeState.stumps.includes(object.id);
         void this.family!.act({ kind: "farm-tree-hit", nodeId: object.id, tool: "axe", pose: pose! }).then((accepted) => {
           if (!accepted || !this.sceneLive || this.currentMapId !== "farm") return;
           const count = this.farmTreeState.hits[object.id] ?? 0;
-          this.say(this.farmTreeState.depleted.includes(object.id)
-            ? "나무를 베어 목재 3개를 얻었어요."
-            : `나무 ${count}/3회`);
+          if (this.farmTreeState.depleted.includes(object.id)) this.say("그루터기를 제거했어요.");
+          else if (!wasStump && this.farmTreeState.stumps.includes(object.id)) this.say("소나무를 베어 목재 1개, 솔잎 1개, 솔방울 1개를 얻었어요.");
+          else this.say(`${wasStump ? "그루터기" : "소나무"} ${count}/3회`);
         });
         return;
       }
@@ -981,7 +982,7 @@ export class FarmScene extends Phaser.Scene {
       if (result.state === this.farmTreeState) { this.say(result.message); return; }
       this.farmTreeState = result.state;
       recordSuccessfulAction(this.stats, "axe");
-      if (result.drop) this.inventory.add(result.drop, result.quantity);
+      for (const drop of result.drops ?? []) this.inventory.add(drop.itemId, drop.quantity);
       if (result.remaining === 0) {
         const position = { x: this.player.x, y: this.player.y, facing: this.facing };
         this.loadMap("farm", undefined, position);
@@ -1374,6 +1375,7 @@ export class FarmScene extends Phaser.Scene {
       this.fishingCast = null;
       const previousDaySerial = this.daySerial;
       this.daySerial++;
+      this.farmTreeState = advanceFarmTreeDay(this.farmTreeState, farmTreeIds(this.mapRegistry.require("farm")), this.daySerial);
       this.day = calendarDate(this.daySerial).day;
       this.buildings = normalizeBuildings(this.buildings, this.daySerial);
       advanceRanchDay(this.ranchState, previousDaySerial, this.daySerial);
@@ -1446,9 +1448,10 @@ export class FarmScene extends Phaser.Scene {
       if (position) this.loadMap(this.currentMapId, undefined, position);
     } else if (floor !== null) this.worldRenderer.renderMineHits(this.mineDaily.floors[floor]?.hits ?? {});
     const nextFarmTreeState = normalizeFarmTreeState(snapshot.world.farmTreeState, farmTreeIds(this.mapRegistry.require("farm")));
-    const farmTreeDepletedChanged = JSON.stringify(this.farmTreeState.depleted) !== JSON.stringify(nextFarmTreeState.depleted);
+    const farmTreeVisualChanged = JSON.stringify([this.farmTreeState.depleted, this.farmTreeState.stumps, this.farmTreeState.stages]) !==
+      JSON.stringify([nextFarmTreeState.depleted, nextFarmTreeState.stumps, nextFarmTreeState.stages]);
     this.farmTreeState = nextFarmTreeState;
-    if (this.currentMapId === "farm" && farmTreeDepletedChanged) {
+    if (this.currentMapId === "farm" && farmTreeVisualChanged) {
       this.loadMap("farm", undefined, { x: this.player.x, y: this.player.y, facing: this.facing });
     } else if (this.currentMapId === "farm") this.worldRenderer.renderFarmTreeHits(this.farmTreeState.hits);
     this.day = calendarDate(this.daySerial).day; this.timeMinutes = snapshot.world.timeMinutes; this.money = snapshot.world.money;

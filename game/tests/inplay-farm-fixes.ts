@@ -4,10 +4,14 @@ import { FamilyState } from "../../server/family/state";
 import { CROP_DEFINITIONS } from "../data/crops";
 import { normalizeSaveData } from "../domain";
 import {
+  FARM_STUMP_RESOURCE,
   FARM_TREE_RESOURCE,
+  FARM_TREE_STAGE_DISPLAY_SIZE,
+  advanceFarmTreeDay,
   emptyFarmTreeState,
   farmTreeIds,
   farmTreeInFacingReach,
+  farmTreeStage,
   isFarmTreeObject,
   normalizeFarmTreeState,
   strikeFarmTree,
@@ -22,22 +26,47 @@ const ids = farmTreeIds(farm);
 const trees = farm.objects.filter(isFarmTreeObject);
 assert.equal(trees.length, 15, "expanded authored farm_tree_* objects are the only farm lumber nodes");
 assert.deepEqual(normalizeFarmTreeState(undefined, ids), emptyFarmTreeState(), "old saves keep every farm tree");
+assert.deepEqual(FARM_TREE_STAGE_DISPLAY_SIZE.mature, { width: 176, height: 216 }, "mature pine is three player-heights tall in the first-pass scale");
 
 const tree = trees[0];
 let state = emptyFarmTreeState();
+assert.equal(farmTreeStage(state, tree.id), "mature", "legacy and authored trees default to mature");
 assert.equal(strikeFarmTree(state, tree, "hand").state, state, "non-axe tools cannot damage farm trees");
 for (let hit = 1; hit <= FARM_TREE_RESOURCE.hits; hit++) {
   const result = strikeFarmTree(state, tree, "axe");
   state = result.state;
   if (hit < FARM_TREE_RESOURCE.hits) assert.equal(state.hits[tree.id], hit);
   else {
-    assert.ok(state.depleted.includes(tree.id));
-    assert.deepEqual([result.drop, result.quantity], ["wood", 3]);
+    assert.ok(state.stumps.includes(tree.id), "the felled pine becomes one stump instead of disappearing");
+    assert.equal(state.depleted.includes(tree.id), false);
+    assert.deepEqual(result.drops, [
+      { itemId: "wood", quantity: 1 },
+      { itemId: "pine_needles", quantity: 1 },
+      { itemId: "pine_cone", quantity: 1 },
+    ]);
   }
 }
+for (let hit = 1; hit <= FARM_STUMP_RESOURCE.hits; hit++) {
+  const result = strikeFarmTree(state, tree, "axe");
+  state = result.state;
+  if (hit < FARM_STUMP_RESOURCE.hits) assert.equal(state.hits[tree.id], hit);
+  else {
+    assert.equal(state.stumps.includes(tree.id), false);
+    assert.ok(state.depleted.includes(tree.id), "the stump is removed only after its third axe hit");
+    assert.equal(result.stumpRemoved, true);
+  }
+}
+
 const upgradedFirst = strikeFarmTree(emptyFarmTreeState(), trees[1], "axe", { axe: 2, pickaxe: 0 });
 assert.equal(upgradedFirst.state.hits[trees[1].id], 2, "existing axe power is reused");
 assert.equal(strikeFarmTree(upgradedFirst.state, trees[1], "axe", { axe: 2, pickaxe: 0 }).remaining, 0);
+
+let growthState = emptyFarmTreeState();
+growthState.stages[tree.id] = "sprout";
+for (let day = 2; day <= 4; day++) growthState = advanceFarmTreeDay(growthState, ids, day);
+assert.equal(farmTreeStage(growthState, tree.id), "young", "sprout advances to young after the configured days");
+for (let day = 5; day <= 9; day++) growthState = advanceFarmTreeDay(growthState, ids, day);
+assert.equal(farmTreeStage(growthState, tree.id), "mature", "young advances to mature after the configured days");
 
 const nodeX = tree.position.tileX * 32, nodeY = tree.position.tileY * 32;
 const anchorOffset = playerInteractionAnchorFromPosition({ x: 0, y: 0 });
@@ -78,11 +107,21 @@ try {
   assert.equal(race.filter((result) => result.status === "fulfilled").length, 1, "CAS permits only one final farm-tree hit");
   const winner = race.find((result) => result.status === "fulfilled") as PromiseFulfilledResult<Awaited<ReturnType<typeof service.act>>>;
   const loser = race.find((result) => result.status === "rejected") as PromiseRejectedResult;
-  assert.ok(winner.value.world.farmTreeState?.depleted.includes(tree.id));
+  assert.ok(winner.value.world.farmTreeState?.stumps.includes(tree.id), "the shared tree becomes one shared stump");
   assert.ok(loser.reason instanceof FamilyError && loser.reason.status === 409);
-  const woodA = (await service.read("farm-tree-A", roomId)).inventory.items.wood ?? 0;
-  const woodB = (await service.read("farm-tree-B", roomId)).inventory.items.wood ?? 0;
-  assert.equal(woodA + woodB, 3, "wood is awarded once to the final hitter's personal inventory");
+  const inventoryA = (await service.read("farm-tree-A", roomId)).inventory.items;
+  const inventoryB = (await service.read("farm-tree-B", roomId)).inventory.items;
+  assert.equal((inventoryA.wood ?? 0) + (inventoryB.wood ?? 0), 1, "wood is awarded once");
+  assert.equal((inventoryA.pine_needles ?? 0) + (inventoryB.pine_needles ?? 0), 1, "pine needles are awarded once");
+  assert.equal((inventoryA.pine_cone ?? 0) + (inventoryB.pine_cone ?? 0), 1, "pine cone is awarded once");
+
+  let shared = await service.read("farm-tree-A", roomId);
+  const stumpOne = await service.act("farm-tree-A", roomId, shared.revision, action());
+  assert.equal(stumpOne.world.farmTreeState?.hits[tree.id], 1);
+  const stumpTwo = await service.act("farm-tree-A", roomId, stumpOne.revision, action());
+  assert.equal(stumpTwo.world.farmTreeState?.hits[tree.id], 2);
+  const stumpThree = await service.act("farm-tree-A", roomId, stumpTwo.revision, action());
+  assert.ok(stumpThree.world.farmTreeState?.depleted.includes(tree.id), "Family stump also requires exactly three Lv1 axe hits");
 
   const rejectWithoutMutation = async (invalid: unknown) => {
     const before = await service.read("farm-tree-A", roomId);
@@ -107,5 +146,5 @@ try {
   assert.equal((await service.read("seed-B", seedRoomId)).world.farm[0].cropStage, 0, "Family snapshot immediately exposes planted stage 0");
   assert.equal(planted.inventory.items.sproutberry_seed, 7, "seed count decreases once");
 
-  console.log("In-Play farm fixes: farm-tree authority/persistence/CAS and four-crop planted visuals passed");
+  console.log("In-Play farm fixes: staged pine growth, three-hit stump, shared drops/CAS and crop visuals passed");
 } finally { close(); }

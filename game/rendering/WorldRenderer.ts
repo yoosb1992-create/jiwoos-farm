@@ -18,7 +18,7 @@ import { BUILDING_DEFINITIONS } from "../buildings/definitions";
 import type { BuildingInstance } from "../buildings/types";
 import type { AnimalInstance } from "../animals/types";
 import { ANIMAL_DEFINITIONS } from "../animals/definitions";
-import { FARM_TREE_RESOURCE, isFarmTreeObject } from "../farm/trees";
+import { FARM_TREE_RESOURCE, FARM_TREE_STAGE_DISPLAY_SIZE, farmTreeStage, isFarmTreeObject, type FarmTreeState } from "../farm/trees";
 import type { CropId } from "../data/crops";
 
 const farmKey = (tile: Pick<FarmTileData, "x" | "y">) => `${tile.x},${tile.y}`;
@@ -54,7 +54,7 @@ export class WorldRenderer {
   private currentMapId?: MapId;
   constructor(private readonly scene: Phaser.Scene, private readonly maps: MapRegistry) {}
 
-  renderMap(mapId: MapId, farm: Iterable<FarmTileData>, hiddenObjectIds: ReadonlySet<string> = new Set()) {
+  renderMap(mapId: MapId, farm: Iterable<FarmTileData>, hiddenObjectIds: ReadonlySet<string> = new Set(), farmTreeState?: FarmTreeState) {
     this.destroy();
     const map = this.maps.require(mapId);
     this.currentMapId = mapId;
@@ -67,7 +67,10 @@ export class WorldRenderer {
     this.addTerrainComposition(map);
     if (mapId === "farm") this.addFarmDecorations();
     for (const region of map.collisionRegions) this.addCollisionRegion(region);
-    for (const object of map.objects) if (!hiddenObjectIds.has(object.id)) this.addObject(object);
+    for (const object of map.objects) if (!hiddenObjectIds.has(object.id)) {
+      if (mapId === "farm" && isFarmTreeObject(object)) this.addFarmTreeObject(object, farmTreeState);
+      else this.addObject(object);
+    }
     if (map.boundary.enabled) this.createBoundary(map);
     this.trackWorld(this.scene.add.text(20, 18, map.name, { fontFamily: "sans-serif", fontSize: "20px", color: "#fff4d8", fontStyle: "bold", backgroundColor: "#4f633dcc", padding: { x: 10, y: 5 } }).setDepth(WORLD_OVERLAY_DEPTH));
     if (mapId === "farm") this.createFarmViews(farm);
@@ -364,6 +367,16 @@ export class WorldRenderer {
     const asset = TERRAIN_COMPOSITION_ASSETS[assetId];
     if (!this.scene.textures.exists(asset.textureKey)) return undefined;
     return this.makeImage(x, y, asset);
+  }
+
+  private addFarmTreeObject(object: MapDefinition["objects"][number], state?: FarmTreeState) {
+    if (state?.stumps.includes(object.id)) {
+      const stumpObject: MapDefinition["objects"][number] = { ...object, assetId: "stump", displaySizeOverride: { width: 80, height: 72 } };
+      this.addObject(stumpObject);
+      return;
+    }
+    const stage = state ? farmTreeStage(state, object.id) : "mature";
+    this.addObject({ ...object, displaySizeOverride: FARM_TREE_STAGE_DISPLAY_SIZE[stage] });
   }
 
   private addObject(object: MapDefinition["objects"][number]) {

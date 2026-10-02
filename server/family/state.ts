@@ -33,7 +33,7 @@ import { generateMineFloor, MINE_PLAYABLE_FLOORS, mineMapId } from "../../game/m
 import { emptyMineDaily, initialMineProgress, mineResourceKind, normalizeMineDaily, normalizeMineProgress, strikeMineNode } from "../../game/mine/resources";
 import { advanceRanchDay, buyAnimal, collectAnimalProduce, feedCoop, initialRanchState, normalizeRanchState, petAnimal } from "../../game/animals/system";
 import { normalizeWateringCan, refillWateringCan, type WateringCanState } from "../../game/tools/wateringCan";
-import { emptyFarmTreeState, farmTreeIds, farmTreeInFacingReach, isFarmTreeObject, normalizeFarmTreeState, strikeFarmTree } from "../../game/farm/trees";
+import { advanceFarmTreeDay, emptyFarmTreeState, farmTreeIds, farmTreeInFacingReach, isFarmTreeObject, normalizeFarmTreeState, strikeFarmTree } from "../../game/farm/trees";
 import { applyFarmToolEffect } from "../../game/farm/toolBehavior";
 import { consumeFood } from "../../game/data/food";
 
@@ -85,6 +85,7 @@ export class FamilyState extends FamilyRooms {
     advanceFarmDay(stored.farm);
     const previousDaySerial = stored.daySerial ?? stored.day;
     stored.daySerial = previousDaySerial + 1;
+    stored.farmTreeState = advanceFarmTreeDay(normalizeFarmTreeState(stored.farmTreeState, farmTreeIds(this.maps.farm)), farmTreeIds(this.maps.farm), stored.daySerial);
     stored.day = calendarDate(stored.daySerial).day;
     stored.buildings = normalizeBuildings(stored.buildings, stored.daySerial);
     stored.ranchState = normalizeRanchState(stored.ranchState, stored.buildings);
@@ -208,7 +209,7 @@ export class FamilyState extends FamilyRooms {
       const result = strikeFarmTree(farmTreeState, node, action.tool, toolProgression);
       if (result.state === farmTreeState) throw new FamilyError(409, result.message);
       stored.farmTreeState = result.state;
-      if (result.drop) inventory.add(result.drop, result.quantity);
+      for (const drop of result.drops ?? []) inventory.add(drop.itemId, drop.quantity);
       recordSuccessfulAction(stats, "axe");
     } else if (action.kind === "forest-gather") {
       const daySerial = stored.daySerial ?? stored.day;

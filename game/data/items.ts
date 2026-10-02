@@ -14,6 +14,8 @@ export const ITEM_DEFINITIONS = {
   stamina_biscuit: { id: "stamina_biscuit", name: "스테미나 비스켓", kind: "food", assetId: "item_stamina_biscuit", sellPrice: 0 },
   egg: { id: "egg", name: "달걀", kind: "animal_product", assetId: "item_egg" },
   wood: { id: "wood", name: "나무", kind: "resource", assetId: "item_wood", sellPrice: 0 },
+  pine_needles: { id: "pine_needles", name: "솔잎", kind: "resource", assetId: "item_pine_needles", sellPrice: 0 },
+  pine_cone: { id: "pine_cone", name: "솔방울", kind: "resource", assetId: "item_pine_cone", sellPrice: 0 },
   stone: { id: "stone", name: "돌", kind: "resource", assetId: "item_stone", sellPrice: 0 },
   copper_ore: { id: "copper_ore", name: "구리 광석", kind: "resource", assetId: "item_copper_ore", sellPrice: 0 },
   wild_herb: { id: "wild_herb", name: "들풀", kind: "resource", assetId: "item_wild_herb", sellPrice: 0 },
