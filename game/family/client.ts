@@ -2,7 +2,7 @@ import type { ProgressAction, ProgressSnapshot, ProgressResult } from "../npc/pr
 import { gameEvents } from "../events";
 import type { FamilyAction, FamilyPose, FamilySession, FamilySnapshot, FamilyPresenceSnapshot } from "./types";
 import { familyPersonalKey, parseFamilyPose } from "./personal";
-import { mergeFamilyPresenceSnapshots } from "./presence";
+import { overlayFamilyPresenceActions } from "./presence";
 
 export const FAMILY_STATE_POLL_MS = 1000;
 export const FAMILY_PRESENCE_MOVING_MS = 90;
@@ -17,6 +17,7 @@ export const familyPresenceDelay = (pose?: Pick<FamilyPose, "moving">) =>
 /** Backwards-compatible name used by existing retry tests/callers. */
 export const FAMILY_POLL_MS = FAMILY_STATE_POLL_MS;
 export type FamilyConnection = "connecting" | "connected" | "reconnecting" | "disconnected" | "syncing";
+export type FamilyRealtimeMode = "connecting" | "websocket" | "d1-fallback";
 export const CONNECTION_LABELS: Record<FamilyConnection, string> = { connecting: "연결 중", connected: "연결됨", reconnecting: "재연결 중", disconnected: "연결 끊김", syncing: "최신 상태 동기화 중" };
 export const familyRetryDelay = (failures: number) => Math.min(16000, FAMILY_STATE_POLL_MS * 2 ** Math.min(4, failures));
 export class FamilyAPIError extends Error {
@@ -80,7 +81,9 @@ export class FamilyClient {
   private sessionId = crypto.randomUUID();
   private pose?: () => FamilyPose;
   private onPresence?: (snapshot: FamilyPresenceSnapshot) => void;
-  private presenceSnapshot: FamilyPresenceSnapshot = { players: [], serverNow: 0 };
+  private realtimePresenceSnapshot?: FamilyPresenceSnapshot;
+  private fallbackPresenceSnapshot: FamilyPresenceSnapshot = { players: [], serverNow: 0 };
+  private realtimeMode: FamilyRealtimeMode = "connecting";
   private heartbeatRequest?: Promise<void>;
   private stateTimer?: ReturnType<typeof setTimeout>;
   private presenceTimer?: ReturnType<typeof setTimeout>;
@@ -90,15 +93,29 @@ export class FamilyClient {
     this.pose = pose; this.onPresence = onPresence;
     if (this.live) this.startRealtimePresence();
   }
-  private acceptPresence(snapshot: FamilyPresenceSnapshot) {
+  private setRealtimeMode(mode: FamilyRealtimeMode) {
+    if (this.realtimeMode === mode) return;
+    this.realtimeMode = mode;
+    gameEvents.dispatchEvent(new CustomEvent("family-realtime", { detail: { roomId: this.session.room.id, mode } }));
+  }
+  private acceptRealtimePresence(snapshot: FamilyPresenceSnapshot) {
     if (!this.live) return;
-    this.presenceSnapshot = mergeFamilyPresenceSnapshots(this.presenceSnapshot, snapshot);
-    this.onPresence?.(this.presenceSnapshot);
+    this.realtimePresenceSnapshot = snapshot;
+    this.onPresence?.(overlayFamilyPresenceActions(snapshot, this.fallbackPresenceSnapshot));
+  }
+  private acceptFallbackPresence(snapshot: FamilyPresenceSnapshot) {
+    if (!this.live) return;
+    this.fallbackPresenceSnapshot = snapshot;
+    if (this.realtimeConnected && this.realtimePresenceSnapshot) {
+      this.onPresence?.(overlayFamilyPresenceActions(this.realtimePresenceSnapshot, snapshot));
+      return;
+    }
+    this.onPresence?.(snapshot);
   }
   private async heartbeat() {
     if (!this.pose || !this.live) return;
     const snapshot = await familyFetch<FamilyPresenceSnapshot>("/api/family/presence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId, pose: this.pose() }) });
-    this.acceptPresence(snapshot);
+    this.acceptFallbackPresence(snapshot);
   }
   constructor(
     readonly session: FamilySession,
@@ -113,6 +130,7 @@ export class FamilyClient {
   start() {
     if (this.live) return;
     this.live = true;
+    this.setRealtimeMode("connecting");
     this.startRealtimePresence();
     void this.pollState();
     void this.pollPresence();
@@ -123,6 +141,7 @@ export class FamilyClient {
     clearTimeout(this.stateTimer); clearTimeout(this.presenceTimer);
     if (this.realtimeStarted) { this.realtimePresence?.stop(); this.realtimeStarted = false; }
     this.realtimeConnected = false;
+    this.realtimePresenceSnapshot = undefined;
     // Wait for an already-sent D1 keepalive so leaving cannot be undone by its late response.
     void (this.heartbeatRequest ?? Promise.resolve()).catch(() => {}).then(() => familyFetch("/api/family/presence", {
       method: "DELETE", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId }),
@@ -135,9 +154,18 @@ export class FamilyClient {
       roomId: this.session.room.id,
       sessionId: this.sessionId,
       pose: () => this.live ? this.pose?.() : undefined,
-      onSnapshot: (snapshot) => this.acceptPresence(snapshot),
-      onConnect: () => { this.realtimeConnected = true; },
-      onDisconnect: () => { this.realtimeConnected = false; },
+      onSnapshot: (snapshot) => this.acceptRealtimePresence(snapshot),
+      onConnect: () => {
+        this.realtimeConnected = true;
+        this.setRealtimeMode("websocket");
+      },
+      onDisconnect: () => {
+        this.realtimeConnected = false;
+        this.realtimePresenceSnapshot = undefined;
+        this.setRealtimeMode("d1-fallback");
+        if (this.fallbackPresenceSnapshot.serverNow > 0) this.onPresence?.(this.fallbackPresenceSnapshot);
+        void this.heartbeat().catch(() => {});
+      },
     });
   }
   private async pollState() {

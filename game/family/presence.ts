@@ -1,4 +1,3 @@
-import { GAME_CONFIG } from "../config";
 import type { FamilyPresence, FamilyPresenceSnapshot } from "./types";
 export const FAMILY_PRESENCE_TTL_MS = 12_000;
 
@@ -22,24 +21,30 @@ export const mergeFamilyPresenceSnapshots = (
   return { players: [...latest.values()], serverNow };
 };
 
+/** D1 still carries authoritative tool-action visuals, but when the realtime
+ * room is healthy it must never replace WebSocket positions. Overlay only the
+ * short-lived action metadata onto the room-authoritative movement snapshot. */
+export const overlayFamilyPresenceActions = (
+  movement: FamilyPresenceSnapshot,
+  actionSource: FamilyPresenceSnapshot,
+): FamilyPresenceSnapshot => {
+  const actions = new Map(actionSource.players.flatMap((player) =>
+    player.action && player.action.expiresAt > actionSource.serverNow ? [[player.playerId, player.action] as const] : []));
+  return {
+    ...movement,
+    players: movement.players.map((player) => {
+      const action = actions.get(player.playerId);
+      return action ? { ...player, action } : player;
+    }),
+  };
+};
+
 export const visibleFamilyPlayers = (snapshot: FamilyPresenceSnapshot, ownId: string, mapId: string): FamilyPresence[] =>
   snapshot.players.filter((p) => p.playerId !== ownId && p.mapId === mapId && snapshot.serverNow - p.lastSeen < FAMILY_PRESENCE_TTL_MS);
-
-const facingVector = (facing: FamilyPresence["facing"]) =>
-  facing === "left" ? { x: -1, y: 0 } : facing === "right" ? { x: 1, y: 0 } :
-  facing === "up" ? { x: 0, y: -1 } : { x: 0, y: 1 };
-
-export const predictFamilyPosition = (player: FamilyPresence, serverNow: number) => {
-  if (!player.moving) return { x: player.x, y: player.y };
-  const ageMs = Math.max(0, Math.min(90, serverNow - player.lastSeen));
-  const direction = facingVector(player.facing);
-  const distance = GAME_CONFIG.playerSpeed * ageMs / 1000;
-  return { x: player.x + direction.x * distance, y: player.y + direction.y * distance };
-};
 
 export const interpolateFamilyPosition = (current: { x: number; y: number }, target: { x: number; y: number }, delta: number) => {
   const dx = target.x - current.x, dy = target.y - current.y;
   if (Math.hypot(dx, dy) >= 96) return { x: target.x, y: target.y };
-  const factor = 1 - Math.exp(-Math.max(0, delta) / 28);
+  const factor = 1 - Math.exp(-Math.max(0, delta) / 18);
   return { x: current.x + dx * factor, y: current.y + dy * factor };
 };

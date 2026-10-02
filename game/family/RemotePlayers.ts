@@ -1,6 +1,6 @@
 import type * as Phaser from "phaser";
 import { PLAYER_ASSET, WORLD_OVERLAY_DEPTH, depthFromGroundAnchor, displayedSize, playerAnimationName } from "../assets/definitions";
-import { interpolateFamilyPosition, predictFamilyPosition, visibleFamilyPlayers } from "./presence";
+import { interpolateFamilyPosition, visibleFamilyPlayers } from "./presence";
 import type { FamilyPresence, FamilyPresenceSnapshot } from "./types";
 
 /** Decorative sprites only: remote family members never join Arcade physics/colliders. */
@@ -27,8 +27,7 @@ export class RemotePlayers {
         view = { sprite, label, target: player }; this.views.set(player.playerId, view);
       }
       view.target = player;
-      const predicted = predictFamilyPosition(player, estimated.serverNow);
-      const point = interpolateFamilyPosition(view.sprite, predicted, delta);
+      const point = interpolateFamilyPosition(view.sprite, player, delta);
       view.sprite.setPosition(point.x, point.y).setDepth(depthFromGroundAnchor(
         point,
         PLAYER_ASSET,
