@@ -10,7 +10,7 @@ for (const token of ["requireMember", "env.FAMILY_ROOM", "idFromName(roomId)", "
 }
 assert.ok(route.includes("compatibility fast path"), "route retains an in-process fallback until Durable Object provisioning is available");
 assert.ok(scene.includes("new WebSocketFamilyRealtimePresence(browserFamilyPresenceUrl)"), "Family gameplay installs the realtime movement channel");
-assert.ok(client.includes("FAMILY_PRESENCE_KEEPALIVE_MS = 1500"), "D1 presence remains a low-rate safety fallback");
+assert.ok(client.includes("FAMILY_PRESENCE_KEEPALIVE_MS = FAMILY_PRESENCE_IDLE_MS"), "D1 presence remains a fast cross-isolate safety path while realtime runs");
 assert.ok(client.includes("FAMILY_STATE_POLL_MS = 1000"), "authoritative world-state polling remains independent from movement frames");
 
 console.log("Family realtime route: authenticated Durable Object preference with safe fallbacks passed");
