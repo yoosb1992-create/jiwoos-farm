@@ -296,3 +296,14 @@ button { font:inherit; touch-action:manipulation; }
 .storage-footer .storage-confirm{background:#527d48;color:#fff;border-color:#365d33}
 .storage-notice{padding:7px 9px;border-radius:7px;background:#fff9e8}
 @media(max-width:480px){.storage-footer{bottom:-12px;margin:12px -12px -12px;padding:10px 12px calc(10px + env(safe-area-inset-bottom))}.storage-row-quantity input{width:78px}}
+
+/* Family sleep vote stays visible outside the confirmation modal. */
+.sleep-vote-toast{position:absolute;z-index:42;right:18px;top:104px;display:grid;gap:2px;width:min(270px,calc(100% - 36px));padding:8px 10px;border:2px solid #71452f;border-radius:10px;background:linear-gradient(#fff6d8,#efd89d);color:#47372b;box-shadow:0 3px 0 #4f3025,0 7px 16px #1d352744;pointer-events:none}
+.sleep-vote-toast b{font-size:13px;color:#6f5233}.sleep-vote-toast small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#745e43}.sleep-vote-toast span{font-size:11px;font-weight:800;color:#4d6540}
+@media(max-width:700px),(pointer:coarse){
+ .sleep-vote-toast{top:max(64px,calc(env(safe-area-inset-top) + 56px));right:max(62px,calc(env(safe-area-inset-right) + 54px));width:min(220px,55vw);padding:6px 8px;gap:1px;border-width:2px}
+ .sleep-vote-toast b{font-size:11px}.sleep-vote-toast small,.sleep-vote-toast span{font-size:10px}
+}
+@media(max-height:430px) and (orientation:landscape){
+ .sleep-vote-toast{top:max(8px,env(safe-area-inset-top));right:218px;width:190px}
+}

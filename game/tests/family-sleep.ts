@@ -3,6 +3,7 @@ import { FamilyRooms } from "../../server/family/rooms";
 import { FamilyState } from "../../server/family/state";
 import { FamilyPresenceService } from "../../server/family/presence";
 import { familyTestDB } from "./family-db";
+import { readFileSync } from "node:fs";
 const { db, close } = familyTestDB();
 try {
   let now = 100000;
@@ -22,5 +23,12 @@ try {
   await presence.heartbeat("B", id, pose, sb); await act("A");
   await presence.heartbeat("A", id, pose, crypto.randomUUID());
   assert.equal((await state.read("A", id)).sleep?.agreed, 0, "new session must not inherit prior sleep consent");
-  console.log("Family sleep: unanimous vote, cancellation, TTL and session reset passed");
+  const pageSource = readFileSync(new URL("../../app/page.tsx", import.meta.url), "utf8");
+  const sceneSource = readFileSync(new URL("../FarmScene.ts", import.meta.url), "utf8");
+  const cssSource = readFileSync(new URL("../../app/globals.css", import.meta.url), "utf8");
+  assert.ok(pageSource.includes("sleep-vote-toast"), "Family vote status is rendered outside the sleep modal");
+  assert.ok(pageSource.includes("잠자기 투표"), "sleep vote UI shows progress");
+  assert.ok(sceneSource.includes("sleepVote:this.familySleep"), "authoritative Family sleep snapshot reaches HUD state");
+  assert.ok(cssSource.includes(".sleep-vote-toast"), "sleep vote UI has desktop/mobile positioning");
+  console.log("Family sleep: unanimous vote, cancellation, TTL/session reset and persistent vote UI passed");
 } finally { close(); }

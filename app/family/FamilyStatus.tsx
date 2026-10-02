@@ -48,7 +48,7 @@ export function FamilyStatus({ session, mapId = "farm" }: { session: FamilySessi
     {!!copyMessage && <p role="status">{copyMessage}</p>}
     {players.length ? <FamilyRoster players={players} ownId={session.room.playerId} mapId={mapId} /> : <p>참가자 연결 확인 중…</p>}
     {!!sleep?.agreed && <p role="status">{sleep.waiting.join(", ")}님이 잠자기를 기다리고 있습니다. ({sleep.agreed}/{sleep.online}) {sleep.voted && <button disabled={connection !== "connected"} onClick={() => gameEvents.dispatchEvent(new CustomEvent("command", { detail: { type: "family-sleep-cancel" } }))}>투표 취소</button>}</p>}
-    <small>개인 인벤토리 · 공동 자금 · 정상 연결 시 약 1초 동기화</small>
+    <small>개인 인벤토리 · 공동 자금 · 이동은 실시간 연결, 영구 상태는 서버 동기화</small>
     </div>
   </details>;
 }
