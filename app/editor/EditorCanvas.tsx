@@ -11,11 +11,15 @@ import { beginObjectDrag, moveMapObject, objectDragPosition, type ObjectDragGrab
 import { applySceneryStamp, type SceneryStampId } from "@/game/editor/sceneryStamps";
 import { appendTerrainPaintCell, editorGridStep } from "@/game/editor/terrainPaint";
 import { moveFarmArea, resizeFarmArea, sameTileRect, type FarmAreaDragHandle } from "@/game/editor/farmAreaDrag";
+import { FARM_TREE_STAGE_DISPLAY_SIZE, isFarmTreeObject } from "@/game/farm/trees";
 
 const tileColors: Record<TileTypeId, string> = {
   grass: "#83b85e", path: "#c9aa71", water: "#66a8ca", farm: "#9b7049", wood_floor: "#b77b4c", stone_floor: "#c8bd9f", mine_floor: "#56565d", mine_wall: "#303138",
 };
 const objectColors: Record<string, string> = { house: "#d18b54", tree: "#3f7e4a", sell_basket: "#ad6545", store: "#d5a65c", bed: "#efd99d", shop_counter: "#9c6543" };
+
+export const editorObjectBaseId = (assetId: WorldObjectAssetId) =>
+  assetId === "tree" ? "farm_tree_pine" : assetId.replace(/[^a-z0-9_]/gi, "_");
 const snap = (value: number, mode: SnapMode) => mode === "tile" ? Math.round(value) : mode === "half" ? Math.round(value * 2) / 2 : Math.round(value * 20) / 20;
 const normalizeRect = (a: { x: number; y: number }, b: { x: number; y: number }): TileRect => ({
   startX: Math.floor(Math.min(a.x, b.x)), endX: Math.floor(Math.max(a.x, b.x)),
@@ -86,7 +90,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     });
   };
   const placeObject = (p: { x: number; y: number }) => onCommit((target) => {
-    const base = objectAssetId.replace(/[^a-z0-9_]/gi, "_");
+    const base = editorObjectBaseId(objectAssetId);
     let id = base, suffix = 2;
     while (target.objects.some((entry) => entry.id === id)) id = `${base}_${suffix++}`;
     const asset = WORLD_OBJECT_ASSETS[objectAssetId];
@@ -296,7 +300,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
       const asset = WORLD_OBJECT_ASSETS[object.assetId];
       const path = asset.source?.kind === "image" ? asset.source.path : null;
       const showImage = path && !failedImages.has(path);
-      const size = object.displaySizeOverride ?? displayedSize(asset);
+      const size = object.displaySizeOverride ?? (isFarmTreeObject(object) ? FARM_TREE_STAGE_DISPLAY_SIZE.mature : displayedSize(asset));
       const width = size.width / GAME_CONFIG.tileSize, height = size.height / GAME_CONFIG.tileSize;
       const position = dragPreview?.id === object.id ? dragPreview : object.position;
       return <g data-editor-item key={object.id} transform={`translate(${position.tileX} ${position.tileY})`} onPointerDown={(event) => startObjectDrag(event, object.id)}>

@@ -3,7 +3,7 @@ import { FamilyState } from "../../server/family/state";
 import { FamilyRooms } from "../../server/family/rooms";
 import { FamilyPresenceService } from "../../server/family/presence";
 import { familyTestDB } from "./family-db";
-import { FAMILY_PRESENCE_TTL_MS, interpolateFamilyPosition, visibleFamilyPlayers } from "../family/presence";
+import { FAMILY_PRESENCE_TTL_MS, interpolateFamilyPosition, mergeFamilyPresenceSnapshots, visibleFamilyPlayers } from "../family/presence";
 import { RemotePlayers } from "../family/RemotePlayers";
 import type { FamilyPose } from "../family/types";
 const { db, close } = familyTestDB();
@@ -19,6 +19,17 @@ try {
   assert.equal(visibleFamilyPlayers(snapshot, a.room.playerId, "farm")[0].playerId, b.room.playerId);
   assert.equal(visibleFamilyPlayers(snapshot, b.room.playerId, "farm")[0].playerId, a.room.playerId);
   assert.equal(visibleFamilyPlayers(snapshot, a.room.playerId, "town").length, 0);
+  const isolatedRealtime = {
+    players: [snapshot.players.find((p) => p.playerId === a.room.playerId)!],
+    serverNow: snapshot.serverNow + 100,
+  };
+  const mergedPresence = mergeFamilyPresenceSnapshots(snapshot, isolatedRealtime);
+  assert.equal(mergedPresence.players.length, 2, "an isolate-local realtime frame cannot erase a fresh D1 family player");
+  const expiredPresence = mergeFamilyPresenceSnapshots(mergedPresence, {
+    players: [],
+    serverNow: snapshot.players.find((p) => p.playerId === b.room.playerId)!.lastSeen + FAMILY_PRESENCE_TTL_MS + 1,
+  });
+  assert.equal(expiredPresence.players.some((p) => p.playerId === b.room.playerId), false, "a missing player still expires after the presence TTL");
   const forestPose = { ...pose, mapId: "fairy_forest", x: 496, y: 656 };
   await presence.heartbeat("A", a.room.id, forestPose, sessionA);
   const forestSnapshot = await presence.heartbeat("B", a.room.id, { ...forestPose, x: 504 }, sessionB);

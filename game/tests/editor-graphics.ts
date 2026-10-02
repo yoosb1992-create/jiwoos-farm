@@ -2,7 +2,7 @@ import { ItemIcon } from "../../app/components/ItemIcon";
 import { strict as assert } from "node:assert";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { EditorCanvas } from "../../app/editor/EditorCanvas";
+import { EditorCanvas, editorObjectBaseId } from "../../app/editor/EditorCanvas";
 import { MAP_DEFINITIONS } from "../maps/definitions";
 import { ITEM_ASSETS, TILE_ASSETS, WORLD_OBJECT_ASSETS, type WorldObjectAssetId } from "../assets/definitions";
 
@@ -19,7 +19,16 @@ assert.ok(markup.includes(`href="${TILE_ASSETS.tile_grass.source!.path}"`));
 assert.ok(markup.includes('patternUnits="userSpaceOnUse"'));
 assert.ok(markup.includes('image-rendering:pixelated'));
 assert.equal(JSON.stringify(map), before, "graphics rendering must not modify map documents");
-console.log("Editor graphics: shared tile/object images rendered, map document unchanged");
+assert.equal(editorObjectBaseId("tree"), "farm_tree_pine", "the editor pine palette creates a gameplay farm-tree id");
+const pineMap = structuredClone(MAP_DEFINITIONS.farm);
+pineMap.objects = [{ id: "farm_tree_pine_preview", assetId: "tree", position: { tileX: 8, tileY: 8 } }];
+const pineMarkup = renderToStaticMarkup(createElement(EditorCanvas, {
+  map: pineMap, tool: "select", terrain: "grass", objectAssetId: "tree", snapMode: "tile", selection: null,
+  layers: { terrain: true, objects: true, collision: false, farm: false, spawn: false, warp: false, grid: false },
+  onSelect: () => {}, onCommit: () => {},
+}));
+assert.ok(pineMarkup.includes('width="5.5"') && pineMarkup.includes('height="6.75"'), "farm pine previews at the mature runtime scale");
+console.log("Editor graphics: shared tile/object images, pine resource placement and mature preview passed");
 
 // Small HUD images retain explicit dimensions and the original glyph when no source exists.
 for (const asset of Object.values(ITEM_ASSETS)) {

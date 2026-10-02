@@ -2,6 +2,7 @@ import type { ProgressAction, ProgressSnapshot, ProgressResult } from "../npc/pr
 import { gameEvents } from "../events";
 import type { FamilyAction, FamilyPose, FamilySession, FamilySnapshot, FamilyPresenceSnapshot } from "./types";
 import { familyPersonalKey, parseFamilyPose } from "./personal";
+import { mergeFamilyPresenceSnapshots } from "./presence";
 
 export const FAMILY_STATE_POLL_MS = 1000;
 export const FAMILY_PRESENCE_MOVING_MS = 180;
@@ -78,6 +79,7 @@ export class FamilyClient {
   private sessionId = crypto.randomUUID();
   private pose?: () => FamilyPose;
   private onPresence?: (snapshot: FamilyPresenceSnapshot) => void;
+  private presenceSnapshot: FamilyPresenceSnapshot = { players: [], serverNow: 0 };
   private heartbeatRequest?: Promise<void>;
   private stateTimer?: ReturnType<typeof setTimeout>;
   private presenceTimer?: ReturnType<typeof setTimeout>;
@@ -86,10 +88,15 @@ export class FamilyClient {
     this.pose = pose; this.onPresence = onPresence;
     if (this.live) this.startRealtimePresence();
   }
+  private acceptPresence(snapshot: FamilyPresenceSnapshot) {
+    if (!this.live) return;
+    this.presenceSnapshot = mergeFamilyPresenceSnapshots(this.presenceSnapshot, snapshot);
+    this.onPresence?.(this.presenceSnapshot);
+  }
   private async heartbeat() {
     if (!this.pose || !this.live) return;
     const snapshot = await familyFetch<FamilyPresenceSnapshot>("/api/family/presence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId, pose: this.pose() }) });
-    if (this.live) this.onPresence?.(snapshot);
+    this.acceptPresence(snapshot);
   }
   constructor(
     readonly session: FamilySession,
@@ -125,7 +132,7 @@ export class FamilyClient {
       roomId: this.session.room.id,
       sessionId: this.sessionId,
       pose: () => this.live ? this.pose?.() : undefined,
-      onSnapshot: (snapshot) => { if (this.live) this.onPresence?.(snapshot); },
+      onSnapshot: (snapshot) => this.acceptPresence(snapshot),
       onDisconnect: () => { /* D1 keepalive/presence polling remains the safe fallback. */ },
     });
   }
