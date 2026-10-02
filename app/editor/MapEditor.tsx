@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WORLD_OBJECT_ASSETS, type WorldObjectAssetId } from "@/game/assets/definitions";
 import { cloneEditorDocument, createBuiltInEditorDocument, LocalMapEditorRepository, parseEditorDocument, touchEditorDocument } from "@/game/editor/document";
-import { EditorHistory } from "@/game/editor/history";
+import { EditorDocumentHistory } from "@/game/editor/history";
 import type { EditorLayer, EditorTool, MapEditorDocument, Selection, SnapMode, ValidationIssue } from "@/game/editor/types";
 import { referencedSpawnCount, validateEditorDocument } from "@/game/editor/validation";
 import { TILE_TYPE_DEFINITIONS } from "@/game/maps/definitions";
@@ -65,7 +65,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   const cloudRevision = useRef(0);
   const cloudSyncedAt = useRef(0);
   const importRef = useRef<HTMLInputElement>(null);
-  const history = useRef(new EditorHistory<MapEditorDocument>(cloneEditorDocument, 30));
+  const history = useRef(new EditorDocumentHistory(30));
   const documentRef = useRef(document);
   documentRef.current = document;
   const map = document.maps.find((entry) => entry.id === mapId) ?? document.maps[0];
@@ -77,8 +77,25 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
 
   useEffect(() => {
     if (cloudStatus === "checking" && !hasLocalDraft.current) return;
-    const timer = window.setTimeout(() => { if (repository.save(document)) hasLocalDraft.current = true; }, 1200);
-    return () => window.clearTimeout(timer);
+    let cancelIdle: (() => void) | undefined;
+    const timer = window.setTimeout(() => {
+      const idleWindow = window as Window & {
+        requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+        cancelIdleCallback?: (handle: number) => void;
+      };
+      if (idleWindow.requestIdleCallback) {
+        const handle = idleWindow.requestIdleCallback(() => {
+          if (repository.save(document)) hasLocalDraft.current = true;
+        }, { timeout: 1800 });
+        cancelIdle = () => idleWindow.cancelIdleCallback?.(handle);
+      } else {
+        const fallback = window.setTimeout(() => {
+          if (repository.save(document)) hasLocalDraft.current = true;
+        }, 0);
+        cancelIdle = () => window.clearTimeout(fallback);
+      }
+    }, 1400);
+    return () => { window.clearTimeout(timer); cancelIdle?.(); };
   }, [cloudStatus, document]);
 
   useEffect(() => {
@@ -149,7 +166,8 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     const timer = window.setTimeout(() => { void saveCloud(document); }, 6000);
     return () => window.clearTimeout(timer);
   }, [cloudConflict, cloudStatus, document, saveCloud]);
-  const pushHistory = useCallback(() => history.current.push(documentRef.current), []);
+  const pushHistory = useCallback(() => history.current.pushMap(documentRef.current, mapId), [mapId]);
+  const pushDocumentHistory = useCallback(() => history.current.pushDocument(documentRef.current), []);
   const mutateMap = useCallback((mutate: (map: MapDefinition) => void, recordHistory = true, terrainOnly = false) => {
     if (recordHistory) pushHistory();
     const current = documentRef.current;
@@ -199,7 +217,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
       setNotice("요정의 숲/광산 입구 기준점의 ID는 변경할 수 없습니다. 위치와 표시 이름은 변경할 수 있습니다.");
       return;
     }
-    pushHistory();
+    if (kind === "spawn") pushDocumentHistory(); else pushHistory();
     const next = cloneEditorDocument(documentRef.current);
     const target = next.maps.find((entry) => entry.id === mapId);
     if (!target) return;
@@ -230,7 +248,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     setNotice(localSaved ? "로컬 편집 작업을 저장했습니다." : "기기 로컬 저장 용량이 부족합니다. 클라우드 저장을 계속 시도합니다.");
     if (cloudStatus !== "signed-out") await saveCloud(documentRef.current);
   };
-  const load = () => { const loaded = repository.load(); if (!loaded) { setNotice("불러올 정상 편집 문서가 없습니다."); return; } pushHistory(); replaceDocument(loaded); setMapId(loaded.maps[0].id); setSelection(null); setIssues([]); setNotice("저장된 편집 문서를 불러왔습니다."); };
+  const load = () => { const loaded = repository.load(); if (!loaded) { setNotice("불러올 정상 편집 문서가 없습니다."); return; } pushDocumentHistory(); replaceDocument(loaded); setMapId(loaded.maps[0].id); setSelection(null); setIssues([]); setNotice("저장된 편집 문서를 불러왔습니다."); };
   const exportJson = async () => {
     if (validate().length) return;
     const file = new File([JSON.stringify(documentRef.current, null, 2)], "jiwoos-farm-map-editor-v1.json", { type: "application/json" });
@@ -246,13 +264,13 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     try {
       const parsed = parseEditorDocument(JSON.parse(await file.text()));
       if (!parsed.document) { setIssues(parsed.issues); setNotice(`가져오기 거부: ${parsed.issues.length}개 오류가 있습니다.`); return; }
-      pushHistory(); replaceDocument(touchEditorDocument(parsed.document)); setMapId(parsed.document.maps[0].id); setSelection(null); setIssues([]); setNotice("검증된 JSON 문서를 가져왔습니다.");
+      pushDocumentHistory(); replaceDocument(touchEditorDocument(parsed.document)); setMapId(parsed.document.maps[0].id); setSelection(null); setIssues([]); setNotice("검증된 JSON 문서를 가져왔습니다.");
     } catch { setNotice("가져오기 거부: 올바른 JSON 파일이 아닙니다."); }
     if (importRef.current) importRef.current.value = "";
   };
   const usePublishedWorld = () => {
     if (!publishedPreset) { setNotice("아직 게시된 초기 월드가 없습니다."); return; }
-    pushHistory();
+    pushDocumentHistory();
     const next = cloneEditorDocument(publishedPreset.document);
     replaceDocument(touchEditorDocument(next));
     setMapId(next.maps.some((entry) => entry.id === "farm") ? "farm" : next.maps[0]?.id ?? "farm");
@@ -283,20 +301,20 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   };
   const reset = () => {
     const next = publishedPreset ? cloneEditorDocument(publishedPreset.document) : createBuiltInEditorDocument();
-    pushHistory(); replaceDocument(touchEditorDocument(next)); setMapId(next.maps.some((entry) => entry.id === "farm") ? "farm" : next.maps[0]?.id ?? "farm");
+    pushDocumentHistory(); replaceDocument(touchEditorDocument(next)); setMapId(next.maps.some((entry) => entry.id === "farm") ? "farm" : next.maps[0]?.id ?? "farm");
     setSelection(null); setIssues([]); setConfirmReset(false);
     setNotice(publishedPreset ? "게시된 초기 월드로 되돌렸습니다." : "게시된 초기 월드가 없어 코드 내장 맵으로 초기화했습니다.");
   };
   const testPlay = () => { if (validate().length) return; repository.save(documentRef.current); onPlay(cloneEditorDocument(documentRef.current), map.id); };
 
   const createBlank = () => {
-    pushHistory(); const next = cloneEditorDocument(documentRef.current); let id = "new_map", suffix = 2;
+    pushDocumentHistory(); const next = cloneEditorDocument(documentRef.current); let id = "new_map", suffix = 2;
     while (next.maps.some((entry) => entry.id === id)) id = `new_map_${suffix++}`;
     next.maps.push({ id, name: "새 맵", width: 20, height: 14, baseTileType: "grass", terrainRegions: [], farmAreas: [], collisionRegions: [], objects: [], spawns: [{ id: "entry", tileX: 10, tileY: 7, facing: "down" }], warps: [], boundary: { enabled: true } });
     replaceDocument(touchEditorDocument(next)); setMapId(id); setSelection(null);
   };
   const duplicateMap = () => {
-    if (!map) return; pushHistory(); const next = cloneEditorDocument(documentRef.current); let id = `${map.id}_copy`, suffix = 2;
+    if (!map) return; pushDocumentHistory(); const next = cloneEditorDocument(documentRef.current); let id = `${map.id}_copy`, suffix = 2;
     while (next.maps.some((entry) => entry.id === id)) id = `${map.id}_copy_${suffix++}`;
     const copy = structuredClone(map); copy.id = id; copy.name = `${map.name} 복사본`; copy.warps.forEach((warp) => { if (warp.targetMapId === map.id) warp.targetMapId = id; });
     next.maps.push(copy); replaceDocument(touchEditorDocument(next)); setMapId(id); setSelection(null);
@@ -305,7 +323,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
     if (!map || protectedMapIds.has(map.id)) { setNotice("기본 생활/NPC 동선에 필요한 핵심 맵은 삭제할 수 없습니다. 새 맵을 추가해 연결해 주세요."); return; }
     const refs = document.maps.reduce((sum, entry) => sum + entry.warps.filter((warp) => warp.targetMapId === map.id).length, 0);
     if (refs) { setNotice(`${map.name}을 ${refs}개 맵 이동 구역이 참조 중이라 삭제할 수 없습니다.`); return; }
-    pushHistory(); const next = cloneEditorDocument(documentRef.current); next.maps = next.maps.filter((entry) => entry.id !== map.id); replaceDocument(touchEditorDocument(next)); setMapId("farm"); setSelection(null);
+    pushDocumentHistory(); const next = cloneEditorDocument(documentRef.current); next.maps = next.maps.filter((entry) => entry.id !== map.id); replaceDocument(touchEditorDocument(next)); setMapId("farm"); setSelection(null);
   };
 
   const refreshCloud = async () => {
@@ -318,7 +336,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   };
   const useCloudDraft = () => {
     if (!cloudConflict) return;
-    pushHistory(); replaceDocument(cloneEditorDocument(cloudConflict.document)); setMapId(cloudConflict.document.maps[0]?.id ?? "farm"); setSelection(null);
+    pushDocumentHistory(); replaceDocument(cloneEditorDocument(cloudConflict.document)); setMapId(cloudConflict.document.maps[0]?.id ?? "farm"); setSelection(null);
     cloudRevision.current = cloudConflict.revision; cloudSyncedAt.current = cloudConflict.updatedAt; repository.save(cloudConflict.document); setCloudConflict(null); setNotice("서버의 최신 초안을 불러왔습니다.");
   };
   const keepLocalDraft = () => {
@@ -357,7 +375,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
         <div className="panel-title"><span>레이어</span><small>표시 / 숨김</small></div>
         <div className="layer-list">{(Object.keys(layerLabels) as EditorLayer[]).map((id) => <label key={id}><input type="checkbox" checked={layers[id]} onChange={() => setLayers((current) => ({ ...current, [id]: !current[id] }))} />{layerLabels[id]}</label>)}</div>
       </aside>
-      <section className="editor-center"><EditorCanvas map={map} tool={tool} terrain={terrain} objectAssetId={objectAssetId} sceneryStampId={sceneryStampId} layers={layers} snapMode={snapMode} selection={selection} onSelect={setSelection} onInspectObject={(id) => { setSelection({ kind: "object", id }); setInspectorObjectId(id); }} onCommit={(mutate) => mutateMap(mutate)} onBeginContinuous={pushHistory} onContinuous={(mutate) => mutateMap(mutate, false, true)} /><footer className="editor-status"><span>{notice}</span><b>{mapIssues.length ? `${mapIssues.length}개 오류` : "준비됨"}</b></footer>{mapIssues.length > 0 && <div className="validation-panel">{mapIssues.slice(0, 8).map((issue, index) => <p key={`${issue.path}-${index}`}><b>{issue.mapId ?? "문서"}.{issue.path}</b> {issue.message}</p>)}</div>}</section>
+      <section className="editor-center"><EditorCanvas map={map} tool={tool} terrain={terrain} objectAssetId={objectAssetId} sceneryStampId={sceneryStampId} layers={layers} snapMode={snapMode} selection={selection} onSelect={setSelection} onInspectObject={(id) => { setSelection({ kind: "object", id }); setInspectorObjectId(id); }} onCommit={(mutate) => mutateMap(mutate)} /><footer className="editor-status"><span>{notice}</span><b>{mapIssues.length ? `${mapIssues.length}개 오류` : "준비됨"}</b></footer>{mapIssues.length > 0 && <div className="validation-panel">{mapIssues.slice(0, 8).map((issue, index) => <p key={`${issue.path}-${index}`}><b>{issue.mapId ?? "문서"}.{issue.path}</b> {issue.message}</p>)}</div>}</section>
       <MapInspector map={map} maps={document.maps} selection={selection?.kind === "object" && inspectorObjectId !== selection.id ? null : selection} update={(mutate) => mutateMap(mutate)} renameId={renameSelectedId} remove={removeSelection} spawnReferences={(spawnId) => referencedSpawnCount(document, map.id, spawnId)} onClose={() => { if (selection?.kind === "object") setInspectorObjectId(null); else setSelection(null); }} />
     </div>
     <section className="mobile-tool-dock">

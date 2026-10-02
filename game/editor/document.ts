@@ -30,19 +30,83 @@ export const parseEditorDocument = (value: unknown) => {
   return { document, issues };
 };
 
+type LocalEditorManifest = {
+  editorVersion: number;
+  updatedAt: number;
+  mapIds: string[];
+};
+
 export class LocalMapEditorRepository {
-  static readonly key = "jiwoos-farm.map-editor.v1";
+  static readonly legacyKey = "jiwoos-farm.map-editor.v1";
+  static readonly key = "jiwoos-farm.map-editor.v2.manifest";
+
+  private static mapKey(mapId: string) {
+    return `jiwoos-farm.map-editor.v2.map.${encodeURIComponent(mapId)}`;
+  }
+
   save(document: MapEditorDocument) {
     try {
-      localStorage.setItem(LocalMapEditorRepository.key, JSON.stringify(document));
+      const previous = this.readManifest();
+      const mapIds = document.maps.map((map) => map.id);
+      // Serialize one map at a time instead of building one world-sized JSON
+      // string. This keeps peak autosave memory bounded by the largest map.
+      for (const map of document.maps) {
+        localStorage.setItem(LocalMapEditorRepository.mapKey(map.id), JSON.stringify(map));
+      }
+      const manifest: LocalEditorManifest = {
+        editorVersion: document.editorVersion,
+        updatedAt: document.updatedAt,
+        mapIds,
+      };
+      localStorage.setItem(LocalMapEditorRepository.key, JSON.stringify(manifest));
+      if (previous) {
+        const active = new Set(mapIds);
+        for (const stale of previous.mapIds) {
+          if (!active.has(stale)) localStorage.removeItem(LocalMapEditorRepository.mapKey(stale));
+        }
+      }
       return true;
     } catch {
       return false;
     }
   }
+
   load() {
-    const stored = localStorage.getItem(LocalMapEditorRepository.key);
+    const split = this.loadSplit();
+    if (split) return split;
+    const stored = localStorage.getItem(LocalMapEditorRepository.legacyKey);
     if (!stored) return null;
     try { return parseEditorDocument(JSON.parse(stored)).document; } catch { return null; }
+  }
+
+  private readManifest(): LocalEditorManifest | null {
+    const stored = localStorage.getItem(LocalMapEditorRepository.key);
+    if (!stored) return null;
+    try {
+      const value = JSON.parse(stored) as Partial<LocalEditorManifest>;
+      if (!Number.isInteger(value.editorVersion) || !Number.isFinite(value.updatedAt) || !Array.isArray(value.mapIds) || value.mapIds.some((id) => typeof id !== "string")) return null;
+      return value as LocalEditorManifest;
+    } catch {
+      return null;
+    }
+  }
+
+  private loadSplit() {
+    const manifest = this.readManifest();
+    if (!manifest) return null;
+    try {
+      const maps = manifest.mapIds.map((id) => {
+        const stored = localStorage.getItem(LocalMapEditorRepository.mapKey(id));
+        if (!stored) throw new Error("missing map");
+        return JSON.parse(stored) as MapDefinition;
+      });
+      return parseEditorDocument({
+        editorVersion: manifest.editorVersion,
+        maps,
+        updatedAt: manifest.updatedAt,
+      }).document;
+    } catch {
+      return null;
+    }
   }
 }

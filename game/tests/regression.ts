@@ -23,6 +23,7 @@ import "./graphics-foundation";
 import "./y-sort";
 import "./persistent-world-editor";
 import "./editor-stability";
+import "./world-scalability";
 import "./editor-runtime-maps";
 import "./runtime-entrance-anchors";
 import "./graphics-first-pass";

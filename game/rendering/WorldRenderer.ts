@@ -5,7 +5,8 @@ import { FARM_TERRAIN_DECORATIONS, TERRAIN_COMPOSITION_ASSETS, type CardinalDire
 import { TERRAIN_GRAPHICS_PROFILE } from "../assets/graphicsFoundation";
 import { CROP_DEFINITIONS } from "../data/crops";
 import { GAME_CONFIG } from "../config";
-import { TILE_TYPE_DEFINITIONS, getTileTypeInMap, tilePoint } from "../maps/definitions";
+import { TILE_TYPE_DEFINITIONS, tilePoint } from "../maps/definitions";
+import { terrainCompositionTiles } from "./terrainCandidates";
 import type { MapDefinition, MapId, TileRect } from "../maps/types";
 import type { MapRegistry } from "../maps/MapRegistry";
 import { FOREST_RESOURCES, resourceKind } from "../forest/resources";
@@ -257,10 +258,11 @@ export class WorldRenderer {
 
   private addTerrainComposition(map: MapDefinition) {
     const size = GAME_CONFIG.tileSize;
-    for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) {
-      const tileType = getTileTypeInMap(map, x, y);
-      if (tileType !== "path" && tileType !== "water") continue;
-      const same = (dx: number, dy: number) => getTileTypeInMap(map, x + dx, y + dy) === tileType;
+    for (const { x, y, tileType } of terrainCompositionTiles(map)) {
+      const same = (dx: number, dy: number) => {
+        const neighbor = terrainCompositionTiles.tileTypeAt(map, x + dx, y + dy);
+        return neighbor === tileType;
+      };
       const cardinal: Record<CardinalDirection, boolean> = {
         north: same(0, -1), east: same(1, 0), south: same(0, 1), west: same(-1, 0),
       };

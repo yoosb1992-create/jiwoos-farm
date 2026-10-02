@@ -33,11 +33,9 @@ interface Props {
   onSelect: (selection: Selection) => void;
   onInspectObject: (id: string) => void;
   onCommit: (mutate: (map: MapDefinition) => void) => void;
-  onBeginContinuous: () => void;
-  onContinuous: (mutate: (map: MapDefinition) => void) => void;
 }
 
-export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId, layers, snapMode, selection, onSelect, onInspectObject, onCommit, onBeginContinuous, onContinuous }: Props) {
+export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId, layers, snapMode, selection, onSelect, onInspectObject, onCommit }: Props) {
   const patternPrefix = useId().replace(/:/g, "");
   const [failedImages, setFailedImages] = useState<Set<string>>(() => new Set());
   const markImageFailed = (path: string) => setFailedImages((previous) => new Set(previous).add(path));
@@ -47,7 +45,8 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
   const [dragPreview, setDragPreview] = useState<{ id: string; tileX: number; tileY: number } | null>(null);
   const pan = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number } | null>(null);
   const painting = useRef(false);
-  const lastPaintedTile = useRef<string | null>(null);
+  const terrainStroke = useRef(new Map<string, { x: number; y: number }>());
+  const [terrainPreview, setTerrainPreview] = useState<Array<{ x: number; y: number }>>([]);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<PinchStart | null>(null);
   const suppressEdit = useRef(false);
@@ -58,11 +57,23 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     const box = svgRef.current!.getBoundingClientRect();
     return { x: Math.max(0, Math.min(map.width - 0.001, (event.clientX - box.left) / box.width * map.width)), y: Math.max(0, Math.min(map.height - 0.001, (event.clientY - box.top) / box.height * map.height)) };
   };
-  const paint = (p: { x: number; y: number }) => {
-    const x = Math.floor(p.x), y = Math.floor(p.y), key = `${terrain}:${x},${y}`;
-    if (lastPaintedTile.current === key) return;
-    lastPaintedTile.current = key;
-    onContinuous((target) => { appendTerrainPaintCell(target.terrainRegions, terrain, x, y); });
+  const queueTerrainPaint = (p: { x: number; y: number }) => {
+    const x = Math.floor(p.x), y = Math.floor(p.y), key = `${x},${y}`;
+    if (terrainStroke.current.has(key)) return;
+    terrainStroke.current.set(key, { x, y });
+    setTerrainPreview((current) => [...current, { x, y }]);
+  };
+  const clearTerrainStroke = () => {
+    terrainStroke.current.clear();
+    setTerrainPreview([]);
+  };
+  const commitTerrainStroke = () => {
+    const cells = [...terrainStroke.current.values()];
+    clearTerrainStroke();
+    if (!cells.length) return;
+    onCommit((target) => {
+      for (const { x, y } of cells) appendTerrainPaintCell(target.terrainRegions, terrain, x, y);
+    });
   };
   const placeObject = (p: { x: number; y: number }) => onCommit((target) => {
     const base = objectAssetId.replace(/[^a-z0-9_]/gi, "_");
@@ -86,13 +97,13 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     if (pointers.current.size >= 2) {
       const [a, b] = [...pointers.current.values()];
       pinch.current = createPinchStart(a, b, viewport);
-      suppressEdit.current = true; painting.current = false; dragObject.current = null; setDragPreview(null); pan.current = null; pendingTap.current = null; setDraft(null);
+      suppressEdit.current = true; painting.current = false; clearTerrainStroke(); dragObject.current = null; setDragPreview(null); pan.current = null; pendingTap.current = null; setDraft(null);
       event.preventDefault(); event.stopPropagation(); return;
     }
     if (suppressEdit.current) return;
     if ((event.target as Element).closest("[data-editor-item]")) return;
     const p = point(event);
-    if (tool === "terrain") { painting.current = true; lastPaintedTile.current = null; onBeginContinuous(); if (event.pointerType === "touch") pendingTap.current = { kind: "terrain", point: p }; else paint(p); return; }
+    if (tool === "terrain") { painting.current = true; clearTerrainStroke(); if (event.pointerType === "touch") pendingTap.current = { kind: "terrain", point: p }; else queueTerrainPaint(p); return; }
     if (tool === "object") {
       if (event.pointerType === "touch") pendingTap.current = { kind: "object", point: p }; else placeObject(p);
       return;
@@ -126,7 +137,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
       setViewport((current) => ({ ...current, panX: pan.current!.panX + event.clientX - pan.current!.startX, panY: pan.current!.panY + event.clientY - pan.current!.startY }));
       event.preventDefault(); return;
     }
-    if (painting.current) { pendingTap.current = null; paint(p); }
+    if (painting.current) { pendingTap.current = null; queueTerrainPaint(p); }
     if (draft) setDraft({ ...draft, end: p });
     if (dragObject.current) {
       const movedPixels = Math.hypot(event.clientX - dragObject.current.startClientX, event.clientY - dragObject.current.startClientY);
@@ -144,16 +155,17 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     if (suppressEdit.current) {
       pinch.current = null;
       if (pointers.current.size === 0) suppressEdit.current = false;
-      painting.current = false; lastPaintedTile.current = null; dragObject.current = null; setDragPreview(null); pan.current = null; pendingTap.current = null; setDraft(null); return;
+      painting.current = false; clearTerrainStroke(); dragObject.current = null; setDragPreview(null); pan.current = null; pendingTap.current = null; setDraft(null); return;
     }
     if (pendingTap.current) {
       const pending = pendingTap.current; pendingTap.current = null;
-      if (pending.kind === "terrain") paint(pending.point);
+      if (pending.kind === "terrain") queueTerrainPaint(pending.point);
       if (pending.kind === "object") placeObject(pending.point);
       if (pending.kind === "stamp") placeStamp(pending.point);
       if (pending.kind === "spawn") placeSpawn(pending.point);
     }
-    painting.current = false; lastPaintedTile.current = null;
+    if (painting.current) commitTerrainStroke();
+    painting.current = false;
     pan.current = null;
     const completedDrag = dragObject.current;
     dragObject.current = null;
@@ -222,6 +234,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     })}</defs>
     <rect width={map.width} height={map.height} fill={tileFill(map.baseTileType)} />
     {layers.terrain && map.terrainRegions.map((region, index) => <rect key={`terrain-${index}`} x={region.startX} y={region.startY} width={region.endX - region.startX + 1} height={region.endY - region.startY + 1} fill={tileFill(region.tileType)} />)}
+    {layers.terrain && terrainPreview.map(({ x, y }) => <rect key={`terrain-preview-${x}-${y}`} x={x} y={y} width="1" height="1" fill={tileFill(terrain)} opacity=".72" pointerEvents="none" />)}
     {layers.farm && map.farmAreas.map((region, index) => <rect data-editor-item key={`farm-${index}`} x={region.startX + .06} y={region.startY + .06} width={region.endX - region.startX + .88} height={region.endY - region.startY + .88} fill="#d98c4855" stroke="#f0b25d" strokeWidth=".09" onPointerDown={(event) => { event.stopPropagation(); onSelect({ kind: "farm", index }); }} />)}
     {layers.objects && map.objects.map((object) => {
       const asset = WORLD_OBJECT_ASSETS[object.assetId];
