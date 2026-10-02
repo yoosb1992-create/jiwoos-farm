@@ -14,7 +14,10 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const managedLinux = readExecutionProfile() === "managed-linux";
 
 const localBindingConfig = {
-  main: "vinext/server/fetch-handler",
+  // Custom entry re-exports vinext's handler plus the Family room Durable
+  // Object class. The Sites project can keep running without the binding;
+  // provisioning FAMILY_ROOM later activates the room authority path.
+  main: "./server/worker.ts",
   compatibility_flags: ["nodejs_compat"],
   d1_databases: d1
     ? [

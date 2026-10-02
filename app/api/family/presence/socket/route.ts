@@ -1,8 +1,14 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
-import { parseFamilyPose } from "@/game/family/personal";
-import type { FamilyPose, FamilyPresence, FamilyPresenceSnapshot } from "@/game/family/types";
+import type { FamilyPose } from "@/game/family/types";
 import { FamilyRooms } from "@/server/family/rooms";
+import {
+  FAMILY_REALTIME_MAX_FRAME_BYTES,
+  FAMILY_REALTIME_SESSION_RE,
+  type FamilyRealtimeConnectionState,
+  familyRealtimeSnapshot,
+  parseFamilyRealtimeFrame,
+} from "@/server/family/realtimeProtocol";
 
 export const dynamic = "force-dynamic";
 
@@ -14,44 +20,24 @@ interface AcceptedSocket {
   addEventListener(type: "close" | "error", listener: () => void): void;
 }
 
-interface PresenceConnection {
+interface InProcessConnection extends FamilyRealtimeConnectionState {
   socket: AcceptedSocket;
-  playerId: string;
-  nickname: string;
-  pose?: FamilyPose;
-  lastSeen: number;
 }
 
 type WebSocketPairConstructor = new () => { 0: WebSocket; 1: AcceptedSocket };
 
-const rooms = new Map<string, Set<PresenceConnection>>();
-const SESSION_RE = /^[a-f0-9-]{36}$/;
-const MAX_FRAME_BYTES = 2048;
+const rooms = new Map<string, Set<InProcessConnection>>();
 
 const response = (message: string, status: number) =>
   Response.json({ message }, { status, headers: { "cache-control": "no-store" } });
 
-const snapshotFor = (connections: Set<PresenceConnection>, now = Date.now()): FamilyPresenceSnapshot => {
-  const latest = new Map<string, FamilyPresence>();
-  for (const connection of connections) {
-    if (!connection.pose) continue;
-    const current = latest.get(connection.playerId);
-    if (!current || connection.lastSeen >= current.lastSeen) {
-      latest.set(connection.playerId, {
-        ...connection.pose,
-        playerId: connection.playerId,
-        nickname: connection.nickname,
-        lastSeen: connection.lastSeen,
-      });
-    }
-  }
-  return { players: [...latest.values()], serverNow: now };
-};
+const inProcessSnapshot = (connections: Set<InProcessConnection>) =>
+  familyRealtimeSnapshot([...connections].map(({ socket: _socket, ...state }) => state));
 
-const broadcast = (roomId: string) => {
+const inProcessBroadcast = (roomId: string) => {
   const connections = rooms.get(roomId);
   if (!connections?.size) return;
-  const frame = JSON.stringify(snapshotFor(connections));
+  const frame = JSON.stringify(inProcessSnapshot(connections));
   for (const connection of [...connections]) {
     try {
       connection.socket.send(frame);
@@ -62,14 +48,32 @@ const broadcast = (roomId: string) => {
   if (!connections.size) rooms.delete(roomId);
 };
 
+const durableRoomResponse = async (
+  roomId: string,
+  sessionId: string,
+  member: { playerId: string; nickname: string },
+) => {
+  if (!env.FAMILY_ROOM) return null;
+  const id = env.FAMILY_ROOM.idFromName(roomId);
+  const stub = env.FAMILY_ROOM.get(id);
+  const headers = new Headers({
+    upgrade: "websocket",
+    "x-family-room-id": roomId,
+    "x-family-session-id": sessionId,
+    "x-family-player-id": member.playerId,
+    "x-family-nickname": encodeURIComponent(member.nickname),
+  });
+  return stub.fetch(new Request("https://family-room.internal/connect", { headers }));
+};
+
 /**
- * Low-latency room broker for Family presence.
+ * Authenticated WebSocket entrance for Family presence.
  *
- * This intentionally carries transient pose frames only. D1 stays authoritative
- * for membership and persistent game state, and FamilyClient keeps a D1
- * heartbeat as a fallback. The in-process room table is a fast path for the
- * current Sites worker; a future Durable Object binding can replace this broker
- * without changing the browser transport contract.
+ * The preferred path is one Durable Object per Family room. D1 verifies room
+ * membership before the socket is handed to the room authority. When the
+ * hosting project has not provisioned FAMILY_ROOM yet, the in-process broker
+ * remains as a compatibility fast path and D1 presence polling remains the
+ * final safety fallback.
  */
 export async function GET(request: Request) {
   if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return response("WebSocket 연결이 필요합니다.", 426);
@@ -83,7 +87,7 @@ export async function GET(request: Request) {
 
   const roomId = url.searchParams.get("roomId") ?? "";
   const sessionId = url.searchParams.get("sessionId") ?? "";
-  if (!SESSION_RE.test(sessionId)) return response("접속 세션이 올바르지 않습니다.", 400);
+  if (!FAMILY_REALTIME_SESSION_RE.test(sessionId)) return response("접속 세션이 올바르지 않습니다.", 400);
 
   let member;
   try {
@@ -95,6 +99,9 @@ export async function GET(request: Request) {
     return response(error instanceof Error ? error.message : "이 가족 농장에 접속할 수 없습니다.", status);
   }
 
+  const durable = await durableRoomResponse(roomId, sessionId, member);
+  if (durable) return durable;
+
   const Pair = (globalThis as typeof globalThis & { WebSocketPair?: WebSocketPairConstructor }).WebSocketPair;
   if (!Pair) return response("실시간 연결을 사용할 수 없습니다. 기본 동기화로 계속합니다.", 503);
 
@@ -103,13 +110,15 @@ export async function GET(request: Request) {
   const server = pair[1];
   server.accept();
 
-  const connection: PresenceConnection = {
+  const connection: InProcessConnection = {
     socket: server,
+    roomId,
+    sessionId,
     playerId: member.playerId,
     nickname: member.nickname,
     lastSeen: Date.now(),
   };
-  const room = rooms.get(roomId) ?? new Set<PresenceConnection>();
+  const room = rooms.get(roomId) ?? new Set<InProcessConnection>();
   room.add(connection);
   rooms.set(roomId, room);
 
@@ -119,32 +128,20 @@ export async function GET(request: Request) {
     closed = true;
     room.delete(connection);
     if (!room.size) rooms.delete(roomId);
-    else broadcast(roomId);
+    else inProcessBroadcast(roomId);
   };
 
   server.addEventListener("message", (event) => {
-    if (typeof event.data !== "string" || event.data.length > MAX_FRAME_BYTES) {
+    if (typeof event.data !== "string" || event.data.length > FAMILY_REALTIME_MAX_FRAME_BYTES) {
       server.close(1009, "presence frame too large");
       cleanup();
       return;
     }
-    try {
-      const frame = JSON.parse(event.data) as {
-        type?: unknown;
-        roomId?: unknown;
-        sessionId?: unknown;
-        pose?: unknown;
-      };
-      if (frame.type !== "presence" || frame.roomId !== roomId || frame.sessionId !== sessionId) return;
-      const pose = parseFamilyPose(frame.pose);
-      if (!pose) return;
-      connection.pose = pose;
-      connection.lastSeen = Date.now();
-      broadcast(roomId);
-    } catch {
-      // Malformed movement frames are ignored. Persistent actions never travel
-      // through this channel.
-    }
+    const pose: FamilyPose | null = parseFamilyRealtimeFrame(event.data, roomId, sessionId);
+    if (!pose) return;
+    connection.pose = pose;
+    connection.lastSeen = Date.now();
+    inProcessBroadcast(roomId);
   });
   server.addEventListener("close", cleanup);
   server.addEventListener("error", cleanup);
