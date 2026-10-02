@@ -14,6 +14,8 @@ assert.ok(page.includes('className="mobile-menu-summary"'), "objective summary i
 assert.ok(!page.includes('className="mobile-menu-summary mobile-menu-only"'), "desktop no longer hides the menu summary");
 assert.ok(page.includes('onOpenEditor(); }}>{testMode ? "← 편집기로 돌아가기" : "🛠 맵 편집"}'), "map editor lives in the shared hamburger menu");
 assert.ok(page.includes('onHome(); }}>{family ? "농장 나가기" : "처음으로"}'), "home/leave lives in the shared hamburger menu");
+assert.ok(page.includes('command("menu-open", false);') && page.includes('menuCommand("inventory-open")'), "hamburger actions synchronously release the menu input block before opening gameplay UI");
+assert.ok(page.includes('menuCommand("building-open")') && page.includes('menuCommand("village-open", true)'), "other hamburger gameplay panels share the same unpause-before-open path");
 assert.ok(page.includes("<kbd>왼쪽 Shift</kbd>로 달리기"), "help documents left Shift running");
 
 assert.ok(css.includes(".desktop-left-ui{display:none}"), "separate desktop utility UI stays hidden");

@@ -128,6 +128,13 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
   const command = useCallback((type: string, value?: unknown) => {
     gameEvents.dispatchEvent(new CustomEvent("command", { detail: { type, value } }));
   }, []);
+  const menuCommand = useCallback((type: string, value?: unknown) => {
+    // The hamburger intentionally pauses world input. Release that pause
+    // synchronously before dispatching a menu action that opens another UI.
+    command("menu-open", false);
+    command(type, value);
+    setMobileMenuOpen(false);
+  }, [command]);
 
   useEffect(() => {
     command("menu-open", mobileMenuOpen);
@@ -222,12 +229,12 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
             {family && <FamilyStatus session={family} mapId={hud.mapId} />}
             {testMode && <small className="mobile-test-note">테스트 플레이 · 저장 비활성</small>}
           </div>}
-          <button onClick={() => { command("save"); setMobileMenuOpen(false); }}>{family ? "동기화" : "저장"}</button>
-          <button onClick={() => { command("load"); setMobileMenuOpen(false); }}>{family ? "새로고침" : "불러오기"}</button>
-          <button onClick={() => { command("inventory-open"); setMobileMenuOpen(false); }}>🎒 가방</button>
-          {(hud.craftingItems?.wood_processor || hud.placing) && <button onClick={() => { command("place-mode"); setMobileMenuOpen(false); }}>{hud.placing ? "배치 취소" : `⚙ 배치 ×${hud.craftingItems?.wood_processor ?? 0}`}</button>}
-          <button onClick={() => { command(hud.buildingMode ? "building-mode" : "building-open"); setMobileMenuOpen(false); }}>{hud.buildingMode ? "건설 취소" : "🏠 건설·확장"}</button>
-          <button onClick={()=>{command("village-open",true);setMobileMenuOpen(false);}}>주민·의뢰</button>
+          <button onClick={() => menuCommand("save")}>{family ? "동기화" : "저장"}</button>
+          <button onClick={() => menuCommand("load")}>{family ? "새로고침" : "불러오기"}</button>
+          <button onClick={() => menuCommand("inventory-open")}>🎒 가방</button>
+          {(hud.craftingItems?.wood_processor || hud.placing) && <button onClick={() => menuCommand("place-mode")}>{hud.placing ? "배치 취소" : `⚙ 배치 ×${hud.craftingItems?.wood_processor ?? 0}`}</button>}
+          <button onClick={() => menuCommand(hud.buildingMode ? "building-mode" : "building-open")}>{hud.buildingMode ? "건설 취소" : "🏠 건설·확장"}</button>
+          <button onClick={() => menuCommand("village-open", true)}>주민·의뢰</button>
           <button className="mobile-menu-only" onClick={openControlEditor}>🎮 조작 UI 설정</button>
           {!family && <button onClick={() => { setMobileMenuOpen(false); onOpenEditor(); }}>{testMode ? "← 편집기로 돌아가기" : "🛠 맵 편집"}</button>}
           <button onClick={() => { setMobileMenuOpen(false); onHome(); }}>{family ? "농장 나가기" : "처음으로"}</button>

@@ -15,6 +15,7 @@ assert.ok(pageSource.includes("const actionPointer = useRef<number | null>(null)
 assert.ok(pageSource.includes("actionPointer.current = event.pointerId"), "action pointer is captured independently from joystick");
 assert.ok(pageSource.includes("event.currentTarget.setPointerCapture(event.pointerId)"), "touch action uses pointer capture");
 assert.ok(pageSource.includes('className="bag-button"'), "mobile bag has a direct gameplay button");
+assert.ok(pageSource.includes('menuCommand("inventory-open")'), "hamburger bag releases menu pause before opening inventory");
 assert.ok(pageSource.includes('command("inventory-open")'), "direct bag button opens gameplay inventory");
 assert.ok(pageSource.includes('command("action", true)') && pageSource.includes('command("action", false)') && pageSource.includes("<VirtualJoystick"), "joystick and held action remain separate simultaneous controls");
 
