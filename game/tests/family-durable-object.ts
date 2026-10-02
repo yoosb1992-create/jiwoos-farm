@@ -4,7 +4,7 @@ import {
   FAMILY_REALTIME_MAX_FRAME_BYTES,
   familyRealtimeSnapshot,
   parseFamilyRealtimeFrame,
-} from "../server/family/realtimeProtocol";
+} from "../../server/family/realtimeProtocol";
 
 const pose = { mapId: "farm", x: 120, y: 180, facing: "right", moving: true, selectedTool: "hand" } as const;
 const valid = JSON.stringify({ type: "presence", roomId: "room-a", sessionId: "session-a", pose });
@@ -22,9 +22,9 @@ assert.equal(snapshot.serverNow, 999);
 assert.equal(snapshot.players.length, 2);
 assert.equal(snapshot.players.find((player) => player.playerId === "p1")?.x, 300, "latest session pose wins for the same player");
 
-const durableSource = readFileSync(new URL("../server/family/FamilyRoomDurableObject.ts", import.meta.url), "utf8");
+const durableSource = readFileSync(new URL("../../server/family/FamilyRoomDurableObject.ts", import.meta.url), "utf8");
 const routeSource = readFileSync(new URL("../../app/api/family/presence/socket/route.ts", import.meta.url), "utf8");
-const workerSource = readFileSync(new URL("../server/worker.ts", import.meta.url), "utf8");
+const workerSource = readFileSync(new URL("../../server/worker.ts", import.meta.url), "utf8");
 const envSource = readFileSync(new URL("../../cloudflare-env.d.ts", import.meta.url), "utf8");
 const viteSource = readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
 
