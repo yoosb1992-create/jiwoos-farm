@@ -26,6 +26,8 @@ assert.ok(sceneSource.includes("pinchCameraZoom"), "mobile pinch zoom is connect
 assert.ok(sceneSource.includes("pointer.downElement ?? pointer.event?.target"), "scene pointerdown uses Phaser Pointer DOM source instead of a nonexistent callback event argument");
 assert.ok(!sceneSource.includes("_currentlyOver: Phaser.GameObjects.GameObject[], event: Event"), "scene pointerdown does not expect a third native event argument");
 assert.ok(sceneSource.includes("queueTouchNavigation"), "mobile tap can create navigation");
+assert.ok(sceneSource.includes('queueTouchNavigation(pointer.worldX, pointer.worldY, "pointer")'), "desktop click approaches its target before acting");
+assert.ok(sceneSource.includes("contextualNavigationRange"), "click/tap navigation stops at the usable interaction range");
 assert.ok(sceneSource.includes("touchNavigationMovement"), "tap navigation feeds movement");
 assert.ok(sceneSource.includes("performContextualTouchAction"), "tap action resolves after approach");
 assert.ok(sceneSource.includes(">22"), "mobile taps tolerate normal finger jitter");
