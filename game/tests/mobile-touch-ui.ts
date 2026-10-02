@@ -16,7 +16,7 @@ assert.ok(pageSource.includes("actionPointer.current = event.pointerId"), "actio
 assert.ok(pageSource.includes("event.currentTarget.setPointerCapture(event.pointerId)"), "touch action uses pointer capture");
 assert.ok(pageSource.includes('className="bag-button"'), "mobile bag has a direct gameplay button");
 assert.ok(pageSource.includes('command("inventory-open")'), "direct bag button opens gameplay inventory");
-assert.ok(pageSource.includes('command("action")') && pageSource.includes("<VirtualJoystick"), "joystick and action remain separate simultaneous controls");
+assert.ok(pageSource.includes('command("action", true)') && pageSource.includes('command("action", false)') && pageSource.includes("<VirtualJoystick"), "joystick and held action remain separate simultaneous controls");
 
 assert.ok(cssSource.includes(".action-button{touch-action:none!important}"));
 assert.ok(cssSource.includes(".game-ui-modal{touch-action:manipulation"));
