@@ -118,6 +118,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
         setWorldStatus("ready");
       } else {
         setWorldStatus("unavailable");
+        setNotice(result.message);
       }
     });
     return () => { cancelled = true; };
@@ -279,6 +280,14 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   const publishInitialWorld = async () => {
     if (validate().length) return;
     setWorldStatus("saving");
+    const server = await worldRepository.load();
+    if (server.status !== "ok") {
+      setWorldStatus("unavailable");
+      setNotice(server.message);
+      return;
+    }
+    worldRevision.current = server.preset?.revision ?? 0;
+    setPublishedPreset(server.preset);
     const result = await worldRepository.publish(cloneEditorDocument(documentRef.current), worldRevision.current);
     if (result.status === "ok") {
       worldRevision.current = result.preset.revision;

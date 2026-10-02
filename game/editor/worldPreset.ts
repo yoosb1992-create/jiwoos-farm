@@ -21,9 +21,9 @@ export class PublishedWorldRepository {
   async load(): Promise<WorldPresetLoadResult> {
     try {
       const response = await fetch(this.endpoint, { cache: "no-store", credentials: "same-origin" });
-      if (!response.ok) return { status: "unavailable", message: "게시된 초기 월드를 불러올 수 없습니다. 내장 월드로 시작합니다." };
-      const body = await response.json() as { preset: PublishedWorldPreset | null };
-      return { status: "ok", preset: body.preset };
+      const body = await response.json().catch(() => ({})) as { preset?: PublishedWorldPreset | null; message?: string };
+      if (!response.ok) return { status: "unavailable", message: body.message ?? "게시된 초기 월드를 불러올 수 없습니다. 내장 월드로 시작합니다." };
+      return { status: "ok", preset: body.preset ?? null };
     } catch {
       return { status: "unavailable", message: "초기 월드 서버에 연결할 수 없어 내장 월드를 사용합니다." };
     }

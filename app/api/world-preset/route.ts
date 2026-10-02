@@ -17,7 +17,9 @@ function database() {
 
 export async function GET() {
   try {
-    const preset = await readPublishedWorldPreset(database());
+    const db = database();
+    await ensureWorldPresetStorage(db);
+    const preset = await readPublishedWorldPreset(db);
     return json({ preset: preset ? { document: preset.document, revision: preset.revision, updatedAt: preset.updatedAt } : null });
   } catch (error) {
     console.error("world preset load failed", error);
