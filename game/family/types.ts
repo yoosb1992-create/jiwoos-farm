@@ -16,7 +16,14 @@ import type { FishingCast, FishingProgress, FishingSpotId } from "../fishing/typ
 import type { AnimalSpeciesId, RanchState } from "../animals/types";
 import type { WateringCanState } from "../tools/wateringCan";
 import type { FarmTreeState } from "../farm/trees";
-export interface FamilyPose extends PlayerData { selectedTool: ToolKey; moving: boolean }
+export interface FamilyPose extends PlayerData {
+  selectedTool: ToolKey;
+  moving: boolean;
+  /** Realtime movement state. Optional for legacy saves/D1 rows. */
+  velocityX?: number;
+  velocityY?: number;
+  running?: boolean;
+}
 export interface FamilyWorld { storageLock?: StorageLock; ranchState?: RanchState; mineProgress?: MineProgress; mineDaily?: MineDailyState; buildings?: BuildingsData; farmProgress?: FarmProgress; placeables?: PlaceablesData; storage?: StorageData; daySerial?:number; forestState?: ForestState; farmTreeState?: FarmTreeState; day: number; timeMinutes: number; money: number; farm: FarmTileData[] }
 export interface FamilySnapshot { wateringCan?: WateringCanState; fishingProgress?: FishingProgress; fishingCast?: FishingCast | null; fishingNotice?: string; npcTimeMinutes?: number; toolProgression?: ToolProgression; stats?: PlayerStats; revision: number; serverNow: number; world: FamilyWorld; inventory: InventoryData; sleep?: { waiting: string[]; agreed: number; online: number; voted: boolean } }
 export type FamilyAction =

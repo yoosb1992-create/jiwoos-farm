@@ -18,7 +18,8 @@ export class RemotePlayers {
       const prior = previous.get(player.playerId);
       if (!prior) this.velocities.set(player.playerId, { x: 0, y: 0 });
       else if (!player.moving) this.velocities.set(player.playerId, { x: 0, y: 0 });
-      else if (player.lastSeen > prior.lastSeen) this.velocities.set(player.playerId, familyPresenceVelocity(prior, player));
+      else if (player.lastSeen > prior.lastSeen || Number.isFinite(player.velocityX) || Number.isFinite(player.velocityY))
+        this.velocities.set(player.playerId, familyPresenceVelocity(prior, player));
     }
     for (const id of this.velocities.keys()) if (!ids.has(id)) this.velocities.delete(id);
     this.snapshot = snapshot; this.receivedAt = Date.now();

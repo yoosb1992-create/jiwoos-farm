@@ -51,16 +51,18 @@ try {
   assert.equal((await presence.read("A", a.room.id)).players.length, 2, "stale tab leave must not remove new session");
   await presence.leave("B", a.room.id, sessionB); assert.equal((await presence.read("A", a.room.id)).players.length, 1);
   now += FAMILY_PRESENCE_TTL_MS + 1; assert.equal((await presence.read("A", a.room.id)).players.length, 0);
-  const movementPlayer = { ...snapshot.players.find(p => p.playerId === b.room.playerId)!, x: 777, y: 555, lastSeen: snapshot.serverNow + 100 };
+  const movementPlayer = { ...snapshot.players.find(p => p.playerId === b.room.playerId)!, x: 777, y: 555, moving: true, velocityX: 145, velocityY: 0, running: false, lastSeen: snapshot.serverNow + 100 };
   const actionPlayer = { ...snapshot.players.find(p => p.playerId === b.room.playerId)!, x: 111, y: 222, action: { ...action, expiresAt: snapshot.serverNow + 2500 } };
   const overlaid = overlayFamilyPresenceActions({ players: [movementPlayer], serverNow: snapshot.serverNow + 100 }, { players: [actionPlayer], serverNow: snapshot.serverNow });
   assert.deepEqual([overlaid.players[0].x, overlaid.players[0].y], [777, 555], "D1 action metadata never replaces WebSocket movement coordinates");
   assert.equal(overlaid.players[0].action?.id, action.id, "D1 can still supply short-lived remote tool visuals");
-  const priorMotion = { ...movementPlayer, x: 760, y: 555, lastSeen: movementPlayer.lastSeen - 33 };
+  const priorMotion = { ...movementPlayer, x: 760, y: 555, velocityX: undefined, velocityY: undefined, lastSeen: movementPlayer.lastSeen - 33 };
   const velocity = familyPresenceVelocity(priorMotion, movementPlayer);
-  assert.ok(velocity.x > 0 && velocity.y === 0, "remote velocity derives from actual packet-to-packet motion instead of facing guesses");
-  const extrapolated = extrapolateFamilyPosition(movementPlayer, velocity, movementPlayer.lastSeen + 33);
-  assert.ok(extrapolated.x > movementPlayer.x, "measured velocity fills the gap between 30Hz packets");
+  assert.deepEqual(velocity, { x: 145, y: 0 }, "remote movement uses the sender's live velocity state when available");
+  const extrapolated = extrapolateFamilyPosition(movementPlayer, velocity, movementPlayer.lastSeen + 90);
+  assert.ok(extrapolated.x > movementPlayer.x, "live movement state keeps the remote avatar moving between snapshots");
+  const stopped = { ...movementPlayer, moving: false, velocityX: 0, velocityY: 0, x: extrapolated.x };
+  assert.deepEqual(familyPresenceVelocity(movementPlayer, stopped), { x: 0, y: 0 }, "stop state halts dead reckoning immediately");
   const midway = interpolateFamilyPosition({ x: 0, y: 0 }, { x: 60, y: 60 }, 16); assert.ok(midway.x > 20 && midway.x < 30, "remote interpolation smooths packet cadence without snapping every frame");
   assert.deepEqual(interpolateFamilyPosition({ x: 0, y: 0 }, { x: 120, y: 0 }, 16), { x: 120, y: 0 }, "large corrections snap instead of visibly trailing");
   // Exercise the actual renderer via its narrow Scene.add surface; physics access would fail.

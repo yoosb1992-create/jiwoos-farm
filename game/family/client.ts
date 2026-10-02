@@ -45,6 +45,8 @@ export interface FamilyRealtimePresenceContext {
 export interface FamilyRealtimePresenceChannel {
   start(context: FamilyRealtimePresenceContext): void;
   stop(): void;
+  /** Push a movement transition immediately instead of waiting for the next snapshot tick. */
+  flush?(): void;
 }
 export class FamilyClient {
   progress?: ProgressSnapshot;
@@ -94,6 +96,10 @@ export class FamilyClient {
   setPresence(pose: () => FamilyPose, onPresence: (snapshot: FamilyPresenceSnapshot) => void) {
     this.pose = pose; this.onPresence = onPresence;
     if (this.live) this.startRealtimePresence();
+  }
+  flushPresence() {
+    if (!this.live || !this.realtimeConnected) return;
+    this.realtimePresence?.flush?.();
   }
   private setRealtimeMode(mode: FamilyRealtimeMode) {
     const changed = this.realtimeMode !== mode || currentFamilyRealtimeMode(this.session.room.id) !== mode;

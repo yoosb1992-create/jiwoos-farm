@@ -183,6 +183,7 @@ export class FarmScene extends Phaser.Scene {
   private touchNavigation?: { worldX:number; worldY:number; action:boolean; startedAt:number; inputSource:"mobile"|"pointer"; stopDistance:number };
   private deferredTouchAction?: { worldX:number; worldY:number; queuedAt:number };
   private deferredMobileAction = false;
+  private lastFamilyMotionSignature = "";
   private message = "갈색 밭 가까이에서 괭이를 사용하세요.";
   private commandHandler = (event: Event) => this.handleCommand((event as CustomEvent<Command>).detail);
 
@@ -306,10 +307,11 @@ export class FarmScene extends Phaser.Scene {
     if (this.toolNotice && performance.now() >= this.toolNoticeUntil) { this.toolNotice = ""; this.emitHud(); }
     if (!this.family && !this.isPaused()) this.advanceClock(delta);
     this.npcRenderer.update(this.npcs.sampleWorld(this.daySerial, this.npcTime()), this.currentMapId, this.familyPose(), this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), this.mapRegistry.require(this.currentMapId));
-    if (this.isPaused()) { this.running = false; this.player.setVelocity(0, 0); this.playerAnimations.playMovement(this.facing, false); return; }
+    if (this.isPaused()) { this.running = false; this.player.setVelocity(0, 0); this.playerAnimations.playMovement(this.facing, false); this.flushFamilyMotionIfChanged(); return; }
     if (this.toolActions.isActive() && !this.toolActions.isActive("seed")) {
       this.player.setVelocity(0, 0);
       this.playerAnimations.playMovement(this.facing, false);
+      this.flushFamilyMotionIfChanged();
       return;
     }
     if (!this.oreHintShown && !this.toolProgression.pickaxe && this.currentMapId === FAIRY_FOREST_ID) {
@@ -328,6 +330,7 @@ export class FarmScene extends Phaser.Scene {
     const movementSpeed = GAME_CONFIG.playerSpeed * (this.running || this.leftShiftRunning ? 1.65 : 1);
     this.player.setVelocity(movement.x * movementSpeed, movement.y * movementSpeed);
     this.playerAnimations.playMovement(this.facing, Boolean(movement.x || movement.y));
+    this.flushFamilyMotionIfChanged();
     const seedHeld = this.selectedTool === "seed" && (this.actionKey.isDown || this.mobileActionHeld);
     if (seedHeld && !(this.running || this.leftShiftRunning)) this.tryContinuousSeedPlant(this.mobileActionHeld ? "mobile" : "keyboard");
     else if (Phaser.Input.Keyboard.JustDown(this.actionKey) && this.selectedTool !== "seed") this.useFacingTile();
@@ -1418,8 +1421,22 @@ export class FarmScene extends Phaser.Scene {
   }
   private say(message: string) { if(this.dialogue)this.dialogue.notice=message; this.message = message; this.emitHud(); }
   private familyPose(): FamilyPose {
-    return { mapId: this.currentMapId, x: this.player.x, y: this.player.y, facing: this.facing, selectedTool: this.selectedTool,
-      moving: Boolean(this.player.body?.velocity.x || this.player.body?.velocity.y) };
+    const velocityX = this.player.body?.velocity.x ?? 0;
+    const velocityY = this.player.body?.velocity.y ?? 0;
+    const moving = Boolean(velocityX || velocityY);
+    return {
+      mapId: this.currentMapId, x: this.player.x, y: this.player.y, facing: this.facing, selectedTool: this.selectedTool,
+      moving, velocityX, velocityY, running: moving && Boolean(this.running || this.leftShiftRunning),
+    };
+  }
+  private flushFamilyMotionIfChanged() {
+    if (!this.family || !this.player?.body) return;
+    const pose = this.familyPose();
+    const signature = [pose.mapId, pose.facing, pose.moving ? 1 : 0, pose.running ? 1 : 0,
+      Math.round(pose.velocityX ?? 0), Math.round(pose.velocityY ?? 0)].join("|");
+    if (signature === this.lastFamilyMotionSignature) return;
+    this.lastFamilyMotionSignature = signature;
+    this.family.flushPresence();
   }
   private applyFamilySnapshot(snapshot: FamilySnapshot) {
     if (!this.sceneLive) return;

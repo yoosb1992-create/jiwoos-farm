@@ -11,6 +11,15 @@ export function parseFamilyPose(value: unknown): FamilyPose | null {
   const map = p.mapId === FAIRY_FOREST_ID ? { width: FOREST_WIDTH, height: FOREST_HEIGHT } : mineFloorFromMapId(p.mapId) !== null ? { width: MINE_WIDTH, height: MINE_HEIGHT } : MAP_DEFINITIONS[p.mapId];
   if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || p.x < 0 || p.y < 0 || p.x > map.width * GAME_CONFIG.tileSize || p.y > map.height * GAME_CONFIG.tileSize) return null;
   if (!["up", "down", "left", "right"].includes(p.facing) || !["hoe", "seed", "water", "hand", "axe", "pickaxe", "fishing_rod"].includes(p.selectedTool) || typeof p.moving !== "boolean") return null;
-  return { mapId: p.mapId, x: p.x, y: p.y, facing: p.facing, selectedTool: p.selectedTool, moving: p.moving };
+  const velocityX = p.velocityX, velocityY = p.velocityY, running = p.running;
+  if ((velocityX !== undefined && (!Number.isFinite(velocityX) || Math.abs(velocityX) > GAME_CONFIG.playerSpeed * 2.2)) ||
+      (velocityY !== undefined && (!Number.isFinite(velocityY) || Math.abs(velocityY) > GAME_CONFIG.playerSpeed * 2.2)) ||
+      (running !== undefined && typeof running !== "boolean")) return null;
+  return {
+    mapId: p.mapId, x: p.x, y: p.y, facing: p.facing, selectedTool: p.selectedTool, moving: p.moving,
+    ...(velocityX !== undefined ? { velocityX } : {}),
+    ...(velocityY !== undefined ? { velocityY } : {}),
+    ...(running !== undefined ? { running } : {}),
+  };
 }
 export const familyPersonalKey = (roomId: string, playerId: string) => `jiwoos-farm.family-personal.v1:${roomId}:${playerId}`;

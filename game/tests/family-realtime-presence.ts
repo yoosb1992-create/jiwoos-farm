@@ -31,7 +31,7 @@ assert.equal(REALTIME_PRESENCE_CONNECT_TIMEOUT_MS, 3500, "stuck websocket handsh
 assert.equal(realtimePresenceReconnectDelay(0, 300), 300);
 assert.equal(realtimePresenceReconnectDelay(10, 300), 5000);
 
-const pose: FamilyPose = { mapId: "farm", x: 120, y: 180, facing: "right", moving: true, selectedTool: "hand" };
+const pose: FamilyPose = { mapId: "farm", x: 120, y: 180, facing: "right", moving: true, selectedTool: "hand", velocityX: 145, velocityY: 0, running: false };
 const socket = new FakeSocket();
 let openedUrl = "";
 const snapshots: FamilyPresenceSnapshot[] = [];
@@ -55,6 +55,8 @@ socket.emitOpen();
 assert.equal(connects, 1, "realtime channel reports the authoritative room connection");
 assert.equal(socket.sent.length, 1, "realtime presence sends immediately after WebSocket open");
 assert.deepEqual(JSON.parse(socket.sent[0]), { type: "presence", roomId: "room-a", sessionId: "session-a", pose });
+channel.flush();
+assert.equal(socket.sent.length, 2, "movement state changes can flush immediately without waiting for the 30Hz timer");
 socket.emitMessage(JSON.stringify({ players: [], serverNow: 1234 }));
 assert.deepEqual(snapshots, [{ players: [], serverNow: 1234 }]);
 socket.emitMessage("not json");

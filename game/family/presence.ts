@@ -49,7 +49,11 @@ export const familyPresenceVelocity = (
   previous: FamilyPresence | undefined,
   current: FamilyPresence,
 ): FamilyPresenceVelocity => {
-  if (!previous || !current.moving || previous.mapId !== current.mapId) return { x: 0, y: 0 };
+  if (!current.moving) return { x: 0, y: 0 };
+  if (Number.isFinite(current.velocityX) && Number.isFinite(current.velocityY)) {
+    return { x: current.velocityX ?? 0, y: current.velocityY ?? 0 };
+  }
+  if (!previous || previous.mapId !== current.mapId) return { x: 0, y: 0 };
   const elapsedMs = current.lastSeen - previous.lastSeen;
   if (elapsedMs <= 0 || elapsedMs > 500) return { x: 0, y: 0 };
   const seconds = elapsedMs / 1000;
@@ -72,7 +76,7 @@ export const extrapolateFamilyPosition = (
   serverNow: number,
 ) => {
   if (!player.moving) return { x: player.x, y: player.y };
-  const aheadMs = Math.max(0, Math.min(80, serverNow - player.lastSeen));
+  const aheadMs = Math.max(0, Math.min(180, serverNow - player.lastSeen));
   return {
     x: player.x + velocity.x * aheadMs / 1000,
     y: player.y + velocity.y * aheadMs / 1000,

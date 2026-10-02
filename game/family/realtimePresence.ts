@@ -99,17 +99,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
       this.scheduleReconnect();
     }, this.connectTimeoutMs);
 
-    const send = () => {
-      if (this.socket !== socket || socket.readyState !== 1) return;
-      const pose = context.pose();
-      if (!pose) return;
-      socket.send(JSON.stringify({
-        type: "presence",
-        roomId: context.roomId,
-        sessionId: context.sessionId,
-        pose,
-      }));
-    };
+    const send = () => this.sendCurrent(socket, context);
 
     socket.addEventListener("open", () => {
       if (this.socket !== socket || this.stopped) return;
@@ -142,6 +132,25 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
       // Browser WebSocket implementations normally follow this with "close".
       // Until then the D1 heartbeat remains active.
     });
+  }
+
+  flush() {
+    const socket = this.socket;
+    const context = this.context;
+    if (!socket || !context || this.stopped) return;
+    this.sendCurrent(socket, context);
+  }
+
+  private sendCurrent(socket: FamilyPresenceSocket, context: FamilyRealtimePresenceContext) {
+    if (this.socket !== socket || socket.readyState !== 1) return;
+    const pose = context.pose();
+    if (!pose) return;
+    socket.send(JSON.stringify({
+      type: "presence",
+      roomId: context.roomId,
+      sessionId: context.sessionId,
+      pose,
+    }));
   }
 
   private scheduleReconnect() {

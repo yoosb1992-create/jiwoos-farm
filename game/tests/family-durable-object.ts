@@ -6,11 +6,12 @@ import {
   parseFamilyRealtimeFrame,
 } from "../../server/family/realtimeProtocol";
 
-const pose = { mapId: "farm", x: 120, y: 180, facing: "right", moving: true, selectedTool: "hand" } as const;
+const pose = { mapId: "farm", x: 120, y: 180, facing: "right", moving: true, selectedTool: "hand", velocityX: 145, velocityY: 0, running: false } as const;
 const valid = JSON.stringify({ type: "presence", roomId: "room-a", sessionId: "session-a", pose });
 assert.deepEqual(parseFamilyRealtimeFrame(valid, "room-a", "session-a"), pose);
 assert.equal(parseFamilyRealtimeFrame(valid, "room-b", "session-a"), null);
 assert.equal(parseFamilyRealtimeFrame(valid, "room-a", "session-b"), null);
+assert.equal(parseFamilyRealtimeFrame(JSON.stringify({ type: "presence", roomId: "room-a", sessionId: "session-a", pose: { ...pose, velocityX: 9999 } }), "room-a", "session-a"), null, "invalid movement speeds are rejected");
 assert.equal(parseFamilyRealtimeFrame("x".repeat(FAMILY_REALTIME_MAX_FRAME_BYTES + 1), "room-a", "session-a"), null);
 
 const snapshot = familyRealtimeSnapshot([
