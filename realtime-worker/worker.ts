@@ -1,8 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
-import { parseClientFrame, type RealtimePose, type ServerFrame } from "./protocol";
+import { verifyDedicatedRealtimeToken } from "./auth";
+import { parseDedicatedClientFrame, type DedicatedRealtimePose, type DedicatedServerFrame } from "../game/family/dedicatedProtocol";
 
 interface Env {
   ROOM: DurableObjectNamespace<RealtimeRoom>;
+  AUTH_SECRET: string;
   ALLOWED_ORIGIN_SUFFIX?: string;
 }
 
@@ -11,30 +13,21 @@ interface SocketState {
   nickname: string;
   sessionId: string;
   seq: number;
-  pose?: RealtimePose;
-}
-
-const read = (request: Request, key: string) => new URL(request.url).searchParams.get(key)?.trim() ?? "";
-
-function validId(value: string) {
-  return /^[a-zA-Z0-9_-]{1,96}$/.test(value);
+  pose?: DedicatedRealtimePose;
 }
 
 function originAllowed(request: Request, suffix: string | undefined) {
   const origin = request.headers.get("origin");
   if (!origin || !suffix) return true;
-  try {
-    return new URL(origin).hostname.endsWith(suffix);
-  } catch {
-    return false;
-  }
+  try { return new URL(origin).hostname.endsWith(suffix); }
+  catch { return false; }
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/health") {
-      return Response.json({ ok: true, service: "jiwoos-farm-realtime" });
+      return Response.json({ ok: true, service: "jiwoos-farm-realtime", version: 1 });
     }
     if (url.pathname !== "/connect") return new Response("Not found", { status: 404 });
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
@@ -43,23 +36,19 @@ export default {
     if (!originAllowed(request, env.ALLOWED_ORIGIN_SUFFIX)) {
       return new Response("Origin not allowed", { status: 403 });
     }
+    if (!env.AUTH_SECRET) return new Response("Realtime auth unavailable", { status: 503 });
 
-    const roomId = read(request, "room");
-    const playerId = read(request, "player");
-    const nickname = read(request, "nick").slice(0, 20);
-    const sessionId = read(request, "session");
+    const token = url.searchParams.get("token") ?? "";
+    const claims = await verifyDedicatedRealtimeToken(env.AUTH_SECRET, token);
+    if (!claims) return new Response("Invalid or expired realtime token", { status: 401 });
 
-    if (!validId(roomId) || !validId(playerId) || !validId(sessionId) || !nickname) {
-      return new Response("Invalid realtime identity", { status: 400 });
-    }
-
-    const id = env.ROOM.idFromName(roomId);
+    const id = env.ROOM.idFromName(claims.roomId);
     return env.ROOM.get(id).fetch(new Request("https://room.internal/connect", {
       headers: {
         upgrade: "websocket",
-        "x-player-id": playerId,
-        "x-nickname": encodeURIComponent(nickname),
-        "x-session-id": sessionId,
+        "x-player-id": claims.playerId,
+        "x-nickname": encodeURIComponent(claims.nickname),
+        "x-session-id": claims.sessionId,
       },
     }));
   },
@@ -74,12 +63,16 @@ export class RealtimeRoom extends DurableObject<Env> {
     const playerId = request.headers.get("x-player-id") ?? "";
     const nickname = decodeURIComponent(request.headers.get("x-nickname") ?? "");
     const sessionId = request.headers.get("x-session-id") ?? "";
-
     if (!playerId || !nickname || !sessionId) return new Response("Invalid connection", { status: 400 });
+
+    for (const existing of this.ctx.getWebSockets(playerId)) {
+      const state = this.state(existing);
+      if (state?.sessionId === sessionId) continue;
+      try { existing.close(4001, "new family session connected"); } catch { /* already gone */ }
+    }
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
-
     const state: SocketState = { playerId, nickname, sessionId, seq: -1 };
     this.ctx.acceptWebSocket(server, [playerId]);
     server.serializeAttachment(state);
@@ -95,7 +88,6 @@ export class RealtimeRoom extends DurableObject<Env> {
 
     this.send(server, { t: "hello", playerId, peers });
     this.broadcast({ t: "join", playerId, nickname }, server);
-
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -103,20 +95,17 @@ export class RealtimeRoom extends DurableObject<Env> {
     if (typeof message !== "string") return;
     const state = this.state(socket);
     if (!state) return;
-
-    const frame = parseClientFrame(message);
+    const frame = parseDedicatedClientFrame(message);
     if (!frame) return;
 
     if (frame.t === "ping") {
       this.send(socket, { t: "pong", clientTime: frame.clientTime, serverTime: Date.now() });
       return;
     }
-
     if (frame.seq <= state.seq) return;
 
     const next: SocketState = { ...state, seq: frame.seq, pose: frame.pose };
     socket.serializeAttachment(next);
-
     this.broadcast({
       t: "pose",
       playerId: next.playerId,
@@ -129,13 +118,13 @@ export class RealtimeRoom extends DurableObject<Env> {
 
   async webSocketClose(socket: WebSocket, code: number, reason: string) {
     const state = this.state(socket);
-    try { socket.close(code, reason); } catch {}
+    try { socket.close(code, reason); } catch { /* runtime may already have closed */ }
     if (state) this.broadcast({ t: "leave", playerId: state.playerId }, socket);
   }
 
   async webSocketError(socket: WebSocket) {
     const state = this.state(socket);
-    try { socket.close(1011, "realtime error"); } catch {}
+    try { socket.close(1011, "realtime error"); } catch { /* already closed */ }
     if (state) this.broadcast({ t: "leave", playerId: state.playerId }, socket);
   }
 
@@ -143,27 +132,29 @@ export class RealtimeRoom extends DurableObject<Env> {
     try {
       const state = socket.deserializeAttachment() as SocketState | null;
       return state?.playerId ? state : null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }
 
   private currentStates(): SocketState[] {
-    return this.ctx.getWebSockets().flatMap((socket) => {
+    const latest = new Map<string, SocketState>();
+    for (const socket of this.ctx.getWebSockets()) {
       const state = this.state(socket);
-      return state ? [state] : [];
-    });
+      if (!state) continue;
+      const current = latest.get(state.playerId);
+      if (!current || state.seq >= current.seq) latest.set(state.playerId, state);
+    }
+    return [...latest.values()];
   }
 
-  private send(socket: WebSocket, frame: ServerFrame) {
-    try { socket.send(JSON.stringify(frame)); } catch {}
+  private send(socket: WebSocket, frame: DedicatedServerFrame) {
+    try { socket.send(JSON.stringify(frame)); } catch { /* transient socket */ }
   }
 
-  private broadcast(frame: ServerFrame, except?: WebSocket) {
+  private broadcast(frame: DedicatedServerFrame, except?: WebSocket) {
     const raw = JSON.stringify(frame);
     for (const socket of this.ctx.getWebSockets()) {
       if (socket === except) continue;
-      try { socket.send(raw); } catch {}
+      try { socket.send(raw); } catch { /* transient socket */ }
     }
   }
 }

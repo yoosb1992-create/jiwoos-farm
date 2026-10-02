@@ -13,6 +13,7 @@ export function FamilyStatus({ session, mapId = "farm" }: { session: FamilySessi
   const [presence, setPresence] = useState<{ snapshot: FamilyPresenceSnapshot; received: number } | null>(null);
   const [connection, setConnection] = useState<FamilyConnection>("connecting");
   const [realtimeMode, setRealtimeMode] = useState<FamilyRealtimeMode>(() => currentFamilyRealtimeMode(session.room.id));
+  const [realtimeStats, setRealtimeStats] = useState<{ rttMs: number; jitterMs: number } | null>(null);
   const [sleep, setSleep] = useState<FamilySnapshot["sleep"]>();
   const [room, setRoom] = useState(session.room);
   const [copyMessage, setCopyMessage] = useState("");
@@ -23,13 +24,15 @@ export function FamilyStatus({ session, mapId = "farm" }: { session: FamilySessi
     const update = (event: Event) => { setPresence({ snapshot: (event as CustomEvent<FamilyPresenceSnapshot>).detail, received: Date.now() }); setNow(Date.now()); };
     const status = (event: Event) => { const d = (event as CustomEvent).detail; if (d.roomId === session.room.id) setConnection(d.state); };
     const realtimeStatus = (event: Event) => { const d = (event as CustomEvent).detail; if (d.roomId === session.room.id) setRealtimeMode(d.mode); };
+    const realtimeStatsStatus = (event: Event) => { const d = (event as CustomEvent).detail; if (d.roomId === session.room.id) setRealtimeStats({ rttMs: d.rttMs, jitterMs: d.jitterMs }); };
     const sleepStatus = (event: Event) => setSleep((event as CustomEvent).detail);
     gameEvents.addEventListener("family-sleep", sleepStatus);
     gameEvents.addEventListener("family-connection", status);
     gameEvents.addEventListener("family-realtime", realtimeStatus);
+    gameEvents.addEventListener("family-realtime-stats", realtimeStatsStatus);
     gameEvents.addEventListener("family-presence", update);
     const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => { gameEvents.removeEventListener("family-sleep", sleepStatus); gameEvents.removeEventListener("family-connection", status); gameEvents.removeEventListener("family-realtime", realtimeStatus); clearInterval(timer); gameEvents.removeEventListener("family-presence", update); };
+    return () => { gameEvents.removeEventListener("family-sleep", sleepStatus); gameEvents.removeEventListener("family-connection", status); gameEvents.removeEventListener("family-realtime", realtimeStatus); gameEvents.removeEventListener("family-realtime-stats", realtimeStatsStatus); clearInterval(timer); gameEvents.removeEventListener("family-presence", update); };
   }, [session.room.id]);
   useEffect(() => {
     if (!open) return;
@@ -46,13 +49,17 @@ export function FamilyStatus({ session, mapId = "farm" }: { session: FamilySessi
   };
   const players = presence?.snapshot.players.filter((p) => presence.snapshot.serverNow + now - presence.received - p.lastSeen < FAMILY_PRESENCE_TTL_MS) ?? [];
   return <details className="family-status" onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary><span>가족 {players.length}명</span><span role="status">{CONNECTION_LABELS[connection]}</span><span>{realtimeMode === "webrtc" ? "RTC P2P" : realtimeMode === "websocket" ? "WS 직접" : realtimeMode === "d1-fallback" ? "D1 복구" : "실시간 연결 중"}</span>{!!sleep?.agreed && <span>수면 {sleep.agreed}/{sleep.online}</span>}</summary>
+    <summary><span>가족 {players.length}명</span><span role="status">{CONNECTION_LABELS[connection]}</span><span>{realtimeMode === "dedicated" ? "RT 실시간" : realtimeMode === "offline" ? "멀티 오프라인" : "실시간 연결 중"}</span>{realtimeMode === "dedicated" && realtimeStats && <span>RTT {realtimeStats.rttMs}ms</span>}{!!sleep?.agreed && <span>수면 {sleep.agreed}/{sleep.online}</span>}</summary>
     <div className="family-panel-body"><b>{room.name}</b>
     <p>초대 코드 <strong>{room.inviteCode}</strong> <button onClick={() => void copyCode()}>복사</button></p>
     {!!copyMessage && <p role="status">{copyMessage}</p>}
     {players.length ? <FamilyRoster players={players} ownId={session.room.playerId} mapId={mapId} /> : <p>참가자 연결 확인 중…</p>}
     {!!sleep?.agreed && <p role="status">{sleep.waiting.join(", ")}님이 잠자기를 기다리고 있습니다. ({sleep.agreed}/{sleep.online}) {sleep.voted && <button disabled={connection !== "connected"} onClick={() => gameEvents.dispatchEvent(new CustomEvent("command", { detail: { type: "family-sleep-cancel" } }))}>투표 취소</button>}</p>}
-    <small>{realtimeMode === "webrtc" ? "멀티: WebRTC P2P 직접 이동 · Worker WebSocket은 signaling/fallback" : realtimeMode === "websocket" ? "멀티: Worker WebSocket 직접 이동 · 60Hz 이동 스트림" : realtimeMode === "d1-fallback" ? "멀티: D1 복구모드 · 직접 실시간 연결 재시도 중" : "멀티: 직접 실시간 연결 중"} · 영구 상태는 서버 동기화</small>
+    <small>{realtimeMode === "dedicated"
+      ? `멀티: 전용 Realtime Worker · 이동 30Hz · RTT ${realtimeStats?.rttMs ?? "-"}ms · jitter ${realtimeStats?.jitterMs ?? "-"}ms`
+      : realtimeMode === "offline"
+        ? "멀티: 실시간 서버 연결 끊김 · 로컬 이동/농사와 영구 저장은 계속 동작"
+        : "멀티: 전용 실시간 서버 연결 중"} · D1은 영구 상태만 동기화</small>
     </div>
   </details>;
 }

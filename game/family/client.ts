@@ -2,7 +2,6 @@ import type { ProgressAction, ProgressSnapshot, ProgressResult } from "../npc/pr
 import { gameEvents } from "../events";
 import type { FamilyAction, FamilyPose, FamilySession, FamilySnapshot, FamilyPresenceSnapshot } from "./types";
 import { familyPersonalKey, parseFamilyPose } from "./personal";
-import { overlayFamilyPresenceActions } from "./presence";
 
 export const FAMILY_STATE_POLL_MS = 1000;
 export const FAMILY_PRESENCE_MOVING_MS = 90;
@@ -11,13 +10,14 @@ export const FAMILY_PRESENCE_FALLBACK_MS = FAMILY_PRESENCE_IDLE_MS;
 /** Sites can route WebSockets through separate isolates when FAMILY_ROOM is not
  * provisioned. Keep D1 presence fast enough to remain visually current even
  * while the WebSocket channel is running. */
-export const FAMILY_PRESENCE_KEEPALIVE_MS = 1500;
+export const FAMILY_PRESENCE_KEEPALIVE_MS = 5000;
+export const FAMILY_ONLINE_HEARTBEAT_MS = FAMILY_PRESENCE_KEEPALIVE_MS;
 export const familyPresenceDelay = (pose?: Pick<FamilyPose, "moving">) =>
   pose?.moving ? FAMILY_PRESENCE_MOVING_MS : FAMILY_PRESENCE_IDLE_MS;
 /** Backwards-compatible name used by existing retry tests/callers. */
 export const FAMILY_POLL_MS = FAMILY_STATE_POLL_MS;
 export type FamilyConnection = "connecting" | "connected" | "reconnecting" | "disconnected" | "syncing";
-export type FamilyRealtimeMode = "connecting" | "webrtc" | "websocket" | "d1-fallback";
+export type FamilyRealtimeMode = "connecting" | "dedicated" | "offline";
 const FAMILY_REALTIME_MODES = new Map<string, FamilyRealtimeMode>();
 export const currentFamilyRealtimeMode = (roomId: string): FamilyRealtimeMode => FAMILY_REALTIME_MODES.get(roomId) ?? "connecting";
 export const CONNECTION_LABELS: Record<FamilyConnection, string> = { connecting: "연결 중", connected: "연결됨", reconnecting: "재연결 중", disconnected: "연결 끊김", syncing: "최신 상태 동기화 중" };
@@ -41,7 +41,8 @@ export interface FamilyRealtimePresenceContext {
   getTicket?: () => Promise<string>;
   onSnapshot: (snapshot: FamilyPresenceSnapshot) => void;
   onConnect: () => void;
-  onTransport?: (transport: "websocket" | "webrtc") => void;
+  onTransport?: (transport: "dedicated" | "websocket" | "webrtc") => void;
+  onDiagnostics?: (stats: { rttMs: number; jitterMs: number }) => void;
   onDisconnect: () => void;
 }
 /** Optional fast channel. D1 state/action APIs remain authoritative regardless
@@ -91,8 +92,6 @@ export class FamilyClient {
   private sessionId = crypto.randomUUID();
   private pose?: () => FamilyPose;
   private onPresence?: (snapshot: FamilyPresenceSnapshot) => void;
-  private realtimePresenceSnapshot?: FamilyPresenceSnapshot;
-  private fallbackPresenceSnapshot: FamilyPresenceSnapshot = { players: [], serverNow: 0 };
   private realtimeMode: FamilyRealtimeMode = "connecting";
   private heartbeatRequest?: Promise<void>;
   private stateTimer?: ReturnType<typeof setTimeout>;
@@ -115,24 +114,15 @@ export class FamilyClient {
   }
   private acceptRealtimePresence(snapshot: FamilyPresenceSnapshot) {
     if (!this.live) return;
-    this.realtimePresenceSnapshot = snapshot;
-    this.onPresence?.(overlayFamilyPresenceActions(snapshot, this.fallbackPresenceSnapshot));
-  }
-  private acceptFallbackPresence(snapshot: FamilyPresenceSnapshot) {
-    if (!this.live) return;
-    this.fallbackPresenceSnapshot = snapshot;
-    this.realtimePresence?.syncPeers?.(snapshot);
-    if (!this.realtimeConnected) this.setRealtimeMode("d1-fallback");
-    if (this.realtimeConnected && this.realtimePresenceSnapshot) {
-      this.onPresence?.(overlayFamilyPresenceActions(this.realtimePresenceSnapshot, snapshot));
-      return;
-    }
     this.onPresence?.(snapshot);
   }
   private async heartbeat() {
     if (!this.pose || !this.live) return;
-    const snapshot = await familyFetch<FamilyPresenceSnapshot>("/api/family/presence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId, pose: this.pose() }) });
-    this.acceptFallbackPresence(snapshot);
+    await familyFetch<FamilyPresenceSnapshot>("/api/family/presence", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId, pose: this.pose() }),
+    });
   }
   constructor(
     readonly session: FamilySession,
@@ -158,7 +148,6 @@ export class FamilyClient {
     clearTimeout(this.stateTimer); clearTimeout(this.presenceTimer);
     if (this.realtimeStarted) { this.realtimePresence?.stop(); this.realtimeStarted = false; }
     this.realtimeConnected = false;
-    this.realtimePresenceSnapshot = undefined;
     FAMILY_REALTIME_MODES.delete(this.session.room.id);
     // Wait for an already-sent D1 keepalive so leaving cannot be undone by its late response.
     void (this.heartbeatRequest ?? Promise.resolve()).catch(() => {}).then(() => familyFetch("/api/family/presence", {
@@ -174,31 +163,24 @@ export class FamilyClient {
       playerId: this.session.room.playerId,
       nickname: this.session.room.nickname,
       pose: () => this.live ? this.pose?.() : undefined,
-      getTicket: async () => {
-        const issued = await familyFetch<{ ticket: string }>("/api/family/presence/ticket", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId }),
-        });
-        if (!issued.ticket) throw new Error("missing realtime ticket");
-        return issued.ticket;
-      },
       onSnapshot: (snapshot) => this.acceptRealtimePresence(snapshot),
       onConnect: () => {
         this.realtimeConnected = true;
-        this.setRealtimeMode("websocket");
+        this.setRealtimeMode("dedicated");
       },
-      onTransport: (transport) => {
+      onTransport: () => {
         if (!this.live) return;
         this.realtimeConnected = true;
-        this.setRealtimeMode(transport === "webrtc" ? "webrtc" : "websocket");
+        this.setRealtimeMode("dedicated");
+      },
+      onDiagnostics: (stats) => {
+        if (!this.live) return;
+        gameEvents.dispatchEvent(new CustomEvent("family-realtime-stats", { detail: { roomId: this.session.room.id, ...stats } }));
       },
       onDisconnect: () => {
         this.realtimeConnected = false;
-        this.realtimePresenceSnapshot = undefined;
-        this.setRealtimeMode("d1-fallback");
-        if (this.fallbackPresenceSnapshot.serverNow > 0) this.onPresence?.(this.fallbackPresenceSnapshot);
-        void this.heartbeat().catch(() => {});
+        this.setRealtimeMode("offline");
+        this.onPresence?.({ players: [], serverNow: Date.now() });
       },
     });
   }
@@ -223,7 +205,7 @@ export class FamilyClient {
     } finally {
       if (this.live) this.presenceTimer = setTimeout(
         () => void this.pollPresence(),
-        this.realtimeConnected ? FAMILY_PRESENCE_KEEPALIVE_MS : familyPresenceDelay(this.pose?.()),
+        FAMILY_ONLINE_HEARTBEAT_MS,
       );
     }
   }
@@ -232,23 +214,10 @@ export class FamilyClient {
     if (this.connection !== "connected") this.setConnection("syncing");
     this.accept(await familyFetch<FamilySnapshot>(`/api/family/state?roomId=${encodeURIComponent(this.session.room.id)}`));
   }
-  private actionNeedsFreshPresence(action: FamilyAction) {
-    return action.kind === "water-refill" || action.kind === "mine-hit" || action.kind === "fish-cast" || action.kind === "fish-reel";
-  }
-  private async syncPresenceForAction(action: FamilyAction) {
-    if (this.realtimeConnected || !this.actionNeedsFreshPresence(action)) return;
-    const snapshot = await familyFetch<FamilyPresenceSnapshot>("/api/family/presence", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId, pose: action.pose }),
-    });
-    this.acceptFallbackPresence(snapshot);
-  }
   async act(action: FamilyAction): Promise<boolean> {
     if (!this.live || this.busy || !this.snapshot || this.connection !== "connected") { this.onMessage("연결 복구 후 다시 행동해 주세요. 이동은 계속할 수 있어요."); return false; }
     this.busy = true;
     try {
-      try { await this.syncPresenceForAction(action); } catch { /* The action request still returns the useful validation message. */ }
       for (let attempt = 0; attempt < 2; attempt++) {
         if (!this.live || !this.snapshot) return false;
         try {

@@ -192,18 +192,6 @@ export class FamilyState extends FamilyRooms {
       const targetX = Math.floor(target.x / GAME_CONFIG.tileSize), targetY = Math.floor(target.y / GAME_CONFIG.tileSize);
       if (!map || targetX < 0 || targetY < 0 || targetX >= map.width || targetY >= map.height || getTileTypeInMap(map, targetX, targetY) !== "water")
         throw new FamilyError(400, "물가에서 물 타일을 바라보고 채워 주세요.");
-      const presence = await this.db.prepare("SELECT pose_json, last_seen FROM family_presence WHERE room_id = ? AND user_id = ?")
-        .bind(roomId, userId).first<{ pose_json: string; last_seen: number }>();
-      let observed = null;
-      try { observed = presence ? parseFamilyPose(JSON.parse(presence.pose_json)) : null; } catch { /* Invalid presence cannot authorize a refill. */ }
-      const age = presence ? this.now() - presence.last_seen : Infinity;
-      const observedTarget = observed ? interactionTargetPointFromPosition(observed, observed.facing) : null;
-      const observedX = observedTarget ? Math.floor(observedTarget.x / GAME_CONFIG.tileSize) : -1;
-      const observedY = observedTarget ? Math.floor(observedTarget.y / GAME_CONFIG.tileSize) : -1;
-      if (!observed || age < 0 || age > FAMILY_PRESENCE_TTL_MS || observed.mapId !== pose.mapId || observed.facing !== pose.facing || observed.selectedTool !== "water" ||
-          Math.hypot(observed.x - pose.x, observed.y - pose.y) > GAME_CONFIG.playerSpeed * Math.min(2.5, age / 1000 + .5) ||
-          observedX < 0 || observedY < 0 || observedX >= map.width || observedY >= map.height || getTileTypeInMap(map, observedX, observedY) !== "water")
-        throw new FamilyError(400, "현재 위치를 동기화한 뒤 물가에서 채워 주세요.");
       if (!refillWateringCan(wateringCan)) throw new FamilyError(409, "물뿌리개가 이미 가득 찼어요.");
     } else if (action.kind === "farm-tree-hit") {
       if (pose.mapId !== "farm" || action.tool !== "axe" || pose.selectedTool !== "axe") throw new FamilyError(400, "농장에서 도끼를 선택해 주세요.");
@@ -250,14 +238,6 @@ export class FamilyState extends FamilyRooms {
       if (!Number.isSafeInteger(action.floor) || action.floor < 1 || action.floor > MINE_PLAYABLE_FLOORS || action.floor > progress.deepestUnlockedFloor ||
           pose.mapId !== mineMapId(action.floor) || action.daySerial !== daySerial) throw new FamilyError(400, "현재 접근 가능한 광산 층과 날짜를 확인해 주세요.");
       if (action.tool !== "pickaxe" || pose.selectedTool !== "pickaxe" || !toolProgression.pickaxe) throw new FamilyError(400, "곡괭이를 해금하고 선택해 주세요.");
-      const presence = await this.db.prepare("SELECT pose_json, last_seen FROM family_presence WHERE room_id = ? AND user_id = ?")
-        .bind(roomId, userId).first<{ pose_json: string; last_seen: number }>();
-      let observed = null;
-      try { observed = presence ? parseFamilyPose(JSON.parse(presence.pose_json)) : null; } catch { /* Invalid presence cannot authorize a hit. */ }
-      const age = presence ? this.now() - presence.last_seen : Infinity;
-      if (!observed || age < 0 || age > FAMILY_PRESENCE_TTL_MS || observed.mapId !== pose.mapId ||
-          Math.hypot(observed.x - pose.x, observed.y - pose.y) > GAME_CONFIG.playerSpeed * Math.min(2.5, age / 1000 + .5))
-        throw new FamilyError(400, "현재 광산 위치를 동기화한 뒤 가까이에서 채광해 주세요.");
       if (typeof action.nodeId !== "string" || action.nodeId.length > 48) throw new FamilyError(400, "올바른 광산 자원이 아닙니다.");
       const floorMap = generateMineFloor(roomId, daySerial, action.floor);
       const node = floorMap.objects.find(o => o.id === action.nodeId && mineResourceKind(o));
@@ -278,15 +258,6 @@ export class FamilyState extends FamilyRooms {
       if (result.drop) inventory.add(result.drop, result.quantity);
       recordSuccessfulAction(stats, "pickaxe");
     } else if (action.kind === "fish-cast" || action.kind === "fish-reel") {
-      // Cross-check the reported shore location against the recently observed player pose.
-      const presence = await this.db.prepare("SELECT pose_json, last_seen FROM family_presence WHERE room_id = ? AND user_id = ?")
-        .bind(roomId, userId).first<{ pose_json: string; last_seen: number }>();
-      let observed = null;
-      try { observed = presence ? parseFamilyPose(JSON.parse(presence.pose_json)) : null; } catch { /* Invalid presence cannot authorize fishing. */ }
-      const age = presence ? this.now() - presence.last_seen : Infinity;
-      if (!observed || age < 0 || age > FAMILY_PRESENCE_TTL_MS || observed.mapId !== pose.mapId ||
-          Math.hypot(observed.x - pose.x, observed.y - pose.y) > GAME_CONFIG.playerSpeed * Math.min(2.5, age / 1000 + .5))
-        throw new FamilyError(400, "물가의 현재 위치를 동기화한 뒤 낚시해 주세요.");
       const day = stored.daySerial ?? stored.day, time = currentWorld(stored, this.now(), roomId, this.maps).timeMinutes;
       if (action.kind === "fish-cast") {
         const result = beginFishing(fishingProgress, fishingCast, pose, action.spotId, roomId, member.playerId, day, weatherFor(roomId, day).id, time, stats);
@@ -407,8 +378,7 @@ export class FamilyState extends FamilyRooms {
         Math.hypot(pose.x - (action.tileX + definition.footprint.width / 2) * GAME_CONFIG.tileSize,
           pose.y - (action.tileY + definition.footprint.height / 2) * GAME_CONFIG.tileSize) > 140)
         throw new FamilyError(400, "건설할 위치 가까이에서 이용해 주세요.");
-      const nearby = await this.db.prepare("SELECT pose_json FROM family_presence WHERE room_id=? AND last_seen>?").bind(roomId, this.now() - FAMILY_PRESENCE_TTL_MS).all<{ pose_json: string }>();
-      const players = [pose, ...nearby.results.flatMap(row => { try { const p = parseFamilyPose(JSON.parse(row.pose_json)); return p ? [p] : []; } catch { return []; } })];
+      const players = [pose];
       const buildings = normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day);
       const result = constructBuilding(buildings, normalizePlaceables(stored.placeables), stored.farm, inventory, stored.money,
         this.maps.farm, action.definitionId, action.tileX, action.tileY, players, crypto.randomUUID(), stored.daySerial ?? stored.day);
@@ -422,8 +392,7 @@ export class FamilyState extends FamilyRooms {
         if (pose.mapId !== "farm" || !Number.isSafeInteger(action.tileX) || !Number.isSafeInteger(action.tileY) ||
             Math.hypot(pose.x - (action.tileX + .5) * GAME_CONFIG.tileSize, pose.y - (action.tileY + .5) * GAME_CONFIG.tileSize) > 90)
           throw new FamilyError(400, "농장 가까운 칸에 배치해 주세요.");
-        const nearby = await this.db.prepare("SELECT pose_json FROM family_presence WHERE room_id=? AND last_seen>?").bind(roomId, this.now() - FAMILY_PRESENCE_TTL_MS).all<{ pose_json: string }>();
-        const players = [pose, ...nearby.results.flatMap(row => { try { const p = parseFamilyPose(JSON.parse(row.pose_json)); return p ? [p] : []; } catch { return []; } })];
+        const players = [pose];
         const error = placeObject(placeables, inventory, action.definitionId, this.maps.farm, action.tileX, action.tileY, players, crypto.randomUUID(), normalizeBuildings(stored.buildings, stored.daySerial ?? stored.day));
         if (error) throw new FamilyError(409, error);
       } else {
@@ -441,12 +410,6 @@ export class FamilyState extends FamilyRooms {
     const result = await this.db.prepare(`UPDATE family_state SET world_json = ?, inventories_json = ?, revision = revision + 1, updated_at = ? WHERE room_id = ? AND revision = ?`)
       .bind(JSON.stringify(stored), JSON.stringify(inventories), this.now(), roomId, expectedRevision).run();
     if (result.meta.changes !== 1) throw await conflict();
-    if (action.kind === "tool" || action.kind === "farm-tree-hit" || action.kind === "forest-gather" || action.kind === "mine-hit") {
-      const visual = { id: crypto.randomUUID(), tool: action.tool, facing: pose.facing, expiresAt: this.now() + 2500 };
-      // Visual delivery must never turn a committed farm action into a failed command.
-      try { await this.db.prepare("UPDATE family_presence SET pose_json = json_set(pose_json, '$.action', json(?)) WHERE room_id = ? AND user_id = ?")
-        .bind(JSON.stringify(visual), roomId, userId).run(); } catch { /* Presence is best effort. */ }
-    }
     return { ...await this.read(userId, roomId), ...(fishingNotice ? { fishingNotice } : {}) };
   }
 }

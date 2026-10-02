@@ -155,3 +155,31 @@ Realtime Worker가 끊기면:
 - 터치 이동/행동 결과 누락이 없음
 - 한 플레이어가 네트워크를 끊어도 다른 플레이어의 게임 상태가 깨지지 않음
 - realtime 장애가 D1 영구 상태를 훼손하지 않음
+
+
+## 구현 체크포인트 (현재 브랜치)
+
+현재 `feature/v2.3-multiplayer-rebuild`에는 다음이 구현되어 있다.
+
+- 전용 `realtime-worker` + `RealtimeRoom` Durable Object
+- Sites가 Family membership을 확인하고 60초 signed HMAC 접속 token 발급
+- 브라우저 secret 노출 없음
+- Worker는 D1 binding 없이 transient movement만 처리
+- 게임 클라이언트는 `DedicatedFamilyRealtimePresence`를 사용
+- player별 pose delta 30Hz 전송 + 상태 변경 즉시 flush
+- room 전체 snapshot을 매 movement packet마다 보내지 않음
+- RTT / jitter ping-pong 진단
+- realtime 장애 시 D1 movement fallback 금지
+- D1 heartbeat는 sleep/online 판정용 저빈도 heartbeat만 유지
+- 물 채우기/광산/낚시/배치가 D1 movement freshness에 의존하지 않도록 분리
+
+### 배포 전 필요한 값
+
+Realtime Worker와 Sites는 동일한 임의 secret을 공유해야 한다.
+
+- Worker secret: `AUTH_SECRET`
+- Sites secret: `FAMILY_REALTIME_SECRET`
+- Sites variable: `FAMILY_REALTIME_URL=https://<deployed-realtime-worker>`
+
+이 값들이 연결되기 전에는 Sites의 realtime ticket API가 503을 반환하며,
+게임의 영구 상태/싱글 플레이에는 영향을 주지 않는다.
