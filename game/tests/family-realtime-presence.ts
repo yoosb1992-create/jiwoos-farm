@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { REALTIME_PRESENCE_CONNECT_TIMEOUT_MS, REALTIME_PRESENCE_SEND_MS, browserFamilyPresenceUrl, realtimePresenceReconnectDelay, WebSocketFamilyRealtimePresence } from "../family/realtimePresence";
+import { FAMILY_RTC_DATA_LABEL, REALTIME_PRESENCE_CONNECT_TIMEOUT_MS, REALTIME_PRESENCE_SEND_MS, browserFamilyPresenceUrl, familyRtcInitiator, realtimePresenceReconnectDelay, WebSocketFamilyRealtimePresence } from "../family/realtimePresence";
 import type { FamilyPose, FamilyPresenceSnapshot } from "../family/types";
 import type { FamilyPresenceSocket } from "../family/realtimePresence";
 
@@ -28,6 +28,9 @@ class FakeSocket implements FamilyPresenceSocket {
 assert.equal(browserFamilyPresenceUrl({ roomId: "family room", sessionId: "session/1" }), "ws://localhost/api/family/presence/socket?roomId=family%20room&sessionId=session%2F1");
 assert.equal(REALTIME_PRESENCE_SEND_MS, 33, "movement frames target about 30Hz realtime delivery");
 assert.equal(REALTIME_PRESENCE_CONNECT_TIMEOUT_MS, 3500, "stuck websocket handshakes cannot remain in connecting forever");
+assert.equal(FAMILY_RTC_DATA_LABEL, "family-movement");
+assert.equal(familyRtcInitiator("a", "b"), true);
+assert.equal(familyRtcInitiator("b", "a"), false);
 assert.equal(realtimePresenceReconnectDelay(0, 300), 300);
 assert.equal(realtimePresenceReconnectDelay(10, 300), 5000);
 
@@ -45,6 +48,8 @@ const channel = new WebSocketFamilyRealtimePresence(
 channel.start({
   roomId: "room-a",
   sessionId: "session-a",
+  playerId: "00000000-0000-4000-8000-000000000001",
+  nickname: "첫째",
   pose: () => pose,
   onSnapshot: (snapshot) => snapshots.push(snapshot),
   onConnect: () => { connects++; },
@@ -69,7 +74,7 @@ assert.equal(disconnects, 0, "intentional stop must not report a disconnect");
 
 const dropped = new FakeSocket();
 const fallback = new WebSocketFamilyRealtimePresence(() => "wss://presence.test/drop", () => dropped, 60_000, 60_000);
-fallback.start({ roomId: "room-a", sessionId: "session-b", pose: () => pose, onSnapshot: () => {}, onConnect: () => { connects++; }, onDisconnect: () => { disconnects++; } });
+fallback.start({ roomId: "room-a", sessionId: "session-b", playerId: "00000000-0000-4000-8000-000000000001", nickname: "첫째", pose: () => pose, onSnapshot: () => {}, onConnect: () => { connects++; }, onDisconnect: () => { disconnects++; } });
 dropped.emitOpen();
 dropped.emitClose();
 assert.equal(disconnects, 1, "unexpected close reports a realtime disconnect so D1 fallback can continue");
@@ -87,6 +92,8 @@ const watchdog = new WebSocketFamilyRealtimePresence(
 watchdog.start({
   roomId: "room-a",
   sessionId: "session-c",
+  playerId: "00000000-0000-4000-8000-000000000001",
+  nickname: "첫째",
   pose: () => pose,
   onSnapshot: () => {},
   onConnect: () => {},

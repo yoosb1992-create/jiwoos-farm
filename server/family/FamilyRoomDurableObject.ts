@@ -2,9 +2,11 @@ import { DurableObject } from "cloudflare:workers";
 import type { FamilyPresenceSnapshot } from "../../game/family/types";
 import {
   FAMILY_REALTIME_MAX_FRAME_BYTES,
+  FAMILY_REALTIME_SIGNAL_MAX_FRAME_BYTES,
   type FamilyRealtimeConnectionState,
   familyRealtimeSnapshot,
   parseFamilyRealtimeFrame,
+  parseFamilyRealtimeSignalFrame,
 } from "./realtimeProtocol";
 
 const header = (request: Request, name: string) => request.headers.get(name) ?? "";
@@ -79,11 +81,28 @@ export class FamilyRoomDurableObject extends DurableObject<Cloudflare.Env> {
       socket.close(1003, "text presence frames only");
       return;
     }
-    if (message.length > FAMILY_REALTIME_MAX_FRAME_BYTES) {
-      socket.close(1009, "presence frame too large");
+    if (message.length > FAMILY_REALTIME_SIGNAL_MAX_FRAME_BYTES) {
+      socket.close(1009, "realtime frame too large");
       return;
     }
 
+    const signal = parseFamilyRealtimeSignalFrame(message, current.roomId, current.sessionId);
+    if (signal) {
+      if (signal.targetPlayerId === current.playerId) return;
+      const relay = JSON.stringify({
+        type: "signal",
+        fromPlayerId: current.playerId,
+        fromNickname: current.nickname,
+        signal: signal.signal,
+      });
+      for (const target of this.ctx.getWebSockets(signal.targetPlayerId)) {
+        if (target === socket) continue;
+        try { target.send(relay); } catch { /* stale peer socket */ }
+      }
+      return;
+    }
+
+    if (message.length > FAMILY_REALTIME_MAX_FRAME_BYTES) return;
     const pose = parseFamilyRealtimeFrame(message, current.roomId, current.sessionId);
     if (!pose) return;
 

@@ -17,7 +17,7 @@ export const familyPresenceDelay = (pose?: Pick<FamilyPose, "moving">) =>
 /** Backwards-compatible name used by existing retry tests/callers. */
 export const FAMILY_POLL_MS = FAMILY_STATE_POLL_MS;
 export type FamilyConnection = "connecting" | "connected" | "reconnecting" | "disconnected" | "syncing";
-export type FamilyRealtimeMode = "connecting" | "websocket" | "d1-fallback";
+export type FamilyRealtimeMode = "connecting" | "webrtc" | "websocket" | "d1-fallback";
 const FAMILY_REALTIME_MODES = new Map<string, FamilyRealtimeMode>();
 export const currentFamilyRealtimeMode = (roomId: string): FamilyRealtimeMode => FAMILY_REALTIME_MODES.get(roomId) ?? "connecting";
 export const CONNECTION_LABELS: Record<FamilyConnection, string> = { connecting: "연결 중", connected: "연결됨", reconnecting: "재연결 중", disconnected: "연결 끊김", syncing: "최신 상태 동기화 중" };
@@ -35,9 +35,12 @@ export async function familyFetch<T>(path: string, init: RequestInit = {}): Prom
 export interface FamilyRealtimePresenceContext {
   roomId: string;
   sessionId: string;
+  playerId: string;
+  nickname: string;
   pose: () => FamilyPose | undefined;
   onSnapshot: (snapshot: FamilyPresenceSnapshot) => void;
   onConnect: () => void;
+  onTransport?: (transport: "websocket" | "webrtc") => void;
   onDisconnect: () => void;
 }
 /** Optional fast channel. D1 state/action APIs remain authoritative regardless
@@ -109,7 +112,6 @@ export class FamilyClient {
   }
   private acceptRealtimePresence(snapshot: FamilyPresenceSnapshot) {
     if (!this.live) return;
-    this.setRealtimeMode("websocket");
     this.realtimePresenceSnapshot = snapshot;
     this.onPresence?.(overlayFamilyPresenceActions(snapshot, this.fallbackPresenceSnapshot));
   }
@@ -165,11 +167,17 @@ export class FamilyClient {
     this.realtimePresence.start({
       roomId: this.session.room.id,
       sessionId: this.sessionId,
+      playerId: this.session.room.playerId,
+      nickname: this.session.room.nickname,
       pose: () => this.live ? this.pose?.() : undefined,
       onSnapshot: (snapshot) => this.acceptRealtimePresence(snapshot),
       onConnect: () => {
         this.realtimeConnected = true;
         this.setRealtimeMode("websocket");
+      },
+      onTransport: (transport) => {
+        if (!this.live || !this.realtimeConnected) return;
+        this.setRealtimeMode(transport === "webrtc" ? "webrtc" : "websocket");
       },
       onDisconnect: () => {
         this.realtimeConnected = false;
