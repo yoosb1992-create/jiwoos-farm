@@ -63,7 +63,9 @@ assert.deepEqual(JSON.parse(socket.sent[0]), { type: "presence", roomId: "room-a
 channel.flush();
 assert.equal(socket.sent.length, 2, "movement state changes can flush immediately without waiting for the 30Hz timer");
 socket.emitMessage(JSON.stringify({ players: [], serverNow: 1234 }));
-assert.deepEqual(snapshots, [{ players: [], serverNow: 1234 }]);
+assert.equal(snapshots.length, 1);
+assert.deepEqual(snapshots[0].players, []);
+assert.ok(snapshots[0].serverNow >= 1234, "hybrid snapshot uses a monotonic local/server clock for P2P freshness");
 socket.emitMessage("not json");
 assert.equal(snapshots.length, 1, "malformed frames are ignored");
 channel.stop();
