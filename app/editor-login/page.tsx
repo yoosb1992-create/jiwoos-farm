@@ -4,6 +4,6 @@ import { redirect } from "next/navigation";
 export const dynamic = "force-dynamic";
 
 export default async function EditorLoginPage() {
-  await requireChatGPTUser("/");
-  redirect("/");
+  await requireChatGPTUser("/?editor=1");
+  redirect("/?editor=1");
 }

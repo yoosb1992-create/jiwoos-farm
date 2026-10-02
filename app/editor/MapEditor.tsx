@@ -60,7 +60,7 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   const [cloudStatus, setCloudStatus] = useState<"checking" | "ready" | "saving" | "offline" | "signed-out">("checking");
   const [cloudConflict, setCloudConflict] = useState<CloudEditorDraft | null>(null);
   const [publishedPreset, setPublishedPreset] = useState<PublishedWorldPreset | null>(null);
-  const [worldStatus, setWorldStatus] = useState<"checking" | "ready" | "saving" | "unavailable">("checking");
+  const [worldStatus, setWorldStatus] = useState<"checking" | "ready" | "saving" | "signed-out" | "unavailable">("checking");
   const worldRevision = useRef(0);
   const cloudRevision = useRef(0);
   const cloudSyncedAt = useRef(0);
@@ -279,6 +279,13 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
   };
   const publishInitialWorld = async () => {
     if (validate().length) return;
+    repository.save(documentRef.current);
+    if (cloudStatus === "signed-out") {
+      setWorldStatus("signed-out");
+      setNotice("초기월드 적용에는 로그인이 필요합니다. 현재 편집 내용은 로컬에 보관했습니다. 로그인 후 다시 적용해 주세요.");
+      window.location.assign("/editor-login");
+      return;
+    }
     setWorldStatus("saving");
     const server = await worldRepository.load();
     if (server.status !== "ok") {
@@ -303,6 +310,14 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
       setPublishedPreset(result.preset);
       setWorldStatus("ready");
       setNotice(`${result.message} 초기 월드를 불러온 뒤 다시 확인해 주세요.`);
+      return;
+    }
+    if (result.status === "unauthorized") {
+      repository.save(documentRef.current);
+      setCloudStatus("signed-out");
+      setWorldStatus("signed-out");
+      setNotice("초기월드 적용에는 로그인이 필요합니다. 현재 편집 내용은 로컬에 보관했습니다. 로그인 후 다시 적용해 주세요.");
+      window.location.assign("/editor-login");
       return;
     }
     setWorldStatus("unavailable");
@@ -360,11 +375,11 @@ export function MapEditor({ onPlay, onExit }: { onPlay: (document: MapEditorDocu
 
   const mapIssues = useMemo(() => issues.filter((issue) => !issue.mapId || issue.mapId === map?.id), [issues, map?.id]);
   const cloudLabel = cloudStatus === "checking" ? "클라우드 확인 중" : cloudStatus === "saving" ? "클라우드 저장 중" : cloudStatus === "ready" ? "클라우드 연결됨" : cloudStatus === "signed-out" ? "클라우드 로그인 필요" : "오프라인 · 로컬 보관";
-  const worldLabel = worldStatus === "checking" ? "초기월드 확인 중" : worldStatus === "saving" ? "초기월드 게시 중" : worldStatus === "ready" ? (publishedPreset ? `초기월드 v${publishedPreset.revision}` : "초기월드 미게시") : "초기월드 서버 확인 필요";
+  const worldLabel = worldStatus === "checking" ? "초기월드 확인 중" : worldStatus === "saving" ? "초기월드 게시 중" : worldStatus === "signed-out" ? "초기월드 로그인 필요" : worldStatus === "ready" ? (publishedPreset ? `초기월드 v${publishedPreset.revision}` : "초기월드 미게시") : "초기월드 서버 확인 필요";
   if (!map) return null;
   return <main className="editor-shell">
     <header className="editor-header"><div><b>지우네 농장 · 월드 편집기</b><span>맵 편집 문서 v1 · {cloudLabel} · {worldLabel}</span></div><nav><button onClick={onExit}>플레이</button><button className="primary" onClick={testPlay}>▶ 테스트 플레이</button></nav></header>
-    <section className="editor-actions"><button onClick={undo} disabled={!history.current.canUndo}>↶ 실행 취소</button><button onClick={redo} disabled={!history.current.canRedo}>↷ 다시 실행</button><i /><button onClick={() => void save()}>저장</button><button onClick={load}>로컬 불러오기</button><button onClick={() => void refreshCloud()}>클라우드 불러오기</button><button onClick={usePublishedWorld} disabled={!publishedPreset}>초기월드 불러오기</button><button className="primary" onClick={() => void publishInitialWorld()} disabled={worldStatus === "saving"}>★ 초기월드로 적용</button>{cloudStatus === "signed-out" && <a className="editor-signin" href="/editor-login" target="_top">클라우드 로그인</a>}<button onClick={() => void exportJson()}>JSON 내보내기 / 공유</button><button onClick={() => importRef.current?.click()}>JSON 가져오기</button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={(event) => importJson(event.target.files?.[0])} /><button className="danger-text" onClick={() => setConfirmReset(true)}>기본값 초기화</button></section>
+    <section className="editor-actions"><button onClick={undo} disabled={!history.current.canUndo}>↶ 실행 취소</button><button onClick={redo} disabled={!history.current.canRedo}>↷ 다시 실행</button><i /><button onClick={() => void save()}>저장</button><button onClick={load}>로컬 불러오기</button><button onClick={() => void refreshCloud()}>클라우드 불러오기</button><button onClick={usePublishedWorld} disabled={!publishedPreset}>초기월드 불러오기</button><button className="primary" onClick={() => void publishInitialWorld()} disabled={worldStatus === "saving"}>{cloudStatus === "signed-out" ? "★ 로그인 후 초기월드 적용" : "★ 초기월드로 적용"}</button>{cloudStatus === "signed-out" && <a className="editor-signin" href="/editor-login" target="_top">클라우드 로그인</a>}<button onClick={() => void exportJson()}>JSON 내보내기 / 공유</button><button onClick={() => importRef.current?.click()}>JSON 가져오기</button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={(event) => importJson(event.target.files?.[0])} /><button className="danger-text" onClick={() => setConfirmReset(true)}>기본값 초기화</button></section>
     <section className="mobile-editor-top"><button onClick={onExit}>플레이</button><select value={map.id} onChange={(event) => { setMapId(event.target.value); setSelection(null); }}>{document.maps.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</select><button onClick={() => void save()}>저장</button><button className="primary" onClick={testPlay}>테스트</button></section>
     <div className="editor-workspace">
       <aside className="editor-sidebar">
