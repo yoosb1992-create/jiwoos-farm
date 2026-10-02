@@ -2,6 +2,8 @@ import type { FamilyRealtimePresenceChannel, FamilyRealtimePresenceContext } fro
 import type { FamilyPresenceSnapshot } from "./types";
 
 export const REALTIME_PRESENCE_SEND_MS = 100;
+export const REALTIME_PRESENCE_RECONNECT_BASE_MS = 300;
+export const REALTIME_PRESENCE_RECONNECT_MAX_MS = 5000;
 
 export interface FamilyPresenceSocket {
   readonly readyState: number;
@@ -15,33 +17,74 @@ export interface FamilyPresenceSocket {
 export type FamilyPresenceSocketFactory = (url: string) => FamilyPresenceSocket;
 export type FamilyPresenceUrlFactory = (context: Pick<FamilyRealtimePresenceContext, "roomId" | "sessionId">) => string;
 
+export const browserFamilyPresenceUrl: FamilyPresenceUrlFactory = ({ roomId, sessionId }) => {
+  const location = globalThis.location;
+  const protocol = location?.protocol === "https:" ? "wss:" : "ws:";
+  const host = location?.host || "localhost";
+  return `${protocol}//${host}/api/family/presence/socket?roomId=${encodeURIComponent(roomId)}&sessionId=${encodeURIComponent(sessionId)}`;
+};
+
+export const realtimePresenceReconnectDelay = (attempt: number, base = REALTIME_PRESENCE_RECONNECT_BASE_MS) =>
+  Math.min(REALTIME_PRESENCE_RECONNECT_MAX_MS, Math.max(50, base) * 2 ** Math.min(5, Math.max(0, attempt)));
+
 const isSnapshot = (value: unknown): value is FamilyPresenceSnapshot => {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<FamilyPresenceSnapshot>;
   return Array.isArray(candidate.players) && Number.isFinite(candidate.serverNow);
 };
 
-/** WebSocket transport for the movement/presence plane only.
+/**
+ * Fast movement/presence plane. Authoritative farming, inventory and world
+ * mutations remain on the D1-backed Family APIs.
  *
- * This is deliberately independent from Family state/actions: D1 remains the
- * authoritative persistence layer. The channel is injectable so a Sites/DO
- * endpoint can be provisioned later without rewriting FamilyClient.
+ * WebSocket reconnect is automatic. FamilyClient simultaneously keeps a
+ * low-rate D1 heartbeat alive so a WebSocket outage degrades to the existing
+ * safe presence path instead of dropping multiplayer state.
  */
 export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceChannel {
   private socket?: FamilyPresenceSocket;
   private timer?: ReturnType<typeof setInterval>;
+  private reconnectTimer?: ReturnType<typeof setTimeout>;
   private context?: FamilyRealtimePresenceContext;
+  private reconnectAttempt = 0;
+  private stopped = true;
 
   constructor(
     private readonly url: FamilyPresenceUrlFactory,
     private readonly socketFactory: FamilyPresenceSocketFactory = (value) => new WebSocket(value) as unknown as FamilyPresenceSocket,
     private readonly sendEveryMs = REALTIME_PRESENCE_SEND_MS,
+    private readonly reconnectBaseMs = REALTIME_PRESENCE_RECONNECT_BASE_MS,
   ) {}
 
   start(context: FamilyRealtimePresenceContext) {
     this.stop();
     this.context = context;
-    const socket = this.socketFactory(this.url(context));
+    this.stopped = false;
+    this.reconnectAttempt = 0;
+    this.connect();
+  }
+
+  stop() {
+    this.stopped = true;
+    this.context = undefined;
+    this.clearReconnect();
+    const socket = this.socket;
+    this.socket = undefined;
+    this.clearTimer();
+    if (socket) socket.close(1000, "family presence stopped");
+  }
+
+  private connect() {
+    const context = this.context;
+    if (!context || this.stopped) return;
+    let socket: FamilyPresenceSocket;
+    try {
+      socket = this.socketFactory(this.url(context));
+    } catch {
+      context.onDisconnect();
+      this.scheduleReconnect();
+      return;
+    }
     this.socket = socket;
 
     const send = () => {
@@ -57,8 +100,10 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     };
 
     socket.addEventListener("open", () => {
-      if (this.socket !== socket) return;
+      if (this.socket !== socket || this.stopped) return;
+      this.reconnectAttempt = 0;
       send();
+      this.clearTimer();
       this.timer = setInterval(send, this.sendEveryMs);
     });
     socket.addEventListener("message", (event) => {
@@ -74,24 +119,32 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
       if (this.socket !== socket) return;
       this.clearTimer();
       this.socket = undefined;
+      if (this.stopped) return;
       context.onDisconnect();
+      this.scheduleReconnect();
     });
     socket.addEventListener("error", () => {
-      // Most runtimes follow with close. If not, D1 keepalive still protects
-      // online state and the next channel lifecycle can reconnect explicitly.
+      // Browser WebSocket implementations normally follow this with "close".
+      // Until then the D1 heartbeat remains active.
     });
   }
 
-  stop() {
-    const socket = this.socket;
-    this.socket = undefined;
-    this.context = undefined;
-    this.clearTimer();
-    if (socket) socket.close(1000, "family presence stopped");
+  private scheduleReconnect() {
+    if (this.stopped || !this.context || this.reconnectTimer !== undefined) return;
+    const delay = realtimePresenceReconnectDelay(this.reconnectAttempt++, this.reconnectBaseMs);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      this.connect();
+    }, delay);
   }
 
   private clearTimer() {
     if (this.timer !== undefined) clearInterval(this.timer);
     this.timer = undefined;
+  }
+
+  private clearReconnect() {
+    if (this.reconnectTimer !== undefined) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = undefined;
   }
 }

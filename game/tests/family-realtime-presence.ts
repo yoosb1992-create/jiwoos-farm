@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { WebSocketFamilyRealtimePresence } from "../family/realtimePresence";
+import { browserFamilyPresenceUrl, realtimePresenceReconnectDelay, WebSocketFamilyRealtimePresence } from "../family/realtimePresence";
 import type { FamilyPose, FamilyPresenceSnapshot } from "../family/types";
 import type { FamilyPresenceSocket } from "../family/realtimePresence";
 
@@ -24,6 +24,10 @@ class FakeSocket implements FamilyPresenceSocket {
   emitMessage(data: unknown) { for (const listener of this.listeners.get("message") ?? []) listener({ data }); }
   emitClose() { this.readyState = 3; for (const listener of this.listeners.get("close") ?? []) listener(); }
 }
+
+assert.equal(browserFamilyPresenceUrl({ roomId: "family room", sessionId: "session/1" }), "ws://localhost/api/family/presence/socket?roomId=family%20room&sessionId=session%2F1");
+assert.equal(realtimePresenceReconnectDelay(0, 300), 300);
+assert.equal(realtimePresenceReconnectDelay(10, 300), 5000);
 
 const pose: FamilyPose = { mapId: "farm", x: 120, y: 180, facing: "right", moving: true, selectedTool: "hand" };
 const socket = new FakeSocket();
@@ -57,10 +61,11 @@ socket.emitClose();
 assert.equal(disconnects, 0, "intentional stop must not report a disconnect");
 
 const dropped = new FakeSocket();
-const fallback = new WebSocketFamilyRealtimePresence(() => "wss://presence.test/drop", () => dropped, 60_000);
+const fallback = new WebSocketFamilyRealtimePresence(() => "wss://presence.test/drop", () => dropped, 60_000, 60_000);
 fallback.start({ roomId: "room-a", sessionId: "session-b", pose: () => pose, onSnapshot: () => {}, onDisconnect: () => { disconnects++; } });
 dropped.emitOpen();
 dropped.emitClose();
 assert.equal(disconnects, 1, "unexpected close reports a realtime disconnect so D1 fallback can continue");
+fallback.stop();
 
 console.log("Family realtime presence: injectable WebSocket movement channel contract passed");

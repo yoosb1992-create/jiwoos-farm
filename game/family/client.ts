@@ -7,9 +7,10 @@ export const FAMILY_STATE_POLL_MS = 1000;
 export const FAMILY_PRESENCE_MOVING_MS = 180;
 export const FAMILY_PRESENCE_IDLE_MS = 850;
 export const FAMILY_PRESENCE_FALLBACK_MS = FAMILY_PRESENCE_IDLE_MS;
-/** When a WebSocket/DO presence channel is injected later, D1 presence remains
- * a low-rate membership/online keepalive instead of carrying movement frames. */
-export const FAMILY_PRESENCE_KEEPALIVE_MS = 5000;
+/** Realtime movement uses WebSocket frames. D1 remains a low-rate safety
+ * heartbeat so presence still degrades gracefully if the fast path cannot
+ * reach the same room broker. */
+export const FAMILY_PRESENCE_KEEPALIVE_MS = 1500;
 export const familyPresenceDelay = (pose?: Pick<FamilyPose, "moving">) =>
   pose?.moving ? FAMILY_PRESENCE_MOVING_MS : FAMILY_PRESENCE_IDLE_MS;
 /** Backwards-compatible name used by existing retry tests/callers. */

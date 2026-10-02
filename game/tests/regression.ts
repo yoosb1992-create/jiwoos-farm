@@ -5,6 +5,7 @@ import "./watering-can";
 import "./family-lobby";
 import "./family-presence";
 import "./family-realtime-presence";
+import "./family-realtime-route";
 import "./family-state";
 import "./world-simulation";
 import "./stamina-skills";

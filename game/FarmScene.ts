@@ -7,6 +7,7 @@ import { giftToNpc } from "./npc/gifts";
 import { NpcRenderer, preloadNpcs, createNpcAssets } from "./npc/NpcRenderer";
 import { RemotePlayers } from "./family/RemotePlayers";
 import { FamilyClient } from "./family/client";
+import { browserFamilyPresenceUrl, WebSocketFamilyRealtimePresence } from "./family/realtimePresence";
 import { applyFamilyFarmSnapshot } from "./family/applySnapshot";
 import type { FamilyPose, FamilySession, FamilySnapshot } from "./family/types";
 import * as Phaser from "phaser";
@@ -191,7 +192,14 @@ export class FarmScene extends Phaser.Scene {
     this.forestScope = options.family?.room.id ?? "single";
     if (!this.testMode) { this.syncForest(); this.syncMine(); }
     this.currentMapId = this.mapRegistry.has(options.initialMapId ?? "farm") ? (options.initialMapId ?? "farm") : "farm";
-    if (options.family && !this.testMode) this.family = new FamilyClient(options.family, (snapshot) => this.applyFamilySnapshot(snapshot), (message) => this.say(message));
+    if (options.family && !this.testMode) {
+      this.family = new FamilyClient(
+        options.family,
+        (snapshot) => this.applyFamilySnapshot(snapshot),
+        (message) => this.say(message),
+        new WebSocketFamilyRealtimePresence(browserFamilyPresenceUrl),
+      );
+    }
   }
   preload() { this.assetManager = new AssetManager(this, this.playerVisualProfile); this.assetManager.preload(); preloadNpcs(this); }
 
