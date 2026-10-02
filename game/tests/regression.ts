@@ -26,6 +26,7 @@ import "./y-sort";
 import "./persistent-world-editor";
 import "./editor-stability";
 import "./world-scalability";
+import "./editor-farm-area-drag";
 import "./editor-runtime-maps";
 import "./runtime-entrance-anchors";
 import "./graphics-first-pass";

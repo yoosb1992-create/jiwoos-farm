@@ -74,5 +74,7 @@ export function MapInspector({ map, maps, selection, update, renameId, remove, s
   }
   const rect = selection.kind === "collision" ? map.collisionRegions[selection.index] : map.farmAreas[selection.index];
   if (!rect) return null;
-  return <aside className="editor-inspector mobile-open">{closeButton}<div className="panel-title"><span>{selection.kind === "collision" ? "충돌 영역" : "농사 영역"}</span><small>타일 단위 영역</small></div><div className="inspector-form"><RectFields rect={rect} onChange={(next) => update((target) => { (selection.kind === "collision" ? target.collisionRegions : target.farmAreas)[selection.index] = next; })} />{deleteButton}</div></aside>;
+  return <aside className="editor-inspector mobile-open">{closeButton}<div className="panel-title"><span>{selection.kind === "collision" ? "충돌 영역" : "농사 영역"}</span><small>타일 단위 영역</small></div><div className="inspector-form">
+    {selection.kind === "farm" && <p className="inspector-warning">선택 / 이동 도구에서 영역 안을 드래그하면 이동하고, 노란 손잡이를 드래그하면 크기를 조절할 수 있습니다.</p>}
+    <RectFields rect={rect} onChange={(next) => update((target) => { (selection.kind === "collision" ? target.collisionRegions : target.farmAreas)[selection.index] = next; })} />{deleteButton}</div></aside>;
 }

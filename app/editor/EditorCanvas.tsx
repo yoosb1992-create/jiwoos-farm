@@ -10,6 +10,7 @@ import { clampEditorZoom, createPinchStart, updatePinchViewport, type PinchStart
 import { beginObjectDrag, moveMapObject, objectDragPosition, type ObjectDragGrab } from "@/game/editor/objectDrag";
 import { applySceneryStamp, type SceneryStampId } from "@/game/editor/sceneryStamps";
 import { appendTerrainPaintCell, editorGridStep } from "@/game/editor/terrainPaint";
+import { moveFarmArea, resizeFarmArea, sameTileRect, type FarmAreaDragHandle } from "@/game/editor/farmAreaDrag";
 
 const tileColors: Record<TileTypeId, string> = {
   grass: "#83b85e", path: "#c9aa71", water: "#66a8ca", farm: "#9b7049", wood_floor: "#b77b4c", stone_floor: "#c8bd9f", mine_floor: "#56565d", mine_wall: "#303138",
@@ -43,6 +44,15 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
   const svgRef = useRef<SVGSVGElement>(null);
   const dragObject = useRef<(ObjectDragGrab & { position: { tileX: number; tileY: number }; moved: boolean; touchTap: boolean; startClientX: number; startClientY: number }) | null>(null);
   const [dragPreview, setDragPreview] = useState<{ id: string; tileX: number; tileY: number } | null>(null);
+  const farmAreaDrag = useRef<{
+    pointerId: number;
+    index: number;
+    handle: FarmAreaDragHandle;
+    start: { x: number; y: number };
+    original: TileRect;
+    preview: TileRect;
+  } | null>(null);
+  const [farmAreaPreview, setFarmAreaPreview] = useState<{ index: number; rect: TileRect } | null>(null);
   const pan = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number } | null>(null);
   const painting = useRef(false);
   const terrainStroke = useRef(new Map<string, { x: number; y: number }>());
@@ -97,7 +107,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     if (pointers.current.size >= 2) {
       const [a, b] = [...pointers.current.values()];
       pinch.current = createPinchStart(a, b, viewport);
-      suppressEdit.current = true; painting.current = false; clearTerrainStroke(); dragObject.current = null; setDragPreview(null); pan.current = null; pendingTap.current = null; setDraft(null);
+      suppressEdit.current = true; painting.current = false; clearTerrainStroke(); dragObject.current = null; setDragPreview(null); farmAreaDrag.current = null; setFarmAreaPreview(null); pan.current = null; pendingTap.current = null; setDraft(null);
       event.preventDefault(); event.stopPropagation(); return;
     }
     if (suppressEdit.current) return;
@@ -133,6 +143,16 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     }
     if (suppressEdit.current) return;
     const p = point(event);
+    if (farmAreaDrag.current?.pointerId === event.pointerId) {
+      const active = farmAreaDrag.current;
+      const next = active.handle === "move"
+        ? moveFarmArea(active.original, p.x - active.start.x, p.y - active.start.y, map.width, map.height)
+        : resizeFarmArea(active.original, active.handle, p.x, p.y, map.width, map.height);
+      active.preview = next;
+      setFarmAreaPreview({ index: active.index, rect: next });
+      event.preventDefault();
+      return;
+    }
     if (pan.current?.pointerId === event.pointerId) {
       setViewport((current) => ({ ...current, panX: pan.current!.panX + event.clientX - pan.current!.startX, panY: pan.current!.panY + event.clientY - pan.current!.startY }));
       event.preventDefault(); return;
@@ -155,7 +175,7 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     if (suppressEdit.current) {
       pinch.current = null;
       if (pointers.current.size === 0) suppressEdit.current = false;
-      painting.current = false; clearTerrainStroke(); dragObject.current = null; setDragPreview(null); pan.current = null; pendingTap.current = null; setDraft(null); return;
+      painting.current = false; clearTerrainStroke(); dragObject.current = null; setDragPreview(null); farmAreaDrag.current = null; setFarmAreaPreview(null); pan.current = null; pendingTap.current = null; setDraft(null); return;
     }
     if (pendingTap.current) {
       const pending = pendingTap.current; pendingTap.current = null;
@@ -167,6 +187,15 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     if (painting.current) commitTerrainStroke();
     painting.current = false;
     pan.current = null;
+    const completedFarmDrag = farmAreaDrag.current;
+    farmAreaDrag.current = null;
+    setFarmAreaPreview(null);
+    if (completedFarmDrag && !sameTileRect(completedFarmDrag.original, completedFarmDrag.preview)) {
+      onCommit((target) => {
+        if (target.farmAreas[completedFarmDrag.index]) target.farmAreas[completedFarmDrag.index] = completedFarmDrag.preview;
+      });
+      return;
+    }
     const completedDrag = dragObject.current;
     dragObject.current = null;
     setDragPreview(null);
@@ -195,6 +224,18 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     });
     setDraft(null);
   };
+  const startFarmAreaDrag = (event: React.PointerEvent, index: number, handle: FarmAreaDragHandle) => {
+    event.stopPropagation();
+    onSelect({ kind: "farm", index });
+    if (tool !== "select") return;
+    const area = map.farmAreas[index];
+    if (!area) return;
+    const start = point(event);
+    farmAreaDrag.current = { pointerId: event.pointerId, index, handle, start, original: { ...area }, preview: { ...area } };
+    setFarmAreaPreview({ index, rect: { ...area } });
+    svgRef.current?.setPointerCapture(event.pointerId);
+  };
+
   const startObjectDrag = (event: React.PointerEvent, id: string) => {
     event.stopPropagation();
     const alreadySelected = selection?.kind === "object" && selection.id === id;
@@ -235,7 +276,22 @@ export function EditorCanvas({ map, tool, terrain, objectAssetId, sceneryStampId
     <rect width={map.width} height={map.height} fill={tileFill(map.baseTileType)} />
     {layers.terrain && map.terrainRegions.map((region, index) => <rect key={`terrain-${index}`} x={region.startX} y={region.startY} width={region.endX - region.startX + 1} height={region.endY - region.startY + 1} fill={tileFill(region.tileType)} />)}
     {layers.terrain && terrainPreview.map(({ x, y }) => <rect key={`terrain-preview-${x}-${y}`} x={x} y={y} width="1" height="1" fill={tileFill(terrain)} opacity=".72" pointerEvents="none" />)}
-    {layers.farm && map.farmAreas.map((region, index) => <rect data-editor-item key={`farm-${index}`} x={region.startX + .06} y={region.startY + .06} width={region.endX - region.startX + .88} height={region.endY - region.startY + .88} fill="#d98c4855" stroke="#f0b25d" strokeWidth=".09" onPointerDown={(event) => { event.stopPropagation(); onSelect({ kind: "farm", index }); }} />)}
+    {layers.farm && map.farmAreas.map((region, index) => {
+      const shown = farmAreaPreview?.index === index ? farmAreaPreview.rect : region;
+      const selected = selection?.kind === "farm" && selection.index === index;
+      const x = shown.startX + .06, y = shown.startY + .06;
+      const width = shown.endX - shown.startX + .88, height = shown.endY - shown.startY + .88;
+      const left = shown.startX + .08, right = shown.endX + .92, top = shown.startY + .08, bottom = shown.endY + .92;
+      const midX = (left + right) / 2, midY = (top + bottom) / 2;
+      const handles: Array<[Exclude<FarmAreaDragHandle, "move">, number, number]> = [
+        ["nw", left, top], ["n", midX, top], ["ne", right, top], ["e", right, midY],
+        ["se", right, bottom], ["s", midX, bottom], ["sw", left, bottom], ["w", left, midY],
+      ];
+      return <g data-editor-item key={`farm-${index}`}>
+        <rect x={x} y={y} width={width} height={height} fill="#d98c4855" stroke={selected ? "#fff36a" : "#f0b25d"} strokeWidth={selected ? ".15" : ".09"} onPointerDown={(event) => startFarmAreaDrag(event, index, "move")} />
+        {selected && tool === "select" && handles.map(([handle, hx, hy]) => <rect key={handle} x={hx - .18} y={hy - .18} width=".36" height=".36" rx=".05" fill="#fff36a" stroke="#5b441f" strokeWidth=".06" onPointerDown={(event) => startFarmAreaDrag(event, index, handle)} />)}
+      </g>;
+    })}
     {layers.objects && map.objects.map((object) => {
       const asset = WORLD_OBJECT_ASSETS[object.assetId];
       const path = asset.source?.kind === "image" ? asset.source.path : null;
