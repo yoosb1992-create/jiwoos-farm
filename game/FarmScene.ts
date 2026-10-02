@@ -482,7 +482,13 @@ export class FarmScene extends Phaser.Scene {
     if (coop) return 140;
     if (map.objects.some(o=>o.interaction&&pointInTileRect(worldX,worldY,o.interaction.area))) return 58;
     if (this.tappedNpc(worldX,worldY)) return 58;
-    if (this.contextualTouchTool(worldX,worldY)!==null) return Math.max(48,Math.min(64,GAME_CONFIG.farmInteractionDistance-8));
+    const touchTool = this.contextualTouchTool(worldX,worldY);
+    if (touchTool!==null) {
+      const tx=Math.floor(worldX/GAME_CONFIG.tileSize), ty=Math.floor(worldY/GAME_CONFIG.tileSize);
+      const waterTarget=tx>=0&&ty>=0&&tx<map.width&&ty<map.height&&getTileTypeInMap(map,tx,ty)==="water";
+      if (waterTarget) return 48;
+      return this.currentMapId==="farm" && touchTool!=="axe" ? 34 : 42;
+    }
     return null;
   }
 
@@ -502,6 +508,8 @@ export class FarmScene extends Phaser.Scene {
       return;
     }
     this.faceToward(worldX,worldY);
+    this.player.setVelocity(0,0);
+    this.flushFamilyMotionIfChanged();
     if (this.buildingMode || this.placing) { this.useAtWorld(worldX,worldY,"mobile"); return; }
     if (this.openMachineAt(worldX,worldY) || this.openRanchAt(worldX,worldY)) return;
     const map=this.mapRegistry.require(this.currentMapId);

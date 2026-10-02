@@ -33,6 +33,8 @@ assert.ok(sceneSource.includes("performContextualTouchAction"), "tap action reso
 assert.ok(sceneSource.includes(">22"), "mobile taps tolerate normal finger jitter");
 assert.ok(sceneSource.includes("deferredTouchAction"), "Family contextual touch is queued instead of dropped while syncing");
 assert.ok(sceneSource.includes("deferredMobileAction"), "mobile action-button presses are queued during Family sync");
+assert.ok(sceneSource.includes('touchTool!=="axe" ? 34 : 42'), "mobile contextual tools approach close enough for the server-authoritative target");
+assert.ok(sceneSource.includes("this.flushFamilyMotionIfChanged();"), "touch actions flush the stopped pose before the authoritative Family request");
 for (const token of ["openMachineAt", "openRanchAt", "tappedNpc", "contextualTouchTool"]) {
   assert.ok(sceneSource.includes(token), `${token} participates in contextual touch action`);
 }
