@@ -233,7 +233,7 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
           <button onClick={() => { setMobileMenuOpen(false); onHome(); }}>{family ? "농장 나가기" : "처음으로"}</button>
           <button onClick={toggleHelp}>?</button>
         </div>
-        {showHelp && <div className="modal-shade"><div className="help-card"><button aria-label="도움말 닫기" onClick={toggleHelp}>×</button><b>농사와 마을 생활</b><p><kbd>WASD</kbd> / 방향키로 이동 · <kbd>왼쪽 Shift</kbd>로 달리기 · 가까운 밭을 클릭하거나 <kbd>Space</kbd>로 행동</p><p>괭이 → 씨앗 → 물 → 잠자기 → 다음 날 물 주기 순서로 키워 보세요.</p><p>집 안 침대에서 잠들고, 농장 남쪽 길을 따라 마을 상점에 갈 수 있어요. 주민 가까이에서 행동하면 대화합니다. 메뉴의 주민·의뢰에서 개인 기록을 확인하세요.</p></div></div>}
+        {showHelp && <div className="modal-shade"><div className="help-card"><button aria-label="도움말 닫기" onClick={toggleHelp}>×</button><b>농사와 마을 생활</b><p><kbd>WASD</kbd> / 방향키로 이동 · <kbd>왼쪽 Shift</kbd>로 달리기 · 가까운 밭을 클릭하거나 <kbd>Space</kbd>로 행동</p><p>괭이 → 씨앗 → 물 → 잠자기 → 다음 날 물 주기 순서로 키워 보세요. 씨앗은 <kbd>Space</kbd> / 행동 버튼을 누른 채 걸으면 연속으로 심을 수 있고, 달리는 중에는 심지 않습니다.</p><p>집 안 침대에서 잠들고, 농장 남쪽 길을 따라 마을 상점에 갈 수 있어요. 주민 가까이에서 행동하면 대화합니다. 메뉴의 주민·의뢰에서 개인 기록을 확인하세요.</p></div></div>}
         {hud.villageOpen && <VillageJournal hud={hud} onClose={()=>command("village-open",false)} />}
         {hud.dialogue && <NpcDialogue dialogue={hud.dialogue} onNext={()=>command("dialogue-next")} onClose={()=>command("dialogue-close")}>{!hud.dialogue.eventId && <><NpcRelationshipActions items={hud.craftingItems??{}} eventOptions={hud.relationshipEvents??[]} busy={hud.npcBusy??false} onGift={itemId=>command("npc-gift",itemId)} onEvent={eventId=>command("relationship-event-start",eventId)} /><NpcQuests quests={(hud.quests??[]).filter(q=>q.giver===hud.dialogue!.npcId)} busy={hud.npcBusy} onAction={action=>command("quest-action",action)} /></>}</NpcDialogue>}
         {hud.sleepPrompt && <div className="modal-shade"><div className="sleep-card" role="dialog" aria-modal="true" aria-label="잠자기 확인"><span>🌙</span><b>{family ? "잠자기에 동의할까요? 접속한 가족 모두 동의하면 다음 날이 됩니다." : "오늘 하루를 마치고 잠드시겠습니까?"}</b><p>물을 준 작물은 잠든 사이 한 단계 자랍니다.</p><div><button onClick={() => command("sleep-confirm")}>확인</button><button onClick={() => command("sleep-cancel")}>취소</button></div></div></div>}
@@ -279,18 +279,18 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
             if (actionPointer.current !== null) return;
             actionPointer.current = event.pointerId;
             event.currentTarget.setPointerCapture(event.pointerId);
-            command("action");
+            command("action", true);
           },
           onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => {
             event.preventDefault(); event.stopPropagation();
-            if (actionPointer.current === event.pointerId) actionPointer.current = null;
+            if (actionPointer.current === event.pointerId) { actionPointer.current = null; command("action", false); }
           },
           onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => {
             event.preventDefault(); event.stopPropagation();
-            if (actionPointer.current === event.pointerId) actionPointer.current = null;
+            if (actionPointer.current === event.pointerId) { actionPointer.current = null; command("action", false); }
           },
           onLostPointerCapture: (event: ReactPointerEvent<HTMLButtonElement>) => {
-            if (actionPointer.current === event.pointerId) actionPointer.current = null;
+            if (actionPointer.current === event.pointerId) { actionPointer.current = null; command("action", false); }
           },
         })}>행동</button>
         <VirtualJoystick style={controlStyle("joystick")} editing={editingControls} editHandlers={editHandlers("joystick")} onMove={(x, y) => command("move", { x, y })} />

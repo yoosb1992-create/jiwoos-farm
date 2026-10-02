@@ -35,6 +35,7 @@ import "./initial-farm-composition";
 import "./farm-vertical-slice";
 import "./inplay-polish";
 import "./inplay-farm-fixes";
+import "./continuous-seeding";
 import "./inplay-tool-behavior";
 import "./tool-action-gameplay-integration";
 import "./tool-core-matrix";

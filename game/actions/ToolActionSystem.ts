@@ -20,6 +20,7 @@ export interface ToolAnimationPort {
 export class ToolActionSystem {
   private lockedUntil = 0;
   private actionActive = false;
+  private activeTool?: ToolKey;
   constructor(
     private readonly animations: ToolAnimationPort,
     private readonly now = () => performance.now(),
@@ -27,7 +28,8 @@ export class ToolActionSystem {
     private readonly onActiveChange: (active: boolean) => void = () => undefined,
   ) {}
 
-  isActive() { return this.actionActive; }
+  isActive(tool?: ToolKey) { return tool ? this.actionActive && this.activeTool === tool : this.actionActive; }
+  currentTool() { return this.activeTool; }
 
   execute(tool: ToolKey, facing: Facing, action: (tool: ToolKey) => void, definitionOverride?: ToolActionDefinition, context?: ToolUseContext) {
     const now = this.now();
@@ -48,10 +50,12 @@ export class ToolActionSystem {
         if (shouldTriggerToolEffect(definition.effectTiming, "complete")) applyEffect();
       } finally {
         this.actionActive = false;
+        this.activeTool = undefined;
         this.onActiveChange(false);
       }
     };
     this.actionActive = true;
+    this.activeTool = tool;
     this.onActiveChange(true);
     try {
       // Start-triggered gameplay is authoritative and must not depend on the

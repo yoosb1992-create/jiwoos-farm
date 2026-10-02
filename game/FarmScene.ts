@@ -101,6 +101,7 @@ export class FarmScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<string, Phaser.Input.Keyboard.Key>;
   private actionKey!: Phaser.Input.Keyboard.Key;
+  private mobileActionHeld = false;
   private obstacles!: Phaser.Physics.Arcade.StaticGroup;
   private obstacleCollider?: Phaser.Physics.Arcade.Collider;
   private farm = new Map<string, FarmTileData>();
@@ -232,7 +233,7 @@ export class FarmScene extends Phaser.Scene {
     this.playerAnimations = new PlayerAnimationController(this.player, this.facing, this.playerVisualProfile);
     this.playerActionVisuals = new PlayerActionVisuals(this, this.player, this.playerAnimations);
     this.toolActions = new ToolActionSystem(this.playerActionVisuals, undefined, undefined, (active) => {
-      if (active) {
+      if (active && this.toolActions.currentTool() !== "seed") {
         this.player.setVelocity(0, 0);
         this.running = false;
       }
@@ -266,7 +267,7 @@ export class FarmScene extends Phaser.Scene {
       try { this.save(false); } catch { /* Continue cleanup if local storage is full. */ }
       if (this.sleepTimer !== undefined) window.clearTimeout(this.sleepTimer);
       this.sceneLive = false;
-      this.touchPoints.clear(); this.touchNavigation = undefined; this.deferredTouchAction = undefined; this.deferredMobileAction = false; this.pinchGesture = undefined;
+      this.touchPoints.clear(); this.touchNavigation = undefined; this.deferredTouchAction = undefined; this.deferredMobileAction = false; this.mobileActionHeld = false; this.pinchGesture = undefined;
       this.playerActionVisuals.destroy();
       gameEvents.removeEventListener("command", this.commandHandler);
       window.removeEventListener("keydown", this.runKeyDownHandler);
@@ -306,7 +307,7 @@ export class FarmScene extends Phaser.Scene {
     if (!this.family && !this.isPaused()) this.advanceClock(delta);
     this.npcRenderer.update(this.npcs.sampleWorld(this.daySerial, this.npcTime()), this.currentMapId, this.familyPose(), this.family&&!this.family.progress?[]:questViews(this.family?.progress?.data??this.playerProgress,this.inventory), this.mapRegistry.require(this.currentMapId));
     if (this.isPaused()) { this.running = false; this.player.setVelocity(0, 0); this.playerAnimations.playMovement(this.facing, false); return; }
-    if (this.toolActions.isActive()) {
+    if (this.toolActions.isActive() && !this.toolActions.isActive("seed")) {
       this.player.setVelocity(0, 0);
       this.playerAnimations.playMovement(this.facing, false);
       return;
@@ -327,7 +328,9 @@ export class FarmScene extends Phaser.Scene {
     const movementSpeed = GAME_CONFIG.playerSpeed * (this.running || this.leftShiftRunning ? 1.65 : 1);
     this.player.setVelocity(movement.x * movementSpeed, movement.y * movementSpeed);
     this.playerAnimations.playMovement(this.facing, Boolean(movement.x || movement.y));
-    if (Phaser.Input.Keyboard.JustDown(this.actionKey)) this.useFacingTile();
+    const seedHeld = this.selectedTool === "seed" && (this.actionKey.isDown || this.mobileActionHeld);
+    if (seedHeld && !(this.running || this.leftShiftRunning)) this.tryContinuousSeedPlant(this.mobileActionHeld ? "mobile" : "keyboard");
+    else if (Phaser.Input.Keyboard.JustDown(this.actionKey) && this.selectedTool !== "seed") this.useFacingTile();
     if (Phaser.Input.Keyboard.JustDown(this.wasd.ONE)) this.selectTool("hoe");
     if (Phaser.Input.Keyboard.JustDown(this.wasd.TWO)) this.selectTool("seed");
     if (Phaser.Input.Keyboard.JustDown(this.wasd.THREE)) this.selectTool("water");
@@ -568,6 +571,18 @@ export class FarmScene extends Phaser.Scene {
       if (destination > this.mineProgress.deepestUnlockedFloor) { this.lockedWarpId = active.id; this.say("사다리 바위를 캐면 다음 층으로 내려갈 수 있어요."); return; }
     }
     this.loadMap(active.targetMapId, active.targetSpawnId);
+  }
+
+  private tryContinuousSeedPlant(inputSource: "keyboard" | "mobile") {
+    if (this.selectedTool !== "seed" || this.running || this.leftShiftRunning || this.isPaused() || this.toolActions.isActive()) return;
+    if (this.family && (this.family.busy || !this.family.snapshot)) return;
+    const target = this.playerAnimations.interactionPoint(this.facing);
+    const context = this.resolveToolUseContext(target.x, target.y, inputSource);
+    if (context.mapId !== "farm" || context.targetKind !== "farm_tile") return;
+    const tile = this.farm.get(`${context.targetTile.x},${context.targetTile.y}`);
+    const seedItemId = getCropDefinition(this.selectedCrop).seedItemId;
+    if (!tile?.tilled || tile.cropType || tile.cropStage !== null || this.inventory.count(seedItemId) <= 0) return;
+    this.useFarmTool(context);
   }
 
   private useFacingTile(inputSource: "keyboard" | "mobile" = "keyboard") {
@@ -893,6 +908,10 @@ export class FarmScene extends Phaser.Scene {
   /** Visual feedback is unconditional after world interactions have had priority.
    * The immutable target is resolved before visual startup; only valid targets mutate. */
   private useFarmTool(context: ToolUseContext) {
+    if (context.tool === "seed" && (this.running || this.leftShiftRunning)) {
+      this.say("달리는 중에는 씨앗을 심을 수 없어요. 걸으면서 심어 주세요.");
+      return;
+    }
     const { x, y } = context.targetTile;
     const tile = this.farm.get(`${x},${y}`);
     const center = tilePoint(x + 0.5, y + 0.5);
@@ -1115,8 +1134,8 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private handleCommand(command: Command) {
-    if (command.type === "controls-edit") { this.controlsEditing = command.value === true; this.running = false; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); return; }
-    if (command.type === "menu-open") { this.menuInputBlocked = command.value === true; this.running = false; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); return; }
+    if (command.type === "controls-edit") { this.controlsEditing = command.value === true; this.running = false; this.mobileActionHeld = false; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); return; }
+    if (command.type === "menu-open") { this.menuInputBlocked = command.value === true; this.running = false; this.mobileActionHeld = false; this.virtualMovement = { x: 0, y: 0 }; this.player.setVelocity(0, 0); return; }
     if (command.type === "run") { this.running = !this.toolActions.isActive() && command.value === true; return; }
     if (command.type === "ui-close") {
       if (this.npcRequest || this.ranchBusy || this.buildingBusy || this.machineBusy || this.storageBusy || this.craftingBusy || this.transitioning) return;
@@ -1205,6 +1224,13 @@ export class FarmScene extends Phaser.Scene {
     }
     if (command.type === "tool" && typeof command.value === "string" && Object.hasOwn(TOOL_ACTION_DEFINITIONS, command.value)) this.selectTool(command.value as ToolKey);
     if (command.type === "action") {
+      const pressed = command.value !== false;
+      this.mobileActionHeld = pressed;
+      if (!pressed) return;
+      if (this.selectedTool === "seed") {
+        this.tryContinuousSeedPlant("mobile");
+        return;
+      }
       if (this.family && (this.family.busy || !this.family.snapshot)) this.deferredMobileAction = true;
       else this.useFacingTile("mobile");
     }
