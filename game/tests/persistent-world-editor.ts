@@ -62,6 +62,8 @@ for (const token of ["★ 초기월드로 적용", "초기월드 불러오기", 
 assert.ok(pageSource.includes("PublishedWorldRepository"), "normal gameplay loads the published initial world");
 assert.ok(stateRouteSource.includes("publishedWorldMaps"), "Family authority uses the same published world");
 assert.ok(presetRouteSource.includes("world_presets"), "published world is persisted independently from deploy source");
+assert.ok(presetRouteSource.includes("await ensureWorldPresetStorage(db)"), "initial-world GET verifies/repairs server storage before reporting ready");
+assert.ok(editorSource.includes("const server = await worldRepository.load()"), "initial-world publish re-checks the server revision immediately before applying");
 assert.ok(editorSource.includes("inspectorObjectId"), "mobile object inspector state is separate from selection");
 assert.ok(editorSource.includes("맵·옵션"), "mobile editor surfaces map sizing/options");
 assert.ok(editorSource.includes("mapSizeDraft"), "map size inputs edit a draft instead of mutating the live map");
