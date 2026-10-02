@@ -1,7 +1,7 @@
 import type { FamilyRealtimePresenceChannel, FamilyRealtimePresenceContext } from "./client";
 import type { FamilyPresenceSnapshot } from "./types";
 
-export const REALTIME_PRESENCE_SEND_MS = 50;
+export const REALTIME_PRESENCE_SEND_MS = 33;
 export const REALTIME_PRESENCE_RECONNECT_BASE_MS = 200;
 export const REALTIME_PRESENCE_RECONNECT_MAX_MS = 5000;
 
@@ -102,6 +102,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     socket.addEventListener("open", () => {
       if (this.socket !== socket || this.stopped) return;
       this.reconnectAttempt = 0;
+      context.onConnect();
       send();
       this.clearTimer();
       this.timer = setInterval(send, this.sendEveryMs);

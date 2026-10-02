@@ -34,7 +34,9 @@ for (const token of ["extends DurableObject", "acceptWebSocket", "serializeAttac
 assert.ok(routeSource.includes("env.FAMILY_ROOM.idFromName(roomId)"), "socket route selects one Durable Object identity per Family room");
 assert.ok(routeSource.includes("stub.fetch"), "socket route proxies the upgraded connection into the Durable Object");
 assert.ok(workerSource.includes("FamilyRoomDurableObject"), "custom worker entry exports the Durable Object class");
-assert.ok(envSource.includes("FAMILY_ROOM?: DurableObjectNamespace"), "Cloudflare env declares the optional namespace binding");
+assert.ok(envSource.includes("FAMILY_ROOM: DurableObjectNamespace"), "Cloudflare env requires the Family room namespace binding");
 assert.ok(viteSource.includes('main: "./server/worker.ts"'), "vinext build uses the custom worker entry while preserving its default handler");
+assert.ok(viteSource.includes('name: "FAMILY_ROOM"') && viteSource.includes('class_name: "FamilyRoomDurableObject"'), "worker config binds FAMILY_ROOM to the room Durable Object");
+assert.ok(viteSource.includes('type: "durable-object"') && viteSource.includes('storage: "sqlite"'), "worker config provisions the Durable Object with SQLite storage");
 
 console.log("Family Durable Object: room authority, hibernation socket contract and fallback wiring passed");

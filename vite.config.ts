@@ -15,10 +15,24 @@ const managedLinux = readExecutionProfile() === "managed-linux";
 
 const localBindingConfig = {
   // Custom entry re-exports vinext's handler plus the Family room Durable
-  // Object class. The Sites project can keep running without the binding;
-  // provisioning FAMILY_ROOM later activates the room authority path.
+  // Object class. FAMILY_ROOM is mandatory in production so every member of a
+  // Family farm is routed through one room-scoped WebSocket authority.
   main: "./server/worker.ts",
   compatibility_flags: ["nodejs_compat"],
+  durable_objects: {
+    bindings: [
+      {
+        name: "FAMILY_ROOM",
+        class_name: "FamilyRoomDurableObject",
+      },
+    ],
+  },
+  exports: {
+    FamilyRoomDurableObject: {
+      type: "durable-object",
+      storage: "sqlite",
+    },
+  },
   d1_databases: d1
     ? [
         {

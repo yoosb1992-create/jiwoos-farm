@@ -11,7 +11,7 @@ export const FAMILY_PRESENCE_FALLBACK_MS = FAMILY_PRESENCE_IDLE_MS;
 /** Sites can route WebSockets through separate isolates when FAMILY_ROOM is not
  * provisioned. Keep D1 presence fast enough to remain visually current even
  * while the WebSocket channel is running. */
-export const FAMILY_PRESENCE_KEEPALIVE_MS = FAMILY_PRESENCE_IDLE_MS;
+export const FAMILY_PRESENCE_KEEPALIVE_MS = 1500;
 export const familyPresenceDelay = (pose?: Pick<FamilyPose, "moving">) =>
   pose?.moving ? FAMILY_PRESENCE_MOVING_MS : FAMILY_PRESENCE_IDLE_MS;
 /** Backwards-compatible name used by existing retry tests/callers. */
@@ -34,6 +34,7 @@ export interface FamilyRealtimePresenceContext {
   sessionId: string;
   pose: () => FamilyPose | undefined;
   onSnapshot: (snapshot: FamilyPresenceSnapshot) => void;
+  onConnect: () => void;
   onDisconnect: () => void;
 }
 /** Optional fast channel. D1 state/action APIs remain authoritative regardless
@@ -84,6 +85,7 @@ export class FamilyClient {
   private stateTimer?: ReturnType<typeof setTimeout>;
   private presenceTimer?: ReturnType<typeof setTimeout>;
   private realtimeStarted = false;
+  private realtimeConnected = false;
   setPresence(pose: () => FamilyPose, onPresence: (snapshot: FamilyPresenceSnapshot) => void) {
     this.pose = pose; this.onPresence = onPresence;
     if (this.live) this.startRealtimePresence();
@@ -120,6 +122,7 @@ export class FamilyClient {
     this.live = false;
     clearTimeout(this.stateTimer); clearTimeout(this.presenceTimer);
     if (this.realtimeStarted) { this.realtimePresence?.stop(); this.realtimeStarted = false; }
+    this.realtimeConnected = false;
     // Wait for an already-sent D1 keepalive so leaving cannot be undone by its late response.
     void (this.heartbeatRequest ?? Promise.resolve()).catch(() => {}).then(() => familyFetch("/api/family/presence", {
       method: "DELETE", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ roomId: this.session.room.id, sessionId: this.sessionId }),
@@ -133,7 +136,8 @@ export class FamilyClient {
       sessionId: this.sessionId,
       pose: () => this.live ? this.pose?.() : undefined,
       onSnapshot: (snapshot) => this.acceptPresence(snapshot),
-      onDisconnect: () => { /* D1 keepalive/presence polling remains the safe fallback. */ },
+      onConnect: () => { this.realtimeConnected = true; },
+      onDisconnect: () => { this.realtimeConnected = false; },
     });
   }
   private async pollState() {
@@ -157,7 +161,7 @@ export class FamilyClient {
     } finally {
       if (this.live) this.presenceTimer = setTimeout(
         () => void this.pollPresence(),
-        familyPresenceDelay(this.pose?.()),
+        this.realtimeConnected ? FAMILY_PRESENCE_KEEPALIVE_MS : familyPresenceDelay(this.pose?.()),
       );
     }
   }
