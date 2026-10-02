@@ -3,7 +3,7 @@ import { FamilyState } from "../../server/family/state";
 import { FamilyRooms } from "../../server/family/rooms";
 import { FamilyPresenceService } from "../../server/family/presence";
 import { familyTestDB } from "./family-db";
-import { FAMILY_PRESENCE_TTL_MS, interpolateFamilyPosition, mergeFamilyPresenceSnapshots, visibleFamilyPlayers } from "../family/presence";
+import { FAMILY_PRESENCE_TTL_MS, interpolateFamilyPosition, mergeFamilyPresenceSnapshots, predictFamilyPosition, visibleFamilyPlayers } from "../family/presence";
 import { RemotePlayers } from "../family/RemotePlayers";
 import type { FamilyPose } from "../family/types";
 const { db, close } = familyTestDB();
@@ -51,7 +51,10 @@ try {
   assert.equal((await presence.read("A", a.room.id)).players.length, 2, "stale tab leave must not remove new session");
   await presence.leave("B", a.room.id, sessionB); assert.equal((await presence.read("A", a.room.id)).players.length, 1);
   now += FAMILY_PRESENCE_TTL_MS + 1; assert.equal((await presence.read("A", a.room.id)).players.length, 0);
-  const midway = interpolateFamilyPosition({ x: 0, y: 0 }, { x: 100, y: 100 }, 100); assert.ok(midway.x > 0 && midway.x < 100);
+  const predicted = predictFamilyPosition({ ...snapshot.players[0], moving: true, facing: "right", x: 100, y: 100, lastSeen: 1000 }, 1090);
+  assert.ok(predicted.x > 100 && predicted.x < 115 && predicted.y === 100, "remote pose predicts at most a short network-lag window");
+  const midway = interpolateFamilyPosition({ x: 0, y: 0 }, { x: 60, y: 60 }, 16); assert.ok(midway.x > 20 && midway.x < 40, "remote interpolation catches up within a few frames");
+  assert.deepEqual(interpolateFamilyPosition({ x: 0, y: 0 }, { x: 120, y: 0 }, 16), { x: 120, y: 0 }, "large corrections snap instead of visibly trailing");
   // Exercise the actual renderer via its narrow Scene.add surface; physics access would fail.
   let sprites = 0, destroyed = 0; const labels: string[] = [], animations: string[] = [];
   // Chainable sprite and label doubles.

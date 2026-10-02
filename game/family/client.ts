@@ -5,13 +5,13 @@ import { familyPersonalKey, parseFamilyPose } from "./personal";
 import { mergeFamilyPresenceSnapshots } from "./presence";
 
 export const FAMILY_STATE_POLL_MS = 1000;
-export const FAMILY_PRESENCE_MOVING_MS = 180;
-export const FAMILY_PRESENCE_IDLE_MS = 850;
+export const FAMILY_PRESENCE_MOVING_MS = 90;
+export const FAMILY_PRESENCE_IDLE_MS = 450;
 export const FAMILY_PRESENCE_FALLBACK_MS = FAMILY_PRESENCE_IDLE_MS;
-/** Realtime movement uses WebSocket frames. D1 remains a low-rate safety
- * heartbeat so presence still degrades gracefully if the fast path cannot
- * reach the same room broker. */
-export const FAMILY_PRESENCE_KEEPALIVE_MS = 1500;
+/** Sites can route WebSockets through separate isolates when FAMILY_ROOM is not
+ * provisioned. Keep D1 presence fast enough to remain visually current even
+ * while the WebSocket channel is running. */
+export const FAMILY_PRESENCE_KEEPALIVE_MS = FAMILY_PRESENCE_IDLE_MS;
 export const familyPresenceDelay = (pose?: Pick<FamilyPose, "moving">) =>
   pose?.moving ? FAMILY_PRESENCE_MOVING_MS : FAMILY_PRESENCE_IDLE_MS;
 /** Backwards-compatible name used by existing retry tests/callers. */
@@ -157,7 +157,7 @@ export class FamilyClient {
     } finally {
       if (this.live) this.presenceTimer = setTimeout(
         () => void this.pollPresence(),
-        this.realtimeStarted ? FAMILY_PRESENCE_KEEPALIVE_MS : familyPresenceDelay(this.pose?.()),
+        familyPresenceDelay(this.pose?.()),
       );
     }
   }

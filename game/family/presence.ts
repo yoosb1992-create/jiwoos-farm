@@ -1,3 +1,4 @@
+import { GAME_CONFIG } from "../config";
 import type { FamilyPresence, FamilyPresenceSnapshot } from "./types";
 export const FAMILY_PRESENCE_TTL_MS = 12_000;
 
@@ -23,7 +24,22 @@ export const mergeFamilyPresenceSnapshots = (
 
 export const visibleFamilyPlayers = (snapshot: FamilyPresenceSnapshot, ownId: string, mapId: string): FamilyPresence[] =>
   snapshot.players.filter((p) => p.playerId !== ownId && p.mapId === mapId && snapshot.serverNow - p.lastSeen < FAMILY_PRESENCE_TTL_MS);
+
+const facingVector = (facing: FamilyPresence["facing"]) =>
+  facing === "left" ? { x: -1, y: 0 } : facing === "right" ? { x: 1, y: 0 } :
+  facing === "up" ? { x: 0, y: -1 } : { x: 0, y: 1 };
+
+export const predictFamilyPosition = (player: FamilyPresence, serverNow: number) => {
+  if (!player.moving) return { x: player.x, y: player.y };
+  const ageMs = Math.max(0, Math.min(90, serverNow - player.lastSeen));
+  const direction = facingVector(player.facing);
+  const distance = GAME_CONFIG.playerSpeed * ageMs / 1000;
+  return { x: player.x + direction.x * distance, y: player.y + direction.y * distance };
+};
+
 export const interpolateFamilyPosition = (current: { x: number; y: number }, target: { x: number; y: number }, delta: number) => {
-  const factor = 1 - Math.exp(-Math.max(0, delta) / 95);
-  return { x: current.x + (target.x - current.x) * factor, y: current.y + (target.y - current.y) * factor };
+  const dx = target.x - current.x, dy = target.y - current.y;
+  if (Math.hypot(dx, dy) >= 96) return { x: target.x, y: target.y };
+  const factor = 1 - Math.exp(-Math.max(0, delta) / 28);
+  return { x: current.x + dx * factor, y: current.y + dy * factor };
 };

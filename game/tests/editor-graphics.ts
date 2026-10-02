@@ -27,7 +27,7 @@ const pineMarkup = renderToStaticMarkup(createElement(EditorCanvas, {
   layers: { terrain: true, objects: true, collision: false, farm: false, spawn: false, warp: false, grid: false },
   onSelect: () => {}, onCommit: () => {},
 }));
-assert.ok(pineMarkup.includes('width="5.5"') && pineMarkup.includes('height="6.75"'), "farm pine previews at the mature runtime scale");
+assert.ok(pineMarkup.includes('width="4.75"') && pineMarkup.includes('height="6.75"'), "farm pine previews the slimmer mature runtime scale");
 console.log("Editor graphics: shared tile/object images, pine resource placement and mature preview passed");
 
 // Small HUD images retain explicit dimensions and the original glyph when no source exists.

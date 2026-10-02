@@ -26,7 +26,7 @@ const ids = farmTreeIds(farm);
 const trees = farm.objects.filter(isFarmTreeObject);
 assert.equal(trees.length, 15, "expanded authored farm_tree_* objects are the only farm lumber nodes");
 assert.deepEqual(normalizeFarmTreeState(undefined, ids), emptyFarmTreeState(), "old saves keep every farm tree");
-assert.deepEqual(FARM_TREE_STAGE_DISPLAY_SIZE.mature, { width: 176, height: 216 }, "mature pine is three player-heights tall in the first-pass scale");
+assert.deepEqual(FARM_TREE_STAGE_DISPLAY_SIZE.mature, { width: 152, height: 216 }, "mature pine keeps its height while using a slimmer silhouette");
 
 const tree = trees[0];
 let state = emptyFarmTreeState();

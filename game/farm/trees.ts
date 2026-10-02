@@ -63,7 +63,7 @@ export const FARM_TREE_GROWTH = {
 export const FARM_TREE_STAGE_DISPLAY_SIZE: Record<FarmTreeStage, { width: number; height: number }> = {
   sprout: { width: 52, height: 64 },
   young: { width: 96, height: 120 },
-  mature: { width: 176, height: 216 },
+  mature: { width: 152, height: 216 },
   giant: { width: 240, height: 300 },
   guardian: { width: 304, height: 384 },
 };

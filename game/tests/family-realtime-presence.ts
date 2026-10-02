@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { browserFamilyPresenceUrl, realtimePresenceReconnectDelay, WebSocketFamilyRealtimePresence } from "../family/realtimePresence";
+import { REALTIME_PRESENCE_SEND_MS, browserFamilyPresenceUrl, realtimePresenceReconnectDelay, WebSocketFamilyRealtimePresence } from "../family/realtimePresence";
 import type { FamilyPose, FamilyPresenceSnapshot } from "../family/types";
 import type { FamilyPresenceSocket } from "../family/realtimePresence";
 
@@ -26,6 +26,7 @@ class FakeSocket implements FamilyPresenceSocket {
 }
 
 assert.equal(browserFamilyPresenceUrl({ roomId: "family room", sessionId: "session/1" }), "ws://localhost/api/family/presence/socket?roomId=family%20room&sessionId=session%2F1");
+assert.equal(REALTIME_PRESENCE_SEND_MS, 50, "movement frames target 20Hz realtime delivery");
 assert.equal(realtimePresenceReconnectDelay(0, 300), 300);
 assert.equal(realtimePresenceReconnectDelay(10, 300), 5000);
 

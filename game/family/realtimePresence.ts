@@ -1,8 +1,8 @@
 import type { FamilyRealtimePresenceChannel, FamilyRealtimePresenceContext } from "./client";
 import type { FamilyPresenceSnapshot } from "./types";
 
-export const REALTIME_PRESENCE_SEND_MS = 100;
-export const REALTIME_PRESENCE_RECONNECT_BASE_MS = 300;
+export const REALTIME_PRESENCE_SEND_MS = 50;
+export const REALTIME_PRESENCE_RECONNECT_BASE_MS = 200;
 export const REALTIME_PRESENCE_RECONNECT_MAX_MS = 5000;
 
 export interface FamilyPresenceSocket {
