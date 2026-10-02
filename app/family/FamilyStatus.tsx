@@ -46,13 +46,13 @@ export function FamilyStatus({ session, mapId = "farm" }: { session: FamilySessi
   };
   const players = presence?.snapshot.players.filter((p) => presence.snapshot.serverNow + now - presence.received - p.lastSeen < FAMILY_PRESENCE_TTL_MS) ?? [];
   return <details className="family-status" onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary><span>가족 {players.length}명</span><span role="status">{CONNECTION_LABELS[connection]}</span><span>{realtimeMode === "webrtc" ? "RTC P2P" : realtimeMode === "websocket" ? "WS 실시간" : realtimeMode === "d1-fallback" ? "D1 복구" : "실시간 연결 중"}</span>{!!sleep?.agreed && <span>수면 {sleep.agreed}/{sleep.online}</span>}</summary>
+    <summary><span>가족 {players.length}명</span><span role="status">{CONNECTION_LABELS[connection]}</span><span>{realtimeMode === "webrtc" ? "RTC P2P" : realtimeMode === "websocket" ? "WS 직접" : realtimeMode === "d1-fallback" ? "D1 복구" : "실시간 연결 중"}</span>{!!sleep?.agreed && <span>수면 {sleep.agreed}/{sleep.online}</span>}</summary>
     <div className="family-panel-body"><b>{room.name}</b>
     <p>초대 코드 <strong>{room.inviteCode}</strong> <button onClick={() => void copyCode()}>복사</button></p>
     {!!copyMessage && <p role="status">{copyMessage}</p>}
     {players.length ? <FamilyRoster players={players} ownId={session.room.playerId} mapId={mapId} /> : <p>참가자 연결 확인 중…</p>}
     {!!sleep?.agreed && <p role="status">{sleep.waiting.join(", ")}님이 잠자기를 기다리고 있습니다. ({sleep.agreed}/{sleep.online}) {sleep.voted && <button disabled={connection !== "connected"} onClick={() => gameEvents.dispatchEvent(new CustomEvent("command", { detail: { type: "family-sleep-cancel" } }))}>투표 취소</button>}</p>}
-    <small>{realtimeMode === "webrtc" ? "멀티: WebRTC P2P 직접 이동 · WebSocket은 signaling/fallback" : realtimeMode === "websocket" ? "멀티: WebSocket 실시간 · P2P 연결 시 자동 전환" : realtimeMode === "d1-fallback" ? "멀티: D1 복구모드 · 실시간 연결 재시도 중" : "멀티: 실시간 연결 중"} · 영구 상태는 서버 동기화</small>
+    <small>{realtimeMode === "webrtc" ? "멀티: WebRTC P2P 직접 이동 · Worker WebSocket은 signaling/fallback" : realtimeMode === "websocket" ? "멀티: Worker WebSocket 직접 이동 · 60Hz 이동 스트림" : realtimeMode === "d1-fallback" ? "멀티: D1 복구모드 · 직접 실시간 연결 재시도 중" : "멀티: 직접 실시간 연결 중"} · 영구 상태는 서버 동기화</small>
     </div>
   </details>;
 }

@@ -25,8 +25,8 @@ class FakeSocket implements FamilyPresenceSocket {
   emitClose() { this.readyState = 3; for (const listener of this.listeners.get("close") ?? []) listener(); }
 }
 
-assert.equal(browserFamilyPresenceUrl({ roomId: "family room", sessionId: "session/1" }), "ws://localhost/api/family/presence/socket?roomId=family%20room&sessionId=session%2F1");
-assert.equal(REALTIME_PRESENCE_SEND_MS, 33, "movement frames target about 30Hz realtime delivery");
+assert.equal(browserFamilyPresenceUrl({ roomId: "family room", sessionId: "session/1" }), "ws://localhost/family/realtime?roomId=family%20room&sessionId=session%2F1");
+assert.equal(REALTIME_PRESENCE_SEND_MS, 16, "direct movement stream targets roughly 60Hz delivery");
 assert.equal(REALTIME_PRESENCE_CONNECT_TIMEOUT_MS, 3500, "stuck websocket handshakes cannot remain in connecting forever");
 assert.equal(FAMILY_RTC_DATA_LABEL, "family-movement");
 assert.equal(familyRtcInitiator("a", "b"), true);
@@ -59,7 +59,13 @@ assert.equal(openedUrl, "wss://presence.test/room-a?session=session-a");
 socket.emitOpen();
 assert.equal(connects, 1, "realtime channel reports the authoritative room connection");
 assert.equal(socket.sent.length, 1, "realtime presence sends immediately after WebSocket open");
-assert.deepEqual(JSON.parse(socket.sent[0]), { type: "presence", roomId: "room-a", sessionId: "session-a", pose });
+const firstFrame = JSON.parse(socket.sent[0]) as { type:string; roomId:string; sessionId:string; pose:FamilyPose; sequence:number; clientSentAt:number };
+assert.equal(firstFrame.type, "presence");
+assert.equal(firstFrame.roomId, "room-a");
+assert.equal(firstFrame.sessionId, "session-a");
+assert.deepEqual(firstFrame.pose, pose);
+assert.equal(firstFrame.sequence, 1);
+assert.ok(Number.isFinite(firstFrame.clientSentAt));
 channel.flush();
 assert.equal(socket.sent.length, 2, "movement state changes can flush immediately without waiting for the 30Hz timer");
 socket.emitMessage(JSON.stringify({ players: [], serverNow: 1234 }));
@@ -106,4 +112,4 @@ assert.equal(hanging.closed, true, "a websocket handshake that never opens is ac
 assert.equal(watchdogDisconnects, 1, "connect watchdog switches gameplay to D1 recovery mode");
 watchdog.stop();
 
-console.log("Family realtime presence: 30Hz socket, reconnect and connect-watchdog contract passed");
+console.log("Family realtime presence: direct 60Hz socket, sequencing, reconnect and connect-watchdog contract passed");

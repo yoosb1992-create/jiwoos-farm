@@ -2,7 +2,7 @@ import type { FamilyRealtimePresenceChannel, FamilyRealtimePresenceContext } fro
 import { parseFamilyPose } from "./personal";
 import type { FamilyPose, FamilyPresence, FamilyPresenceSnapshot } from "./types";
 
-export const REALTIME_PRESENCE_SEND_MS = 33;
+export const REALTIME_PRESENCE_SEND_MS = 16;
 export const REALTIME_PRESENCE_RECONNECT_BASE_MS = 200;
 export const REALTIME_PRESENCE_RECONNECT_MAX_MS = 5000;
 export const REALTIME_PRESENCE_CONNECT_TIMEOUT_MS = 3500;
@@ -30,6 +30,7 @@ interface FamilyRtcPeer {
   connection: RTCPeerConnection;
   channel?: RTCDataChannel;
   pendingIce: RTCIceCandidateInit[];
+  lastSequence: number;
 }
 
 type FamilyRtcRelay = {
@@ -45,7 +46,7 @@ export const browserFamilyPresenceUrl: FamilyPresenceUrlFactory = ({ roomId, ses
   const location = globalThis.location;
   const protocol = location?.protocol === "https:" ? "wss:" : "ws:";
   const host = location?.host || "localhost";
-  return `${protocol}//${host}/api/family/presence/socket?roomId=${encodeURIComponent(roomId)}&sessionId=${encodeURIComponent(sessionId)}`;
+  return `${protocol}//${host}/family/realtime?roomId=${encodeURIComponent(roomId)}&sessionId=${encodeURIComponent(sessionId)}`;
 };
 
 export const realtimePresenceReconnectDelay = (attempt: number, base = REALTIME_PRESENCE_RECONNECT_BASE_MS) =>
@@ -89,6 +90,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
   private serverSnapshot: FamilyPresenceSnapshot = { players: [], serverNow: 0 };
   private rtcPeers = new Map<string, FamilyRtcPeer>();
   private rtcPoses = new Map<string, FamilyPresence>();
+  private sequence = 0;
 
   constructor(
     private readonly url: FamilyPresenceUrlFactory,
@@ -194,13 +196,17 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     if (this.socket !== socket || socket.readyState !== 1) return;
     const pose = context.pose();
     if (!pose) return;
+    const sequence = ++this.sequence;
+    const clientSentAt = Date.now();
     socket.send(JSON.stringify({
       type: "presence",
       roomId: context.roomId,
       sessionId: context.sessionId,
       pose,
+      sequence,
+      clientSentAt,
     }));
-    const direct = JSON.stringify({ type: "pose", pose });
+    const direct = JSON.stringify({ type: "pose", pose, sequence, clientSentAt });
     for (const peer of this.rtcPeers.values()) {
       if (peer.channel?.readyState !== "open") continue;
       try { peer.channel.send(direct); } catch { /* WebSocket fallback continues */ }
@@ -236,7 +242,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
     if (this.rtcPeers.has(playerId) || !this.context) return this.rtcPeers.get(playerId);
     const connection = this.makePeer();
     if (!connection) return undefined;
-    const peer: FamilyRtcPeer = { playerId, nickname, connection, pendingIce: [] };
+    const peer: FamilyRtcPeer = { playerId, nickname, connection, pendingIce: [], lastSequence: 0 };
     this.rtcPeers.set(playerId, peer);
 
     connection.onicecandidate = (event) => {
@@ -267,7 +273,7 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
       context.onTransport?.("webrtc");
       const pose = context.pose();
       if (pose) {
-        try { channel.send(JSON.stringify({ type: "pose", pose })); } catch { /* next tick retries */ }
+        try { channel.send(JSON.stringify({ type: "pose", pose, sequence: ++this.sequence, clientSentAt: Date.now() })); } catch { /* next tick retries */ }
       }
     };
     channel.onmessage = (event) => this.receiveRtcData(peer, event.data);
@@ -285,10 +291,11 @@ export class WebSocketFamilyRealtimePresence implements FamilyRealtimePresenceCh
   private receiveRtcData(peer: FamilyRtcPeer, raw: unknown) {
     if (typeof raw !== "string") return;
     try {
-      const frame = JSON.parse(raw) as { type?: unknown; pose?: unknown };
-      if (frame.type !== "pose") return;
+      const frame = JSON.parse(raw) as { type?: unknown; pose?: unknown; sequence?: unknown; clientSentAt?: unknown };
+      if (frame.type !== "pose" || !Number.isSafeInteger(frame.sequence) || Number(frame.sequence) <= peer.lastSequence) return;
       const pose = parseFamilyPose(frame.pose);
       if (!pose) return;
+      peer.lastSequence = Number(frame.sequence);
       this.rtcPoses.set(peer.playerId, {
         ...pose,
         playerId: peer.playerId,
