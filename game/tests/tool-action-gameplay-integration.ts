@@ -95,13 +95,15 @@ for (let hit = 1; hit <= FARM_TREE_RESOURCE.hits; hit += 1) {
   assert.equal(actions.execute("axe", "right", () => {
     const result = strikeFarmTree(treeState, tree, "axe", { axe: 1, pickaxe: 1 });
     treeState = result.state;
-    if (result.drop) inventory.add(result.drop, result.quantity);
+    for (const drop of result.drops ?? []) inventory.add(drop.itemId, drop.quantity);
   }), true);
   if (hit < FARM_TREE_RESOURCE.hits) assert.equal(treeState.hits[tree.id], hit, `axe visual also applies hit ${hit}/3`);
   finish();
 }
-assert.ok(treeState.depleted.includes(tree.id), "third axe action depletes the farm tree");
-assert.equal(inventory.count("wood"), 3, "the final axe action awards wood once");
+assert.ok(treeState.stumps.includes(tree.id), "third axe action turns the pine into a stump");
+assert.equal(inventory.count("wood"), 1, "the final axe action awards one wood");
+assert.equal(inventory.count("pine_needles"), 1, "the final axe action awards pine needles once");
+assert.equal(inventory.count("pine_cone"), 1, "the final axe action awards a pine cone once");
 
 const capturePlayer = { x: 304, y: 224 };
 const captured = resolveToolTarget({
