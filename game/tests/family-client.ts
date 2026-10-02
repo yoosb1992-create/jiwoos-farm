@@ -26,7 +26,7 @@ try {
   assert.equal(await client.act({ kind: "sell", pose: { mapId: "farm", x: 100, y: 100, facing: "down", moving: false, selectedTool: "hand" } }), false);
   assert.equal(client.connection, "reconnecting");
   globalThis.fetch = (async () => await new Promise<Response>((resolve) => pending.push(resolve))) as typeof fetch;
-  const late = client.refresh(); client.stop(); pending[2](Response.json(snapshot(3))); await late;
+  const late = client.refresh(); const lateResolve = pending.at(-1)!; client.stop(); lateResolve(Response.json(snapshot(3))); await late;
   assert.deepEqual(received, [2], "destroyed game must not receive callbacks");
   console.log("Family client: stale responses ignored, teardown stops updates");
 } finally { client.stop(); globalThis.fetch = originalFetch; }
