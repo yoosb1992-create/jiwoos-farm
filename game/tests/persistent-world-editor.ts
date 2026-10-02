@@ -55,6 +55,7 @@ const canvasSource = readFileSync(new URL("../../app/editor/EditorCanvas.tsx", i
 const pageSource = readFileSync(new URL("../../app/page.tsx", import.meta.url), "utf8");
 const stateRouteSource = readFileSync(new URL("../../app/api/family/state/route.ts", import.meta.url), "utf8");
 const presetRouteSource = readFileSync(new URL("../../app/api/world-preset/route.ts", import.meta.url), "utf8");
+const editorLoginSource = readFileSync(new URL("../../app/editor-login/page.tsx", import.meta.url), "utf8");
 
 for (const token of ["★ 초기월드로 적용", "초기월드 불러오기", "가로 타일", "세로 타일", "볼거리 묶음", "맵 크기 적용"]) {
   assert.ok(editorSource.includes(token), `world editor exposes ${token}`);
@@ -64,6 +65,12 @@ assert.ok(stateRouteSource.includes("publishedWorldMaps"), "Family authority use
 assert.ok(presetRouteSource.includes("world_presets"), "published world is persisted independently from deploy source");
 assert.ok(presetRouteSource.includes("await ensureWorldPresetStorage(db)"), "initial-world GET verifies/repairs server storage before reporting ready");
 assert.ok(editorSource.includes("const server = await worldRepository.load()"), "initial-world publish re-checks the server revision immediately before applying");
+assert.ok(editorSource.includes('window.location.assign("/editor-login")'), "signed-out initial-world publish opens the ChatGPT login flow instead of pretending the server failed");
+assert.ok(editorSource.includes("초기월드 로그인 필요"), "editor distinguishes login-required state from server failure");
+assert.ok(editorLoginSource.includes('/?editor=1'), "editor login returns directly to the map editor");
+assert.ok(pageSource.includes('params.get("editor") === "1"'), "home restores editor mode after ChatGPT sign-in");
+assert.ok(pageSource.includes("repository.clear(); setFamily(undefined); setMode(\"play\")"), "single-player 처음부터 clears only save data before starting");
+assert.ok(pageSource.includes("new PublishedWorldRepository().load()"), "single-player start fetches the published initial world before creating Phaser");
 assert.ok(editorSource.includes("inspectorObjectId"), "mobile object inspector state is separate from selection");
 assert.ok(editorSource.includes("맵·옵션"), "mobile editor surfaces map sizing/options");
 assert.ok(editorSource.includes("mapSizeDraft"), "map size inputs edit a draft instead of mutating the live map");

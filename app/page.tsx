@@ -320,7 +320,11 @@ export default function Home() {
   const [family, setFamily] = useState<FamilySession | undefined>();
   const [testSession, setTestSession] = useState<{ maps: Record<string, MapDefinition>; mapId: string } | null>(null);
   const [hasSingleSave, setHasSingleSave] = useState(false);
-  useEffect(() => { if (new URLSearchParams(window.location.search).get("family") === "1") setMode("family"); }, []);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("family") === "1") setMode("family");
+    else if (params.get("editor") === "1") setMode("editor");
+  }, []);
   const home = () => { setFamily(undefined); setMode("start"); };
   const openSinglePlayer = () => { setFamily(undefined); setHasSingleSave(new LocalStorageSaveRepository().exists()); setMode("single"); };
   if (mode === "start") return <main className="family-screen"><section className="family-card family-welcome">
