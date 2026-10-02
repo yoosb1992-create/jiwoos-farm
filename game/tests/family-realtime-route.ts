@@ -5,7 +5,7 @@ const route = readFileSync(new URL("../../app/api/family/presence/socket/route.t
 const scene = readFileSync(new URL("../FarmScene.ts", import.meta.url), "utf8");
 const client = readFileSync(new URL("../family/client.ts", import.meta.url), "utf8");
 
-for (const token of ["requireMember", "env.FAMILY_ROOM", "idFromName(roomId)", "stub.fetch", "status: 503"]) {
+for (const token of ["requireMember", "env.FAMILY_ROOM", "idFromName(roomId)", "stub.fetch", "가족농장 실시간 서버가 배포되지 않았습니다."]) {
   assert.ok(route.includes(token), `realtime route keeps ${token}`);
 }
 assert.ok(!route.includes("WebSocketPair"), "production route has no isolate-local WebSocket broker fallback");
