@@ -50,6 +50,7 @@ export interface HudState {
   weather: import("./weather/types").WeatherId;
   timeText: string;
   sleepPrompt: boolean;
+  sleepVote?: import("./family/types").FamilySnapshot["sleep"];
   transitioning: boolean;
   shopOpen: boolean;
   mapId?: string;

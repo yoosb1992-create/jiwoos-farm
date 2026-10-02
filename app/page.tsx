@@ -203,6 +203,11 @@ function FarmGameView({ editorMaps, initialMapId, testMode = false, onOpenEditor
           <div className="brand-plate"><span className="brand-leaf">✦</span><div><strong>지우네 농장</strong><small>우리 가족의 봄날</small></div></div>
           <div className="status-plate"><span>{WEATHER_DEFINITIONS[hud.weather].icon} {hud.mapName}</span><b>{hud.year}년차 · {SEASON_NAMES[hud.season]} {hud.day}일 · {WEATHER_DEFINITIONS[hud.weather].name}</b><strong>{hud.timeText}</strong><em>{hud.money.toLocaleString()} G</em><StaminaMeter stamina={hud.stats.stamina} maxStamina={hud.stats.maxStamina} /></div>
         </header>
+        {family && hud.sleepVote && hud.sleepVote.agreed > 0 && hud.sleepVote.agreed < hud.sleepVote.online && <aside className="sleep-vote-toast" role="status" aria-live="polite">
+          <b>🌙 잠자기 투표 {hud.sleepVote.agreed}/{hud.sleepVote.online}</b>
+          <small>{hud.sleepVote.waiting.length ? `동의: ${hud.sleepVote.waiting.join(", ")}` : "가족의 투표를 기다리는 중"}</small>
+          <span>{hud.sleepVote.voted ? "내 투표 완료 · 다른 가족을 기다리는 중" : "침대에서 잠자기에 동의해 주세요."}</span>
+        </aside>}
         <div className="desktop-left-ui">
           <aside className={`quest-card ${questOpen ? "expanded" : ""}`} onClick={() => setQuestOpen((open) => !open)}>
             <span className="quest-kicker">오늘 할 일 <i>▾</i></span><strong>{hud.objective}</strong>
