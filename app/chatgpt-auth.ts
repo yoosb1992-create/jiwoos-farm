@@ -1,5 +1,7 @@
+import { env } from "cloudflare:workers";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { readFarmSession } from "@/server/auth/farmSession";
 
 export type ChatGPTUser = {
   userId: string;
@@ -17,26 +19,43 @@ const PERCENT_ENCODED_UTF8 = "percent-encoded-utf-8";
 const SIGN_IN_PATH = "/signin-with-chatgpt";
 const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
+const FARM_SIGN_IN_PATH = "/login";
 
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
   const userId = requestHeaders.get(USER_ID_HEADER);
   const email = requestHeaders.get(USER_EMAIL_HEADER);
-  if (!userId || !email) return null;
+  if (userId && email) {
+    const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
+    const fullName =
+      encodedFullName &&
+      requestHeaders.get(USER_FULL_NAME_ENCODING_HEADER) === PERCENT_ENCODED_UTF8
+        ? safeDecodeURIComponent(encodedFullName)
+        : null;
 
-  const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get(USER_FULL_NAME_ENCODING_HEADER) === PERCENT_ENCODED_UTF8
-      ? safeDecodeURIComponent(encodedFullName)
-      : null;
+    return {
+      userId,
+      displayName: fullName ?? email,
+      email,
+      fullName,
+    };
+  }
 
-  return {
-    userId,
-    displayName: fullName ?? email,
-    email,
-    fullName,
-  };
+  if (!env.DB) return null;
+  try {
+    const farmUser = await readFarmSession(env.DB, requestHeaders.get("cookie"));
+    if (!farmUser) return null;
+    return {
+      userId: farmUser.userId,
+      displayName: farmUser.displayName,
+      email: farmUser.loginName + "@jiwoos-farm.local",
+      fullName: farmUser.displayName,
+    };
+  } catch {
+    // Older ChatGPT Sites deployments may not have the standalone auth tables.
+    // Keep their existing ChatGPT-header authentication path working.
+    return null;
+  }
 }
 
 export async function requireChatGPTUser(
@@ -45,17 +64,22 @@ export async function requireChatGPTUser(
   const user = await getChatGPTUser();
   if (user) return user;
 
-  redirect(chatGPTSignInPath(returnTo));
+  redirect(farmSignInPath(returnTo));
+}
+
+export function farmSignInPath(returnTo: string): string {
+  const safeReturnTo = safeRelativeReturnPath(returnTo);
+  return FARM_SIGN_IN_PATH + "?return_to=" + encodeURIComponent(safeReturnTo);
 }
 
 export function chatGPTSignInPath(returnTo: string): string {
   const safeReturnTo = safeRelativeReturnPath(returnTo);
-  return `${SIGN_IN_PATH}?return_to=${encodeURIComponent(safeReturnTo)}`;
+  return SIGN_IN_PATH + "?return_to=" + encodeURIComponent(safeReturnTo);
 }
 
 export function chatGPTSignOutPath(returnTo = "/"): string {
   const safeReturnTo = safeRelativeReturnPath(returnTo);
-  return `${SIGN_OUT_PATH}?return_to=${encodeURIComponent(safeReturnTo)}`;
+  return SIGN_OUT_PATH + "?return_to=" + encodeURIComponent(safeReturnTo);
 }
 
 function safeRelativeReturnPath(value: string): string {
@@ -70,14 +94,15 @@ function safeRelativeReturnPath(value: string): string {
   if (url.origin !== "https://app.local") return "/";
   if (isReservedAuthPath(url.pathname)) return "/";
 
-  return `${url.pathname}${url.search}${url.hash}`;
+  return url.pathname + url.search + url.hash;
 }
 
 function isReservedAuthPath(pathname: string): boolean {
   return (
     pathname === SIGN_IN_PATH ||
     pathname === SIGN_OUT_PATH ||
-    pathname === CALLBACK_PATH
+    pathname === CALLBACK_PATH ||
+    pathname === FARM_SIGN_IN_PATH
   );
 }
 
