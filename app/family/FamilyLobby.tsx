@@ -49,9 +49,9 @@ export function FamilyLobby({ onBack, onEnter }: { onBack: () => void; onEnter: 
   };
   return <main className="family-screen"><section className="family-card">
     <button className="family-back" onClick={onBack}>← 처음으로</button>
-    <h1>가족 농장</h1><p>각자 ChatGPT 계정으로 로그인해 같은 초대 코드로 모이세요.</p>
+    <h1>가족 농장</h1><p>각자 지우네 농장 계정으로 로그인해 같은 초대 코드로 모이세요.</p>
     <p className="family-note">Family Beta · 날짜와 자금은 공동, 씨앗과 수확물은 개인 소유입니다. 접속한 가족 모두 수면에 동의하면 다음 날로 넘어갑니다.</p>
-    {needsLogin ? <a className="family-primary" href="/signin-with-chatgpt?return_to=%2F%3Ffamily%3D1">ChatGPT로 로그인</a> : <>
+    {needsLogin ? <a className="family-primary" href="/login?return_to=%2F%3Ffamily%3D1">로그인 / 계정 만들기</a> : <>
       <label>구성원 닉네임<input value={nickname} maxLength={20} autoComplete="nickname" placeholder="농장에서 부를 이름" onChange={(event) => setNickname(event.target.value)} disabled={busy} /></label>
       <div className="family-forms">
         <form onSubmit={(event) => { event.preventDefault(); void submit({ action: "create", name, nickname }); }}>

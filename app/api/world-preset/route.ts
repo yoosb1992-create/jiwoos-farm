@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { getAppUser } from "@/app/auth";
 import { parseEditorDocument } from "@/game/editor/document";
 import type { MapEditorDocument } from "@/game/editor/types";
 import { WORLD_PRESET_ID, ensureWorldPresetStorage, readPublishedWorldPreset } from "@/server/world/preset";
@@ -28,7 +28,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return json({ message: "로그인이 필요합니다." }, 401);
 
   let payload: { document?: unknown; expectedRevision?: unknown };

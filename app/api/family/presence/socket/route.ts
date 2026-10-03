@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { getAppUser } from "@/app/auth";
 import { FamilyRooms } from "@/server/family/rooms";
 import { FAMILY_REALTIME_SESSION_RE } from "@/server/family/realtimeProtocol";
 
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   const origin = request.headers.get("origin");
   if (origin && origin !== url.origin) return response("다른 사이트의 연결은 허용하지 않습니다.", 403);
 
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return response("ChatGPT 로그인이 필요합니다.", 401);
   if (!env.DB) return response("가족 농장 DB가 준비되지 않았습니다.", 503);
 

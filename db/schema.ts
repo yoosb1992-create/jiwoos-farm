@@ -47,3 +47,12 @@ export const familyPlayerProgress = sqliteTable("family_player_progress", {
   progressJson: text("progress_json").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+export const nativeUsers = sqliteTable("native_users", {
+  userId: text("user_id").primaryKey(), usernameKey: text("username_key").notNull().unique(), displayName: text("display_name").notNull(),
+  passwordSalt: text("password_salt").notNull(), passwordHash: text("password_hash").notNull(), createdAt: integer("created_at").notNull(), updatedAt: integer("updated_at").notNull(),
+});
+export const nativeSessions = sqliteTable("native_sessions", {
+  sessionHash: text("session_hash").primaryKey(), userId: text("user_id").notNull().references(() => nativeUsers.userId, { onDelete: "cascade" }),
+  createdAt: integer("created_at").notNull(), expiresAt: integer("expires_at").notNull(), lastSeenAt: integer("last_seen_at").notNull(),
+}, (table) => [index("native_sessions_user").on(table.userId), index("native_sessions_expiry").on(table.expiresAt)]);

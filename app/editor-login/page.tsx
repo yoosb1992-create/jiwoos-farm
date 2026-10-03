@@ -1,9 +1,7 @@
-import { requireChatGPTUser } from "@/app/chatgpt-auth";
+import { getAppUser } from "@/app/auth";
 import { redirect } from "next/navigation";
-
 export const dynamic = "force-dynamic";
-
 export default async function EditorLoginPage() {
-  await requireChatGPTUser("/?editor=1");
-  redirect("/?editor=1");
+  if (await getAppUser()) redirect("/?editor=1");
+  redirect("/login?return_to=%2F%3Feditor%3D1");
 }

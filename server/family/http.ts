@@ -1,11 +1,11 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "../../app/chatgpt-auth";
+import { getAppUser } from "../../app/auth";
 import { FamilyError, type FamilyDB } from "./rooms";
 
 export const familyJson = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 export async function familyRequest(request: Request, action: (db: FamilyDB, userId: string) => Promise<unknown>) {
-  const user = await getChatGPTUser();
-  if (!user) return familyJson({ message: "ChatGPT 로그인이 필요합니다." }, 401);
+  const user = await getAppUser();
+  if (!user) return familyJson({ message: "로그인이 필요합니다." }, 401);
   if (request.method !== "GET") {
     const origin = request.headers.get("origin");
     if (request.headers.get("sec-fetch-site") === "cross-site" || (origin && origin !== new URL(request.url).origin)) return familyJson({ message: "다른 사이트의 요청은 허용하지 않습니다." }, 403);

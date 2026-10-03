@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { getAppUser } from "@/app/auth";
 import { parseEditorDocument } from "@/game/editor/document";
 import type { MapEditorDocument } from "@/game/editor/types";
 
@@ -25,7 +25,7 @@ function serializeRow(row: DraftRow | null) {
 }
 
 export async function GET() {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return json({ message: "로그인이 필요합니다." }, 401);
   try {
     const row = await database().prepare("SELECT document_json, document_version, revision, updated_at FROM editor_drafts WHERE owner_id = ?")
@@ -38,7 +38,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const user = await getChatGPTUser();
+  const user = await getAppUser();
   if (!user) return json({ message: "로그인이 필요합니다." }, 401);
   let payload: { document?: unknown; expectedRevision?: unknown };
   try { payload = await request.json(); } catch { return json({ message: "올바른 JSON 요청이 아닙니다." }, 400); }
