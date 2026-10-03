@@ -23,7 +23,7 @@ const json = (body: unknown, status = 200, headers?: HeadersInit) =>
 
 const database = () => {
   if (!env.DB) throw new FarmAuthError(503, "자체 계정 DB가 준비되지 않았습니다.");
-  return env.DB.withSession("first-primary");
+  return env.DB;
 };
 
 const sameOrigin = (request: Request) => {
