@@ -129,7 +129,8 @@ try {
       [before.world.mineDaily, before.world.mineProgress, before.inventory, before.stats]);
   };
   assert.equal((await latest()).world.mineProgress?.deepestUnlockedFloor, 1);
-  await assertFailure(hit(node), 400);
+  // 2.3 movement is independent from D1 presence: action.pose is authoritative
+  // for distance/map validation, while heartbeat remains online/sleep metadata only.
   await heartbeat("mine-A", node); await heartbeat("mine-B", node);
   await assertFailure(hit(node, 2), 400);
   await assertFailure({ ...hit(node), daySerial: 2 }, 400);
