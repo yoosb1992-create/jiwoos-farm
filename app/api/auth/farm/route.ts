@@ -12,7 +12,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const json = (body: unknown, status = 200, headers?: HeadersInit) =>
+const json = (body: unknown, status = 200, headers?: Record<string, string>) =>
   Response.json(body, {
     status,
     headers: {
