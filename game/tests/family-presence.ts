@@ -40,8 +40,9 @@ try {
   const state = new FamilyState(db, () => now);
   await state.act("A", a.room.id, 0, { kind: "tool", tool: "hoe", x: 9, y: 8, pose: { ...pose, x: 336, y: 272, facing: "left", moving: false } });
   const acted = await presence.heartbeat("A", a.room.id, { ...pose, action: { id: "spoof" } }, sessionA);
-  const action = acted.players.find(p => p.playerId === a.room.playerId)!.action!;
-  assert.equal(action.tool, "hoe"); assert.notEqual(action.id, "spoof");
+  assert.equal(acted.players.find(p => p.playerId === a.room.playerId)!.action, undefined,
+    "2.3 D1 presence must neither trust client action metadata nor receive committed tool visuals");
+  const action = { id: "synthetic-action", tool: "hoe" as const, facing: "left" as const, expiresAt: snapshot.serverNow + 2500 };
   now += 2501;
   assert.equal((await presence.read("B", a.room.id)).players.find(p => p.playerId === a.room.playerId)!.action, undefined);
   await assert.rejects(presence.read("outsider", a.room.id));
