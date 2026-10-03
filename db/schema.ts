@@ -18,6 +18,28 @@ export const worldPresets = sqliteTable("world_presets", {
 });
 
 
+export const farmAccounts = sqliteTable("farm_accounts", {
+  id: text("id").primaryKey(),
+  loginName: text("login_name").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  passwordSalt: text("password_salt").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  passwordIterations: integer("password_iterations").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [index("farm_accounts_login").on(table.loginName)]);
+
+export const farmSessions = sqliteTable("farm_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  accountId: text("account_id").notNull().references(() => farmAccounts.id, { onDelete: "cascade" }),
+  expiresAt: integer("expires_at").notNull(),
+  createdAt: integer("created_at").notNull(),
+  lastSeenAt: integer("last_seen_at").notNull(),
+}, (table) => [
+  index("farm_sessions_account").on(table.accountId),
+  index("farm_sessions_expiry").on(table.expiresAt),
+]);
+
 export const familyRooms = sqliteTable("family_rooms", {
   id: text("id").primaryKey(), name: text("name").notNull(), inviteCode: text("invite_code").notNull().unique(),
   ownerId: text("owner_id").notNull(), createdAt: integer("created_at").notNull(),
