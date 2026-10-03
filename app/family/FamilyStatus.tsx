@@ -18,6 +18,8 @@ export function FamilyStatus({ session, mapId = "farm" }: { session: FamilySessi
   const [copyMessage, setCopyMessage] = useState("");
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(0);
+  const [host, setHost] = useState("");
+  useEffect(() => { setHost(window.location.host); }, []);
   useEffect(() => {
     setRealtimeMode(currentFamilyRealtimeMode(session.room.id));
     const update = (event: Event) => { setPresence({ snapshot: (event as CustomEvent<FamilyPresenceSnapshot>).detail, received: Date.now() }); setNow(Date.now()); };
@@ -45,6 +47,7 @@ export function FamilyStatus({ session, mapId = "farm" }: { session: FamilySessi
     catch { setCopyMessage("복사할 수 없습니다. 위 코드를 길게 눌러 복사해 주세요."); }
   };
   const players = presence?.snapshot.players.filter((p) => presence.snapshot.serverNow + now - presence.received - p.lastSeen < FAMILY_PRESENCE_TTL_MS) ?? [];
+  const lastPresenceAge = presence ? Math.max(0, Math.floor((now - presence.received) / 1000)) : null;
   return <details className="family-status" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary><span>가족 {players.length}명</span><span role="status">{CONNECTION_LABELS[connection]}</span><span>{realtimeMode === "webrtc" ? "RTC P2P" : realtimeMode === "websocket" ? "WS 직접" : realtimeMode === "d1-fallback" ? "D1 복구" : "실시간 연결 중"}</span>{!!sleep?.agreed && <span>수면 {sleep.agreed}/{sleep.online}</span>}</summary>
     <div className="family-panel-body"><b>{room.name}</b>
@@ -52,6 +55,7 @@ export function FamilyStatus({ session, mapId = "farm" }: { session: FamilySessi
     {!!copyMessage && <p role="status">{copyMessage}</p>}
     {players.length ? <FamilyRoster players={players} ownId={session.room.playerId} mapId={mapId} /> : <p>참가자 연결 확인 중…</p>}
     {!!sleep?.agreed && <p role="status">{sleep.waiting.join(", ")}님이 잠자기를 기다리고 있습니다. ({sleep.agreed}/{sleep.online}) {sleep.voted && <button disabled={connection !== "connected"} onClick={() => gameEvents.dispatchEvent(new CustomEvent("command", { detail: { type: "family-sleep-cancel" } }))}>투표 취소</button>}</p>}
+    <small>진단: {host || "현재 서버"} · {realtimeMode === "webrtc" ? "WebRTC" : realtimeMode === "websocket" ? "WebSocket" : realtimeMode === "d1-fallback" ? "D1 fallback" : "연결 중"} · 마지막 presence {lastPresenceAge === null ? "대기" : `${lastPresenceAge}초 전`}</small>
     <small>{realtimeMode === "webrtc" ? "멀티: WebRTC P2P 직접 이동 · Worker WebSocket은 signaling/fallback" : realtimeMode === "websocket" ? "멀티: Worker WebSocket 직접 이동 · 60Hz 이동 스트림" : realtimeMode === "d1-fallback" ? "멀티: D1 복구모드 · 직접 실시간 연결 재시도 중" : "멀티: 직접 실시간 연결 중"} · 영구 상태는 서버 동기화</small>
     </div>
   </details>;
