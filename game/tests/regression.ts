@@ -1,5 +1,6 @@
 import { normalizeProgress } from "../npc/progress";
 import "./family-client";
+import "./farm-session-auth";
 import "./mobile-controls";
 import "./watering-can";
 import "./family-lobby";
