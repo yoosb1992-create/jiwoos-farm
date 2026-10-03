@@ -18,6 +18,6 @@
     }
   ],
   "vars": {
-    "ALLOWED_ORIGIN_SUFFIX": ".chatgpt.site"
+    "ALLOWED_ORIGIN_SUFFIXES": ".chatgpt.site,.workers.dev"
   }
 }

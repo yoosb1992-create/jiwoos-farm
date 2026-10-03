@@ -6,6 +6,7 @@ interface Env {
   ROOM: DurableObjectNamespace<RealtimeRoom>;
   AUTH_SECRET: string;
   ALLOWED_ORIGIN_SUFFIX?: string;
+  ALLOWED_ORIGIN_SUFFIXES?: string;
 }
 
 interface SocketState {
@@ -16,11 +17,16 @@ interface SocketState {
   pose?: DedicatedRealtimePose;
 }
 
-function originAllowed(request: Request, suffix: string | undefined) {
+function originAllowed(request: Request, env: Pick<Env, "ALLOWED_ORIGIN_SUFFIX" | "ALLOWED_ORIGIN_SUFFIXES">) {
   const origin = request.headers.get("origin");
-  if (!origin || !suffix) return true;
-  try { return new URL(origin).hostname.endsWith(suffix); }
-  catch { return false; }
+  if (!origin) return true;
+  const configured = (env.ALLOWED_ORIGIN_SUFFIXES ?? env.ALLOWED_ORIGIN_SUFFIX ?? "")
+    .split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
+  if (!configured.length) return true;
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase();
+    return configured.some((suffix) => suffix.startsWith(".") ? hostname.endsWith(suffix) : hostname === suffix);
+  } catch { return false; }
 }
 
 export default {
@@ -33,7 +39,7 @@ export default {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("WebSocket required", { status: 426 });
     }
-    if (!originAllowed(request, env.ALLOWED_ORIGIN_SUFFIX)) {
+    if (!originAllowed(request, env)) {
       return new Response("Origin not allowed", { status: 403 });
     }
     if (!env.AUTH_SECRET) return new Response("Realtime auth unavailable", { status: 503 });

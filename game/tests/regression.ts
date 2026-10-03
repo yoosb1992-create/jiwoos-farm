@@ -393,3 +393,5 @@ import "./npc-progress";
 import "./npc-quests";
 
 import "./npc-ux";
+
+import "./native-auth";

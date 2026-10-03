@@ -15,7 +15,10 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "realtime:dev": "wrangler dev --config realtime-worker/wrangler.jsonc",
-    "realtime:deploy": "wrangler deploy --config realtime-worker/wrangler.jsonc"
+    "realtime:deploy": "wrangler deploy --config realtime-worker/wrangler.jsonc",
+    "staging:build": "node scripts/build-cloudflare-staging.mjs",
+    "staging:schema": "node scripts/apply-cloudflare-staging-schema.mjs",
+    "staging:deploy": "wrangler deploy --config dist/server/wrangler.json"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
