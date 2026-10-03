@@ -2,7 +2,6 @@ import { strict as assert } from "node:assert";
 import { FamilyRooms, FamilyError } from "../../server/family/rooms";
 import { FamilyState } from "../../server/family/state";
 import { FamilyPresenceService } from "../../server/family/presence";
-import { RemotePlayers } from "../family/RemotePlayers";
 import { generateResourceForest, resourceKind } from "../forest/resources";
 import { installFairyForest } from "../forest/registry";
 import { MapRegistry } from "../maps/MapRegistry";
@@ -117,18 +116,6 @@ try {
   assert.equal(hit.world.forestState?.hits[nextTree.id], 1);
   const seen = await presence.read("B", roomId);
   const actor = seen.players.find(p => p.playerId === a.room.playerId)!;
-  assert.equal(actor.action?.tool, "axe", "committed axe hit produces short-lived presence action");
-  const animations: string[] = [];
-  const node = () => {
-    const proxy: any = new Proxy({ x: 0, y: 0 }, { get(target, key) { return key in target ? target[key as keyof typeof target] : (...args: any[]) => {
-      if (key === "play") animations.push(args[0]);
-      if (key === "setPosition") { target.x = args[0]; target.y = args[1]; }
-      return proxy;
-    }; } }); return proxy;
-  };
-  const remote = new RemotePlayers({ add: { sprite: node, text: node } } as never, b.room.playerId);
-  remote.receive(seen); remote.update("fairy_forest", 16);
-  assert.ok(animations.includes("tool_right"), "remote axe uses existing tool-right player animation");
-  remote.destroy();
+  assert.equal(actor.action, undefined, "2.3 committed forest actions must not write visual metadata into D1 presence");
   console.log("Family forest: shared hits, concurrent final hit/herb CAS, authority checks, daily reset and private drops passed");
 } finally { close(); }
