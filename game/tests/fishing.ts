@@ -108,7 +108,7 @@ try {
   const bCast = await act("fish-B", castRequest);
   assert.ok(aCast.fishingCast && bCast.fishingCast);
   assert.equal((await read("fish-B")).stats?.stamina, 100);
-  await fail("fish-A", { ...castRequest, fishId: "catfish", pose: { ...pose, x: 0 } }, 400);
+  await fail("fish-A", { ...castRequest, fishId: "catfish", pose: { ...pose, x: 0 } }, 409); // 2.3 validates the action pose directly in fishing rules.
   await fail("fish-A", { kind: "fish-reel", castId: aCast.fishingCast!.id, pose }, 409);
   now += 4 * GAME_CONFIG.day.realMsPerGameMinute;
   const reel = (castId: string) => ({ kind: "fish-reel", castId, pose });
