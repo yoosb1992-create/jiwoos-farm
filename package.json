@@ -13,7 +13,10 @@
     "test:integration": "node --import tsx game/tests/integration-2.0.ts",
     "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "staging:d1:init": "node scripts/init-cloudflare-staging-d1.mjs",
+    "staging:prepare": "node scripts/prepare-cloudflare-staging.mjs",
+    "staging:deploy": "npm run build && npm run staging:prepare && node ./node_modules/wrangler/bin/wrangler.js deploy --config dist/server/wrangler.staging.json"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
