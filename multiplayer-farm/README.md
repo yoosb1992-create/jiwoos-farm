@@ -5,7 +5,9 @@ Golden baseline: `982a94dec72ac7d125d55050f707f635c4407fd5`. `multiplayer-lab/`�
 
 ## 모바일 플레이
 
-공개 URL은 배포 완료 후 이 문서에 기록합니다. 새 가족 농장 → 닉네임/2글자 이상 비밀번호 → 가족 코드를 다른 기기에 전달합니다. 같은 Wi-Fi는 필요하지 않습니다. 브라우저 세션을 보존하면 새로고침 후 동일 인벤토리로 복귀합니다. 다른 기기는 다른 닉네임을 사용합니다. 세션을 지우면 같은 플레이어 복구는 아직 지원하지 않습니다.
+공개 게임: https://frontend-production-a998.up.railway.app/
+Backend: https://backend-production-b244e.up.railway.app/healthz
+ 새 가족 농장 → 닉네임/2글자 이상 비밀번호 → 가족 코드를 다른 기기에 전달합니다. 같은 Wi-Fi는 필요하지 않습니다. 브라우저 세션을 보존하면 새로고침 후 동일 인벤토리로 복귀합니다. 다른 기기는 다른 닉네임을 사용합니다. 세션을 지우면 같은 플레이어 복구는 아직 지원하지 않습니다.
 
 조이스틱/화면 탭/WASD로 이동, RUN/Shift로 달리기, 도구 선택 후 행동/Space. 씨앗은 행동을 누른 채 걸으면 연속 심기, 달리면서 심기는 거부합니다. 두 손가락으로 게임 카메라 확대/축소. 가방·메뉴는 모바일 화면에 맞춘 별도 창입니다.
 
@@ -17,7 +19,7 @@ Golden baseline: `982a94dec72ac7d125d55050f707f635c4407fd5`. `multiplayer-lab/`�
 - server: Colyseus Core0.18.18/SDK0.18.5, 30tick/s·30Hz Schema delta.
 - shared: 순수 movement + 서버 command reducer + legacy 데이터 snapshot. legacy polling/runtime/D1 코드 import 없음.
 - persistence: 새 PostgreSQL. Farm Room 하나당 DB advisory lease로 중복 권위 차단. replica1 필수.
-- 위치: 입력만 전송. 공식 prediction/reconciliation, 상대 interpolation. 기본 Stable100ms; Fast75/Aggressive60 선택 시 완만하게 변경. Lab100ms는 그대로.
+- 위치: 입력만 전송. 공식 prediction/reconciliation, 상대 interpolation. 기본 Stable100ms; Fast75/Aggressive60 선택 시 3개의 고정 buffer predictor 출력 사이를 완만하게 전환합니다. 공식 SDK attachAll의 frozen profile 특성 때문에 기본값만 변경하는 방식을 사용하지 않습니다. Lab100ms는 그대로.
 - 모든 명령: 타입·거리·앞칸·수량·도구·기력·쿨다운·대상 검증. 가족별 직렬 queue→DB transaction→state 공개.
 - 영구 action receipt `(farm,member,actionId)`와 command hash로 재전송 중복 보상 차단. DB commit 실패 시 결과 미공개.
 - inventory는 본인에게만 private message. public Schema에는 현재 접속자와 월드 객체. JSONB 전체 월드를 매 patch 전송하지 않음.

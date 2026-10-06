@@ -3,6 +3,7 @@ import { makeStore } from "./helpers.js";
 const server = createFarmServer({
   store: makeStore(),
   port: 2575,
+  latencyMs: 200,
   host: "127.0.0.1",
   production: process.env.FARM_PRODUCTION_TEST === "1",
   clientOrigins: ["http://127.0.0.1:5175", "http://127.0.0.1:4175"],

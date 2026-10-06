@@ -87,6 +87,7 @@ export class ColyseusAdapter implements NetworkAdapter {
   private readonly client: Client;
   private room?: FarmClientRoom;
   private predict?: Predict<FarmState>;
+  private readonly remotePredictors = new Map<number, Predict<FarmState>>();
   private input?: InputHandle<MoveInput>;
   private me?: Reconciler<Player, MovementInput>;
   private self?: Player;
@@ -393,6 +394,18 @@ export class ColyseusAdapter implements NetworkAdapter {
       delay: INTERPOLATION_DELAY,
     });
     predict.attachAll("players", { mode: "lerp", fields: ["x", "y"] });
+    // SDK 0.18 attachAll owns a frozen group profile. Keep three supported
+    // predictors warm and blend their outputs during profile transitions;
+    // changing defaults alone would leave the attached group at 100 ms.
+    this.remotePredictors.set(INTERPOLATION_DELAY, predict);
+    for (const delay of [
+      INTERPOLATION_PROFILES.Fast,
+      INTERPOLATION_PROFILES.Aggressive,
+    ]) {
+      const remote = Predict.get(room, { mode: "lerp", delay });
+      remote.attachAll("players", { mode: "lerp", fields: ["x", "y"] });
+      this.remotePredictors.set(delay, remote);
+    }
     this.me = predict.reconciler(self, {
       input,
       // Only deterministic movement fields belong in rollback; nickname and
@@ -422,7 +435,8 @@ export class ColyseusAdapter implements NetworkAdapter {
     this.delay +=
       Math.sign(target - this.delay) *
       Math.min(Math.abs(target - this.delay), dt * 0.08);
-    this.predict?.setDefaults({ delay: this.delay });
+    for (const remote of this.remotePredictors.values())
+      if (remote !== this.predict) remote.tick(now);
     if (
       room &&
       this.input &&
@@ -448,6 +462,23 @@ export class ColyseusAdapter implements NetworkAdapter {
     return this.snapshot();
   }
 
+  private renderCoordinate(
+    player: Player,
+    field: "x" | "y",
+    local: boolean,
+  ): number {
+    if (local) return this.predict?.value(player, field) ?? player[field];
+    const { Aggressive, Fast, Stable } = INTERPOLATION_PROFILES;
+    const low = this.delay <= Fast ? Aggressive : Fast,
+      high = this.delay <= Fast ? Fast : Stable;
+    const a =
+      this.remotePredictors.get(low)?.value(player, field) ?? player[field];
+    const b =
+      this.remotePredictors.get(high)?.value(player, field) ?? player[field];
+    return (
+      a + (b - a) * Math.max(0, Math.min(1, (this.delay - low) / (high - low)))
+    );
+  }
   snapshot(): NetworkSnapshot {
     const room = this.room;
     const now = performance.now();
@@ -468,8 +499,8 @@ export class ColyseusAdapter implements NetworkAdapter {
         color: player.color,
         connected: player.connected,
         local: id === room.sessionId,
-        x: this.predict?.value(player, "x") ?? player.x,
-        y: this.predict?.value(player, "y") ?? player.y,
+        x: this.renderCoordinate(player, "x", id === room.sessionId),
+        y: this.renderCoordinate(player, "y", id === room.sessionId),
         authoritativeX: player.x,
         authoritativeY: player.y,
         area: player.area,
@@ -518,6 +549,9 @@ export class ColyseusAdapter implements NetworkAdapter {
   }
 
   private clearPrediction(): void {
+    for (const remote of this.remotePredictors.values())
+      if (remote !== this.predict) remote.dispose();
+    this.remotePredictors.clear();
     this.predict?.dispose();
     this.predict = undefined;
     this.me = undefined;

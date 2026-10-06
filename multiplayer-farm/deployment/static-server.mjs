@@ -64,6 +64,10 @@ export function createStaticServer(options = {}) {
     fallthrough: false,
     maxAge: ONE_YEAR_MS,
     immutable: true,
+    setHeaders(response, file) {
+      // Reused public PNGs keep their original names and must revalidate.
+      if (!/[-][A-Za-z0-9_-]{8,}\.(?:js|css)$/.test(file)) response.setHeader('Cache-Control', 'no-cache');
+    },
   }));
 
   app.use(express.static(clientDir, {

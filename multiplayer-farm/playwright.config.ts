@@ -10,7 +10,13 @@ export default defineConfig({
     hasTouch: true,
     launchOptions: {
       executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-      args: ["--no-sandbox", "--disable-dev-shm-usage"],
+      args: [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--enable-unsafe-swiftshader",
+        "--disable-background-timer-throttling",
+        "--disable-renderer-backgrounding",
+      ],
     },
   },
   webServer: [

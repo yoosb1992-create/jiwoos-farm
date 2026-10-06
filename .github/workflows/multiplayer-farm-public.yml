@@ -1,0 +1,43 @@
+name: Multiplayer Farm Public Smoke
+# Verify the currently live isolated v2.5 deployment. Candidate CI must not
+# depend on that candidate deploying first (Railway waits for CI).
+on:
+  push:
+    branches: [feature/v2.5-multiplayer-farm-rebuild]
+    paths: ['.github/workflows/multiplayer-farm-public.yml', 'multiplayer-farm/tests/public-smoke.ts']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: multiplayer-farm-public-smoke
+  cancel-in-progress: false
+jobs:
+  public-farm:
+    if: github.ref == 'refs/heads/feature/v2.5-multiplayer-farm-rebuild'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: multiplayer-farm
+    env:
+      PUBLIC_FARM_BACKEND: https://backend-production-b244e.up.railway.app
+      PUBLIC_FARM_FRONTEND: https://frontend-production-a998.up.railway.app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: multiplayer-farm/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Public HTTPS WSS three-client movement farming reconnect PostgreSQL reload
+        run: npm run test:public
+      - name: Actual public production mobile browsers and third SDK observer
+        run: npm run test:production-browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-farm-browser-results
+          path: multiplayer-farm/test-results-production/
+          if-no-files-found: ignore

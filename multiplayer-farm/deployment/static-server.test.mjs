@@ -11,7 +11,8 @@ async function fixture(t) {
   const clientDir = await mkdtemp(join(tmpdir(), 'jiwoos-static-test-'));
   await mkdir(join(clientDir, 'assets'));
   await writeFile(join(clientDir, 'index.html'), '<!doctype html><title>Isolated lab fixture</title>');
-  await writeFile(join(clientDir, 'assets', 'app-abc123.js'), 'console.log("fixture");');
+  await writeFile(join(clientDir, 'assets', 'app-abc12345.js'), 'console.log("fixture");');
+  await writeFile(join(clientDir, 'assets', 'character.png'), 'fixture-png');
   await writeFile(join(clientDir, 'robots.txt'), 'User-agent: *\nDisallow: /');
   await writeFile(join(clientDir, '.env'), 'SHOULD_NOT_BE_PUBLIC=true');
   t.after(() => rm(clientDir, { recursive: true, force: true }));
@@ -42,12 +43,13 @@ test('production HTTP serves the built entry, health and hashed assets with appr
     assert.match(await response.text(), /Isolated lab fixture/);
   }
 
-  const asset = await fetch(`${address.url}/assets/app-abc123.js`);
+  const asset = await fetch(`${address.url}/assets/app-abc12345.js`);
   assert.equal(asset.status, 200);
   assert.match(asset.headers.get('cache-control'), /max-age=31536000/);
   assert.match(asset.headers.get('cache-control'), /immutable/);
   assert.equal(await asset.text(), 'console.log("fixture");');
 
+  assert.equal((await fetch(`${address.url}/assets/character.png`)).headers.get('cache-control'), 'no-cache');
   const publicFile = await fetch(`${address.url}/robots.txt`);
   assert.equal(publicFile.headers.get('cache-control'), 'no-cache');
   assert.equal(await publicFile.text(), 'User-agent: *\nDisallow: /');
