@@ -2,7 +2,7 @@
 
 ## 현재 상태 · 2026-10-06
 
-런타임 commit `53fe66658fc224d02c47c37b28446717e09894fa`의 기존 게임 CI, Farm 전체 CI, Golden Lab 회귀가 모두 통과했습니다. Backend/Frontend Source 전환과 watchPatterns 설정 **7개 변경이 staged** 상태입니다. 배포 적용 도구는 `Cancelled — the user did not approve this action. No changes were made.`를 반환했습니다. 반복 실행하거나 다른 경로로 승인을 우회하지 않았습니다. 공개 서버는 아직 v2.5이며 v2.6 공개 WSS/멀티 검증은 실행하지 않았습니다.
+런타임 commit `5b518b53c8033c4d13c90b85c2256a3551397e62`의 기존 게임 CI, Farm 전체 CI, Golden Lab 회귀가 모두 통과했습니다. Backend/Frontend Source 전환과 watchPatterns 설정 **7개 변경이 staged** 상태입니다. 배포 적용 도구는 `Cancelled — the user did not approve this action. No changes were made.`를 반환했습니다. 반복 실행하거나 다른 경로로 승인을 우회하지 않았습니다. 공개 서버는 아직 v2.5이며 v2.6 공개 WSS/멀티 검증은 실행하지 않았습니다.
 
 휴대폰 Railway 웹 → [jiwoos-farm-v2-5 프로젝트](https://railway.com/project/60e07bfd-eb89-4879-b082-f57a565fff1a?environmentId=7a8eb991-df6f-4f08-bca3-3c57cf42d43c) → 대기 변경 검토 → Deploy. 대상은 Backend/Frontend 두 서비스뿐이며 Postgres 서비스·볼륨·variables 변경은 없습니다. 대기 patch: `d6a45d10-78f9-4a68-8e7b-65c6c42d694b` (destructive=false).
 

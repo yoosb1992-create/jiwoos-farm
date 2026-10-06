@@ -2,7 +2,7 @@
 
 기준: `feature/v2.5-multiplayer-farm-rebuild` / `3fad61ce6c567fe5449371e8ecf871282b6b69df`.
 새 브랜치: `feature/v2.6-farm-content-expansion`.
-검증 완료 런타임: `53fe66658fc224d02c47c37b28446717e09894fa` (2026-10-06). 이후 문서/배포 설정표 변경은 런타임 변경이 아닙니다.
+검증 완료 런타임: `5b518b53c8033c4d13c90b85c2256a3551397e62` (2026-10-06). 이후 문서/배포 설정표 변경은 런타임 변경이 아닙니다.
 
 ## 실제 로컬 자동 검증
 
@@ -23,20 +23,22 @@
 
 | 검사 | 결과 | 실행 |
 |---|---|---|
-| 기존 게임 CI | SUCCESS | [37456611224](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37456611224) |
-| Farm 전체 + Golden Lab 회귀 | SUCCESS | [37456611187](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37456611187) |
-| Farm strict / unit / SDK integration | PASS / 14/14 / 6/6 | 위 Farm job 112245663418 |
+| 기존 게임 CI | SUCCESS | [37458706347](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37458706347) |
+| Farm 전체 + Golden Lab 회귀 | SUCCESS | [37458706245](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37458706245) |
+| Farm strict / unit / SDK integration | PASS / 14/14 / 6/6 | 위 Farm job 112252560654 |
 | PostgreSQL migration/transaction/restore + schema isolation | 1/1 PASS | 동일 job, PostgreSQL 17 disposable service |
 | Static deployment / browser / production browser | 6/6 / 2/2 / 1/1 PASS | production browser는 두 browser context와 실제 UI를 사용 |
 | Farm client/server build, Docker 두 이미지 | PASS | 동일 job |
 | Docker migration/health/restart/graceful shutdown | PASS | database=true, latencyMs=0, tickRate=30 및 정상 exit 검증 |
-| Golden Lab unit / integration / deployment | 22/22 / 23/23 / 6/6 PASS | job 112245663530 |
+| Golden Lab unit / integration / deployment | 22/22 / 23/23 / 6/6 PASS | job 112253577855 |
 | Golden Lab browser / production browser | 4/4 / 1/1 PASS | 동일 job |
 | Golden Lab byte-identical gate | PASS | 기준 982a94d와 파일 비교 |
 
 Farm 30개 및 Lab 56개 검사가 모두 통과했습니다. clean install과 production build도 실행했습니다. DB 검사에서 동명 `public.farms`의 열/데이터를 sentinel로 유지한 채 `farm_v26`에 새 schema를 생성하고 재접속 복원했습니다. 이 sentinel은 CI의 일회용 DB에만 만들었습니다. 실제 Railway DB에는 아직 v2.6 migration을 실행하지 않았습니다.
 
-중간 후보에서 낮은 software-GPU FPS 때문에 짧은 행동 터치가 다음 render 전에 끝나 누락되는 문제가 발견되어, pointerdown/첫 Space 입력에서 즉시 action을 전송하도록 수정했습니다. 모바일 pinch zoom 시 계절 overlay 좌표도 보정했습니다. Lab의 프레임 수 샘플 검사는 중간 후보 1회 실패했지만 Lab 파일을 바꾸지 않고 최종 동일 검사에서 통과했습니다. 실패한 검사를 끄거나 배포 gate를 우회하지 않았습니다.
+중간 후보에서 낮은 software-GPU FPS 때문에 짧은 행동 터치가 다음 render 전에 끝나 누락되는 문제가 발견되어, pointerdown/첫 Space 입력에서 즉시 action을 전송하도록 수정했습니다. 모바일 pinch zoom 시 계절 overlay 좌표도 보정했습니다. Lab의 프레임 수 샘플 검사는 간헐적으로 28프레임(기준 30)으로 실패했습니다. 최종 run의 해당 Lab job만 재실행하여 attempt 2에서 통과했으며 Lab 파일과 검사 기준은 변경하지 않았습니다. 실패한 검사를 끄거나 배포 gate를 우회하지 않았습니다.
+
+문서/설정표 후보 30ed646의 production browser에서 행동 입력 누락이 다시 재현되었습니다. 진단 중 재연결 상태에서는 인원수가 그대로 유지되어도 행동 전송이 불가능한 구간을 확인했습니다. 후속 5b518b5에서 이벤트 직전 최신 connection snapshot을 확인하고, 재연결 중 행동 버튼을 비활성화하며 이동/반복 입력을 해제하고 복구 안내를 표시합니다. 기존 browser helper도 단순 인원수/좌표 클릭 대신 실제 연결 상태와 버튼 actionability를 기다립니다. 나무 HP·드랍·가방·공유 상태의 기존 assertion은 유지합니다. 로컬 production client 진단은 MemoryTestStore로 1/1 통과했고, 최종 GitHub CI는 실제 PostgreSQL로 전체 통과했습니다.
 
 새 기능마다 테스트 파일을 늘리지 않았습니다. 이번 자동 검증 확대는 기존 낚시 의미 변경과 기존 모바일 smoke의 도감 확인 정도이며, 콘텐츠 구현·미감·모바일 정보 구조에 작업을 집중했습니다. Headless를 실제 Android 검증으로 부르지 않습니다.
 
