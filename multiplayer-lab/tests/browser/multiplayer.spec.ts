@@ -122,18 +122,28 @@ test('two browser contexts: prediction responds before authority and remote rend
       const points: Array<{ time: number; x: number; authoritativeX: number }> = [];
       const started = performance.now();
       await new Promise<void>((resolve) => {
+        let frameHandle = 0;
+        const finish = () => {
+          clearTimeout(deadline);
+          cancelAnimationFrame(frameHandle);
+          resolve();
+        };
+        const deadline = setTimeout(finish, 4_000);
         function sample(): void {
           const player = (window as unknown as DebugWindow).__LAB_DEBUG__.players.find((entry) => entry.id === id);
           if (player) points.push({ time: performance.now(), x: player.x, authoritativeX: player.authoritativeX });
-          if (performance.now() - started >= 800) resolve();
-          else requestAnimationFrame(sample);
+          const elapsed = performance.now() - started;
+          // Measure enough displayed positions even on a loaded software-GPU
+          // runner; elapsed time alone is not an interpolation sample budget.
+          if ((points.length >= 30 && elapsed >= 800) || elapsed >= 4_000) finish();
+          else frameHandle = requestAnimationFrame(sample);
         }
-        requestAnimationFrame(sample);
+        frameHandle = requestAnimationFrame(sample);
       });
       return points;
     }, initial.sessionId);
     await pageA.keyboard.up('d');
-    expect(frames.length).toBeGreaterThan(12);
+    expect(frames.length).toBeGreaterThanOrEqual(30);
     expect(frames.at(-1)!.x - frames[0]!.x).toBeGreaterThan(20);
     // Record motion between patches and independently require intermediate
     // positions. Software-rendered CI can run below 30 FPS, so demanding a

@@ -20,6 +20,7 @@
 | production에 latency 설정200을 넣었을 때 | PASS, effective latency0 |
 | 허용하지 않은 HTTP origin / matchmaking 요청 | PASS, 403 |
 | 컴파일된 서버 SIGTERM 종료 | PASS, exit0 |
+| `npm audit --json` (Vite8.0.16) | PASS, 알려진 취약점0 |
 | Docker 이미지 build/run | **미실행**, 실행 환경에 Docker 없음 |
 | 공개 인터넷 배포 / 실제 Android·태블릿 / 5G | **미실행**, 수동 benchmark 필요 |
 
@@ -69,12 +70,16 @@ Colyseus의 실제 ping으로 측정한 마지막 전체 통합 테스트 실행
 
 ## 브라우저 네 가지 검증
 
-1. 별도 browser context 두 개가 같은 방에 참가. **추가 RTT200ms**에서 키 이벤트 후 **100ms 이내 로컬 렌더 이동**, 그 시점의 authority 이동량은 **0.1px 미만**. 상대 렌더에서 받은 authority 좌표들을 그대로 덮어쓰는 방식으로 만들 수 없는 **중간 보간 좌표8개 초과**를 확인하고 최종 상태 수렴 검증.
+1. 별도 browser context 두 개가 같은 방에 참가. **추가 RTT200ms**에서 키 이벤트 후 **100ms 이내 로컬 렌더 이동**, 그 시점의 authority 이동량은 **0.1px 미만**. 렌더30프레임을 수집하며 최소800ms~최대4초의 범위로 측정합니다. 상대 렌더에서 받은 authority 좌표들을 그대로 덮어쓰는 방식으로 만들 수 없는 **중간 보간 좌표8개 초과**를 확인하고 최종 상태 수렴 검증.
 2. 실제 WebSocket을 끊은 뒤 동일 room/session으로 reconnect하고 다시 이동.
 3. reconnect 대기 중 나가기 후 예약된 retry 취소, 2초 뒤 열린/연결 중인 유령 WebSocket 없음.
 4. Pixel7 viewport에서 Chromium CDP의 실제 multi-touch 이벤트로 조이스틱과 Run 동시 입력, 서버 좌표 이동, 모든 손가락 해제 후 입력0, scroll/zoom 없음.
 
 브라우저 테스트는 software-rendered headless 환경이므로 **60FPS 달성을 입증하지 않습니다**. 실제 기기에서 local input delay, 상대 stutter, correction jump, 재접속과 장시간 플레이를 확인해야 합니다. Pixel7 viewport는 실제 Android 하드웨어 검증이 아닙니다.
+
+최초 원격 CI에서는 기존 앱 regression/build와 Lab 설치·타입·단위·통합·양쪽 build가 성공했습니다. 브라우저4개 중3개는 통과했지만, 원격 보간 테스트의800ms 내 최소 프레임 수 조건이 실패했습니다(기대13개 이상, 실제9개). 이를 고정시간의 처리량 검사에서 제한시간 내30프레임 표본 검사로 수정하고, 보간 좌표 자체의 검증은 유지했습니다. 수정 후 로컬 브라우저4개가27.8초에 통과했습니다. 최종 원격 상태는 해당 branch HEAD의 GitHub Actions에서 확인할 수 있습니다.
+
+원격 설치 로그에서 확인한 Lab 개발 의존성 Vite 보안 문제는 **8.0.13 → 8.0.16** 패치로 수정했습니다. 기존 앱의 Vite/package/lockfile은 그대로 유지합니다.
 
 ## 설계·검토로 해결한 문제
 
