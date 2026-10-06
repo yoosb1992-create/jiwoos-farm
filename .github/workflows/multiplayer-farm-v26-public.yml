@@ -1,0 +1,60 @@
+name: Multiplayer Farm v2.6 Public Smoke
+on:
+  workflow_dispatch:
+    inputs:
+      frontend:
+        description: New v2.6 Frontend HTTPS URL (never the v2.5 stable URL)
+        type: string
+        required: true
+      backend:
+        description: New v2.6 Backend HTTPS URL
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: multiplayer-farm-v26-public-smoke
+  cancel-in-progress: false
+jobs:
+  public-farm:
+    if: github.ref == 'refs/heads/feature/v2.6-farm-content-expansion'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: multiplayer-farm
+    env:
+      PUBLIC_FARM_BACKEND: ${{ inputs.backend }}
+      PUBLIC_FARM_FRONTEND: ${{ inputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: multiplayer-farm/package-lock.json
+      - name: Validate isolated public targets
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          for (const name of ['PUBLIC_FARM_BACKEND', 'PUBLIC_FARM_FRONTEND']) {
+            const u = new URL(process.env[name]);
+            assert.equal(u.protocol, 'https:');
+            assert.equal(u.username + u.password, '');
+            assert.match(u.hostname, /^[a-z0-9-]+\.up\.railway\.app$/);
+            assert.ok(!['backend-production-b244e.up.railway.app', 'frontend-production-a998.up.railway.app'].includes(u.hostname), 'Stable v2.5 is not a v2.6 test target');
+          }
+          const h = await fetch(new URL('/healthz', process.env.PUBLIC_FARM_BACKEND));
+          assert.ok(h.ok);
+          assert.equal((await h.json()).service, 'jiwoos-farm-v2.6');
+          JS
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:public
+      - run: npm run test:production-browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-v26-browser-results
+          path: multiplayer-farm/test-results-production/
+          if-no-files-found: ignore

@@ -1,104 +1,77 @@
-# 지우네 농장 v2.5 — 독립 Multiplayer Farm
+# 지우네 농장 v2.6 · 사계절의 집
 
-Golden baseline: `982a94dec72ac7d125d55050f707f635c4407fd5`. `multiplayer-lab/`은 변경하지 않습니다.
-작업 브랜치: `feature/v2.5-multiplayer-farm-rebuild`.
+따뜻한 3/4 농장에 농사·낚시·숲 산책·주민·동물을 더한 가족 멀티 생활 게임입니다.
 
-## 모바일 플레이
+- 작업 브랜치: `feature/v2.6-farm-content-expansion`
+- 복구 기준 v2.5: `3fad61ce6c567fe5449371e8ecf871282b6b69df`
+- Golden Lab: `982a94dec72ac7d125d55050f707f635c4407fd5` (파일·브랜치 보존)
+- **v2.6 공개 배포: 현재 대기.** Railway가 새 프로젝트 생성 시 `Free plan resource provision limit exceeded. Please upgrade to provision more resources!`를 반환했습니다. 기존 서비스/DB를 덮어쓰지 않았습니다.
+- 기존 **v2.5** 공개 게임은 계속 https://frontend-production-a998.up.railway.app/ 에 있습니다. 이 주소에는 v2.6 콘텐츠가 아직 없습니다.
 
-공개 게임: https://frontend-production-a998.up.railway.app/
-Backend: https://backend-production-b244e.up.railway.app/healthz
- 새 가족 농장 → 닉네임/2글자 이상 비밀번호 → 가족 코드를 다른 기기에 전달합니다. 같은 Wi-Fi는 필요하지 않습니다. 브라우저 세션을 보존하면 새로고침 후 동일 인벤토리로 복귀합니다. 다른 기기는 다른 닉네임을 사용합니다. 세션을 지우면 같은 플레이어 복구는 아직 지원하지 않습니다.
+## 휴대폰에서 시작하기
 
-조이스틱/화면 탭/WASD로 이동, RUN/Shift로 달리기, 도구 선택 후 행동/Space. 씨앗은 행동을 누른 채 걸으면 연속 심기, 달리면서 심기는 거부합니다. 두 손가락으로 게임 카메라 확대/축소. 가방·메뉴는 모바일 화면에 맞춘 별도 창입니다.
+v2.6 Frontend 공개 주소가 발급되면 그 주소만 엽니다. 닉네임/비밀번호(2글자 이상)로 새 가족 농장을 만들고, 메뉴의 가족 코드를 복사해 다른 휴대폰에 전달합니다. 다른 기기는 별도 닉네임으로 같은 코드·비밀번호를 입력합니다. 같은 Wi-Fi일 필요가 없습니다. PC, 터미널, LAN 주소는 필요하지 않습니다.
 
-농장 앞 밭에서 괭이→씨앗→물뿌리개. 매일 물을 준 만큼 성장합니다. 가족 모두 메뉴에서 잠자기 투표하면 다음 날입니다. 성숙한 작물은 손으로 수확 후 드랍을 줍습니다. 가까운 나무는 도끼 3타→그루터기, 그루터기도 3타입니다. 손으로 보관함·제작대·우물·입구·주민과 상호작용합니다. 농장 남쪽→들꽃길→마을/요정의 숲/광산. 마을 상점은 씨앗과 비스켓 구매·작물 판매. 광산 바위를 깨면 사다리가 생겨 5층까지 내려갑니다.
+현재 필요한 외부 조작은 Railway 로그인 후 **워크스페이스 Settings → Billing/Plans에서 신규 리소스를 만들 수 있는 플랜/한도를 확인하고, 필요한 결제는 사용자가 직접 승인하는 것**입니다. 앱 코드·CI·배포 파일은 저장소에 준비되어 있습니다. 구체적인 신규 서비스 설정은 [RAILWAY-V26.md](./RAILWAY-V26.md)에 있습니다.
 
-## 구조
+## 첫날 안내
 
-- client: Phaser, 원본 48프레임 캐릭터·농장/마을 맵·PNG asset 재사용.
-- server: Colyseus Core0.18.18/SDK0.18.5, 30tick/s·30Hz Schema delta.
-- shared: 순수 movement + 서버 command reducer + legacy 데이터 snapshot. legacy polling/runtime/D1 코드 import 없음.
-- persistence: 새 PostgreSQL. Farm Room 하나당 DB advisory lease로 중복 권위 차단. replica1 필수.
-- 위치: 입력만 전송. 공식 prediction/reconciliation, 상대 interpolation. 기본 Stable100ms; Fast75/Aggressive60 선택 시 3개의 고정 buffer predictor 출력 사이를 완만하게 전환합니다. 공식 SDK attachAll의 frozen profile 특성 때문에 기본값만 변경하는 방식을 사용하지 않습니다. Lab100ms는 그대로.
-- 모든 명령: 타입·거리·앞칸·수량·도구·기력·쿨다운·대상 검증. 가족별 직렬 queue→DB transaction→state 공개.
-- 영구 action receipt `(farm,member,actionId)`와 command hash로 재전송 중복 보상 차단. DB commit 실패 시 결과 미공개.
-- inventory는 본인에게만 private message. public Schema에는 현재 접속자와 월드 객체. JSONB 전체 월드를 매 patch 전송하지 않음.
-- 중요 행동마다 저장, 5초 checkpoint, leave/empty/shutdown 저장. 이동은 메모리에서만 시뮬레이션하며 DB에는 저장하지 않음.
-- DB 장애 시 이동 유지/행동 저장 실패 표시. DB lease가 사라지면 연결 종료하여 이중 권위 방지. 저장 성공이 불확실하면 재접속/서버 복구 필요.
-- password: salted scrypt. session: random256-bit token, DB에는 SHA256 해시만. 세션90일. 비밀번호 최소2글자, 리소스 보호용4096바이트 한도.
+1. 위쪽 `오늘 할 일`에서 작은 생활 목표를 확인합니다. 괭이 → 계절 씨앗 → 물뿌리개 순서로 앞칸에서 행동합니다.
+2. 조이스틱 + RUN은 동시 터치가 됩니다. PC는 WASD/방향키·Shift, 행동은 Space입니다. 행동을 누른 채 **걸으면** 연속 심기, 달리면서 심기는 불가합니다.
+3. 매일 물을 주고 메뉴에서 가족 모두 잠자기 투표를 하면 작물이 자랍니다. 우물 가까이에서는 물뿌리개 또는 손으로 물을 채웁니다.
+4. 손으로 성숙한 작물을 수확하고 드랍을 줍습니다. 나무는 도끼 3타, 그루터기 3타입니다. 보관함·제작대도 손으로 사용합니다.
+5. 연못의 `≈ 낚시 물가` 표시에서 낚싯대를 사용합니다. **입질 → 3초 내 챔질 → 홀드/해제로 초록 영역 안에 물고기 유지**. 짧게 눌렀다 놓는 편이 좋습니다.
+6. 농장 오른쪽 우리에서 기본 닭에게 먹이를 주고 쓰다듬습니다. 다음 아침 생산물을 받습니다. 닭·소·양을 더 살 수 있습니다(공유 최대 8마리).
+7. 농장 남쪽 → 들꽃길 → 마을/숲/광산. 마을에는 상점·바람찻집·나뭇결 공방·게시판·동쪽 물결해안이 있습니다. 손과 행동으로 출입구를 사용합니다.
+8. 마을 상점/찻집에서 제철 씨앗·먹이·음식·장식 구매와 판매. 주민 앞에서는 대화가 우선이며 메뉴의 `상점 둘러보기`로 거래도 가능합니다.
 
-## PostgreSQL
+## 이번 확장
 
-`farm_migrations`, `farms`(family password hash + versioned world JSONB), `members`, `sessions`, `action_receipts`, `world_checkpoints`.
-JSONB world는 inventory/tools/skills/quests, crops/trees/drops/chest/machines, day/weather/seed, mine progress를 하나의 transaction으로 저장합니다. 현재 game schema version1. 자동 startup migration은 별도 advisory transaction lock으로 직렬화합니다. 기존 D1 또는 save의 데이터 이관은 없습니다.
+| 분야 | 구현 |
+|---|---|
+| 월드 | 원본 상세 집·나무·꽃·울타리 재사용. 잔디 질감, 밭 고랑, 연못 잔물결·수련, 건널 수 있는 다리, 꽃길·벤치·램프·우리. 마을 찻집/공방/광장/해안 추가 |
+| 사계절 | 28일×4계절, 계절 배경·식생 색, 봄 꽃잎/가을 잎/겨울 눈, 낮밤·비. 공유 날짜에서 전환 |
+| 작물 | 기존 4종 포함 **21종**. 제철 씨앗 판매/심기 제한, 4성장 단계, 재수확, 판매가·기력·희귀도. 제철 종료 시 시들고 괭이로 정리 |
+| 채집 | **12종**. 일일 숲 생성이 계절에 따라 달라짐. 목재·솔방울·광석은 기존 기능 유지 |
+| 낚시 | **24종/5수역**. 계절/시간/날씨/희귀도/행동 난이도, 터치 홀드/해제, 잡은 수·최대 크기 도감 |
+| 동물 | 닭/소/양, 구입·먹이·하루 1회 쓰다듬기·다음 날 달걀/우유/양털. 생산물은 최대5일분 보관 |
+| 정원/요리 | 장식5종 제작·구매·배치/회수, 허브차·채소수프·열매잼 추가. 기존 목재/석재/요정실/가공기 유지 |
+| 주민/목표 | 기존3+새4=**7명**, 시간별 장소, 계절/날씨/밤/친밀도 대화, 선물·하루 부탁, **생활 목표9개+계절 수확 목표** |
+| 행사 | 봄12일 꽃편지의 날 / 여름18일 물결등불 밤 / 가을20일 황금식탁 잔치 / 겨울16일 눈별 소원제. 광장 주민 모임·연출·대화·연간1회 선물 |
+| UI | 날짜·장소·날씨·골드·기력·가방 여유, 퀵슬롯, 가방 정렬/설명, 도감, 28일 달력, 지역 지도·주민 위치, 대화 넘김, 글자/카메라/음량 설정 |
+| 음향 | 직접 합성한 멜로디/ambience. 계절·마을·숲·광산·비·밤·행사 변주, 버튼·발걸음·벌목·채굴·물주기·수확·낚시 효과음. 첫 터치 후 시작, 설정에서 끄기/음량 조정 |
 
-## Railway
+작물: 봄의 구름무·리본양배추·이슬꽃, 여름의 홍빛토마토·노을옥수수·푸른구슬열매·햇불고추·해바퀴꽃·호박빛참외, 가을의 달빛호박·보랏빛가지·꿀고구마·노을포도·빨간방울열매, 겨울의 눈꽃무·서리잎채소·겨울별꽃 등. 겹치는 계절을 포함하므로 계절별 종수 합계는 21보다 큽니다.
 
-새 프로젝트 `jiwoos-farm-v2-5`: Backend + Frontend + PostgreSQL. 기존 Lab 프로젝트를 수정하지 않습니다.
-두 앱의 Source는 본 저장소/새 feature 브랜치, root `/`, Wait for CI 켬. Dockerfiles가 `multiplayer-farm`만 빌드하며 Frontend는 원본 `public/assets`만 함께 복사합니다.
+물고기: 은물송사리부터 겨울별가오리·수정꼬리어까지. 농장 연못/들꽃강/숲 호수/물결해안/광산5층 호수. 도감에 조건·가격·크기 기록이 표시됩니다.
 
-Backend variables:
-```
-RAILWAY_DOCKERFILE_PATH=multiplayer-farm/Dockerfile
-NODE_ENV=production
-HOST=0.0.0.0
-PORT=2567
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-CLIENT_ORIGINS=https://${{Frontend.RAILWAY_PUBLIC_DOMAIN}}
-LAB_LATENCY_MS=0
-```
-Frontend variables:
-```
-RAILWAY_DOCKERFILE_PATH=multiplayer-farm/Dockerfile.client
-NODE_ENV=production
-HOST=0.0.0.0
-PORT=8080
-VITE_MULTIPLAYER_SERVER_URL=wss://${{Backend.RAILWAY_PUBLIC_DOMAIN}}
-```
-두 서비스 health `/healthz`, Singapore, 1replica, Serverless 끔. Backend deployment overlap은 DB lease로 제한되어 재배포 중인 방은 다시 연결해야 합니다. 실시간 위치는 안전한 spawn에서 복구합니다. PostgreSQL은 private networking만 사용합니다. secret을 commit하지 않습니다.
+## 구조와 저장
 
-## 유지보수 검증
+- `client/art.ts`, `dressing.ts`, `scene.ts`: 원본 asset + 1회 생성하는 작은 그림/배경 텍스처. 큰 JSON 월드를 매 frame 보내지 않습니다.
+- `client/life-panels.ts`, `fishing-ui.ts`, `audio.ts`: 단일 모바일 패널, 낚시 터치, 직접 합성 음원.
+- `shared/expansion.ts`: 작물/어종/채집/주민 행사·목표의 정의. `shared/fishing.ts`: client/server 동일한 20Hz 낚시 입력 재생.
+- 기존 Colyseus Core **0.18.18**, SDK **0.18.5**, Schema **5.0.36** 유지. 이동 **30tick/s**, Schema delta **30Hz**, 로컬 prediction/reconciliation와 remote interpolation 유지. 기본 Stable100ms, Fast75/Aggressive60 선택 가능. Lab100ms와 networking 코드는 변경하지 않았습니다.
+- 이동은 입력만 전송합니다. 식물·동물·낚시·주민·장식·보상도 서버 command → 가족 queue → DB transaction/action receipt → 승인 state. 인벤토리는 본인에게만 전송합니다.
+- 낚시는 seed·어종·입질 시각을 서버가 지정하고 0/1 홀드 기록(최대400개)·경과 시간·거리·중복 보상을 검증합니다. 클라이언트가 점수/어종/보상을 지정하지 않습니다. 자동화 입력을 완전히 차단하는 anti-bot 시스템은 아닙니다.
+- PostgreSQL 테이블 구조는 그대로: `farm_migrations`, `farms`, `members`, `sessions`, `action_receipts`, `world_checkpoints`. **world JSON version2**가 도감·친밀도·동물·장식을 더하며 `upgradeWorld`는 v1 필드를 보존하는 additive upgrade입니다. SQL migration 추가 없음.
+- 중요 행동 직후 원자 저장, 5초 checkpoint, leave/empty/shutdown 저장. tick 위치는 DB에 기록하지 않습니다. 새 v2.6 DB를 사용하며 기존 Production D1/세이브/인증, v2.5 DB를 이관하거나 수정하지 않습니다.
+- v1 JSON의 v2 변환은 구현했지만 v2.5 서버로 v2 DB를 거꾸로 여는 것은 지원하지 않습니다. 별도 DB가 복구 경계를 유지합니다.
 
-사용자에게 PC/CLI는 필요하지 않습니다. 아래는 CI/개발자용입니다.
-```
-npm ci
-npm run typecheck
-npm run test:unit
-npm run test:integration
-DATABASE_URL=... npm run test:db
-npm run test:deployment
-VITE_MULTIPLAYER_SERVER_URL=wss://farm-validation.invalid npm run build
-npx playwright install --with-deps chromium
-npm run test:browser
-npm run test:production-browser
-```
-DB 테스트는 실제 Postgres가 없으면 실패하며 skip하거나 memory 결과로 대체하지 않습니다. 일반 integration은 DB URL이 있으면 실제 Postgres, 없으면 명시적으로 주입한 test double을 사용합니다. Production entrypoint는 DATABASE_URL을 필수로 요구합니다.
+## 검증과 한계
 
-## 이식 범위와 남은 항목
+기존 단위14·SDK통합6·DB1·정적배포6·브라우저3 검사를 유지합니다. 기존 낚시 테스트를 입력 재생 검증으로 교체하고 기존 모바일 smoke에 도감 열기를 더했습니다. 새 콘텐츠마다 대규모 자동 테스트를 추가하지 않았습니다. CI는 기존 게임, Golden Lab 회귀 및 Farm의 설치/타입/테스트/production build/Docker health·restart를 유지합니다. 결과는 [V26-VALIDATION.md](./V26-VALIDATION.md).
 
-기본 농사4종, 4방향 캐릭터, 이동/달리기/기력, 도구, 벌목/그루터기/드랍, inventory/shared chest/crafting/tool upgrade/wood processor, 공유시간/날씨/잠자기, NPC3명 기본 schedule/대화/수확퀘스트, 숲 daily reset, 광산1~5층/광석/XP/해금, 서버 검증 낚시 미로를 구현했습니다.
-원본 definitions에서 맵·작물·아이템·제작법·NPC·graphics를 한 방향 data snapshot으로 재사용했습니다. `scripts/import-content.ts`는 재생성 전용이며 runtime에 legacy 서버를 묶지 않습니다.
+남은 범위: 실제 Android 장시간 체감/저사양 FPS·발열, 경제/낚시 난이도 밸런스, 독자적인 모든 캐릭터/동물 정밀 애니메이션, 고급 NPC 경로 AI·관계 이벤트/대형 컷신, 오리·염소·돼지, 온실·축사 증축, 지도 편집기. 동적 나무와 배치 장식은 이동 장애물이 아니며 건물/기존 fence/water가 공용 collision입니다. NPC 4명은 기존 sprite를 색으로 구분하여 재사용했습니다. 새 동물/작물 일부는 단순한 절차적 그림으로, 전체가 실사풍 신규 아트인 것은 아닙니다. 음악은 짧은 원본 합성 루프이며 녹음 오케스트라 BGM이 아닙니다.
 
-아직 미이식: 맵 editor, 전체 관계/퀘스트, 건물 확장/동물, 개인 외형 선택, 기존 데이터 import, 다중 server sharding. 숲/광산은 원본 구역 의도를 살린 새 결정적 배치이며 원본 생성 알고리즘 그대로가 아닙니다. 낚시는 기존 미로 아이디어/asset을 사용한 서버 검증 경로 게임이며 기존 UI 그대로는 아닙니다. tree는 상호작용 대상이며 동적 trunk collision은 아직 적용하지 않습니다. Static house/water/fence 충돌은 양쪽 공용입니다.
+## 사람이 확인할 포인트
 
-실기기 검증: Android A Wi-Fi + B5G, 태블릿 세로/가로에서 걷기/빠른 방향전환/RUN+joystick/행동/5분 연속 이동/백그라운드/통신 단절복구/서버재시작 후 inventory 유지. Headless browser를 실제 Android로 표현하지 않습니다.
+- [ ] Android A Wi-Fi + B 5G, 같은 가족: 농사·나무·아이템·공유 보관함·동물 생산물 동시 이용
+- [ ] 세로/가로: 조이스틱+RUN+행동, 도감 스크롤, 닫기, 두 손가락 줌
+- [ ] 낚시 입질/챔질/홀드의 직관성, 희귀 어종 난이도와 최대 크기 기록
+- [ ] 28일→다음 계절: 배경/씨앗/시든 작물/채집/날씨 변경, 재수확 성장
+- [ ] 행사 날짜·시간에 광장 참여, 같은 보상 중복 지급 없음
+- [ ] 우리: 먹이→잠자기→생산물, 선물/주민 부탁/퀘스트 보상
+- [ ] 5분 이상 이동, 오디오 켜기/끄기, 백그라운드 후 복귀, Wi-Fi 잠깐 끊기
+- [ ] v2.6 서버 재배포 후 가방·동물·도감·장식·날짜 유지
 
-## 실제 검증 결과
-
-[VALIDATION.md](./VALIDATION.md)에 CI 링크, 25개 요구사항별 증거, 공개 WSS·모바일 브라우저·실제 Railway 재시작 결과와 남은 제한사항을 기록했습니다. 사용자는 위 공개 게임 URL을 열고 새 가족 농장을 만들면 됩니다. 다른 기기는 코드·비밀번호로 참가하며 Wi-Fi와 5G가 달라도 됩니다.
-
-개발자용 Docker (사용자 휴대폰에 Docker 설치 불필요): 저장소 root에서 실행합니다. `.env`에는 새 v2.5 DB와 공개 Origin만 넣습니다.
-```
-docker build -f multiplayer-farm/Dockerfile -t jiwoos-farm-backend .
-docker run --init --env-file multiplayer-farm/.env -p 2567:2567 jiwoos-farm-backend
-docker build -f multiplayer-farm/Dockerfile.client --build-arg VITE_MULTIPLAYER_SERVER_URL=wss://backend-production-b244e.up.railway.app -t jiwoos-farm-frontend .
-docker run --init -p 8080:8080 jiwoos-farm-frontend
-```
-
-실기기 체크리스트(A: PC Chrome+Edge, B: Android2대 같은 Wi-Fi, C: Android Wi-Fi+5G, D: 태블릿 세로/가로):
-- [ ] 걷기30초·빠른 방향 전환·원형 이동·RUN+joystick 동시 입력
-- [ ] 장애물 충돌·동시에 서로 이동·5분 이상 연속 조작
-- [ ] 밭/씨앗/물/3일 성장/수확 공유, 나무3타·동시 pickup·보관함 동시 인출
-- [ ] 숲과 광산 입장·가공·낚시·잠자기 투표
-- [ ] 백그라운드 후 복귀·Wi-Fi 잠깐 중단 후 복구·새로고침 후 가방 유지
-- [ ] local input delay / remote stutter / teleport / reconciliation jump / disconnect / reconnect를 기기·네트워크와 함께 기록
+CI/개발 환경 명령은 `npm ci`, `npm run typecheck`, `npm test`, `npm run test:db`(격리 Postgres 필요), `npm run test:deployment`, `npm run build`, `npm run test:browser`, `npm run test:production-browser`. 사용자는 실행할 필요가 없습니다. Production Frontend는 `VITE_MULTIPLAYER_SERVER_URL=wss://공개Backend`, backend는 `DATABASE_URL`, `CLIENT_ORIGINS=https://공개Frontend`, `NODE_ENV=production`이 필요합니다. localhost/LAN production URL은 빌드에서 거부합니다.

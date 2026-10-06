@@ -1,7 +1,8 @@
-name: Multiplayer Farm v2.5
+name: Multiplayer Farm v2.5 and v2.6
 on:
   push:
-    branches: [feature/v2.5-multiplayer-farm-rebuild]
+    branches: [feature/v2.5-multiplayer-farm-rebuild, feature/v2.6-farm-content-expansion]
+    paths: ['multiplayer-farm/**', '!multiplayer-farm/**/*.md', '.github/workflows/multiplayer-farm.yml']
   pull_request:
     paths: ['multiplayer-farm/**', '.github/workflows/multiplayer-farm.yml']
 permissions:
@@ -42,6 +43,8 @@ jobs:
       - run: npm run test:deployment
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - name: Korean fonts for mobile screenshots
+        run: sudo apt-get install -y fonts-noto-cjk
       - run: npm run test:browser
       - run: npm run test:production-browser
       - name: Build isolated farm images
