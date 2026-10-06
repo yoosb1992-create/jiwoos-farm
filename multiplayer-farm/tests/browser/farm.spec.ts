@@ -2,13 +2,15 @@ import { test, expect, type Page } from "@playwright/test";
 async function login(page: Page, code?: string) {
   await page.goto("/");
   await page.locator("#nickname").fill(code ? "B" : "A");
-  await page.locator("#password").fill("테스트");
   if (code) {
     await page.locator("#farm-code").fill(code);
     await page.locator("#join-farm").click();
   } else await page.locator("#create-farm").click();
   await expect(page.locator("#login")).toBeHidden();
-  await expect(page.locator("#connection")).toContainText("연결됨");
+  await expect(page.locator("#connection")).toHaveAttribute(
+    "data-status",
+    "connected",
+  );
   return page.evaluate(
     () =>
       JSON.parse(localStorage.getItem("farm-v26-session")!).farmId as string,
@@ -27,7 +29,10 @@ test("mobile farm load, two contexts, joystick+RUN, action, inventory and reconn
   });
   const second = await context.newPage();
   await login(second, code);
-  await expect(page.locator("#connection")).toContainText("2명");
+  await expect(page.locator("#connection")).toHaveAttribute(
+    "aria-label",
+    /2명/,
+  );
   await expect(page.locator("canvas")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("v26-mobile-farm.png") });
   await page.locator("#menu").click();
@@ -84,12 +89,18 @@ test("mobile farm load, two contexts, joystick+RUN, action, inventory and reconn
   await page.mouse.up();
   await page.reload();
   await expect(page.locator("#login")).toBeHidden();
-  await expect(page.locator("#connection")).toContainText("연결됨");
+  await expect(page.locator("#connection")).toHaveAttribute(
+    "data-status",
+    "connected",
+  );
   expect(errors).toEqual([]);
   await page.goto("about:blank");
   await page.goBack();
   await expect(page.locator("#login")).toBeHidden();
-  await expect(page.locator("#connection")).toContainText("연결됨");
+  await expect(page.locator("#connection")).toHaveAttribute(
+    "data-status",
+    "connected",
+  );
   await expect(page.locator("canvas")).toBeVisible();
   await context.close();
 });

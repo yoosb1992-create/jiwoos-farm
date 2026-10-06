@@ -46,12 +46,11 @@ for (const match of html.matchAll(/src="([^"]+\.js)"/g)) {
     false,
   );
 }
-const password = randomBytes(20).toString("hex");
 async function session(nickname: string, code = ""): Promise<Session> {
   const response = await fetch(new URL("/api/session", backend), {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: frontend.origin },
-    body: JSON.stringify({ create: !code, code, password, nickname }),
+    body: JSON.stringify({ create: !code, code, nickname }),
   });
   assert.equal(response.status, 200);
   return (await response.json()) as Session;

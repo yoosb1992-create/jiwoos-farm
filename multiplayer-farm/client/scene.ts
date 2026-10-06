@@ -2,8 +2,6 @@ import Phaser from "phaser";
 import {
   ASSETS,
   CROPS,
-  MAPS,
-  mapFor,
   TILE,
   NPCS,
   npcSchedule,
@@ -23,7 +21,7 @@ import {
   type Season,
 } from "../shared/expansion.js";
 import { createContentTextures, createGround } from "./art.js";
-import { dressing } from "./dressing.js";
+import { mapFor, layoutRevision } from "./layout.js";
 interface View {
   body: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
@@ -32,6 +30,7 @@ interface View {
 }
 export class FarmScene extends Phaser.Scene {
   private area = "";
+  private layoutVersion = -1;
   private season: Season = "spring";
   private atmosphere?: Phaser.GameObjects.Graphics;
   private highlight?: Phaser.GameObjects.Ellipse;
@@ -126,29 +125,16 @@ export class FarmScene extends Phaser.Scene {
     );
     this.terrain = this.add.container(0, 0, children).setDepth(-20);
     for (const o of map.objects) {
-      if (
-        o.assetId.startsWith("tree") ||
-        (id === "farm" && o.id === "yard_well")
-      )
-        continue;
-      this.staticObject(
+      if (o.kind) continue;
+      const v = this.staticObject(
         `static-${o.id}`,
         o.assetId,
         o.position.tileX * TILE,
         o.position.tileY * TILE,
         o.label ?? "",
       );
-    }
-    for (const [i, o] of dressing(id).entries()) {
-      const v = this.staticObject(
-        `static-dress-${i}`,
-        o.asset,
-        o.x,
-        o.y,
-        o.label ?? "",
-      );
-      v.body.setScale(o.scale ?? 1);
-      if (o.asset === "bridge") v.body.setOrigin(0.5).setDepth(-1);
+      if (o.scale) v.body.setScale(o.scale);
+      if (o.assetId === "bridge") v.body.setOrigin(0.5).setDepth(-5);
     }
     for (const spot of FISHING_SPOTS.filter((s) => s.area === id)) {
       this.staticObject(
@@ -215,7 +201,12 @@ export class FarmScene extends Phaser.Scene {
     this.me = me;
     if (!me || !state) return;
     const season = calendar(state.day).season;
-    if (this.area !== me.area || this.season !== season) {
+    if (
+      this.area !== me.area ||
+      this.season !== season ||
+      this.layoutVersion !== layoutRevision
+    ) {
+      this.layoutVersion = layoutRevision;
       this.season = season;
       this.changeArea(me.area);
     }
@@ -443,6 +434,73 @@ export class FarmScene extends Phaser.Scene {
   }
   setZoom(value: number): void {
     this.cameras.main?.setZoom(Phaser.Math.Clamp(value, 0.65, 2));
+  }
+  screenPoint(x: number, y: number): { x: number; y: number } {
+    const c = this.cameras.main,
+      a = c.getWorldPoint(0, 0),
+      b = c.getWorldPoint(1, 1),
+      r = this.game.canvas.getBoundingClientRect();
+    return {
+      x: (x - a.x) / (b.x - a.x) + r.left,
+      y: (y - a.y) / (b.y - a.y) + r.top,
+    };
+  }
+  pickWorld(
+    x: number,
+    y: number,
+  ): {
+    x: number;
+    y: number;
+    entityId?: string;
+    npcId?: string;
+    warpId?: string;
+    shop?: boolean;
+  } {
+    const p = this.worldPoint(x, y);
+    const npc = [...this.npcs.entries()]
+      .sort((a, b) => b[1].y - a[1].y)
+      .find(([, v]) => v.body.getBounds().contains(p.x, p.y));
+    if (npc) return { ...p, npcId: npc[0] };
+    const hit = [...this.objects.entries()]
+      .sort((a, b) => b[1].y - a[1].y)
+      .find(([, v]) => v.body.getBounds().contains(p.x, p.y));
+    if (hit) {
+      const [id, v] = hit;
+      if (id.startsWith("warp-")) return { ...p, warpId: id.slice(5) };
+      if (!id.startsWith("static-")) return { ...p, entityId: id };
+      const object = mapFor(this.area).objects.find(
+        (o) => `static-${o.id}` === id,
+      );
+      if (object?.assetId === "shop_counter")
+        return { x: v.x, y: v.y, shop: true };
+      if (
+        !object ||
+        !/house|store|shed|cafe|workshop|door/.test(object.assetId)
+      )
+        return p;
+      const warp = mapFor(this.area)
+        .warps.slice()
+        .sort(
+          (a, b) =>
+            Math.hypot(
+              (a.area.startX + a.area.endX + 1) * 16 - v.x,
+              (a.area.startY + a.area.endY + 1) * 16 - v.y,
+            ) -
+            Math.hypot(
+              (b.area.startX + b.area.endX + 1) * 16 - v.x,
+              (b.area.startY + b.area.endY + 1) * 16 - v.y,
+            ),
+        )[0];
+      if (
+        warp &&
+        Math.hypot(
+          (warp.area.startX + warp.area.endX + 1) * 16 - v.x,
+          (warp.area.startY + warp.area.endY + 1) * 16 - v.y,
+        ) < 170
+      )
+        return { ...p, warpId: warp.id };
+    }
+    return p;
   }
   worldPoint(x: number, y: number): { x: number; y: number } {
     const bounds = this.game.canvas.getBoundingClientRect();

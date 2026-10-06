@@ -25,4 +25,14 @@ CREATE TABLE IF NOT EXISTS world_checkpoints (
 );
 `,
   },
+  {
+    version: 2,
+    sql: `
+-- The legacy password_hash column is retained but no longer read or verified.
+COMMENT ON COLUMN farms.password_hash IS 'Deprecated: code-only joining; retained for rollback compatibility';
+CREATE TABLE IF NOT EXISTS world_blueprints (
+ id text PRIMARY KEY, edit_hash text NOT NULL, draft jsonb NOT NULL, published jsonb,
+ revision integer NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT now()
+);`,
+  },
 ];

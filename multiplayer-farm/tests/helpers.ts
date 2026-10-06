@@ -80,9 +80,9 @@ export async function move(
 export async function fixture() {
   const store = makeStore();
   await store.migrate();
-  const a = await store.login(true, "", "테스트 비밀번호", "A"),
-    b = await store.login(false, a.farmId, "테스트 비밀번호", "B"),
-    c = await store.login(false, a.farmId, "테스트 비밀번호", "C");
+  const a = await store.login(true, "", "A"),
+    b = await store.login(false, a.farmId, "B"),
+    c = await store.login(false, a.farmId, "C");
   const server = createFarmServer({ store, port: 0, host: "127.0.0.1" });
   const { url } = await server.listen();
   const A = await join(url, a),

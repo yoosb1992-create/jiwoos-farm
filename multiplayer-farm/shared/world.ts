@@ -1,7 +1,10 @@
-import { MAPS, TILE } from "./content.js";
+import { TILE, mapFor } from "./content.js";
 import { calendar, FORAGE } from "./expansion.js";
 import type { FishingChallenge } from "./fishing.js";
-export const WORLD_VERSION = 2;
+import { defaultLayout, type WorldLayout } from "./layout.js";
+import { safeSpawn } from "./regions.js";
+import { collidesWithObstacle } from "./applyMovement.js";
+export const WORLD_VERSION = 3;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
 export const ACTION_RANGE = 64;
@@ -41,6 +44,7 @@ export interface Entity {
   owner: string;
 }
 export interface World {
+  layout?: WorldLayout;
   version: number;
   revision: number;
   day: number;
@@ -173,7 +177,7 @@ export function generateDaily(world: World): void {
         ? forage[Math.floor(rng() * forage.length)]!.id
         : "stone";
     if (kind === "gather") e.asset = forage.find((f) => f.id === e.item)!.asset;
-    world.entities[e.id] = e;
+    placeDaily(world, e);
   }
   for (let floor = 1; floor <= 5; floor++)
     for (let i = 0; i < 12; i++) {
@@ -187,10 +191,39 @@ export function generateDaily(world: World): void {
       );
       e.hp = 2;
       e.item = e.asset === "mine_copper" ? "copper_ore" : "stone";
-      world.entities[e.id] = e;
+      placeDaily(world, e);
     }
+  seedFixtures(world, true);
 }
-export function newWorld(seed: number): World {
+function placeDaily(w: World, e: Entity): void {
+  const maps = w.layout?.maps ?? defaultLayout().maps,
+    map = mapFor(e.area, maps);
+  if (collidesWithObstacle(e.x, e.y, e.area, maps)) {
+    const free = [];
+    for (let y = 1; y < map.height - 1; y++)
+      for (let x = 1; x < map.width - 1; x++)
+        if (
+          !collidesWithObstacle(
+            (x + 0.5) * TILE,
+            (y + 0.5) * TILE,
+            e.area,
+            maps,
+          )
+        )
+          free.push({ x: (x + 0.5) * TILE, y: (y + 0.5) * TILE });
+    const n = Object.keys(w.entities).length,
+      pos =
+        free[n % Math.max(1, free.length)] ??
+        safeSpawn(e.area, undefined, maps);
+    e.x = pos.x;
+    e.y = pos.y;
+  }
+  w.entities[e.id] = e;
+}
+export function newWorld(
+  seed: number,
+  layout: WorldLayout = defaultLayout(),
+): World {
   const w: World = {
     version: WORLD_VERSION,
     revision: 0,
@@ -204,71 +237,35 @@ export function newWorld(seed: number): World {
     chest: {},
     nextEntity: 0,
     events: [],
+    layout: structuredClone(layout),
   };
-  for (const o of MAPS.farm!.objects)
-    if (o.assetId.startsWith("tree")) {
-      const e = entity(
-        o.id,
-        "farm",
-        "tree",
-        o.position.tileX * TILE,
-        o.position.tileY * TILE,
-        o.assetId,
-      );
-      e.hp = 3;
-      w.entities[e.id] = e;
-    }
-  // Beginner interaction cluster is beside the initial spawn and field, never inside the house.
-  const tree = entity(
-    "starter-pine",
-    "farm",
-    "tree",
-    7 * TILE,
-    12 * TILE,
-    "tree",
-  );
-  tree.hp = 3;
-  w.entities[tree.id] = tree;
-  const chest = entity(
-    "family-chest",
-    "farm",
-    "chest",
-    8 * TILE,
-    9.5 * TILE,
-    "storage_chest",
-  );
-  w.entities[chest.id] = chest;
-  const bench = entity(
-    "crafting-table",
-    "farm",
-    "craft",
-    6 * TILE,
-    10.5 * TILE,
-    "crafting_table",
-  );
-  w.entities[bench.id] = bench;
-  const well = entity(
-    "water-well",
-    "farm",
-    "well",
-    12 * TILE,
-    5.3 * TILE,
-    "stone_well",
-  );
-  w.entities[well.id] = well;
-  const chick = entity(
-    "animal-starter",
-    "farm",
-    "animal",
-    39 * TILE,
-    12 * TILE,
-    "chicken",
-  );
-  chick.crop = "chicken";
-  w.entities[chick.id] = chick;
-  upgradeWorld(w);
+  seedFixtures(w, false);
   generateDaily(w);
   return w;
+}
+function seedFixtures(w: World, daily: boolean): void {
+  for (const map of Object.values(w.layout?.maps ?? defaultLayout().maps)) {
+    if ((map.id === "forest" || map.id.startsWith("mine")) !== daily) continue;
+    for (const o of map.objects)
+      if (o.kind) {
+        const e = entity(
+          o.id,
+          map.id,
+          o.kind,
+          o.position.tileX * TILE,
+          o.position.tileY * TILE,
+          o.assetId,
+        );
+        if (e.kind === "tree") e.hp = 3;
+        if (e.kind === "animal")
+          e.crop = o.assetId.includes("cow")
+            ? "cow"
+            : o.assetId.includes("sheep")
+              ? "sheep"
+              : "chicken";
+        w.entities[e.id] = e;
+      }
+  }
 }
 export function addDrop(
   w: World,
@@ -294,6 +291,7 @@ export function upgradeWorld(w: World): void {
     m.collections ??= {};
     if (m.fishing && !("seed" in m.fishing)) delete m.fishing;
   }
+  const needsUpgrade = w.version < 2;
   const fixed = [
     ["animal-home", "farm", "barn", 41, 8, "chicken_coop"],
     ["feeding-trough", "farm", "trough", 40, 12, "feed_trough"],
@@ -301,8 +299,9 @@ export function upgradeWorld(w: World): void {
     ["workshop-table", "workshop", "craft", 10, 6, "crafting_table"],
     ["cafe-kitchen", "cafe", "craft", 12, 5, "crafting_table"],
   ] as const;
-  for (const [id, area, kind, x, y, asset] of fixed)
-    w.entities[id] ??= entity(id, area, kind, x * TILE, y * TILE, asset);
+  if (needsUpgrade)
+    for (const [id, area, kind, x, y, asset] of fixed)
+      w.entities[id] ??= entity(id, area, kind, x * TILE, y * TILE, asset);
   if (!w.entities["animal-starter"] && w.version < 2) {
     const chick = entity(
       "animal-starter",
@@ -315,5 +314,6 @@ export function upgradeWorld(w: World): void {
     chick.crop = "chicken";
     w.entities[chick.id] = chick;
   }
+  w.layout ??= defaultLayout();
   w.version = WORLD_VERSION;
 }

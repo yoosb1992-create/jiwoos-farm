@@ -23,6 +23,7 @@ import {
   RECONNECTION_SECONDS,
   SERVER_TICK_RATE,
 } from "../shared/config.js";
+import type { MapData } from "../shared/content.js";
 import { FarmState, MoveInput, Player } from "../shared/schema.js";
 
 function nicknameFrom(value: unknown): string {
@@ -37,6 +38,8 @@ export class MovementRoom extends Room<{ state: FarmState; input: MoveInput }> {
   maxClients = MAX_PLAYERS;
   maxMessagesPerSecond = MAX_MESSAGES_PER_SECOND;
   /** Server-only override for isolated integration tests; never read join options. */
+  protected movementMaps?: Record<string, MapData>;
+  protected afterMovement(_context: StepContext): void {}
   protected reconnectionSeconds = RECONNECTION_SECONDS;
   private readonly catchupBudgets = new Map<
     string,
@@ -131,7 +134,7 @@ export class MovementRoom extends Room<{ state: FarmState; input: MoveInput }> {
         }
         continue;
       }
-      applyMovement(player, input, context.dt);
+      applyMovement(player, input, context.dt, this.movementMaps);
       budget.lastInputTick = context.tick;
       // One normal step, plus at most one previously missed step. Credits are
       // spent, never minted while input is available: total integrated time is
@@ -144,7 +147,7 @@ export class MovementRoom extends Room<{ state: FarmState; input: MoveInput }> {
       ) {
         const catchup = channel.next();
         if (!catchup) break;
-        applyMovement(player, catchup, context.dt);
+        applyMovement(player, catchup, context.dt, this.movementMaps);
         budget.credits -= 1;
       }
       // A TCP stall longer than the bounded catch-up window can leave a queue
@@ -169,6 +172,7 @@ export class MovementRoom extends Room<{ state: FarmState; input: MoveInput }> {
         client.leave(CloseCode.MAY_TRY_RECONNECT, "Input backlog resync");
       }
     }
+    this.afterMovement(context);
   }
 
   onDrop(client: Client, code?: number): void {

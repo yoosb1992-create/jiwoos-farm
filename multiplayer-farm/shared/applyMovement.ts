@@ -5,7 +5,7 @@ import {
   RUN_SPEED,
   WALK_SPEED,
 } from "./config.js";
-import { mapFor, TILE, tileIn } from "./content.js";
+import { mapFor, TILE, tileIn, type MapData } from "./content.js";
 export interface Position {
   x: number;
   y: number;
@@ -34,8 +34,9 @@ export function collidesWithObstacle(
   x: number,
   y: number,
   area = "farm",
+  maps?: Record<string, MapData>,
 ): boolean {
-  const map = mapFor(area);
+  const map = mapFor(area, maps);
   if (
     x < PLAYER_RADIUS ||
     y < PLAYER_RADIUS ||
@@ -72,7 +73,12 @@ export function collidesWithObstacle(
       ),
   );
 }
-export function applyMovement(p: Position, raw: unknown, dt: number): void {
+export function applyMovement(
+  p: Position,
+  raw: unknown,
+  dt: number,
+  maps?: Record<string, MapData>,
+): void {
   if (
     !Number.isFinite(dt) ||
     dt <= 0 ||
@@ -109,8 +115,10 @@ export function applyMovement(p: Position, raw: unknown, dt: number): void {
     Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / MAX_MOVEMENT_SUBSTEP),
   );
   for (let s = 0; s < steps; s++) {
-    if (!collidesWithObstacle(p.x + dx / steps, p.y, p.area)) p.x += dx / steps;
-    if (!collidesWithObstacle(p.x, p.y + dy / steps, p.area)) p.y += dy / steps;
+    if (!collidesWithObstacle(p.x + dx / steps, p.y, p.area, maps))
+      p.x += dx / steps;
+    if (!collidesWithObstacle(p.x, p.y + dy / steps, p.area, maps))
+      p.y += dy / steps;
   }
   if (p.running && p.stamina !== undefined)
     p.stamina = Math.max(0, p.stamina - dt * 2);
@@ -121,6 +129,11 @@ export function frontTile(p: Position): { tileX: number; tileY: number } {
     y = p.y + (p.facing === "down" ? TILE : p.facing === "up" ? -TILE : 0);
   return { tileX: Math.floor(x / TILE), tileY: Math.floor(y / TILE) };
 }
-export function isFarmable(area: string, x: number, y: number): boolean {
-  return mapFor(area).farmAreas.some((r) => tileIn(r, x, y));
+export function isFarmable(
+  area: string,
+  x: number,
+  y: number,
+  maps?: Record<string, MapData>,
+): boolean {
+  return mapFor(area, maps).farmAreas.some((r) => tileIn(r, x, y));
 }

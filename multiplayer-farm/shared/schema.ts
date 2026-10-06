@@ -62,6 +62,7 @@ export const FarmState = schema(
     deepest: t.uint8().default(1),
     votes: t.uint8().default(0),
     storage: t.string().default("ready"),
+    layout: t.string().default(""),
   },
   "FarmState",
 );

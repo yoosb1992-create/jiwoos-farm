@@ -1,0 +1,241 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #263d32;
+  background: #efeada;
+  font-size: 14px;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  height: 100dvh;
+  overflow: hidden;
+}
+button,
+select,
+input,
+a {
+  font: inherit;
+  border: 1px solid #c4cbb6;
+  border-radius: 9px;
+  padding: 9px;
+  background: #fffdf4;
+  color: #263d32;
+  min-height: 39px;
+}
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:disabled {
+  opacity: 0.4;
+}
+a {
+  text-decoration: none;
+  white-space: nowrap;
+}
+button:active {
+  background: #d4e4b8;
+}
+#editor {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+header,
+#tools {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  padding: 8px;
+  flex-shrink: 0;
+}
+header {
+  background: #dae4cb;
+  flex-wrap: wrap;
+}
+header strong {
+  margin-right: auto;
+}
+header #publish {
+  background: #356547;
+  color: white;
+}
+#tools {
+  overflow-x: auto;
+  background: #f9f4e7;
+}
+#tools > * {
+  flex-shrink: 0;
+}
+#asset {
+  max-width: 165px;
+}
+#tile {
+  max-width: 100px;
+}
+main {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+#viewport {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+}
+.legend {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  background: #fffbdde0;
+  border-radius: 8px;
+  padding: 6px;
+  font-size: 10px;
+  pointer-events: none;
+  max-width: 90%;
+}
+aside {
+  width: 270px;
+  overflow: auto;
+  padding: 8px;
+  background: #f7f1e4;
+}
+details {
+  border: 1px solid #d3d8c8;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+summary {
+  font-weight: 700;
+  cursor: pointer;
+  padding: 3px 0;
+}
+label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+label input,
+label select {
+  min-width: 0;
+  width: 140px;
+}
+p,
+small {
+  font-size: 12px;
+  line-height: 1.6;
+}
+small {
+  display: block;
+}
+details button {
+  margin-top: 6px;
+}
+#inspector > strong {
+  display: block;
+  margin-top: 10px;
+}
+footer {
+  padding: 8px 12px;
+  min-height: 38px;
+  font-size: 12px;
+  background: #dfe8d2;
+}
+.file {
+  display: block;
+}
+.file input {
+  width: 100%;
+}
+@media (max-width: 650px) {
+  :root {
+    font-size: 12px;
+  }
+  header {
+    gap: 5px;
+    padding: 5px;
+  }
+  header strong {
+    font-size: 13px;
+  }
+  header button,
+  header select,
+  header a {
+    padding: 7px;
+  }
+  header select {
+    max-width: 108px;
+  }
+  main {
+    flex-direction: column;
+  }
+  #viewport {
+    min-height: 180px;
+  }
+  aside {
+    width: 100%;
+    max-height: 29dvh;
+    display: flex;
+    gap: 7px;
+    padding: 5px;
+    overflow: auto;
+  }
+  details {
+    min-width: 245px;
+    flex: 1;
+    margin: 0;
+  }
+  #tools {
+    padding: 5px;
+  }
+  footer {
+    min-height: 32px;
+    padding: 5px 10px;
+  }
+  .legend {
+    font-size: 9px;
+  }
+  #inspector label {
+    margin-top: 4px;
+  }
+  #inspector input,
+  #inspector select {
+    min-height: 32px;
+    padding: 5px;
+  }
+}
+@media (max-height: 480px) and (min-width: 651px) {
+  aside {
+    width: 235px;
+  }
+  header,
+  #tools {
+    padding: 4px;
+  }
+  button,
+  select,
+  input,
+  a {
+    min-height: 31px;
+    padding: 5px;
+  }
+  footer {
+    min-height: 27px;
+    padding: 4px 10px;
+  }
+}

@@ -14,7 +14,6 @@ async function snapshot(page: Page): Promise<NetworkSnapshot> {
 async function enter(page: Page, name: string, farmId?: string) {
   await page.goto("/");
   await page.locator("#nickname").fill(name);
-  await page.locator("#password").fill("netcode-test");
   if (farmId) {
     await page.locator("#farm-code").fill(farmId);
     await page.locator("#join-farm").click();

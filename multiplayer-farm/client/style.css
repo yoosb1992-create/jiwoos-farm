@@ -961,3 +961,265 @@ h1 {
     transition: none !important;
   }
 }
+/* Mobile-first compact right-hand layout. */
+#top {
+  left: auto;
+  right: calc(8px + env(safe-area-inset-right, 0px));
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  width: min(278px, calc(100% - 24px));
+  max-width: none;
+  padding: 7px 9px;
+  gap: 3px 7px;
+  border-radius: 13px;
+  z-index: 4;
+  font-size: 11px;
+}
+#top .brand {
+  display: none;
+}
+#calendar {
+  font-size: 13px;
+}
+#place {
+  font-size: 9px;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#top .day-block {
+  min-width: 0;
+  flex: 1;
+}
+#top .top-actions {
+  gap: 5px;
+}
+#wallet {
+  font-size: 11px;
+}
+#top #bag {
+  min-width: 33px;
+  padding: 3px;
+  font-size: 10px;
+}
+#bag small {
+  font-size: 9px;
+}
+#menu {
+  width: 32px;
+  height: 34px;
+  padding: 2px;
+  font-size: 20px;
+}
+#stamina {
+  height: 9px;
+  margin: 1px 0 0;
+  flex: 1;
+  min-width: 120px;
+}
+#stamina span {
+  font-size: 8px;
+  line-height: 9px;
+}
+#connection {
+  position: static;
+  inset: auto;
+  max-width: none;
+  margin: 0;
+  padding: 0 2px;
+  font-size: 11px;
+  color: #408754;
+  background: none;
+  line-height: 12px;
+  pointer-events: auto;
+  z-index: auto;
+}
+#connection:not([data-status="connected"]) {
+  color: #9b521b;
+  background: #fff1d0;
+  border-radius: 4px;
+  font-size: 10px;
+}
+#today {
+  display: none !important;
+}
+#notice {
+  top: calc(94px + env(safe-area-inset-top, 0px));
+  left: auto;
+  right: 10px;
+  max-width: 280px;
+  width: auto;
+  font-size: 11px;
+  padding: 7px 10px;
+}
+#context-hint {
+  left: auto;
+  right: 14px;
+  max-width: 270px;
+  text-align: right;
+  font-size: 9px;
+  bottom: calc(224px + env(safe-area-inset-bottom, 0px));
+}
+#toolbar {
+  left: auto;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  width: 260px;
+  bottom: calc(142px + env(safe-area-inset-bottom, 0px));
+  z-index: 3;
+  padding: 5px 6px;
+}
+#quickslots button {
+  padding: 6px 1px;
+  font-size: 10px;
+}
+#toolbar select {
+  font-size: 10px;
+  min-height: 26px;
+  padding: 3px;
+}
+#controls {
+  inset: 0;
+  position: fixed;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  z-index: 5;
+  pointer-events: none;
+  display: block;
+}
+#right-controls {
+  pointer-events: none;
+}
+#action,
+#run,
+#joystick {
+  pointer-events: auto;
+}
+#action:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+#control-editor {
+  position: fixed;
+  z-index: 100;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  left: 8px;
+  max-width: 280px;
+  width: calc(100% - 16px);
+  padding: 12px;
+  background: #fffbee;
+  border: 1px solid #c2c8a6;
+  border-radius: 14px;
+  box-shadow: 0 8px 35px #152e2940;
+  touch-action: pan-y;
+}
+#control-editor strong,
+#control-editor small {
+  display: block;
+}
+#control-editor label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin: 5px 0;
+}
+#control-editor input,
+#control-editor select {
+  flex: 1;
+  width: 140px;
+  min-height: 30px;
+  padding: 3px;
+}
+#control-editor button {
+  padding: 7px;
+  font-size: 11px;
+}
+.editing-controls #joystick,
+.editing-controls #action,
+.editing-controls #run {
+  outline: 3px dashed #ca8a23;
+  z-index: 110;
+  cursor: move;
+}
+.editing-controls #arena {
+  pointer-events: none;
+}
+@media (max-height: 480px) {
+  #top {
+    width: 250px;
+    padding: 5px 7px;
+  }
+  #place {
+    display: none;
+  }
+  #toolbar {
+    width: 240px;
+    bottom: calc(108px + env(safe-area-inset-bottom, 0px));
+  }
+  #quickslots button {
+    padding: 3px 1px;
+  }
+  #toolbar select {
+    min-height: 22px;
+    padding: 1px;
+  }
+  #context-hint {
+    display: none;
+  }
+  #notice {
+    top: 78px;
+    max-width: 235px;
+    padding: 4px 7px;
+  }
+  #control-editor {
+    max-height: calc(100dvh - 16px);
+    overflow: auto;
+    width: 235px;
+  }
+}
+#top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+#top .day-block {
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 100%;
+}
+#calendar {
+  white-space: nowrap;
+  margin: 0 0 2px;
+  font-size: 12px;
+}
+#top #place {
+  display: none;
+}
+#top .top-actions {
+  flex: 0 0 auto;
+  gap: 6px;
+}
+#top #stamina {
+  flex: 1 1 60px;
+  min-width: 50px;
+  width: auto;
+  max-width: 86px;
+}
+#top #connection {
+  flex: 0 0 auto;
+}
+#notice {
+  top: calc(86px + env(safe-area-inset-top, 0px));
+}
+@media (max-height: 480px) {
+  #top .top-actions {
+    gap: 4px;
+  }
+  #top #stamina {
+    min-width: 38px;
+    max-width: 75px;
+  }
+  #notice {
+    top: 80px;
+  }
+}

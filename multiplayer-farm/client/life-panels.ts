@@ -1,8 +1,8 @@
+import { CLIENT_MAPS as MAPS } from "./layout.js";
 import {
   ASSETS,
   ITEMS,
   CROPS,
-  MAPS,
   NPCS,
   npcSchedule,
   itemName,

@@ -1,15 +1,9 @@
 import { Pool, type PoolClient } from "pg";
-import {
-  createHash,
-  randomBytes,
-  randomUUID,
-  scrypt as scryptCallback,
-  timingSafeEqual,
-} from "node:crypto";
-import { promisify } from "node:util";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import type { WorldLayout } from "../shared/layout.js";
+import type { BlueprintStore, Blueprint } from "../shared/blueprint.js";
 import { MIGRATIONS } from "./migrations.js";
 import { newWorld, type World, type ActionResult } from "../shared/world.js";
-const scrypt = promisify(scryptCallback);
 export const tokenHash = (s: string) =>
   createHash("sha256").update(s).digest("hex");
 export interface Identity {
@@ -19,21 +13,6 @@ export interface Identity {
 }
 export interface Session extends Identity {
   token: string;
-}
-export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString("hex");
-  const key = (await scrypt(password, salt, 64)) as Buffer;
-  return `scrypt:${salt}:${key.toString("hex")}`;
-}
-export async function verifyPassword(
-  password: string,
-  stored: string,
-): Promise<boolean> {
-  const [algo, salt, hash] = stored.split(":");
-  if (algo !== "scrypt" || !salt || !hash) return false;
-  const key = (await scrypt(password, salt, 64)) as Buffer;
-  const expected = Buffer.from(hash, "hex");
-  return key.length === expected.length && timingSafeEqual(key, expected);
 }
 export interface FarmLease {
   load(): Promise<World>;
@@ -53,15 +32,15 @@ export interface FarmLease {
   ): Promise<void>;
   close(): Promise<void>;
 }
-export interface Store {
+export interface Store extends BlueprintStore {
   readonly namespace?: string;
   migrate(): Promise<void>;
   health(): Promise<boolean>;
   login(
     create: boolean,
     code: string,
-    password: string,
     nickname: string,
+    templateId?: string,
   ): Promise<Session>;
   authenticate(token: string): Promise<Identity>;
   lease(farmId: string, onLost: () => void): Promise<FarmLease>;
@@ -132,11 +111,9 @@ export class PostgresStore implements Store {
   async login(
     create: boolean,
     code: string,
-    password: string,
     nickname: string,
+    templateId?: string,
   ): Promise<Session> {
-    if ([...password].length < 2 || Buffer.byteLength(password) > 4096)
-      throw new Error("비밀번호는 2글자 이상, 4096바이트 이하입니다");
     if (
       !nickname.trim() ||
       [...nickname].length > 24 ||
@@ -148,28 +125,26 @@ export class PostgresStore implements Store {
       : code.trim().toUpperCase();
     if (!/^[A-F0-9]{10}$/.test(farmId))
       throw new Error("가족 코드가 올바르지 않습니다");
-    const passwordHash = create ? await hashPassword(password) : "";
     if (!create) {
-      const found = await this.pool.query<{ password_hash: string }>(
-        "SELECT password_hash FROM farms WHERE id=$1",
-        [farmId],
-      );
-      if (
-        !found.rows[0] ||
-        !(await verifyPassword(password, found.rows[0].password_hash))
-      )
-        throw new Error("가족 코드 또는 비밀번호를 확인하세요");
+      const found = await this.pool.query("SELECT 1 FROM farms WHERE id=$1", [
+        farmId,
+      ]);
+      if (!found.rowCount) throw new Error("가족 코드를 확인하세요");
     }
+    const layout =
+      create && templateId
+        ? await this.publishedBlueprint(templateId)
+        : undefined;
     const db = await this.pool.connect();
     const playerId = randomUUID(),
       token = randomBytes(32).toString("base64url");
     try {
       await db.query("BEGIN");
       if (create) {
-        const w = newWorld(randomBytes(4).readUInt32LE());
+        const w = newWorld(randomBytes(4).readUInt32LE(), layout);
         await db.query(
           "INSERT INTO farms(id,password_hash,world)VALUES($1,$2,$3)",
-          [farmId, passwordHash, JSON.stringify(w)],
+          [farmId, "disabled:code-only", JSON.stringify(w)],
         );
       }
       await db.query(
@@ -192,6 +167,65 @@ export class PostgresStore implements Store {
     } finally {
       db.release();
     }
+  }
+  async createBlueprint(
+    layout: WorldLayout,
+  ): Promise<Blueprint & { editToken: string }> {
+    const id = randomBytes(12).toString("hex"),
+      editToken = randomBytes(32).toString("base64url");
+    await this.pool.query(
+      "INSERT INTO world_blueprints(id,edit_hash,draft)VALUES($1,$2,$3)",
+      [id, tokenHash(editToken), JSON.stringify(layout)],
+    );
+    return { id, editToken, revision: 0, layout, published: false };
+  }
+  async getBlueprint(id: string, editToken: string): Promise<Blueprint> {
+    const r = await this.pool.query<{
+      revision: number;
+      draft: WorldLayout;
+      published: WorldLayout | null;
+    }>(
+      "SELECT revision,draft,published FROM world_blueprints WHERE id=$1 AND edit_hash=$2",
+      [id, tokenHash(editToken)],
+    );
+    const row = r.rows[0];
+    if (!row) throw Error("설계도 편집 권한이 없습니다");
+    return {
+      id,
+      revision: row.revision,
+      layout: row.draft,
+      published: !!row.published,
+    };
+  }
+  async saveBlueprint(
+    id: string,
+    editToken: string,
+    layout: WorldLayout,
+    revision: number,
+    publish: boolean,
+  ): Promise<Blueprint> {
+    const r = await this.pool.query<{
+      revision: number;
+      published: WorldLayout | null;
+    }>(
+      `UPDATE world_blueprints SET draft=$1,published=CASE WHEN $2 THEN $1::jsonb ELSE published END,revision=revision+1,updated_at=now() WHERE id=$3 AND edit_hash=$4 AND revision=$5 RETURNING revision,published`,
+      [JSON.stringify(layout), publish, id, tokenHash(editToken), revision],
+    );
+    const row = r.rows[0];
+    if (!row)
+      throw Error(
+        "편집 권한 또는 버전이 다릅니다. 서버 설계도를 다시 불러오세요",
+      );
+    return { id, revision: row.revision, layout, published: !!row.published };
+  }
+  async publishedBlueprint(id: string): Promise<WorldLayout> {
+    const r = await this.pool.query<{ published: WorldLayout | null }>(
+      "SELECT published FROM world_blueprints WHERE id=$1",
+      [id],
+    );
+    if (!r.rows[0]?.published)
+      throw Error("초기 월드 적용을 완료한 설계도인지 확인하세요");
+    return r.rows[0].published;
   }
   async authenticate(token: string): Promise<Identity> {
     if (typeof token !== "string" || token.length > 200)

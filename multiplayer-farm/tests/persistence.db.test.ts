@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { PostgresStore, tokenHash } from "../persistence/store.js";
+import { defaultLayout } from "../shared/layout.js";
 import { newMember } from "../shared/world.js";
 const url = process.env.DATABASE_URL;
 test("PostgreSQL migration idempotency, transaction rollback, durable idempotency and session hashing", async () => {
@@ -36,18 +37,35 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
       columns.rows.map((r) => r.column_name),
       ["id", "legacy_marker"],
     );
-    const s = await db.login(
-      true,
-      "",
-      "긴 비밀번호".repeat(25),
-      "DB-" + randomUUID().slice(0, 6),
-    );
+    const s = await db.login(true, "", "DB-" + randomUUID().slice(0, 6));
     assert.equal((await db.authenticate(s.token)).playerId, s.playerId);
     const secrets = await db.pool.query(
       "SELECT password_hash FROM farms WHERE id=$1",
       [s.farmId],
     );
-    assert.ok(secrets.rows[0].password_hash.startsWith("scrypt:"));
+    assert.equal(secrets.rows[0].password_hash, "disabled:code-only");
+    await db.pool.query("UPDATE farms SET password_hash=$2 WHERE id=$1", [
+      s.farmId,
+      "scrypt:legacy:ignored",
+    ]);
+    assert.equal(
+      (await db.login(false, s.farmId, "Code only peer")).farmId,
+      s.farmId,
+    );
+    const layout = defaultLayout();
+    layout.maps.farm!.width = 60;
+    const draft = await db.createBlueprint(layout);
+    await assert.rejects(() =>
+      db.saveBlueprint(draft.id, "invalid", layout, 0, true),
+    );
+    await db.saveBlueprint(draft.id, draft.editToken, layout, 0, true);
+    await assert.rejects(() =>
+      db.saveBlueprint(draft.id, draft.editToken, layout, 0, true),
+    );
+    const edited = await db.login(true, "", "Blueprint farmer", draft.id);
+    const isolated = await db.lease(edited.farmId, () => undefined);
+    assert.equal((await isolated.load()).layout!.maps.farm!.width, 60);
+    await isolated.close();
     const sessionRows = await db.pool.query(
       "SELECT token_hash FROM sessions WHERE member_id=$1",
       [s.playerId],
@@ -57,6 +75,7 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
     const lease = await db.lease(s.farmId, () => undefined);
     try {
       const w = await lease.load();
+      assert.notEqual(w.layout!.maps.farm!.width, 60);
       w.members[s.playerId] = newMember(s.playerId, s.nickname);
       w.revision++;
       await lease.save(w, 0);

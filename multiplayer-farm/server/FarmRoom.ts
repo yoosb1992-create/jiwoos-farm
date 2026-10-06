@@ -1,4 +1,7 @@
-import { ServerError, type Client } from "@colyseus/core";
+import { Encoder } from "@colyseus/schema";
+// Initial immutable layout is sent once. Subsequent 30 Hz patches remain deltas.
+Encoder.BUFFER_SIZE = 1024 * 1024;
+import { ServerError, type Client, type StepContext } from "@colyseus/core";
 import { MovementRoom } from "./MovementRoom.js";
 import { WorldEntity, type Player } from "../shared/schema.js";
 import { applyAction, parseCommand } from "../shared/actions.js";
@@ -18,7 +21,12 @@ import {
   type FarmLease,
   type Identity,
 } from "../persistence/store.js";
-import { TILE } from "../shared/content.js";
+import {
+  insideWarp,
+  safeSpawn,
+  TRANSITION_COOLDOWN_MS,
+} from "../shared/regions.js";
+import { TILE, mapFor } from "../shared/content.js";
 
 /** One logical authority per family. PostgreSQL session advisory lease fences overlapping deploys. */
 export function configuredFarmRoom(store: Store): typeof FarmRoom {
@@ -36,6 +44,8 @@ export class FarmRoom extends MovementRoom {
   private readonly identities = new Map<string, Identity>();
   private readonly activeMembers = new Set<string>();
   private readonly cooldown = new Map<string, number>();
+  private readonly transitionUntil = new Map<string, number>();
+  private readonly transitionPending = new Set<string>();
   private votes = new Set<string>();
   private timer?: ReturnType<typeof setInterval>;
   private checkpointTimer?: ReturnType<typeof setInterval>;
@@ -66,6 +76,8 @@ export class FarmRoom extends MovementRoom {
     });
     this.world = await this.lease.load();
     upgradeWorld(this.world);
+    this.movementMaps = this.world.layout!.maps;
+    this.state.layout = JSON.stringify(this.world.layout);
     this.clockMinute = this.world.minute;
     this.clockDay = this.world.day;
     this.clockStarted = Date.now();
@@ -147,8 +159,11 @@ export class FarmRoom extends MovementRoom {
         this.addPlayer(client, { nickname: auth.nickname });
         const p = this.state.players.get(client.sessionId)!;
         p.playerId = auth.playerId;
-        p.x = 7 * TILE;
-        p.y = 9 * TILE;
+        const spawn = safeSpawn("farm", "farm_entry", this.movementMaps!);
+        p.x = spawn.x;
+        p.y = spawn.y;
+        p.facing = spawn.facing;
+
         p.stamina = this.world.members[auth.playerId]!.stamina;
         this.sync();
         this.privateState(client);
@@ -187,6 +202,11 @@ export class FarmRoom extends MovementRoom {
         p = this.state.players.get(client.sessionId);
       if (!identity || !p?.connected) throw new Error("접속을 복구하세요");
       const command = parseCommand(value);
+      if (
+        command.type === "enterArea" &&
+        Date.now() < (this.transitionUntil.get(client.sessionId) ?? 0)
+      )
+        throw new Error("지역 이동 준비 중입니다");
       actionId = command.actionId;
       const hash = tokenHash(JSON.stringify(command));
       const receipt = await this.lease.receipt(identity.playerId, actionId);
@@ -240,6 +260,10 @@ export class FarmRoom extends MovementRoom {
       );
       p.actionTicks = freeze ? 6 : 0;
       if (result.transition) {
+        this.transitionUntil.set(
+          client.sessionId,
+          Date.now() + TRANSITION_COOLDOWN_MS,
+        );
         p.area = result.transition.area;
         p.x = result.transition.x;
         p.y = result.transition.y;
@@ -265,6 +289,41 @@ export class FarmRoom extends MovementRoom {
         message:
           error instanceof Error ? error.message : "저장 실패. 다시 시도하세요",
         revision: this.world.revision,
+      });
+    }
+  }
+  protected override afterMovement(_context: StepContext): void {
+    if (this.closing || this.pending >= 32) return;
+    const now = Date.now();
+    for (const [sid, p] of this.state.players) {
+      if (
+        !p.connected ||
+        !p.moving ||
+        this.transitionPending.has(sid) ||
+        now < (this.transitionUntil.get(sid) ?? 0)
+      )
+        continue;
+      const warp = insideWarp(mapFor(p.area, this.movementMaps), p.x, p.y),
+        client = this.clients.get(sid);
+      if (!warp || !client) continue;
+      const fromArea = p.area;
+      this.transitionPending.add(sid);
+      this.pending++;
+      void this.enqueue(async () => {
+        if (
+          p.area !== fromArea ||
+          insideWarp(mapFor(p.area, this.movementMaps), p.x, p.y)?.id !==
+            warp.id
+        )
+          return;
+        await this.command(client, {
+          actionId: crypto.randomUUID(),
+          type: "enterArea",
+          targetId: warp.id,
+        });
+      }).finally(() => {
+        this.transitionPending.delete(sid);
+        this.pending--;
       });
     }
   }
@@ -325,6 +384,8 @@ export class FarmRoom extends MovementRoom {
         this.cooldown.delete(id);
       }
       this.identities.delete(client.sessionId);
+      this.transitionUntil.delete(client.sessionId);
+      this.transitionPending.delete(client.sessionId);
       this.removePlayer(client);
       this.state.votes = this.votes.size;
     });

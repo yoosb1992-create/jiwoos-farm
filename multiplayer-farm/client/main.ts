@@ -1,4 +1,7 @@
 import "./style.css";
+import { TouchNavigator, type TouchTarget } from "./navigation.js";
+import { ControlLayout } from "./control-layout.js";
+import { mapFor } from "./layout.js";
 import { ColyseusAdapter, type NetworkSnapshot } from "./network.js";
 import { InputController } from "./input.js";
 import { createRenderer } from "./scene.js";
@@ -9,7 +12,6 @@ import {
   ITEMS,
   NPCS,
   npcSchedule,
-  mapFor,
   TILE,
   itemName,
 } from "../shared/content.js";
@@ -31,18 +33,19 @@ const audio = new FarmAudio();
 const actionKinds = new Map<string, string>();
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `<div id="arena" aria-label="가족 농장 게임 화면"></div>
-<header id="top"><div class="day-block"><span class="brand">JIWOO’S FARM · v2.6</span><strong id="calendar">우리 가족의 작은 세계</strong><span id="place">사계절을 함께 가꾸어요</span></div><div class="top-actions"><span id="wallet">0 G</span><button id="bag" aria-label="가방">가방 <small id="bag-space">0/48</small></button><button id="menu" aria-label="메뉴">☰</button></div><div id="stamina"><i></i><span>기력</span></div></header><button id="today" aria-label="오늘 할 일">✦ 오늘의 작은 한 걸음</button>
+<header id="top"><div class="day-block"><span class="brand">JIWOO’S FARM · v2.6</span><strong id="calendar">우리 가족의 작은 세계</strong><span id="place">사계절을 함께 가꾸어요</span></div><div class="top-actions"><span id="wallet">0 G</span><button id="bag" aria-label="가방">가방 <small id="bag-space">0/48</small></button><button id="menu" aria-label="메뉴">☰</button></div><div id="stamina"><i></i><span>기력</span></div></header><button hidden id="today" aria-label="오늘 할 일">✦ 오늘의 작은 한 걸음</button>
 <div id="notice" role="status">가족 농장에 오신 것을 환영합니다.</div><div id="connection"></div>
 <div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><label for="tool">선택</label><select id="tool"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="fishing_rod">낚싯대</option></select></div>
 <div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action" aria-label="행동">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
 <pre id="hud" hidden></pre><dialog id="panel"><div id="panel-top"><h2 id="panel-title"></h2><button id="panel-close">닫기</button></div><div id="panel-body"></div></dialog>
-<section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>가족 비밀번호<input id="password" type="password" minlength="2" autocomplete="current-password" required placeholder="2글자 이상"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><p id="login-error" role="alert"></p><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>코드와 비밀번호를 가족에게 공유하세요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
+<section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><p id="login-error" role="alert"></p><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>가족 코드만 공유하면 함께할 수 있어요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
 function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
 const abort = new AbortController(),
   opts = { signal: abort.signal };
 const network = new ColyseusAdapter(serverUrl());
+el("top").append(el("connection"));
 const input = new InputController(el("joystick"), el("knob"), el("run"));
 let session: Session | undefined,
   selected = "hand",
@@ -51,9 +54,7 @@ let session: Session | undefined,
   nextAction = 0,
   modal = "",
   lastPersonal: unknown,
-  lastUi = 0,
-  lastMoveTime = 0;
-let target: { x: number; y: number } | undefined;
+  lastUi = 0;
 let controlStatus = latest.status;
 let fishing: ActionResult["fishing"];
 let fishingUI: FishingUI | undefined;
@@ -118,7 +119,7 @@ function showPanel(type: string, title: string, targetId?: string): void {
   panelTarget = targetId;
   modal = type;
   input.reset();
-  target = undefined;
+  touchNavigation.cancel();
   actionHeld = false;
   el("panel-title").textContent = title;
   renderPanel();
@@ -304,7 +305,8 @@ function renderPanel(): void {
     const menuGrid = document.createElement("div");
     menuGrid.className = "menu-grid";
     for (const [id, title] of [
-      ["journal", "✦ 오늘 할 일"],
+      ["bag", "가방"],
+      ["journal", "✦ 퀘스트 / 오늘 할 일"],
       ["crops", "❧ 사계절 도감"],
       ["fish", "≈ 물고기 도감"],
       ["map", "⌖ 지역 지도"],
@@ -315,6 +317,15 @@ function renderPanel(): void {
       ["settings", "⚙ 소리·화면 설정"],
     ])
       menuGrid.append(button(title!, () => showPanel(id!, title!)));
+    menuGrid.append(
+      button("조작 배치 편집", () => {
+        closePanel();
+        controls.open();
+      }),
+      button("월드 편집기", () => {
+        window.location.href = "/editor.html";
+      }),
+    );
     panelBody.append(menuGrid);
     if (["general_store", "cafe"].includes(local?.area ?? ""))
       menuGrid.append(
@@ -452,7 +463,9 @@ function refreshTools(): void {
 function act(): void {
   // Pointer/keyboard events can arrive between render frames. Read the live
   // connection before selecting an authoritative target or sending a command.
+  touchNavigation.cancel();
   latest = network.snapshot();
+  if (controls.editing) return;
   if (latest.status !== "connected") {
     notice("연결을 복구하고 있어요. 연결된 뒤 행동을 다시 눌러 주세요.");
     return;
@@ -534,6 +547,100 @@ function act(): void {
     return showPanel("shop", me.area === "cafe" ? "바람찻집" : "사계절 상점");
   notice("도구를 선택하거나 입구·주민·보관함 가까이에서 행동하세요");
 }
+function touchAct(t: TouchTarget): void {
+  const e = network.state?.entities.get(t.id);
+  if (t.kind === "shop") {
+    showPanel("shop", "사계절 상점");
+    return;
+  }
+  if (t.kind === "fish") {
+    selectTool("fishing_rod");
+    send("castFishing");
+    return;
+  }
+  if (t.kind === "npc") {
+    send("talkNpc", { targetId: t.id });
+    return;
+  }
+  if (!e || e.kind !== t.signature) return;
+  const tile = { tileX: Math.floor(e.x / TILE), tileY: Math.floor(e.y / TILE) };
+  switch (e.kind) {
+    case "tree":
+    case "stump":
+      selectTool("axe");
+      send("hitTree", { targetId: e.id });
+      break;
+    case "rock":
+      selectTool("pickaxe");
+      send("hitRock", { targetId: e.id });
+      break;
+    case "drop":
+      send("pickupDrop", { targetId: e.id });
+      break;
+    case "gather":
+      send("gather", { targetId: e.id });
+      break;
+    case "withered":
+      selectTool("hoe");
+      send("tillTile", tile);
+      break;
+    case "crop":
+      if (e.stage >= 3) {
+        selectTool("hand");
+        send("harvestCrop", tile);
+      } else {
+        selectTool("water");
+        send("waterCrop", tile);
+      }
+      break;
+    case "soil": {
+      const seed = selected.endsWith("_seed")
+        ? selected
+        : Object.keys(network.personal?.member.inventory ?? {}).find((i) =>
+            i.endsWith("_seed"),
+          );
+      if (seed) {
+        selectTool(seed);
+        send("plantSeed", { ...tile, itemId: seed });
+      } else notice("가방에 씨앗이 없어요");
+      break;
+    }
+    case "chest":
+      showPanel("chest", "공유 보관함", e.id);
+      break;
+    case "craft":
+      showPanel("craft", "제작", e.id);
+      break;
+    case "machine":
+      send(e.readyAt ? "collectMachine" : "startMachine", { targetId: e.id });
+      break;
+    case "well":
+      send("refill", { targetId: e.id });
+      break;
+    case "ladder":
+      send("mineAction", { targetId: e.id });
+      break;
+    case "animal":
+      showPanel("animals", "동물 돌보기", e.id);
+      break;
+    case "barn":
+    case "trough":
+      showPanel("animals", "우리와 동물", e.id);
+      break;
+    case "board":
+      showPanel("board", "마을 게시판", e.id);
+      break;
+    case "decoration":
+      showPanel("decoration", "정원 꾸미기", e.id);
+      break;
+  }
+}
+const touchNavigation = new TouchNavigator(notice, touchAct);
+const controls = new ControlLayout(notice, () => {
+  input.reset();
+  actionHeld = false;
+  touchNavigation.cancel();
+});
 network.onAction = (result) => {
   notice(result.message);
   const kind = actionKinds.get(result.actionId);
@@ -573,7 +680,7 @@ network.onAction = (result) => {
     dialoguePage = 0;
     showPanel("dialogue", result.dialogue.name);
   }
-  if (result.ok && result.transition) target = undefined;
+  if (result.ok && result.transition) touchNavigation.cancel();
 };
 el("tool").addEventListener(
   "change",
@@ -644,7 +751,7 @@ window.addEventListener(
   "blur",
   () => {
     actionHeld = false;
-    target = undefined;
+    touchNavigation.cancel();
   },
   opts,
 );
@@ -653,35 +760,36 @@ document.addEventListener(
   () => {
     if (document.hidden) {
       actionHeld = false;
-      target = undefined;
+      touchNavigation.cancel();
     }
   },
   opts,
 );
 const renderer = createRenderer((now, delta) => {
   let command = input.read();
-  if (panel.open || !session) command = { moveX: 0, moveY: 0, run: false };
+  if (panel.open || controls.editing || !session)
+    command = { moveX: 0, moveY: 0, run: false };
   const me = latest.players.find((p) => p.local);
-  if (target && me && !panel.open) {
-    if (command.moveX || command.moveY) target = undefined;
-    else {
-      const dx = target.x - me.x,
-        dy = target.y - me.y,
-        len = Math.hypot(dx, dy);
-      if (len < 8 || now - lastMoveTime > 6000) target = undefined;
-      else command = { moveX: dx / len, moveY: dy / len, run: command.run };
-    }
-  }
+  if (!panel.open && !controls.editing && latest.status === "connected")
+    command = touchNavigation.step(
+      performance.now(),
+      me,
+      network.state,
+      command,
+    );
+  else touchNavigation.cancel();
   latest = network.frame(now, command);
   el<HTMLButtonElement>("action").disabled =
     latest.status !== "connected" || panel.open;
   if (controlStatus !== latest.status) {
     if (controlStatus === "connected") {
       actionHeld = false;
-      target = undefined;
       input.reset();
       notice("연결을 복구하고 있어요. 잠시 기다려 주세요.");
-    } else if (controlStatus === "reconnecting" && latest.status === "connected") {
+    } else if (
+      controlStatus === "reconnecting" &&
+      latest.status === "connected"
+    ) {
       notice("연결이 복구됐어요. 이동하거나 행동을 다시 눌러 주세요.");
     }
     controlStatus = latest.status;
@@ -699,7 +807,7 @@ const renderer = createRenderer((now, delta) => {
       info = SEASON_INFO[cal.season];
     const personal = network.personal?.member;
     el("calendar").textContent = state
-      ? `${info.icon} ${info.name} ${cal.day}일 · ${String(Math.floor(state.minute / 60)).padStart(2, "0")}:${String(state.minute % 60).padStart(2, "0")}`
+      ? `${info.icon} ${info.name} ${cal.day}일 · ${String(Math.floor(state.minute / 60)).padStart(2, "0")}:${String(state.minute % 60).padStart(2, "0")} ${state.weather === "rain" ? "☂" : state.weather === "snow" ? "❄" : "☀"}`
       : "우리 가족의 작은 세계";
     el("place").textContent =
       `${local ? mapFor(local.area).name : "사계절을 함께 가꾸어요"} · ${state?.weather === "rain" ? "☂ 비" : state?.weather === "snow" ? "❄ 눈" : "☀ 맑음"}`;
@@ -731,8 +839,19 @@ const renderer = createRenderer((now, delta) => {
       lastStep = now;
       audio.play("step");
     }
-    el("connection").textContent =
-      `${latest.status === "connected" ? "● 연결됨" : latest.status} · ${latest.players.length}명 · 코드 ${session?.farmId ?? "—"}${state?.votes ? ` · 잠자기 ${state.votes}/${latest.players.filter((p) => p.connected).length}` : ""}${state?.storage !== "ready" && state ? " · 저장 연결 확인 중" : ""}`;
+    const connection = el("connection");
+    connection.dataset.status = latest.status;
+    connection.textContent =
+      latest.status === "connected"
+        ? "●"
+        : latest.status === "reconnecting"
+          ? "↻ 복구 중"
+          : "○ 연결 대기";
+    connection.setAttribute(
+      "aria-label",
+      `${latest.status === "connected" ? "연결됨" : latest.status === "reconnecting" ? "재연결 중" : "연결 끊김"} · ${latest.players.length}명`,
+    );
+    connection.title = `${latest.players.length}명 · 가족 코드 ${session?.farmId ?? ""}`;
     const stamina = local?.stamina ?? 100;
     el("stamina").querySelector("i")!.style.width = `${stamina}%`;
     el("stamina").querySelector("span")!.textContent =
@@ -756,7 +875,7 @@ let pinch = 0,
 el("arena").addEventListener(
   "pointerdown",
   (e) => {
-    if (panel.open || !session) return;
+    if (panel.open || controls.editing || !session) return;
     el("arena").setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pointerStarts.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -764,7 +883,7 @@ el("arena").addEventListener(
       pinched = true;
       const [a, b] = [...pointers.values()];
       pinch = Math.hypot(a!.x - b!.x, a!.y - b!.y);
-      target = undefined;
+      touchNavigation.cancel();
     }
   },
   opts,
@@ -793,8 +912,13 @@ el("arena").addEventListener(
       start &&
       Math.hypot(start.x - e.clientX, start.y - e.clientY) < 12
     ) {
-      target = renderer.scene.worldPoint(e.clientX, e.clientY);
-      lastMoveTime = performance.now();
+      const me = network.snapshot().players.find((p) => p.local);
+      if (me && network.state)
+        touchNavigation.choose(
+          renderer.scene.pickWorld(e.clientX, e.clientY),
+          me,
+          network.state,
+        );
     }
     pointers.delete(e.pointerId);
     pointerStarts.delete(e.pointerId);
@@ -807,12 +931,27 @@ el("arena").addEventListener(
   (e) => {
     pointers.delete(e.pointerId);
     pointerStarts.delete(e.pointerId);
-    target = undefined;
-    pinched = false;
+    if (!pointers.size) pinched = false;
+    touchNavigation.cancel();
   },
   opts,
 );
 const http = serverUrl().replace(/^ws/, "http");
+function archiveSession(value: Session | undefined): void {
+  if (!value) return;
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem("farm-v26-sessions") ?? "[]",
+    ) as Session[];
+    const list = [value, ...saved.filter((s) => s.token !== value.token)].slice(
+      0,
+      20,
+    );
+    localStorage.setItem("farm-v26-sessions", JSON.stringify(list));
+  } catch {
+    /* Current session remains available when device storage is full. */
+  }
+}
 async function connectSaved(): Promise<void> {
   if (!session) return;
   try {
@@ -828,19 +967,27 @@ async function connectSaved(): Promise<void> {
 async function login(create: boolean): Promise<void> {
   el("login-error").textContent = "농장에 연결하고 있습니다…";
   try {
-    const password = el<HTMLInputElement>("password").value,
-      nickname = el<HTMLInputElement>("nickname").value,
+    const nickname = el<HTMLInputElement>("nickname").value,
       code = el<HTMLInputElement>("farm-code").value;
     const r = await fetch(`${http}/api/session`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ create, password, nickname, code }),
+      body: JSON.stringify({
+        create,
+        nickname,
+        code,
+        templateId: create
+          ? (localStorage.getItem("farm-active-blueprint") ?? undefined)
+          : undefined,
+      }),
     });
     const result = (await r.json()) as Session & { error?: string };
     if (!r.ok) throw new Error(result.error ?? "로그인 실패");
+    archiveSession(session);
     session = result;
+    archiveSession(session);
     localStorage.setItem("farm-v26-session", JSON.stringify(session));
-    el<HTMLInputElement>("password").value = "";
+
     await connectSaved();
   } catch (e) {
     el("login-error").textContent =
@@ -876,12 +1023,39 @@ try {
     if (value.token && value.farmId) {
       session = value;
       el("resume").hidden = false;
-      void connectSaved();
+      if (new URL(location.href).searchParams.get("newFarm") !== "1")
+        void connectSaved();
     }
   }
 } catch {
   localStorage.removeItem("farm-v26-session");
 }
+try {
+  archiveSession(session);
+  const saved = JSON.parse(
+    localStorage.getItem("farm-v26-sessions") ?? "[]",
+  ) as Session[];
+  for (const value of saved.filter((s) => s.token !== session?.token)) {
+    const b = button(`${value.nickname} · ${value.farmId} 이어하기`, () => {
+      session = value;
+      localStorage.setItem("farm-v26-session", JSON.stringify(value));
+      void connectSaved();
+    });
+    el("resume").after(b);
+  }
+  const template = localStorage.getItem("farm-active-blueprint");
+  if (template) {
+    const hint = document.createElement("p");
+    hint.textContent = "새 농장에는 편집한 초기 월드가 적용됩니다.";
+    hint.append(
+      button("기본 월드 사용", () => {
+        localStorage.removeItem("farm-active-blueprint");
+        hint.remove();
+      }),
+    );
+    el("login-form").before(hint);
+  }
+} catch {}
 // pagehide releases sockets/rendering; a bfcache restoration must rebuild them
 // from the saved family session instead of showing a disposed canvas.
 window.addEventListener("pageshow", (event) => {
@@ -891,6 +1065,7 @@ window.addEventListener(
   "pagehide",
   () => {
     fishingUI?.dispose();
+    controls.dispose();
     audio.dispose();
     input.dispose();
     network.dispose();
@@ -905,5 +1080,6 @@ if (import.meta.env.DEV)
     __FARM_DEBUG__: {
       snapshot: () => latest,
       state: () => network.state?.toJSON(),
+      screenPoint: (x: number, y: number) => renderer.scene.screenPoint(x, y),
     },
   });

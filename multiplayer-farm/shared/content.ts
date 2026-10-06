@@ -19,6 +19,9 @@ export interface MapObject {
   position: { tileX: number; tileY: number };
   collision?: { x: number; y: number; width: number; height: number };
   label?: string;
+  kind?: string;
+  scale?: number;
+  decorative?: boolean;
 }
 export interface MapData {
   id: string;
@@ -354,8 +357,11 @@ export function tileIn(rect: Rect, x: number, y: number): boolean {
     x >= rect.startX && x <= rect.endX && y >= rect.startY && y <= rect.endY
   );
 }
-export function mapFor(id: string): MapData {
-  return MAPS[id] ?? MAPS.farm!;
+export function mapFor(
+  id: string,
+  maps: Record<string, MapData> = MAPS,
+): MapData {
+  return maps[id] ?? maps.farm!;
 }
 export function itemName(id: string): string {
   return ITEMS[id]?.name ?? id;

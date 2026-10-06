@@ -11,7 +11,8 @@ import {
   type Command,
 } from "../shared/world.js";
 import { applyMovement } from "../shared/applyMovement.js";
-import { hashPassword, verifyPassword } from "../persistence/store.js";
+import { MemoryTestStore } from "../persistence/memory-test-store.js";
+import { defaultLayout, validateLayout } from "../shared/layout.js";
 let seq = 0;
 function setup() {
   const w = newWorld(42);
@@ -285,11 +286,35 @@ import {
   FISH_STEP_MS,
 } from "../shared/fishing.js";
 import { TILE } from "../shared/content.js";
-test("passwords: salted scrypt supports short and long passwords without plaintext", async () => {
-  for (const password of ["지우", "x".repeat(512)]) {
-    const h = await hashPassword(password);
-    assert.notEqual(h, password);
-    assert.ok(await verifyPassword(password, h));
-    assert.equal(await verifyPassword("wrong", h), false);
-  }
+test("code-only family access and published layouts isolate existing worlds", async () => {
+  const store = new MemoryTestStore(),
+    original = await store.login(true, "", "A");
+  const b = await store.login(false, original.farmId, "B");
+  assert.equal(b.farmId, original.farmId);
+  const layout = validateLayout(defaultLayout());
+  layout.maps.farm!.farmAreas[0]!.endX = 15;
+  layout.maps.farm!.objects.find(
+    (o) => o.id === "family-chest",
+  )!.position.tileX = 10;
+  const draft = await store.createBlueprint(layout);
+  await assert.rejects(() =>
+    store.saveBlueprint(draft.id, "wrong", layout, 0, true),
+  );
+  await store.saveBlueprint(draft.id, draft.editToken, layout, 0, true);
+  await assert.rejects(() =>
+    store.saveBlueprint(draft.id, draft.editToken, layout, 0, true),
+  );
+  const fresh = await store.login(true, "", "C", draft.id);
+  assert.equal(
+    store.worlds.get(fresh.farmId)!.entities["family-chest"]!.x,
+    320,
+  );
+  assert.equal(
+    store.worlds.get(original.farmId)!.entities["family-chest"]!.x,
+    256,
+  );
+  assert.equal(
+    (await store.authenticate(original.token)).playerId,
+    original.playerId,
+  );
 });

@@ -1,3 +1,4 @@
+import { blueprintRoutes } from "./blueprintRoutes.js";
 import { createServer } from "node:http";
 import { Server, createRouter } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
@@ -114,8 +115,9 @@ export function createFarmServer(options: FarmServerOptions) {
         }
         next();
       });
+      blueprintRoutes(app, options.store);
       app.use(express.json({ limit: "8kb" }));
-      // Rate-limit expensive password verification and new farm creation independently of WebSocket inputs.
+      // Rate-limit session and new farm creation independently of WebSocket inputs.
       const attempts = new Map<string, { count: number; until: number }>();
       app.post("/api/session", async (request, response) => {
         const key =
@@ -140,17 +142,13 @@ export function createFarmServer(options: FarmServerOptions) {
         }
         try {
           const body = request.body as Record<string, unknown>;
-          if (
-            !body ||
-            typeof body.password !== "string" ||
-            typeof body.nickname !== "string"
-          )
+          if (!body || typeof body.nickname !== "string")
             throw new Error("입력값을 확인하세요");
           const result = await options.store.login(
             body.create === true,
             typeof body.code === "string" ? body.code : "",
-            body.password,
             body.nickname,
+            typeof body.templateId === "string" ? body.templateId : undefined,
           );
           response.setHeader("Cache-Control", "no-store");
           response.json(result);

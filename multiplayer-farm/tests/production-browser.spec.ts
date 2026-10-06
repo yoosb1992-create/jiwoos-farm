@@ -34,7 +34,6 @@ async function transport(context: BrowserContext) {
 async function enter(page: Page, name: string, code?: string) {
   await page.goto("/");
   await page.locator("#nickname").fill(name);
-  await page.locator("#password").fill("브라우저검증");
   if (code) {
     await page.locator("#farm-code").fill(code);
     await page.locator("#join-farm").click();
@@ -47,7 +46,10 @@ async function enter(page: Page, name: string, code?: string) {
 async function hold(page: Page, id: string, ms = 110) {
   // A reconnect retains the player count while controls are unavailable. Wait
   // for connection readiness and normal button actionability, not raw pixels.
-  await expect(page.locator("#connection")).toContainText("● 연결됨");
+  await expect(page.locator("#connection")).toHaveAttribute(
+    "data-status",
+    "connected",
+  );
   await page.locator(id).click({ delay: ms });
 }
 test("production mobile client: actual authority movement, remote canvas, planting, tree/drop/inventory and session refresh", async ({
@@ -66,12 +68,14 @@ test("production mobile client: actual authority movement, remote canvas, planti
   page.on("pageerror", (e) => errors.push(e.message));
   const session = await enter(page, "Farm A");
   await enter(peer, "Farm B", session.farmId);
-  await expect(page.locator("#connection")).toContainText("2명");
+  await expect(page.locator("#connection")).toHaveAttribute(
+    "aria-label",
+    /2명/,
+  );
   const response = await request.post(`${api}/api/session`, {
     data: {
       create: false,
       code: session.farmId,
-      password: "브라우저검증",
       nickname: "Observer",
     },
   });
@@ -134,7 +138,10 @@ test("production mobile client: actual authority movement, remote canvas, planti
     await page.locator("#panel-close").click();
     await page.reload();
     await expect(page.locator("#login")).toBeHidden();
-    await expect(page.locator("#connection")).toContainText("● 연결됨 · 3명");
+    await expect(page.locator("#connection")).toHaveAttribute(
+      "aria-label",
+      "연결됨 · 3명",
+    );
     // Reload restores the safe spawn. All tree interactions below use actual UI inputs.
     await page.keyboard.down("ArrowDown");
     await page.waitForTimeout(330);
@@ -167,7 +174,10 @@ test("production mobile client: actual authority movement, remote canvas, planti
     await page.goto("about:blank");
     await page.goBack();
     await expect(page.locator("#login")).toBeHidden();
-    await expect(page.locator("#connection")).toContainText("● 연결됨 · 3명");
+    await expect(page.locator("#connection")).toHaveAttribute(
+      "aria-label",
+      "연결됨 · 3명",
+    );
     await page.locator("#bag").click();
     await expect(page.locator("#panel-body")).toContainText("나무 ×1");
     await page.locator("#panel-close").click();

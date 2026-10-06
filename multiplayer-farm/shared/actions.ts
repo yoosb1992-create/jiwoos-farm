@@ -36,6 +36,7 @@ import {
   FISH_CATALOG,
 } from "./expansion.js";
 import { FISH_STEP_MS, FISH_MAX_STEPS, replayFishing } from "./fishing.js";
+import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 export class ActionError extends Error {}
 function requireThat(condition: unknown, message: string): asserts condition {
@@ -240,7 +241,10 @@ export function applyAction(
       x === t.tileX && y === t.tileY,
       "앞칸에서만 사용할 수 있습니다",
     );
-    requireThat(isFarmable(a.area, x, y), "경작 가능한 밭이 아닙니다");
+    requireThat(
+      isFarmable(a.area, x, y, w.layout?.maps),
+      "경작 가능한 밭이 아닙니다",
+    );
     const p = { area: a.area, x: (x + 0.5) * TILE, y: (y + 0.5) * TILE };
     near(p);
     return { ...p, id: `soil-${a.area}-${x}-${y}` };
@@ -465,7 +469,7 @@ export function applyAction(
       break;
     }
     case "enterArea": {
-      const map = mapFor(a.area);
+      const map = mapFor(a.area, w.layout?.maps);
       const warp = map.warps.find((x) => x.id === c.targetId);
       requireThat(warp, "입구 없음");
       const px = a.x / TILE,
@@ -477,13 +481,12 @@ export function applyAction(
           py <= warp.area.endY + 2,
         "입구로 이동하세요",
       );
-      const dest = mapFor(warp.targetMapId);
-      const spawn =
-        dest.spawns.find((s) => s.id === warp.targetSpawnId) ?? dest.spawns[0]!;
+      const dest = mapFor(warp.targetMapId, w.layout?.maps);
+      const spawn = safeSpawn(dest.id, warp.targetSpawnId, w.layout!.maps);
       result.transition = {
         area: dest.id,
-        x: spawn.tileX * TILE,
-        y: spawn.tileY * TILE,
+        x: spawn.x,
+        y: spawn.y,
       };
       break;
     }
@@ -495,8 +498,7 @@ export function applyAction(
       w.deepest = Math.max(w.deepest, floor + 1);
       result.transition = {
         area: `mine${floor + 1}`,
-        x: 5 * TILE,
-        y: 6 * TILE,
+        ...safeSpawn(`mine${floor + 1}`, undefined, w.layout!.maps),
       };
       break;
     }
@@ -784,8 +786,8 @@ export function applyAction(
         x = (t.tileX + 0.5) * TILE,
         y = (t.tileY + 0.5) * TILE;
       requireThat(
-        !collidesWithObstacle(x, y, a.area) &&
-          !isFarmable(a.area, t.tileX, t.tileY),
+        !collidesWithObstacle(x, y, a.area, w.layout?.maps) &&
+          !isFarmable(a.area, t.tileX, t.tileY, w.layout?.maps),
         "밭과 건물을 피해서 정원에 놓아주세요",
       );
       requireThat(

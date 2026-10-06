@@ -1,3 +1,4 @@
+import { CLIENT_MAPS, receiveLayout } from "./layout.js";
 import type { Session } from "../persistence/store.js";
 import type { Member, Command, ActionResult } from "../shared/world.js";
 import {
@@ -198,6 +199,7 @@ export class ColyseusAdapter implements NetworkAdapter {
     room.reconnection.maxEnqueuedMessages = 0;
     let ready = false;
     const onState = () => {
+      receiveLayout(room.state.layout);
       this.stateTimes.push(performance.now());
       if (this.stateTimes.length > 120) this.stateTimes.shift();
     };
@@ -247,6 +249,7 @@ export class ColyseusAdapter implements NetworkAdapter {
     this.input = room.input({ type: MoveInput, mode: "reliable" });
     if (!this.input.tickRate)
       throw new Error("서버의 fixed timestep 설정이 없습니다.");
+    receiveLayout(room.state.layout);
     this.initializePrediction();
     this.frozenPlayers = [];
     this.status = "connected";
@@ -420,7 +423,8 @@ export class ColyseusAdapter implements NetworkAdapter {
         "running",
         "actionTicks",
       ],
-      step: (ctx, state, command) => applyMovement(state, command, ctx.dt),
+      step: (ctx, state, command) =>
+        applyMovement(state, command, ctx.dt, CLIENT_MAPS),
       smoothMs: CORRECTION_SMOOTH_MS,
       warnOnDivergence: RECONCILIATION_THRESHOLD,
     });

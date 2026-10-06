@@ -1,3 +1,4 @@
+import { insideWarp } from "../shared/regions.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { matchMaker } from "@colyseus/core";
@@ -50,6 +51,24 @@ test("three real WebSocket/SDK clients share one family authority; input-only mo
     await delay(100);
     assert.ok(f.A.state.players.get(f.A.sessionId)!.x < 1664);
     assert.equal(f.A.state.entities.has("hack"), false);
+    // Walk into the real portal with inputs only; no enterArea command.
+    const room = roomServer(f.A.roomId),
+      layout = JSON.parse(
+        room.state.layout,
+      ) as import("../shared/layout.js").WorldLayout;
+    const warp = layout.maps.farm!.warps.find((w) => w.targetMapId === "road")!;
+    const xPortal = (warp.area.startX + 0.5) * 32,
+      yPortal = (warp.area.startY + 0.5) * 32;
+    place(room, f.A.sessionId, xPortal, yPortal);
+    await move(f.A, 0, 1, 2);
+    await until(() => f.B.state.players.get(f.A.sessionId)!.area === "road");
+    const arrived = f.B.state.players.get(f.A.sessionId)!;
+    assert.equal(
+      insideWarp(layout.maps.road!, arrived.x, arrived.y),
+      undefined,
+    );
+    await delay(1600);
+    assert.equal(f.C.state.players.get(f.A.sessionId)!.area, "road");
   } finally {
     await f.close();
   }
@@ -265,7 +284,7 @@ test("reconnect preserves identity/world and explicit disconnect cleans peers", 
 test("single-family lease fences duplicate authorities and durable state survives new server instance", async () => {
   const store = makeStore();
   await store.migrate();
-  const a = await store.login(true, "", "비밀", "restart");
+  const a = await store.login(true, "", "restart");
   const server = createFarmServer({ store, port: 0, host: "127.0.0.1" });
   const { url } = await server.listen();
   const A = await join(url, a);

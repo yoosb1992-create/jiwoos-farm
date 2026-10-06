@@ -26,6 +26,7 @@ export default defineConfig(({ mode, command }) => {
       outDir: "dist/client",
       emptyOutDir: true,
       rollupOptions: {
+        input: { game: "index.html", editor: "editor.html" },
         output: {
           manualChunks: (id: string) =>
             id.includes("/node_modules/phaser/") ? "phaser" : undefined,
