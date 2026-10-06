@@ -1,5 +1,7 @@
 # v2.6 validation record
 
+> 아래는 이전 확장 작업의 당시 기록입니다. 이후 사용자가 Railway 전환을 완료했고 2026-10-06 현재 v2.6 Backend/Frontend가 SUCCESS로 운영 중임을 재확인했습니다. 최신 조작/편집기 검증 기록은 [MOBILE-EDITOR.md](./MOBILE-EDITOR.md)를 참조하세요.
+
 기준: `feature/v2.5-multiplayer-farm-rebuild` / `3fad61ce6c567fe5449371e8ecf871282b6b69df`.
 새 브랜치: `feature/v2.6-farm-content-expansion`.
 검증 완료 런타임: `5b518b53c8033c4d13c90b85c2256a3551397e62` (2026-10-06). 이후 문서/배포 설정표 변경은 런타임 변경이 아닙니다.

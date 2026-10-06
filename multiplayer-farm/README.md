@@ -5,25 +5,33 @@
 - 작업 브랜치: `feature/v2.6-farm-content-expansion`
 - 복구 기준 v2.5: `3fad61ce6c567fe5449371e8ecf871282b6b69df`
 - Golden Lab: `982a94dec72ac7d125d55050f707f635c4407fd5` (파일·브랜치 보존)
-- 공개 게임 URL: https://frontend-production-a998.up.railway.app/ (**현재 v2.5 운영 중**. v2.6 CI는 통과했으나 Railway 배포 적용 요청이 승인되지 않아 전환 대기. 결과는 [V26-VALIDATION.md](./V26-VALIDATION.md))
+- 공개 게임 URL: https://frontend-production-a998.up.railway.app/ (v2.6 운영. 이번 조작/편집기 개선 검증은 [MOBILE-EDITOR.md](./MOBILE-EDITOR.md))
 - Backend health: https://backend-production-b244e.up.railway.app/healthz
 - Railway 무료 플랜의 신규 리소스 한도 때문에 기존 Farm 서비스의 Source를 새 브랜치로 전환합니다. v2.5 브랜치와 `public` 저장 schema는 보존하고 v2.6는 **`farm_v26` schema**와 별도 브라우저 세션을 사용합니다. 새 PostgreSQL 인스턴스 추가·D1 변경·데이터 이관은 없습니다.
 
 ## 휴대폰에서 시작하기
 
-Railway의 대기 중인 v2.6 배포를 적용한 뒤 위의 기존 공개 주소를 엽니다. 닉네임/비밀번호(2글자 이상)로 새 가족 농장을 만들고, 메뉴의 가족 코드를 복사해 다른 휴대폰에 전달합니다. 다른 기기는 별도 닉네임으로 같은 코드·비밀번호를 입력합니다. 같은 Wi-Fi일 필요가 없습니다. PC, 터미널, LAN 주소는 필요하지 않습니다.
+위 공개 주소에서 닉네임으로 새 가족 농장을 만들고, 메뉴의 가족 코드를 복사해 다른 휴대폰에 전달합니다. 다른 기기는 가족 코드와 별도 닉네임만 입력합니다. 가족 비밀번호는 없습니다. 같은 Wi-Fi일 필요가 없습니다. PC, 터미널, LAN 주소는 필요하지 않습니다.
 
 서버/클라이언트 전환 후 사용자는 공개 URL을 열기만 하면 됩니다. v2.6에서는 **새 가족 농장**을 만듭니다. 기존 v2.5 가족 코드·세션·가방은 보존되어 있지만 v2.6와 공유하지 않습니다. 사용자가 PC/결제 업그레이드를 해야 하는 방식 대신 현재 할당된 서비스 안에서 저장 공간을 분리합니다. 배포·복구 설정은 [RAILWAY-V26.md](./RAILWAY-V26.md).
 
+## 터치 이동 · 화면 배치 · 편집기
+
+빈 땅을 탭하면 장애물을 피해서 이동합니다. 나무/작물/드랍/NPC/상자 등을 탭하면 가까이 이동한 뒤 한 번 행동합니다. 조이스틱/방향키 입력, 메뉴 열기, 대상 소멸, 연결 끊김은 자동 이동을 취소합니다. 출입구 진입은 서버가 판단하며 도착 Spawn 보정과 1.4초 재전환 대기시간으로 왕복을 막습니다.
+
+날짜·시간·날씨·골드·기력·연결 아이콘은 오른쪽 위 작은 HUD에, 도구는 오른쪽 아래에 있습니다. 퀘스트는 햄버거 안에 있습니다. 햄버거 → **조작 배치 편집**에서 조이스틱/행동/RUN을 드래그하고 크기·투명도를 바꾼 뒤 **저장**합니다. **기본값 복원 → 저장**으로 초기화합니다. 설정은 이 브라우저에만 남고 농장 세이브와 분리됩니다.
+
+[월드 편집기 열기](https://frontend-production-a998.up.railway.app/editor.html): **저장 → 초기 월드 적용 → 새 가족 농장 만들기**. 기존 가족 농장은 바뀌지 않습니다. 모든 조작은 모바일 브라우저에서 가능합니다. 편집 범위·적용 방식·제한은 [MOBILE-EDITOR.md](./MOBILE-EDITOR.md)를 참고하세요.
+
 ## 첫날 안내
 
-1. 위쪽 `오늘 할 일`에서 작은 생활 목표를 확인합니다. 괭이 → 계절 씨앗 → 물뿌리개 순서로 앞칸에서 행동합니다.
+1. 햄버거 메뉴의 `퀘스트 / 오늘 할 일`에서 작은 생활 목표를 확인합니다. 괭이 → 계절 씨앗 → 물뿌리개 순서로 앞칸에서 행동합니다.
 2. 조이스틱 + RUN은 동시 터치가 됩니다. PC는 WASD/방향키·Shift, 행동은 Space입니다. 행동을 누른 채 **걸으면** 연속 심기, 달리면서 심기는 불가합니다.
 3. 매일 물을 주고 메뉴에서 가족 모두 잠자기 투표를 하면 작물이 자랍니다. 우물 가까이에서는 물뿌리개 또는 손으로 물을 채웁니다.
 4. 손으로 성숙한 작물을 수확하고 드랍을 줍습니다. 나무는 도끼 3타, 그루터기 3타입니다. 보관함·제작대도 손으로 사용합니다.
 5. 연못의 `≈ 낚시 물가` 표시에서 낚싯대를 사용합니다. **입질 → 3초 내 챔질 → 홀드/해제로 초록 영역 안에 물고기 유지**. 짧게 눌렀다 놓는 편이 좋습니다.
 6. 농장 오른쪽 우리에서 기본 닭에게 먹이를 주고 쓰다듬습니다. 다음 아침 생산물을 받습니다. 닭·소·양을 더 살 수 있습니다(공유 최대 8마리).
-7. 농장 남쪽 → 들꽃길 → 마을/숲/광산. 마을에는 상점·바람찻집·나뭇결 공방·게시판·동쪽 물결해안이 있습니다. 손과 행동으로 출입구를 사용합니다.
+7. 농장 남쪽 → 들꽃길 → 마을/숲/광산. 마을에는 상점·바람찻집·나뭇결 공방·게시판·동쪽 물결해안이 있습니다. 출입구로 걸어 들어가면 자동으로 지역을 이동합니다.
 8. 마을 상점/찻집에서 제철 씨앗·먹이·음식·장식 구매와 판매. 주민 앞에서는 대화가 우선이며 메뉴의 `상점 둘러보기`로 거래도 가능합니다.
 
 ## 이번 확장
@@ -48,15 +56,15 @@ Railway의 대기 중인 v2.6 배포를 적용한 뒤 위의 기존 공개 주�
 
 ## 구조와 저장
 
-- `client/art.ts`, `dressing.ts`, `scene.ts`: 원본 asset + 1회 생성하는 작은 그림/배경 텍스처. 큰 JSON 월드를 매 frame 보내지 않습니다.
+- `client/art.ts`, `shared/dressing.ts`, `client/scene.ts`: 원본 asset + 1회 생성하는 작은 그림/배경 텍스처. 큰 JSON 월드를 매 frame 보내지 않습니다.
 - `client/life-panels.ts`, `fishing-ui.ts`, `audio.ts`: 단일 모바일 패널, 낚시 터치, 직접 합성 음원.
 - `shared/expansion.ts`: 작물/어종/채집/주민 행사·목표의 정의. `shared/fishing.ts`: client/server 동일한 20Hz 낚시 입력 재생.
-- 기존 Colyseus Core **0.18.18**, SDK **0.18.5**, Schema **5.0.36** 유지. 이동 **30tick/s**, Schema delta **30Hz**, 로컬 prediction/reconciliation와 remote interpolation 유지. 기본 Stable100ms, Fast75/Aggressive60 선택 가능. Lab100ms와 networking 코드는 변경하지 않았습니다.
+- 기존 Colyseus Core **0.18.18**, SDK **0.18.5**, Schema **5.0.36** 유지. 이동 **30tick/s**, Schema delta **30Hz**, 로컬 prediction/reconciliation와 remote interpolation 유지. 기본 Stable100ms, Fast75/Aggressive60 선택 가능. Lab100ms와 검증된 prediction/reconciliation/interpolation 방식은 유지합니다. 농장별 collision 설계도가 client/server의 동일한 이동 함수에 전달됩니다.
 - 이동은 입력만 전송합니다. 식물·동물·낚시·주민·장식·보상도 서버 command → 가족 queue → DB transaction/action receipt → 승인 state. 인벤토리는 본인에게만 전송합니다.
 - 낚시는 seed·어종·입질 시각을 서버가 지정하고 0/1 홀드 기록(최대400개)·경과 시간·거리·중복 보상을 검증합니다. 클라이언트가 점수/어종/보상을 지정하지 않습니다. 자동화 입력을 완전히 차단하는 anti-bot 시스템은 아닙니다.
 - PostgreSQL 테이블 구조는 그대로: `farm_migrations`, `farms`, `members`, `sessions`, `action_receipts`, `world_checkpoints`. **world JSON version2**가 도감·친밀도·동물·장식을 더하며 `upgradeWorld`는 v1 필드를 보존하는 additive upgrade입니다. SQL migration 추가 없음.
 - 중요 행동 직후 원자 저장, 5초 checkpoint, leave/empty/shutdown 저장. tick 위치는 DB에 기록하지 않습니다. 같은 PostgreSQL 인스턴스의 `farm_v26` schema만 사용합니다. `search_path=farm_v26`이며 public fallback을 허용하지 않습니다. 기존 Production D1/세이브/인증과 v2.5 `public` 테이블은 이관하거나 변경하지 않습니다.
-- v1 JSON의 v2 변환은 구현했지만 v2.5 서버로 v2 DB를 거꾸로 여는 것은 지원하지 않습니다. 별도 schema와 `farm-v26-session`/`farm-v25-session` 키가 복구 경계를 유지합니다.
+- 기존 JSON은 v3로 가산 변환하며 작물/나무/가방을 재생성하지 않습니다. v3는 농장별 고정 맵 설계도를 저장합니다. v2.5 서버로 v3 DB를 거꾸로 여는 것은 지원하지 않습니다. 별도 schema와 `farm-v26-session`/`farm-v25-session` 키가 복구 경계를 유지합니다.
 
 ## 검증과 한계
 
