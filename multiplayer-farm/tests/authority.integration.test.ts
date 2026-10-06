@@ -54,7 +54,7 @@ test("three real WebSocket/SDK clients share one family authority; input-only mo
     await f.close();
   }
 });
-test("concurrent real clients: tree felling, drop pickup, chest withdrawal and duplicate crafting receipt", async () => {
+test("concurrent real clients: tree felling, drop pickup, chest withdrawal and duplicate action receipt", async () => {
   const f = await fixture();
   try {
     const room = roomServer(f.A.roomId);
@@ -123,6 +123,79 @@ test("concurrent real clients: tree felling, drop pickup, chest withdrawal and d
     assert.ok(one.ok && two.ok);
     assert.equal(one.revision, two.revision);
     assert.equal(room.state.players.get(f.C.sessionId)!.stamina, 95); // one tree hit3 + till2
+  } finally {
+    await f.close();
+  }
+});
+test("three-client mining contention and crafting idempotency validate inventory, range and stamina", async () => {
+  const f = await fixture();
+  try {
+    const room = roomServer(f.A.roomId);
+    // This is server-only test setup: no production command can grant inventory or teleport.
+    const world = (room as unknown as { world: World }).world;
+    world.members[f.a.playerId]!.inventory.wood = 2;
+    const table = room.state.entities.get("crafting-table")!;
+    place(room, f.A.sessionId, table.x, table.y);
+    const id = randomUUID();
+    const result = await Promise.all([
+      action(f.A, "craftItem", {
+        actionId: id,
+        targetId: table.id,
+        itemId: "wood_plank",
+      }),
+      action(f.A, "craftItem", {
+        actionId: id,
+        targetId: table.id,
+        itemId: "wood_plank",
+      }),
+    ]);
+    assert.ok(result.every((x) => x.ok));
+    assert.equal(result[0]!.revision, result[1]!.revision);
+    const inventory = () =>
+      (room as unknown as { world: World }).world.members[f.a.playerId]!
+        .inventory;
+    assert.equal(inventory().wood ?? 0, 0);
+    assert.equal(inventory().wood_plank, 1);
+    const rock = [...room.state.entities.values()].find(
+      (e) => e.area === "mine1" && e.kind === "rock",
+    )!;
+    for (const r of [f.A, f.B, f.C])
+      place(room, r.sessionId, rock.x, rock.y - 32, "mine1");
+    await delay(230);
+    const hits = await Promise.all(
+      [f.A, f.B, f.C].map((r) => action(r, "hitRock", { targetId: rock.id })),
+    );
+    assert.equal(hits.filter((x) => x.ok).length, 2);
+    await until(() => !f.C.state.entities.has(rock.id));
+    assert.equal(
+      [...f.C.state.entities.values()].filter(
+        (e) => e.kind === "drop" && e.area === "mine1",
+      ).length,
+      1,
+    );
+    await delay(230);
+    assert.ok(
+      (await action(f.A, "mineAction", { targetId: "ladder-mine1" })).ok,
+    );
+    await until(() => f.C.state.deepest === 2);
+    const tree = room.state.entities.get("starter-pine")!;
+    place(room, f.B.sessionId, tree.x, tree.y - 32);
+    room.state.players.get(f.B.sessionId)!.stamina = 0;
+    await delay(230);
+    assert.equal(
+      (await action(f.B, "hitTree", { targetId: tree.id })).ok,
+      false,
+    );
+    place(room, f.C.sessionId, 900, 700);
+    assert.equal(
+      (await action(f.C, "hitTree", { targetId: tree.id })).ok,
+      false,
+    );
+    f.A.send("inventory", { wood_plank: 999999 });
+    f.B.send("tree", { targetId: tree.id, hp: 0 });
+    await delay(100);
+    assert.equal(inventory().wood_plank, 1);
+    assert.equal(tree.hp, 3);
   } finally {
     await f.close();
   }

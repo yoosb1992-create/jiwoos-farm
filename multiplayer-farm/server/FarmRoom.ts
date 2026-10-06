@@ -228,7 +228,13 @@ export class FarmRoom extends MovementRoom {
       }
       this.world = proposed;
       this.votes = votes;
-      p.stamina = proposed.members[p.playerId]!.stamina;
+      // Planting permits walking while storage commits. Preserve any running cost
+      // accrued after validation instead of restoring that stamina on commit.
+      p.stamina = Math.max(
+        0,
+        proposed.members[p.playerId]!.stamina -
+          Math.max(0, actor.stamina - p.stamina),
+      );
       p.actionTicks = freeze ? 6 : 0;
       if (result.transition) {
         p.area = result.transition.area;

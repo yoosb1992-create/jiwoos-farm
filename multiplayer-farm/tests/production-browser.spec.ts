@@ -4,7 +4,11 @@ import { FarmState } from "../shared/schema.js";
 import { ROOM_NAME } from "../shared/config.js";
 import { until, delay } from "./helpers.js";
 import type { Session } from "../persistence/store.js";
+const publicBackend = process.env.PUBLIC_FARM_BACKEND;
+const api = publicBackend ?? "http://127.0.0.1:2575";
+const socket = api.replace("https:", "wss:").replace("http:", "ws:");
 async function transport(context: BrowserContext) {
+  if (publicBackend) return;
   await context.route("https://farm-validation.invalid/**", async (route) => {
     const u = new URL(route.request().url());
     const response = await route.fetch({
@@ -64,7 +68,7 @@ test("production mobile client: actual authority movement, remote canvas, planti
   const session = await enter(page, "Farm A");
   await enter(peer, "Farm B", session.farmId);
   await expect(page.locator("#connection")).toContainText("2명");
-  const response = await request.post("http://127.0.0.1:2575/api/session", {
+  const response = await request.post(`${api}/api/session`, {
     data: {
       create: false,
       code: session.farmId,
@@ -73,7 +77,7 @@ test("production mobile client: actual authority movement, remote canvas, planti
     },
   });
   const observer = (await response.json()) as Session;
-  const sdk = await new Client("ws://127.0.0.1:2575").joinOrCreate<FarmState>(
+  const sdk = await new Client(socket).joinOrCreate<FarmState>(
     ROOM_NAME,
     { farmId: session.farmId, token: observer.token },
     FarmState,
@@ -132,6 +136,31 @@ test("production mobile client: actual authority movement, remote canvas, planti
     await page.reload();
     await expect(page.locator("#login")).toBeHidden();
     await expect(page.locator("#connection")).toContainText("3명");
+    // Reload restores the safe spawn. All tree interactions below use actual UI inputs.
+    await page.keyboard.down("ArrowDown");
+    await page.waitForTimeout(330);
+    await page.keyboard.up("ArrowDown");
+    await expect.poll(() => local().y).toBeGreaterThan(326);
+    await page.locator("#tool").selectOption("axe");
+    for (let hit = 0; hit < 3; hit++) {
+      await delay(300);
+      await hold(page, "#action");
+      if (hit < 2)
+        await expect
+          .poll(() => sdk.state.entities.get("starter-pine")?.hp)
+          .toBe(2 - hit);
+    }
+    await expect
+      .poll(() => sdk.state.entities.get("starter-pine")?.kind)
+      .toBe("stump");
+    await page.locator("#tool").selectOption("hand");
+    for (let pickup = 0; pickup < 3; pickup++) {
+      await delay(300);
+      await hold(page, "#action");
+    }
+    await page.locator("#bag").click();
+    await expect(page.locator("#panel-body")).toContainText("나무 ×1");
+    await page.locator("#panel-close").click();
     expect(
       await page.evaluate(() => Object.hasOwn(window, "__FARM_DEBUG__")),
     ).toBe(false);
