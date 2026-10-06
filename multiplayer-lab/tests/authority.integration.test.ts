@@ -259,16 +259,39 @@ describe('authoritative Colyseus server with real WebSocket SDK clients', { conc
     const startingTick = state.tick;
     const input = movement(a);
     await waitFor(() => state.tick >= startingTick + 4, 'four simulated idle ticks for a short input stall');
-    for (let i = 0; i < 4; i += 1) input.send();
-    for (let i = 0; i < 10; i += 1) {
-      await delay(1_000 / SERVER_TICK_RATE);
-      input.send();
-    }
-    // Inspect the actual server queue while input is still arriving: merely
-    // waiting after stopping would hide a persistent fixed-size queue delay.
-    await delay(5);
     const serverRoom = matchMaker.getLocalRoomById(a.roomId) as LabRoom;
-    assert.ok(serverRoom.inputs.get(a.sessionId).size <= 1, 'catch-up drains accumulated commands while movement continues');
+    const burstTick = state.tick;
+    const beforeBurst = input.sentCount;
+    const observations: Array<{ tick: number; depth: number; applied: number; sent: number }> = [];
+    let observedTick = burstTick;
+    // A queue read 5 ms after a send can land before the next simulation tick.
+    // Observe distinct completed ticks throughout the SAME paced send window;
+    // no idle drain or longer recovery deadline is allowed to satisfy this test.
+    const monitor = setInterval(() => {
+      if (state.tick === observedTick) return;
+      observedTick = state.tick;
+      observations.push({
+        tick: state.tick - burstTick,
+        depth: serverRoom.inputs.get(a.sessionId).size,
+        applied: Math.round((controlled.x - startingPosition.x) * SERVER_TICK_RATE / WALK_SPEED),
+        sent: input.sentCount - beforeBurst,
+      });
+    }, 1_000 / SERVER_TICK_RATE / 8);
+    try {
+      for (let i = 0; i < 4; i += 1) input.send();
+      for (let i = 0; i < 10; i += 1) {
+        await delay(1_000 / SERVER_TICK_RATE);
+        input.send();
+      }
+    } finally {
+      clearInterval(monitor);
+    }
+    const evidence = JSON.stringify(observations);
+    assert.ok(observations.some((sample) => sample.applied > sample.tick),
+      `earned catch-up must consume extra inputs after the burst, not merely drain a slow sender: ${evidence}`);
+    const recoveredTicks = observations.filter((sample) => sample.sent > 4 && sample.applied >= 4 && sample.depth <= 1);
+    assert.ok(recoveredTicks.length >= 2,
+      `catch-up must recover to queue <=1 on multiple completed ticks while input continues: ${evidence}`);
     await waitFor(() => input.lastProcessed >= input.sentCount, 'all burst and paced inputs acknowledged');
     near(controlled.x - startingPosition.x, 14 * WALK_SPEED / SERVER_TICK_RATE, 'all commands simulate exactly once');
     assert.ok(controlled.x - startingPosition.x <= (state.tick - startingTick) * WALK_SPEED / SERVER_TICK_RATE + EPSILON,
