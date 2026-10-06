@@ -7,7 +7,7 @@
 ## Railway 모바일 배포 후속 검증
 
 후속 작업 시작 기준 HEAD: `cf7379cbe613aa954f7edf307603a5e07c389977`.
-아래 상세 원격 CI 기록 대상: **`ea7eae0dd4d4d8115bca2a64cbe2efefdaad91d4`**. 이후 실제 배포한 **`2a93b13a9c126aae02cd35ac7f7f480aafa091bb`**도 Lab·기존 게임 CI 모두 성공했습니다.
+최종 검증한 **실행 코드 SHA는 `7710592fe89896e1e37d44ce438e30455b9c4031`**입니다. 해당 commit의 Lab·기존 게임 CI, Railway 양쪽 배포, 실제 공개 HTTPS/WSS smoke가 모두 성공했습니다. 아래 SHA는 검증 당시 실행 코드를 뜻하며, 뒤이어 작성한 결과 문서 commit이나 검사 workflow revision과 구분합니다.
 기존 `server/`, `shared/` 및 이동·prediction·reconciliation 로직은 이 후속 작업에서 변경하지 않았습니다. `client/config.ts`의 한국어 오류 안내 두 곳에서 URL처럼 읽히는 문자열을 WS/WSS 설명으로 바꿨습니다. 연결 동작은 그대로입니다.
 배포 이미지, 정적 serving, 빌드 주소 검증, 테스트, 문서와 Lab CI를 추가/수정했습니다.
 
@@ -24,14 +24,14 @@
 | production server build | PASS, `npm start`는 컴파일된 JS |
 | localhost/LAN endpoint로 build 시도 | 의도대로 거부, custom build mode도 우회 불가 |
 | 공개 smoke 도구의 명시적 로컬 fixture | PASS, 실제 SDK2개 + 실제 브라우저1개, 이동48px·수렴·퇴장 정리 |
-| Docker 이미지 build | **Backend / Frontend 모두 최종 GitHub CI에서 PASS** (`ea7eae0`) |
+| Docker 이미지 build | **Backend / Frontend 모두 최종 GitHub CI에서 PASS** (`7710592`) |
 | Docker 실행 검증 | **PASS**, 두 이미지 시작·`/healthz`, Backend PORT override, production latency0, 두 컨테이너 SIGTERM 정상 종료 exit0 |
-| 기존 게임 CI | **PASS**, 같은 `ea7eae0` commit |
+| 기존 게임 CI | **PASS**, 같은 `7710592` commit |
 | Railway 계정·프로젝트·서비스·도메인 | 사용자 앱 승인·저장소 Source·실험 브랜치·Wait for CI 연결 완료. 두 서비스 **Active / SUCCESS** |
 | 공개 HTTPS health | Frontend·Backend `/healthz` 모두 **HTTP 200**. Backend status ok·tick30·patch30·latency0 |
 | 공개 브라우저 두 명 같은 방 참가 | **PASS**, 같은 room 인원2·연결됨·30Hz 관찰. 두 명 모두 나가기 후 연결 대기 복귀 |
 | 작업 환경의 공개 smoke 실행 | **사전 검사 실패**, OS DNS `EAI_AGAIN`. 앱 테스트 성공으로 간주하지 않으며 DNS 가드 변경 없음 |
-| GitHub Actions 공개 smoke | **첫 실행 FAIL / 수정 후 재검증 대기**. bundle 검사에서 오류 안내 문구를 URL로 해석. 실제 공개 smoke 스크립트·DNS/주소 가드 변경 없음 |
+| GitHub Actions 공개 smoke | **최종 PASS**, run 37433311899 attempt2. 실제 HTTPS/WSS·두 SDK 이동48px/수렴·브라우저 참가·JS3개 검사·퇴장 정리 |
 | 실제 Android 두 대·Wi-Fi/5G·태블릿 | **미검증**, 실제 기기 benchmark 필요 |
 
 Production 브라우저 smoke는 정적 산출물의 `wss://lab-validation.invalid` 요청을
@@ -51,10 +51,14 @@ SDK 버전/정확한 모듈 형태가 달라지면 build가 실패하여 재검�
 
 첫 배포 CI(`37428475066`)는 기존 게임 CI와 Lab의 설치·타입·모든 테스트·양쪽 build·두 Docker image build를 통과했습니다. 컨테이너 시작 약0.1초 뒤 첫 health 요청의 connection reset(curl56)이 재시도 대상에서 빠진 문제를 발견해, 모든 일시 연결 오류에 대한 재시도를 총30초로 제한하여 추가했습니다. health 응답 내용과 종료 코드는 계속 검사합니다.
 
-수정 후 `ea7eae0`의 최종 원격 CI 두 개 모두 성공했습니다.
+최종 실행 코드 `7710592`의 원격 CI 두 개 모두 성공했습니다.
 
-- [Multiplayer Lab — run 37428877941](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37428877941): 설치·strict typecheck·22 unit·23 integration·6 deployment·4 browser·1 production browser·client/server build·두 Docker image build/run/health/PORT/종료 검증 **PASS**.
-- [기존 게임 CI — run 37428877967](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37428877967): **PASS**.
+- [Multiplayer Lab — run 37434534597](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37434534597): 설치·strict typecheck·22 unit·23 integration·6 deployment·4 browser·1 production browser·client/server build·두 Docker image build/run/health/PORT/종료 검증 **PASS**.
+- [기존 게임 CI — run 37434534654](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37434534654): **PASS**.
+
+중간 `fee2543` CI에서는 catch-up 테스트의 5ms queue 관찰이 타이밍에 민감한 문제를 발견했습니다. `7710592`에서 완료된 서버 tick을 기준으로 검사하도록 테스트만 수정했습니다. 4입력 burst + 10입력 stream은 유지하며 관찰 구간의 서로 다른 완료 tick 두 번 이상에서 queue≤1, 실제 처리 입력 수가 경과 tick 수보다 큼(따라잡기), 총14입력의 정확한 이동량·시간 예산·ACK·연결 유지를 함께 검증합니다. 서버·이동 코어는 수정하지 않았습니다.
+
+Railway 배포 이력에서 `fee2543`의 **CI check suite failed** 건너뛰기와 `8987c46`의 **No changes to watched files** 건너뛰기를 확인했습니다. CI gate와 Watch Paths가 실제 동작했으며 실패한 CI를 우회하지 않았습니다.
 
 ### 실제 공개 배포와 접속
 
@@ -62,13 +66,14 @@ Railway 프로젝트는 `jiwoos-farm-multiplayer-lab` (`aebabf47-0d3f-45b1-93d2-
 
 | 실제 확인한 배포 | 값 |
 |---|---|
-| 실행 코드 | `2a93b13a9c126aae02cd35ac7f7f480aafa091bb` |
-| Backend service / deployment | `cb76d3f9-3ee0-4fa1-ac75-1fd9d67ee395` / `011760d3-9484-4b3f-b018-26d701b23cfd` |
-| Frontend service / deployment | `a8173270-4f34-4bc4-be7d-0fcf4143400b` / `5f3fda87-daa6-4666-b909-63cf13c0f373` |
+| 공개 자동 검증을 통과한 실행 코드 | `7710592fe89896e1e37d44ce438e30455b9c4031` |
+| Backend service / deployment | `cb76d3f9-3ee0-4fa1-ac75-1fd9d67ee395` / `ec08b31b-4281-496f-b9fb-c320cddcdefd` |
+| Frontend service / deployment | `a8173270-4f34-4bc4-be7d-0fcf4143400b` / `89080bd7-93f1-496a-9176-b7f0e2bea944` |
 | Backend 공개 HTTPS | [backend-production-a9e97.up.railway.app](https://backend-production-a9e97.up.railway.app) |
 | Frontend 공개 HTTPS | [frontend-production-768e.up.railway.app](https://frontend-production-768e.up.railway.app) |
 | 실제 공개 health | 두 `/healthz` HTTP200, Backend `status=ok`, `tickRate=30`, `patchRate=30`, `latencyMs=0` |
-| 실제 공개 브라우저 | 두 클라우드 브라우저가 room `mfQIxXCGY` 생성·참가, 인원2·연결됨·30Hz patch 관찰, 두 명 나가기 정리 |
+| 초기 배포 `2a93b13`의 직접 브라우저 확인 | 두 클라우드 브라우저가 room `mfQIxXCGY` 생성·참가, 인원2·연결됨·30Hz patch 관찰, 두 명 나가기 정리 |
+| 최종 배포 `7710592`의 공개 자동 검증 | 실제 WSS SDK2명 이동·수렴, 실제 브라우저3번째 참가·canvas·bundle검사, 모든 퇴장 정리 PASS |
 
 테스트 room 코드는 당시 검사 기록이며 계속 사용할 방 코드가 아닙니다. 앱에서 새 방을 만드세요. 이 두 브라우저 검사는 실제 Android Wi-Fi/5G 또는 5분 이상 이동 체감 검증이 아닙니다.
 
@@ -78,7 +83,23 @@ Railway 프로젝트는 `jiwoos-farm-multiplayer-lab` (`aebabf47-0d3f-45b1-93d2-
 
 작업 환경에서 실제 URL로 `tests/public-smoke.mjs`를 실행했지만 OS DNS 조회가 `EAI_AGAIN`으로 사전 검사에서 실패했습니다. 이 결과를 성공으로 바꾸거나 DNS 검사를 제거하지 않았습니다. 공개 HTTPS/WSS·정상 인증서·DNS 가드를 유지한 동일 스크립트를 GitHub-hosted runner에서 실행하도록 `.github/workflows/multiplayer-lab-public.yml`을 추가했습니다.
 
-최초 workflow revision은 `8987c46d733c2f8b2c76828cb1eeda27326026b7`이며 **검사하는 배포 revision은 위의 `2a93b13`**입니다. workflow는 현재 공개된 Lab을 검사하므로 workflow revision 자체가 이미 배포되었다고 주장하지 않습니다. 첫 실행은 두 실제 SDK client의 이동·수렴 및 browser 참가까지 진행했으나, bundle 주소 검사에서 한국어 오류 안내의 `wss://로`와 `wss://)가`를 서버 URL로 해석해 실패했습니다. 두 안내 문자열만 WS/WSS 표현으로 수정하며, 검사 스크립트·DNS 가드·이동 및 네트워크 코어를 바꾸지 않습니다. 수정본 배포 후 재검증이 필요하며 **전체 공개 smoke PASS는 아직 선언하지 않습니다**. 최종 결과와 `multiplayer-lab-public-smoke-report` artifact를 함께 확인해야 합니다.
+첫 공개 실행은 당시 `2a93b13`의 두 실제 SDK client 이동·수렴과 browser 참가까지 진행했으나, bundle 주소 검사에서 한국어 오류 안내의 `wss://로`와 `wss://)가`를 서버 URL로 해석해 실패했습니다. 두 안내 문자열만 WS/WSS 표현으로 수정했고 검사 스크립트·DNS 가드·이동 및 네트워크 코어는 바꾸지 않았습니다.
+
+**2026-10-06 08:16:34 UTC 최종 공개 검사 PASS:** [run 37433311899 attempt 2](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37433311899/attempts/2), [job 112174345245](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37433311899/job/112174345245). workflow revision은 **`8987c46d733c2f8b2c76828cb1eeda27326026b7`**, Railway에서 실제 검사한 실행 코드는 **`7710592fe89896e1e37d44ce438e30455b9c4031`**입니다. 동일 공개 검사 스크립트를 다시 실행했으며 `--allow-local`, TLS 우회, DNS 가드 변경은 사용하지 않았습니다.
+
+| 공개 검사 항목 | 실제 결과 |
+|---|---|
+| 보고서 모드 | `PUBLIC HTTPS/WSS`, `result: PASS` |
+| Backend health | `status: ok`, `service: jiwoos-multiplayer-lab`, tick30·patch30·latency0 |
+| 실제 WSS SDK 두 명 | 같은 방 생성·참가 PASS |
+| 권위 이동 | 9 inputs → **48px**, 서버 ACK 확인 |
+| Peer state 수렴 | `peerConvergence: true` |
+| 실제 공개 Frontend | browser 페이지·canvas 로딩, 세 번째 플레이어 참가(`joinedPlayerCount: 3`) |
+| 실제 브라우저 WebSocket | `wss://backend-production-a9e97.up.railway.app` 일치 |
+| 공개 JS bundle | **3개**의 localhost/사설주소/비보안 endpoint 가드 PASS |
+| 연결 정리 | `browserLeaveObserved`, `sdkPeerLeaveObserved`, `bothSdkConnectionsClosed` 모두 `true` |
+
+증거 파일: [multiplayer-lab-public-smoke-report — artifact 11398299809](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37433311899/artifacts/11398299809). 이 검사는 공개 인터넷 서버 동작을 검증했으며 실제 Android의 Wi-Fi/5G 품질·60FPS·5분 이상 연속 이동을 대신하지 않습니다.
 
 휴대폰에서는 [기존 Public Smoke 실행](https://github.com/yoosb1992-create/jiwoos-farm/actions/workflows/multiplayer-lab-public.yml)을 열어 **Re-run jobs → Re-run all jobs**로 재검사할 수 있습니다. 자세한 순서는 [RAILWAY.md](./RAILWAY.md#휴대폰에서-공개-자동-검증-다시-실행)에 있습니다.
 
@@ -180,6 +201,6 @@ Colyseus의 실제 ping으로 측정한 마지막 전체 통합 테스트 실행
 
 Cloudflare DO 비교 backend: **미구현**. `NetworkAdapter` 경계와 ColyseusAdapter만 구현했습니다. 기존 `FAMILY_ROOM` 및 binding에 접근하거나 수정하지 않았습니다.
 
-기존 Production 배포·D1·인증·세이브·게임 코드는 변경하지 않았습니다. 기존 root TypeScript 설정에는 Lab 제외 항목만 추가했고, 신규 Lab 전용 CI workflow는 배포하지 않습니다. 기존 production branch에는 commit/merge하지 않습니다.
+기존 Production 배포·D1·인증·세이브·게임 코드는 변경하지 않았습니다. 최초 Core 작업에서 기존 root TypeScript 설정에는 Lab 제외 항목만 추가했습니다. 이번 배포 후속 작업의 기준 `cf7379c`부터 검증한 `7710592`까지 Lab 디렉터리와 Lab 전용 workflow 두 개를 제외한 diff는 없습니다. 같은 범위에서 server/shared 및 client networking·input·scene의 diff도 없고, client 변경은 오류 안내 문자열 두 곳뿐입니다. 신규 Lab CI는 검사만 수행하며, 별도 Railway 서비스가 실험 브랜치를 자동 배포합니다. 기존 production branch에는 commit/merge하지 않습니다.
 
-**기존 지우네 농장으로 즉시 이식: NOT READY.** 격리된 Lab의 구현·자동 테스트·빌드 기반은 준비되었습니다. 다만 사용자의 가장 중요한 완료 기준인 실제 Android/태블릿, Wi-Fi/5G에서의 체감과 5분 이상 연속 플레이는 아직 검증하지 않았습니다. 공개 서비스 기동과 클라우드 브라우저 두 명의 같은 방 접속은 확인했습니다. README의 benchmark를 통과한 후 별도 이식 작업을 결정해야 합니다.
+**기존 지우네 농장으로 즉시 이식: NOT READY.** 격리된 Lab의 구현·자동 테스트·빌드 기반은 준비되었습니다. 다만 사용자의 가장 중요한 완료 기준인 실제 Android/태블릿, Wi-Fi/5G에서의 체감과 5분 이상 연속 플레이는 아직 검증하지 않았습니다. 공개 서비스 기동과 실제 HTTPS/WSS의 두 SDK 이동·수렴, 브라우저 참가·퇴장 자동 검증은 통과했습니다. README의 benchmark를 통과한 후 별도 이식 작업을 결정해야 합니다.

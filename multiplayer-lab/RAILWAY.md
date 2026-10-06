@@ -4,7 +4,7 @@
 
 **현재 상태: 두 서비스 모두 실제 배포되어 Active / SUCCESS입니다.** [Frontend 플레이 URL](https://frontend-production-768e.up.railway.app)에서 바로 접속할 수 있습니다. 사용자 승인 후 Railway GitHub App을 대상 저장소 하나에 연결했고, Backend·Frontend의 Source와 실험 브랜치, **Wait for CI**를 설정·적용했습니다. 처음 `Waiting for CI`에서 `Building`을 거쳐 `Success`로 진행하는 것을 확인했습니다.
 
-Frontend·Backend `/healthz`가 실제 HTTPS에서 HTTP 200으로 응답했고, 클라우드 브라우저 두 명이 같은 방에 접속해 인원 2와 연결됨·30Hz tick을 확인한 뒤 모두 나갔습니다. 공개 자동 smoke 첫 실행에서 bundle 주소 검사 오류를 발견했으며, 안내 문구 수정 후 재검증이 남아 있습니다. 자동 검사 성공은 아직 선언하지 않습니다. 실제 Android Wi-Fi/5G benchmark는 남아 있습니다.
+Frontend·Backend `/healthz`가 실제 HTTPS에서 HTTP 200으로 응답했고, **공개 HTTPS/WSS 자동 smoke도 통과했습니다.** 두 SDK 플레이어의 같은 방 참가·권위 이동·상태 수렴, 공개 Frontend의 실제 브라우저 참가·canvas·bundle 검사와 퇴장 정리를 확인했습니다. 실제 Android Wi-Fi/5G benchmark는 남아 있습니다.
 
 기존 프로젝트는 `jiwoos-farm-multiplayer-lab`입니다. 아래 1–4절은 설정 재현 안내입니다. 이미 만들어진 프로젝트·서비스나 완료한 앱 승인 작업을 반복할 필요가 없습니다.
 
@@ -109,7 +109,7 @@ Watch Paths는 두 서비스에 `/multiplayer-lab/**`와 `/.github/workflows/mul
 2. 휴대폰 주소창에서 **Backend HTTPS 주소 + `/healthz`**를 엽니다. `status: "ok"`, `service: "jiwoos-multiplayer-lab"`, `tickRate: 30`, `latencyMs: 0`을 확인합니다.
 3. **Frontend HTTPS 주소 + `/healthz`**에서 `status: "ok"`, `service: "jiwoos-multiplayer-lab-client"`를 확인합니다.
 4. **Frontend의 HTTPS 기본 주소**를 열어 Lab 화면과 방 만들기를 확인합니다. Backend의 기본 주소에 게임 화면이 없는 것은 정상입니다.
-5. Frontend 주소를 두 번째 휴대폰에서 엽니다. A가 만든 방 코드를 B에 입력해 참가합니다. A Wi-Fi / B 5G 조합으로 인원 2와 양방향 이동을 확인합니다.
+5. Frontend 주소를 두 번째 휴대폰에서 엽니다. A가 만든 방 코드를 B에 입력해 참가합니다. **같은 Wi-Fi는 필요하지 않으며**, 처음부터 A Wi-Fi / B 5G 조합으로 인원 2와 양방향 이동을 확인하면 됩니다.
 6. [README의 실기기 benchmark](./README.md#휴대폰태블릿-benchmark)를 수행합니다. `/healthz` 성공만으로 멀티플레이 품질까지 검증된 것은 아닙니다.
 
 공유할 플레이 주소는 **Frontend HTTPS URL 하나**입니다.
@@ -121,26 +121,27 @@ Watch Paths는 두 서비스에 `/multiplayer-lab/**`와 `/.github/workflows/mul
 | Backend WebSocket 주소 | `wss://backend-production-a9e97.up.railway.app` |
 | GitHub App / Source | 사용자 승인 완료 / 대상 저장소와 실험 브랜치 연결 완료 |
 | Wait for CI / Autodeploy | 두 서비스 모두 활성화·적용 완료 |
-| 확인한 실행 commit SHA | `2a93b13a9c126aae02cd35ac7f7f480aafa091bb` |
-| Backend deployment ID | `011760d3-9484-4b3f-b018-26d701b23cfd` |
-| Frontend deployment ID | `5f3fda87-daa6-4666-b909-63cf13c0f373` |
+| 공개 자동 검증을 통과한 실행 commit SHA | `7710592fe89896e1e37d44ce438e30455b9c4031` |
+| Backend deployment ID | `ec08b31b-4281-496f-b9fb-c320cddcdefd` |
+| Frontend deployment ID | `89080bd7-93f1-496a-9176-b7f0e2bea944` |
 | Frontend / Backend `/healthz` | 모두 공개 HTTPS HTTP 200. Backend tickRate30·patchRate30·latencyMs0 |
 | 공개 브라우저 두 명 같은 방 참가 | PASS, 인원2·연결됨 확인 후 모두 나가기·연결 대기 복귀 |
-| 공개 WSS 자동 smoke | 첫 실행에서 bundle 주소 검사 오류. 안내 문구 수정·배포 후 재검증 대기 |
+| 공개 WSS 자동 smoke | **PASS**, [run 37433311899 attempt 2](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37433311899/attempts/2), 2026-10-06 08:16:34 UTC |
+| 공개 자동 검사 증거 | [multiplayer-lab-public-smoke-report artifact](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37433311899/artifacts/11398299809) |
 | 실제 Android Wi-Fi + 5G | 미실시 |
 
-배포 후 새 commit이 자동 반영되면 실행 revision이 달라질 수 있습니다. 위 값은 직접 확인한 배포 기록입니다. 최신 결과는 [VALIDATION.md](./VALIDATION.md)와 Railway Deployments에서 확인합니다.
+위 SHA는 **실제 공개 검증 당시 실행 중이던 코드**입니다. 뒤이어 결과를 기록한 문서 commit 또는 workflow revision과 구분합니다. 새 commit이 자동 반영되면 실행 revision이 달라질 수 있으므로 최신 결과는 [VALIDATION.md](./VALIDATION.md)와 Railway Deployments에서 확인합니다.
 
 ## 휴대폰에서 공개 자동 검증 다시 실행
 
 직접 플레이하는 데 필요하지 않은 선택 사항입니다. 휴대폰 브라우저에서 기존 GitHub Actions 실행을 다시 돌릴 수 있습니다.
 
 1. [Multiplayer Lab Public Smoke 실행 목록](https://github.com/yoosb1992-create/jiwoos-farm/actions/workflows/multiplayer-lab-public.yml)을 엽니다.
-2. `experiment/v2.4-multiplayer-lab-colyseus`의 기존 실행을 선택합니다.
+2. `experiment/v2.4-multiplayer-lab-colyseus`의 [기존 실행 37433311899](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37433311899)을 선택합니다.
 3. **Re-run jobs → Re-run all jobs**를 누릅니다. 계정에 저장소 실행 권한이 있어야 하며 메뉴가 잘리면 브라우저의 데스크톱 사이트 표시를 사용합니다.
 4. 실행이 끝난 뒤 `Verify real public HTTPS and WSS multiplayer` 단계와 결과를 확인합니다. 상세 기록은 `multiplayer-lab-public-smoke-report` artifact에 있습니다.
 
-이 workflow는 **실행할 때 공개된 Lab**을 검사합니다. workflow의 commit SHA가 실제 Railway 배포 revision과 같다는 보장은 없습니다. 최초 실행의 workflow revision은 `8987c46`이고 검사 대상은 실행 중인 `2a93b13` 배포입니다. 아직 배포되지 않은 후보 코드가 이미 인터넷에서 실행된다고 가정하지 않습니다.
+이 workflow는 **실행할 때 공개된 Lab**을 검사합니다. workflow의 commit SHA가 실제 Railway 배포 revision과 같다는 보장은 없습니다. 성공한 attempt 2는 workflow revision `8987c46`의 변경하지 않은 검사 스크립트로, 실제 실행 중인 `7710592` 배포를 검사했습니다. 아직 배포되지 않은 후보 코드가 이미 인터넷에서 실행된다고 가정하지 않습니다.
 
 workflow는 실험 브랜치에만 있으며 기본 브랜치의 Run workflow 버튼을 요구하지 않습니다. 기존 실행의 재실행 메뉴를 사용하면 됩니다. 개발자용 명령은 [DEVELOPMENT.md](./DEVELOPMENT.md#공개-배포-자동-smoke--유지보수자ci용)에 있으며 휴대폰 사용자에게 터미널 실행을 요구하지 않습니다.
 
