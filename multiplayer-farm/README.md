@@ -82,3 +82,23 @@ DB 테스트는 실제 Postgres가 없으면 실패하며 skip하거나 memory �
 아직 미이식: 맵 editor, 전체 관계/퀘스트, 건물 확장/동물, 개인 외형 선택, 기존 데이터 import, 다중 server sharding. 숲/광산은 원본 구역 의도를 살린 새 결정적 배치이며 원본 생성 알고리즘 그대로가 아닙니다. 낚시는 기존 미로 아이디어/asset을 사용한 서버 검증 경로 게임이며 기존 UI 그대로는 아닙니다. tree는 상호작용 대상이며 동적 trunk collision은 아직 적용하지 않습니다. Static house/water/fence 충돌은 양쪽 공용입니다.
 
 실기기 검증: Android A Wi-Fi + B5G, 태블릿 세로/가로에서 걷기/빠른 방향전환/RUN+joystick/행동/5분 연속 이동/백그라운드/통신 단절복구/서버재시작 후 inventory 유지. Headless browser를 실제 Android로 표현하지 않습니다.
+
+## 실제 검증 결과
+
+[VALIDATION.md](./VALIDATION.md)에 CI 링크, 25개 요구사항별 증거, 공개 WSS·모바일 브라우저·실제 Railway 재시작 결과와 남은 제한사항을 기록했습니다. 사용자는 위 공개 게임 URL을 열고 새 가족 농장을 만들면 됩니다. 다른 기기는 코드·비밀번호로 참가하며 Wi-Fi와 5G가 달라도 됩니다.
+
+개발자용 Docker (사용자 휴대폰에 Docker 설치 불필요): 저장소 root에서 실행합니다. `.env`에는 새 v2.5 DB와 공개 Origin만 넣습니다.
+```
+docker build -f multiplayer-farm/Dockerfile -t jiwoos-farm-backend .
+docker run --init --env-file multiplayer-farm/.env -p 2567:2567 jiwoos-farm-backend
+docker build -f multiplayer-farm/Dockerfile.client --build-arg VITE_MULTIPLAYER_SERVER_URL=wss://backend-production-b244e.up.railway.app -t jiwoos-farm-frontend .
+docker run --init -p 8080:8080 jiwoos-farm-frontend
+```
+
+실기기 체크리스트(A: PC Chrome+Edge, B: Android2대 같은 Wi-Fi, C: Android Wi-Fi+5G, D: 태블릿 세로/가로):
+- [ ] 걷기30초·빠른 방향 전환·원형 이동·RUN+joystick 동시 입력
+- [ ] 장애물 충돌·동시에 서로 이동·5분 이상 연속 조작
+- [ ] 밭/씨앗/물/3일 성장/수확 공유, 나무3타·동시 pickup·보관함 동시 인출
+- [ ] 숲과 광산 입장·가공·낚시·잠자기 투표
+- [ ] 백그라운드 후 복귀·Wi-Fi 잠깐 중단 후 복구·새로고침 후 가방 유지
+- [ ] local input delay / remote stutter / teleport / reconciliation jump / disconnect / reconnect를 기기·네트워크와 함께 기록
