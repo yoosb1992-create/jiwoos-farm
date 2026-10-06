@@ -3,7 +3,7 @@
 Work branch: `feature/v2.7-world-editor-2`  
 Base: `d4f645c30b0666151f7894ad9e32ec0d0422690a` (`feature/v2.6-farm-content-expansion`, verified CI success).
 
-This branch preserves the production v2.6 branch and the multiplayer-lab source. It does not overwrite existing family saves. The game and editor remain separate Vite entries (`/` and `/editor` or `/editor.html`). The editor UI, undo journal, draft store, palette and prefabs are absent from the game entry. Rendering and authoritative world rules are shared.
+This branch preserves the production v2.6 branch and the multiplayer-lab source. It does not overwrite existing family saves. The game and editor remain separate Vite entries (`/` and `/editor.html`). The editor UI, undo journal, draft store, palette and prefabs are absent from the game entry. Rendering and authoritative world rules are shared.
 
 ## Phone workflow
 
@@ -82,3 +82,10 @@ Still limited:
 - Local custom prefabs/favorites are not account-synchronized. Undo history resets on import/reload; the draft itself persists.
 - Current-farm replacement/checkpoint migration is absent. Production v2.6 stays unchanged.
 - Railway Preview could not be provisioned: the account returned `Free plan resource provision limit exceeded. Please upgrade to provision more resources!`. No v2.7 live editor URL exists yet. See `RAILWAY-V27.md`.
+
+CI records for runtime source commit `d35436a6263f375ec779648729168f08dc4d7476`:
+
+- [Root regression/build](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37498749820)
+- [Farm/World Editor, Postgres, Docker and golden lab](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37498750084)
+
+Subsequent documentation-only commits do not alter that runtime tree and follow the repository's existing workflow path filters.

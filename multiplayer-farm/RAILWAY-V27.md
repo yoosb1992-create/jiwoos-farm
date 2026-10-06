@@ -20,10 +20,10 @@ Neither service was created. The public production source, database, variables a
 2. Set their Dockerfile, health and source branch settings from the plan.
 3. Backend reuses the existing private Postgres connection but sets `FARM_DATABASE_SCHEMA=farm_v27_preview`. The process accepts only `farm_v26` (existing/default) or `farm_v27_preview`. There is no database reset/drop/copy. First startup creates only its own tables in the new schema, using existing migrations.
 4. Generate both public service domains. The frontend WebSocket endpoint references `Editor27Backend`; backend CORS references `Editor27Frontend` only.
-5. Connect the v2.7 branch after its required CI succeeds, then verify both `/healthz` endpoints, `/editor`, a new preview family, and a save/publish/new-family roundtrip on Android.
-6. Preview editor URL: `https://<Editor27Frontend domain>/editor`. Preview game URL: the same domain at `/`. These are placeholders, not provisioned URLs.
+5. Connect the v2.7 branch after its required CI succeeds, then verify both `/healthz` endpoints, `/editor.html`, a new preview family, and a save/publish/new-family roundtrip on Android.
+6. Preview editor URL: `https://<Editor27Frontend domain>/editor.html`. Preview game URL: the same domain at `/`. These are placeholders, not provisioned URLs.
 
-The existing public game remains https://frontend-production-a998.up.railway.app/ and the existing v2.6 editor remains https://frontend-production-a998.up.railway.app/editor . They do not serve World Editor 2.0 until a later explicit production cutover.
+The existing public game remains https://frontend-production-a998.up.railway.app/ and the existing v2.6 editor remains https://frontend-production-a998.up.railway.app/editor.html . They do not serve World Editor 2.0 until a later explicit production cutover.
 
 ## Production transition
 
