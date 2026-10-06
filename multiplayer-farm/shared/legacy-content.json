@@ -1,0 +1,4557 @@
+{
+  "maps": {
+    "farm": {
+      "id": "farm",
+      "name": "지우네 농장",
+      "width": 52,
+      "height": 26,
+      "baseTileType": "grass",
+      "terrainRegions": [
+        {
+          "startX": 3,
+          "endX": 8,
+          "startY": 9,
+          "endY": 11,
+          "tileType": "path",
+          "depth": 1
+        },
+        {
+          "startX": 7,
+          "endX": 8,
+          "startY": 12,
+          "endY": 16,
+          "tileType": "path",
+          "depth": 1
+        },
+        {
+          "startX": 7,
+          "endX": 22,
+          "startY": 15,
+          "endY": 16,
+          "tileType": "path",
+          "depth": 1
+        },
+        {
+          "startX": 19,
+          "endX": 22,
+          "startY": 13,
+          "endY": 25,
+          "tileType": "path",
+          "depth": 1
+        },
+        {
+          "startX": 22,
+          "endX": 28,
+          "startY": 13,
+          "endY": 14,
+          "tileType": "path",
+          "depth": 1
+        },
+        {
+          "startX": 28,
+          "endX": 31,
+          "startY": 11,
+          "endY": 13,
+          "tileType": "path",
+          "depth": 1
+        },
+        {
+          "startX": 31,
+          "endX": 35,
+          "startY": 9,
+          "endY": 11,
+          "tileType": "path",
+          "depth": 1
+        },
+        {
+          "startX": 35,
+          "endX": 46,
+          "startY": 9,
+          "endY": 10,
+          "tileType": "path",
+          "depth": 1
+        },
+        {
+          "startX": 24,
+          "endX": 30,
+          "startY": 15,
+          "endY": 20,
+          "tileType": "water",
+          "depth": 1
+        }
+      ],
+      "farmAreas": [
+        {
+          "startX": 9,
+          "endX": 18,
+          "startY": 8,
+          "endY": 14
+        }
+      ],
+      "collisionRegions": [
+        {
+          "startX": 24,
+          "endX": 30,
+          "startY": 15,
+          "endY": 20
+        }
+      ],
+      "objects": [
+        {
+          "id": "house",
+          "assetId": "house",
+          "position": {
+            "tileX": 5,
+            "tileY": 5
+          },
+          "collision": {
+            "x": -96,
+            "y": -80,
+            "width": 192,
+            "height": 135
+          },
+          "label": "집",
+          "depth": 4
+        },
+        {
+          "id": "sell_basket",
+          "assetId": "sell_basket",
+          "position": {
+            "tileX": 33,
+            "tileY": 7.5
+          },
+          "collision": {
+            "x": -45,
+            "y": -38,
+            "width": 90,
+            "height": 76
+          },
+          "interaction": {
+            "action": "sell",
+            "area": {
+              "startX": 31,
+              "endX": 35,
+              "startY": 6,
+              "endY": 9
+            }
+          },
+          "label": "판매 바구니",
+          "depth": 3
+        },
+        {
+          "id": "yard_mailbox",
+          "assetId": "mailbox",
+          "position": {
+            "tileX": 8.9,
+            "tileY": 7.2
+          },
+          "depth": 3
+        },
+        {
+          "id": "yard_flower_bed",
+          "assetId": "flower_bed",
+          "position": {
+            "tileX": 2.5,
+            "tileY": 8.2
+          },
+          "depth": 3
+        },
+        {
+          "id": "yard_shrub",
+          "assetId": "green_shrub",
+          "position": {
+            "tileX": 9.6,
+            "tileY": 6.7
+          },
+          "depth": 3
+        },
+        {
+          "id": "yard_bench",
+          "assetId": "bench",
+          "position": {
+            "tileX": 1.9,
+            "tileY": 11.5
+          },
+          "depth": 3
+        },
+        {
+          "id": "yard_lamp",
+          "assetId": "rustic_lamp",
+          "position": {
+            "tileX": 7.7,
+            "tileY": 8.7
+          },
+          "depth": 3
+        },
+        {
+          "id": "yard_well",
+          "assetId": "stone_well",
+          "position": {
+            "tileX": 12.1,
+            "tileY": 5.3
+          },
+          "depth": 3,
+          "collision": {
+            "x": -36,
+            "y": -18,
+            "width": 72,
+            "height": 28
+          }
+        },
+        {
+          "id": "yard_fence_west",
+          "assetId": "fence_horizontal",
+          "position": {
+            "tileX": 2.1,
+            "tileY": 12.7
+          },
+          "depth": 3,
+          "collision": {
+            "x": -60,
+            "y": -12,
+            "width": 120,
+            "height": 20
+          }
+        },
+        {
+          "id": "field_fence_north_west",
+          "assetId": "fence_horizontal",
+          "position": {
+            "tileX": 10.8,
+            "tileY": 7.2
+          },
+          "depth": 3,
+          "collision": {
+            "x": -60,
+            "y": -12,
+            "width": 120,
+            "height": 20
+          }
+        },
+        {
+          "id": "field_fence_north_east",
+          "assetId": "fence_horizontal",
+          "position": {
+            "tileX": 16.3,
+            "tileY": 7.2
+          },
+          "depth": 3,
+          "collision": {
+            "x": -60,
+            "y": -12,
+            "width": 120,
+            "height": 20
+          }
+        },
+        {
+          "id": "field_fence_west",
+          "assetId": "fence_vertical",
+          "position": {
+            "tileX": 8.75,
+            "tileY": 11.5
+          },
+          "depth": 3,
+          "collision": {
+            "x": -10,
+            "y": -48,
+            "width": 20,
+            "height": 56
+          }
+        },
+        {
+          "id": "field_fence_corner",
+          "assetId": "fence_corner",
+          "position": {
+            "tileX": 8.2,
+            "tileY": 7.4
+          },
+          "depth": 3
+        },
+        {
+          "id": "field_gate",
+          "assetId": "gate",
+          "position": {
+            "tileX": 19.4,
+            "tileY": 12.5
+          },
+          "depth": 3
+        },
+        {
+          "id": "field_crate",
+          "assetId": "farm_crate",
+          "position": {
+            "tileX": 19.3,
+            "tileY": 8
+          },
+          "depth": 3
+        },
+        {
+          "id": "pond_large_rock",
+          "assetId": "pond_rock_large",
+          "position": {
+            "tileX": 30.7,
+            "tileY": 20.5
+          },
+          "depth": 3
+        },
+        {
+          "id": "pond_flowering_bush",
+          "assetId": "flowering_bush",
+          "position": {
+            "tileX": 32.4,
+            "tileY": 20.7
+          },
+          "depth": 3
+        },
+        {
+          "id": "pond_shrub",
+          "assetId": "green_shrub",
+          "position": {
+            "tileX": 22.4,
+            "tileY": 18.8
+          },
+          "depth": 3
+        },
+        {
+          "id": "yard_flower_bed_east",
+          "assetId": "flower_bed",
+          "position": {
+            "tileX": 8.2,
+            "tileY": 5.8
+          },
+          "depth": 3
+        },
+        {
+          "id": "yard_shrub_west",
+          "assetId": "flowering_bush",
+          "position": {
+            "tileX": 1.8,
+            "tileY": 8.7
+          },
+          "depth": 3
+        },
+        {
+          "id": "yard_lamp_south",
+          "assetId": "rustic_lamp",
+          "position": {
+            "tileX": 4,
+            "tileY": 13.4
+          },
+          "depth": 3
+        },
+        {
+          "id": "pond_bench",
+          "assetId": "bench",
+          "position": {
+            "tileX": 22.5,
+            "tileY": 17.2
+          },
+          "depth": 3
+        },
+        {
+          "id": "pond_lamp",
+          "assetId": "rustic_lamp",
+          "position": {
+            "tileX": 23,
+            "tileY": 21.3
+          },
+          "depth": 3
+        },
+        {
+          "id": "pond_flower_bed",
+          "assetId": "flower_bed",
+          "position": {
+            "tileX": 32,
+            "tileY": 17.4
+          },
+          "depth": 3
+        },
+        {
+          "id": "south_lamp_west",
+          "assetId": "rustic_lamp",
+          "position": {
+            "tileX": 18,
+            "tileY": 22.2
+          },
+          "depth": 3
+        },
+        {
+          "id": "south_lamp_east",
+          "assetId": "rustic_lamp",
+          "position": {
+            "tileX": 23.1,
+            "tileY": 22.2
+          },
+          "depth": 3
+        },
+        {
+          "id": "east_stump",
+          "assetId": "stump",
+          "position": {
+            "tileX": 35.4,
+            "tileY": 4.9
+          },
+          "depth": 3
+        },
+        {
+          "id": "east_meadow_flower_bed",
+          "assetId": "flower_bed",
+          "position": {
+            "tileX": 41.8,
+            "tileY": 6.7
+          },
+          "depth": 3,
+          "collision": {
+            "x": -42,
+            "y": -8,
+            "width": 84,
+            "height": 14
+          }
+        },
+        {
+          "id": "east_meadow_shrub_north",
+          "assetId": "flowering_bush",
+          "position": {
+            "tileX": 44.5,
+            "tileY": 5.6
+          },
+          "depth": 3,
+          "collision": {
+            "x": -28,
+            "y": -10,
+            "width": 56,
+            "height": 18
+          }
+        },
+        {
+          "id": "east_meadow_lamp",
+          "assetId": "rustic_lamp",
+          "position": {
+            "tileX": 41,
+            "tileY": 11.4
+          },
+          "depth": 3,
+          "collision": {
+            "x": -8,
+            "y": -10,
+            "width": 16,
+            "height": 16
+          }
+        },
+        {
+          "id": "east_meadow_bench",
+          "assetId": "bench",
+          "position": {
+            "tileX": 44.4,
+            "tileY": 11.7
+          },
+          "depth": 3,
+          "collision": {
+            "x": -48,
+            "y": -14,
+            "width": 96,
+            "height": 18
+          }
+        },
+        {
+          "id": "east_meadow_shrub_south",
+          "assetId": "green_shrub",
+          "position": {
+            "tileX": 47,
+            "tileY": 19.2
+          },
+          "depth": 3,
+          "collision": {
+            "x": -26,
+            "y": -9,
+            "width": 52,
+            "height": 16
+          }
+        },
+        {
+          "id": "farm_tree_house_west",
+          "assetId": "tree_variant_a",
+          "position": {
+            "tileX": 1.6,
+            "tileY": 5.2
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_house_east",
+          "assetId": "tree_variant_b",
+          "position": {
+            "tileX": 10.4,
+            "tileY": 4.2
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_north_1",
+          "assetId": "tree",
+          "position": {
+            "tileX": 16.2,
+            "tileY": 2.8
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_north_2",
+          "assetId": "tree_variant_a",
+          "position": {
+            "tileX": 22.4,
+            "tileY": 3.3
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_north_3",
+          "assetId": "tree_variant_b",
+          "position": {
+            "tileX": 28.8,
+            "tileY": 2.7
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_north_east",
+          "assetId": "tree",
+          "position": {
+            "tileX": 39.3,
+            "tileY": 4.5
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_west_mid",
+          "assetId": "tree_variant_b",
+          "position": {
+            "tileX": 1.8,
+            "tileY": 15.8
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_west_south",
+          "assetId": "tree",
+          "position": {
+            "tileX": 2.5,
+            "tileY": 22.8
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_east_mid",
+          "assetId": "tree_variant_a",
+          "position": {
+            "tileX": 39.5,
+            "tileY": 12.7
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_east_pond",
+          "assetId": "tree",
+          "position": {
+            "tileX": 39.2,
+            "tileY": 19.3
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_south_east",
+          "assetId": "tree_variant_b",
+          "position": {
+            "tileX": 37.2,
+            "tileY": 23.5
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_south_pond",
+          "assetId": "tree_variant_a",
+          "position": {
+            "tileX": 30.8,
+            "tileY": 24.2
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_far_east_north",
+          "assetId": "tree_variant_a",
+          "position": {
+            "tileX": 48.5,
+            "tileY": 4
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_far_east_mid",
+          "assetId": "tree_variant_b",
+          "position": {
+            "tileX": 49.2,
+            "tileY": 13
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        },
+        {
+          "id": "farm_tree_far_east_south",
+          "assetId": "tree",
+          "position": {
+            "tileX": 47.8,
+            "tileY": 22.8
+          },
+          "collision": {
+            "x": -11,
+            "y": -9,
+            "width": 22,
+            "height": 18
+          },
+          "depth": 3
+        }
+      ],
+      "spawns": [
+        {
+          "id": "house_front",
+          "tileX": 7,
+          "tileY": 8,
+          "facing": "down"
+        },
+        {
+          "id": "from_house",
+          "tileX": 5,
+          "tileY": 9.2,
+          "facing": "down"
+        },
+        {
+          "id": "from_road",
+          "tileX": 20.5,
+          "tileY": 22,
+          "facing": "up"
+        }
+      ],
+      "warps": [
+        {
+          "id": "house_door",
+          "area": {
+            "startX": 4,
+            "endX": 6,
+            "startY": 8,
+            "endY": 9
+          },
+          "targetMapId": "farmhouse",
+          "targetSpawnId": "entry"
+        },
+        {
+          "id": "exit_south",
+          "area": {
+            "startX": 19,
+            "endX": 22,
+            "startY": 24,
+            "endY": 25
+          },
+          "targetMapId": "road",
+          "targetSpawnId": "farm_entrance"
+        }
+      ],
+      "boundary": {
+        "enabled": true,
+        "openings": [
+          {
+            "startX": 19,
+            "endX": 22,
+            "startY": 24,
+            "endY": 25
+          }
+        ]
+      }
+    },
+    "farmhouse": {
+      "id": "farmhouse",
+      "name": "농장집",
+      "width": 22,
+      "height": 13,
+      "baseTileType": "wood_floor",
+      "terrainRegions": [
+        {
+          "startX": 0,
+          "endX": 17,
+          "startY": 0,
+          "endY": 1,
+          "tileType": "stone_floor"
+        }
+      ],
+      "farmAreas": [],
+      "collisionRegions": [],
+      "objects": [
+        {
+          "id": "bed",
+          "assetId": "bed",
+          "position": {
+            "tileX": 7,
+            "tileY": 7
+          },
+          "collision": {
+            "x": -48,
+            "y": -28,
+            "width": 96,
+            "height": 56
+          },
+          "interaction": {
+            "action": "sleep",
+            "area": {
+              "startX": 5,
+              "endX": 9,
+              "startY": 6,
+              "endY": 9
+            }
+          },
+          "label": "침대 · 잠자기",
+          "depth": 3
+        },
+        {
+          "id": "crafting_table",
+          "assetId": "crafting_table",
+          "position": {
+            "tileX": 12,
+            "tileY": 6.5
+          },
+          "collision": {
+            "x": -28,
+            "y": -12,
+            "width": 56,
+            "height": 28
+          },
+          "interaction": {
+            "action": "craft",
+            "area": {
+              "startX": 10,
+              "endX": 14,
+              "startY": 5,
+              "endY": 8
+            }
+          },
+          "label": "제작대",
+          "depth": 3
+        },
+        {
+          "id": "family_chest",
+          "assetId": "storage_chest",
+          "position": {
+            "tileX": 3,
+            "tileY": 4
+          },
+          "collision": {
+            "x": -25,
+            "y": -15,
+            "width": 50,
+            "height": 29
+          },
+          "interaction": {
+            "action": "storage",
+            "area": {
+              "startX": 1,
+              "endX": 5,
+              "startY": 3,
+              "endY": 5
+            },
+            "containerId": "family_chest"
+          },
+          "label": "가족 보관함",
+          "depth": 3
+        }
+      ],
+      "spawns": [
+        {
+          "id": "entry",
+          "tileX": 9,
+          "tileY": 10,
+          "facing": "up"
+        },
+        {
+          "id": "bed_wake",
+          "tileX": 9.5,
+          "tileY": 7,
+          "facing": "left"
+        }
+      ],
+      "warps": [
+        {
+          "id": "exit",
+          "area": {
+            "startX": 8,
+            "endX": 10,
+            "startY": 11,
+            "endY": 12
+          },
+          "targetMapId": "farm",
+          "targetSpawnId": "from_house"
+        }
+      ],
+      "boundary": {
+        "enabled": true,
+        "openings": [
+          {
+            "startX": 8,
+            "endX": 10,
+            "startY": 11,
+            "endY": 12
+          }
+        ]
+      }
+    },
+    "road": {
+      "id": "road",
+      "name": "들꽃길",
+      "width": 30,
+      "height": 14,
+      "baseTileType": "grass",
+      "terrainRegions": [
+        {
+          "startX": 9,
+          "endX": 12,
+          "startY": 0,
+          "endY": 13,
+          "tileType": "path"
+        },
+        {
+          "startX": 1,
+          "endX": 4,
+          "startY": 4,
+          "endY": 10,
+          "tileType": "water"
+        }
+      ],
+      "farmAreas": [],
+      "collisionRegions": [
+        {
+          "startX": 1,
+          "endX": 4,
+          "startY": 4,
+          "endY": 10
+        }
+      ],
+      "objects": [
+        {
+          "id": "runtime_fairy_forest_entrance",
+          "assetId": "tree_variant_b",
+          "position": {
+            "tileX": 19,
+            "tileY": 5.2
+          },
+          "label": "요정의 숲 입구"
+        },
+        {
+          "id": "runtime_mine_entrance",
+          "assetId": "mine_entrance",
+          "position": {
+            "tileX": 6.5,
+            "tileY": 9.2
+          },
+          "label": "광산 입구"
+        }
+      ],
+      "spawns": [
+        {
+          "id": "farm_entrance",
+          "tileX": 10.5,
+          "tileY": 3,
+          "facing": "down"
+        },
+        {
+          "id": "town_entrance",
+          "tileX": 10.5,
+          "tileY": 10.5,
+          "facing": "up"
+        }
+      ],
+      "warps": [
+        {
+          "id": "to_farm",
+          "area": {
+            "startX": 9,
+            "endX": 12,
+            "startY": 0,
+            "endY": 1
+          },
+          "targetMapId": "farm",
+          "targetSpawnId": "from_road"
+        },
+        {
+          "id": "to_town",
+          "area": {
+            "startX": 9,
+            "endX": 12,
+            "startY": 12,
+            "endY": 13
+          },
+          "targetMapId": "town",
+          "targetSpawnId": "from_road"
+        }
+      ],
+      "boundary": {
+        "enabled": true,
+        "openings": [
+          {
+            "startX": 9,
+            "endX": 12,
+            "startY": 0,
+            "endY": 1
+          },
+          {
+            "startX": 9,
+            "endX": 12,
+            "startY": 12,
+            "endY": 13
+          }
+        ]
+      }
+    },
+    "town": {
+      "id": "town",
+      "name": "햇살마을",
+      "width": 44,
+      "height": 18,
+      "baseTileType": "grass",
+      "terrainRegions": [
+        {
+          "startX": 14,
+          "endX": 19,
+          "startY": 0,
+          "endY": 17,
+          "tileType": "path"
+        },
+        {
+          "startX": 5,
+          "endX": 28,
+          "startY": 8,
+          "endY": 12,
+          "tileType": "stone_floor"
+        }
+      ],
+      "farmAreas": [],
+      "collisionRegions": [],
+      "objects": [
+        {
+          "id": "general_store",
+          "assetId": "store",
+          "position": {
+            "tileX": 24,
+            "tileY": 7
+          },
+          "collision": {
+            "x": -96,
+            "y": -72,
+            "width": 192,
+            "height": 118
+          },
+          "label": "새봄 상점",
+          "depth": 4
+        }
+      ],
+      "spawns": [
+        {
+          "id": "from_road",
+          "tileX": 16.5,
+          "tileY": 15.5,
+          "facing": "up"
+        },
+        {
+          "id": "from_store",
+          "tileX": 24,
+          "tileY": 10.5,
+          "facing": "down"
+        }
+      ],
+      "warps": [
+        {
+          "id": "to_road",
+          "area": {
+            "startX": 14,
+            "endX": 19,
+            "startY": 16,
+            "endY": 17
+          },
+          "targetMapId": "road",
+          "targetSpawnId": "town_entrance"
+        },
+        {
+          "id": "store_door",
+          "area": {
+            "startX": 22,
+            "endX": 26,
+            "startY": 9,
+            "endY": 10
+          },
+          "targetMapId": "general_store",
+          "targetSpawnId": "entry"
+        }
+      ],
+      "boundary": {
+        "enabled": true,
+        "openings": [
+          {
+            "startX": 14,
+            "endX": 19,
+            "startY": 16,
+            "endY": 17
+          }
+        ]
+      }
+    },
+    "general_store": {
+      "id": "general_store",
+      "name": "새봄 상점",
+      "width": 22,
+      "height": 13,
+      "baseTileType": "wood_floor",
+      "terrainRegions": [
+        {
+          "startX": 0,
+          "endX": 17,
+          "startY": 0,
+          "endY": 1,
+          "tileType": "stone_floor"
+        }
+      ],
+      "farmAreas": [],
+      "collisionRegions": [],
+      "objects": [
+        {
+          "id": "shop_counter",
+          "assetId": "shop_counter",
+          "position": {
+            "tileX": 9,
+            "tileY": 4
+          },
+          "collision": {
+            "x": -112,
+            "y": -28,
+            "width": 224,
+            "height": 56
+          },
+          "interaction": {
+            "action": "open_shop",
+            "area": {
+              "startX": 5,
+              "endX": 12,
+              "startY": 4,
+              "endY": 7
+            }
+          },
+          "label": "씨앗 구매",
+          "depth": 3
+        }
+      ],
+      "spawns": [
+        {
+          "id": "entry",
+          "tileX": 9,
+          "tileY": 10,
+          "facing": "up"
+        }
+      ],
+      "warps": [
+        {
+          "id": "exit",
+          "area": {
+            "startX": 8,
+            "endX": 10,
+            "startY": 11,
+            "endY": 12
+          },
+          "targetMapId": "town",
+          "targetSpawnId": "from_store"
+        }
+      ],
+      "boundary": {
+        "enabled": true,
+        "openings": [
+          {
+            "startX": 8,
+            "endX": 10,
+            "startY": 11,
+            "endY": 12
+          }
+        ]
+      }
+    }
+  },
+  "crops": {
+    "sproutberry": {
+      "id": "sproutberry",
+      "name": "새싹열매",
+      "growthDays": 3,
+      "seedItemId": "sproutberry_seed",
+      "harvestItemId": "sproutberry",
+      "sellPrice": 35,
+      "stages": [
+        {
+          "id": "seed",
+          "growthDay": 0,
+          "assetId": "crop_sproutberry_seed"
+        },
+        {
+          "id": "sprout",
+          "growthDay": 1,
+          "assetId": "crop_sproutberry_sprout"
+        },
+        {
+          "id": "growing",
+          "growthDay": 2,
+          "assetId": "crop_sproutberry_growing"
+        },
+        {
+          "id": "mature",
+          "growthDay": 3,
+          "assetId": "crop_sproutberry_mature"
+        }
+      ]
+    },
+    "sunpotato": {
+      "id": "sunpotato",
+      "name": "햇살감자",
+      "growthDays": 4,
+      "seedItemId": "sunpotato_seed",
+      "harvestItemId": "sunpotato",
+      "sellPrice": 60,
+      "stages": [
+        {
+          "id": "seed_0",
+          "growthDay": 0,
+          "assetId": "crop_sunpotato_seed"
+        },
+        {
+          "id": "sprout_1",
+          "growthDay": 1,
+          "assetId": "crop_sunpotato_sprout"
+        },
+        {
+          "id": "sprout_2",
+          "growthDay": 2,
+          "assetId": "crop_sunpotato_sprout"
+        },
+        {
+          "id": "growing_3",
+          "growthDay": 3,
+          "assetId": "crop_sunpotato_growing"
+        },
+        {
+          "id": "mature_4",
+          "growthDay": 4,
+          "assetId": "crop_sunpotato_mature"
+        }
+      ]
+    },
+    "heartberry": {
+      "id": "heartberry",
+      "name": "하트딸기",
+      "growthDays": 5,
+      "seedItemId": "heartberry_seed",
+      "harvestItemId": "heartberry",
+      "sellPrice": 90,
+      "stages": [
+        {
+          "id": "seed_0",
+          "growthDay": 0,
+          "assetId": "crop_heartberry_seed"
+        },
+        {
+          "id": "sprout_1",
+          "growthDay": 1,
+          "assetId": "crop_heartberry_sprout"
+        },
+        {
+          "id": "sprout_2",
+          "growthDay": 2,
+          "assetId": "crop_heartberry_sprout"
+        },
+        {
+          "id": "growing_3",
+          "growthDay": 3,
+          "assetId": "crop_heartberry_growing"
+        },
+        {
+          "id": "growing_4",
+          "growthDay": 4,
+          "assetId": "crop_heartberry_growing"
+        },
+        {
+          "id": "mature_5",
+          "growthDay": 5,
+          "assetId": "crop_heartberry_mature"
+        }
+      ]
+    },
+    "morningcarrot": {
+      "id": "morningcarrot",
+      "name": "아침당근",
+      "growthDays": 3,
+      "seedItemId": "morningcarrot_seed",
+      "harvestItemId": "morningcarrot",
+      "sellPrice": 45,
+      "stages": [
+        {
+          "id": "seed_0",
+          "growthDay": 0,
+          "assetId": "crop_morningcarrot_seed"
+        },
+        {
+          "id": "sprout_1",
+          "growthDay": 1,
+          "assetId": "crop_morningcarrot_sprout"
+        },
+        {
+          "id": "growing_2",
+          "growthDay": 2,
+          "assetId": "crop_morningcarrot_growing"
+        },
+        {
+          "id": "mature_3",
+          "growthDay": 3,
+          "assetId": "crop_morningcarrot_mature"
+        }
+      ]
+    }
+  },
+  "items": {
+    "hoe": {
+      "id": "hoe",
+      "name": "괭이",
+      "kind": "tool",
+      "assetId": "item_hoe",
+      "toolbarHint": "땅 갈기"
+    },
+    "seed": {
+      "id": "seed",
+      "name": "씨앗",
+      "kind": "seed",
+      "assetId": "item_seed",
+      "toolbarHint": "심기"
+    },
+    "water": {
+      "id": "water",
+      "name": "물뿌리개",
+      "kind": "tool",
+      "assetId": "item_water",
+      "toolbarHint": "물 주기"
+    },
+    "hand": {
+      "id": "hand",
+      "name": "손",
+      "kind": "tool",
+      "assetId": "item_hand",
+      "toolbarHint": "수확"
+    },
+    "axe": {
+      "id": "axe",
+      "name": "도끼",
+      "kind": "tool",
+      "assetId": "item_axe",
+      "toolbarHint": "숲에서 벌목"
+    },
+    "pickaxe": {
+      "id": "pickaxe",
+      "name": "곡괭이",
+      "kind": "tool",
+      "assetId": "item_pickaxe",
+      "toolbarHint": "숲에서 채광"
+    },
+    "fishing_rod": {
+      "id": "fishing_rod",
+      "name": "낚싯대",
+      "kind": "tool",
+      "assetId": "item_fishing_rod",
+      "toolbarHint": "물가에서 낚시"
+    },
+    "fish_minnow": {
+      "id": "fish_minnow",
+      "name": "송사리",
+      "kind": "fish",
+      "assetId": "item_fish_minnow"
+    },
+    "fish_crucian": {
+      "id": "fish_crucian",
+      "name": "붕어",
+      "kind": "fish",
+      "assetId": "item_fish_crucian"
+    },
+    "fish_carp": {
+      "id": "fish_carp",
+      "name": "잉어",
+      "kind": "fish",
+      "assetId": "item_fish_carp"
+    },
+    "fish_catfish": {
+      "id": "fish_catfish",
+      "name": "메기",
+      "kind": "fish",
+      "assetId": "item_fish_catfish"
+    },
+    "animal_feed": {
+      "id": "animal_feed",
+      "name": "동물 먹이",
+      "kind": "resource",
+      "assetId": "item_animal_feed",
+      "sellPrice": 0
+    },
+    "stamina_biscuit": {
+      "id": "stamina_biscuit",
+      "name": "스테미나 비스켓",
+      "kind": "food",
+      "assetId": "item_stamina_biscuit",
+      "sellPrice": 0
+    },
+    "egg": {
+      "id": "egg",
+      "name": "달걀",
+      "kind": "animal_product",
+      "assetId": "item_egg"
+    },
+    "wood": {
+      "id": "wood",
+      "name": "나무",
+      "kind": "resource",
+      "assetId": "item_wood",
+      "sellPrice": 0
+    },
+    "pine_needles": {
+      "id": "pine_needles",
+      "name": "솔잎",
+      "kind": "resource",
+      "assetId": "item_pine_needles",
+      "sellPrice": 0
+    },
+    "pine_cone": {
+      "id": "pine_cone",
+      "name": "솔방울",
+      "kind": "resource",
+      "assetId": "item_pine_cone",
+      "sellPrice": 0
+    },
+    "stone": {
+      "id": "stone",
+      "name": "돌",
+      "kind": "resource",
+      "assetId": "item_stone",
+      "sellPrice": 0
+    },
+    "copper_ore": {
+      "id": "copper_ore",
+      "name": "구리 광석",
+      "kind": "resource",
+      "assetId": "item_copper_ore",
+      "sellPrice": 0
+    },
+    "wild_herb": {
+      "id": "wild_herb",
+      "name": "들풀",
+      "kind": "resource",
+      "assetId": "item_wild_herb",
+      "sellPrice": 0
+    },
+    "moon_mushroom": {
+      "id": "moon_mushroom",
+      "name": "달빛버섯",
+      "kind": "resource",
+      "assetId": "item_moon_mushroom",
+      "sellPrice": 0
+    },
+    "fairy_bloom": {
+      "id": "fairy_bloom",
+      "name": "요정꽃",
+      "kind": "resource",
+      "assetId": "item_fairy_bloom",
+      "sellPrice": 0
+    },
+    "wood_plank": {
+      "id": "wood_plank",
+      "name": "목재판",
+      "kind": "material",
+      "assetId": "item_wood_plank",
+      "sellPrice": 0
+    },
+    "stone_block": {
+      "id": "stone_block",
+      "name": "다듬은 돌",
+      "kind": "material",
+      "assetId": "item_stone_block",
+      "sellPrice": 0
+    },
+    "fairy_thread": {
+      "id": "fairy_thread",
+      "name": "요정실",
+      "kind": "material",
+      "assetId": "item_fairy_thread",
+      "sellPrice": 0
+    },
+    "wood_processor": {
+      "id": "wood_processor",
+      "name": "목재 가공기",
+      "kind": "placeable",
+      "assetId": "item_wood_processor",
+      "sellPrice": 0
+    },
+    "sproutberry_seed": {
+      "id": "sproutberry_seed",
+      "name": "새싹열매 씨앗",
+      "kind": "seed",
+      "assetId": "item_seed",
+      "sellPrice": 0
+    },
+    "sproutberry": {
+      "id": "sproutberry",
+      "name": "새싹열매",
+      "kind": "crop",
+      "assetId": "item_sproutberry",
+      "sellPrice": 35
+    },
+    "sunpotato_seed": {
+      "id": "sunpotato_seed",
+      "name": "햇살감자 씨앗",
+      "kind": "seed",
+      "assetId": "item_sunpotato_seed",
+      "sellPrice": 0
+    },
+    "sunpotato": {
+      "id": "sunpotato",
+      "name": "햇살감자",
+      "kind": "crop",
+      "assetId": "item_sunpotato",
+      "sellPrice": 60
+    },
+    "heartberry_seed": {
+      "id": "heartberry_seed",
+      "name": "하트딸기 씨앗",
+      "kind": "seed",
+      "assetId": "item_heartberry_seed",
+      "sellPrice": 0
+    },
+    "heartberry": {
+      "id": "heartberry",
+      "name": "하트딸기",
+      "kind": "crop",
+      "assetId": "item_heartberry",
+      "sellPrice": 90
+    },
+    "morningcarrot_seed": {
+      "id": "morningcarrot_seed",
+      "name": "아침당근 씨앗",
+      "kind": "seed",
+      "assetId": "item_morningcarrot_seed",
+      "sellPrice": 0
+    },
+    "morningcarrot": {
+      "id": "morningcarrot",
+      "name": "아침당근",
+      "kind": "crop",
+      "assetId": "item_morningcarrot",
+      "sellPrice": 45
+    }
+  },
+  "recipes": {
+    "wood_plank": {
+      "id": "wood_plank",
+      "name": "목재판",
+      "description": "나무를 켜서 단단한 판재를 만듭니다.",
+      "ingredients": [
+        {
+          "itemId": "wood",
+          "quantity": 2
+        }
+      ],
+      "output": {
+        "itemId": "wood_plank",
+        "quantity": 1
+      }
+    },
+    "stone_block": {
+      "id": "stone_block",
+      "name": "다듬은 돌",
+      "description": "작은 돌을 모아 반듯하게 다듬습니다.",
+      "ingredients": [
+        {
+          "itemId": "stone",
+          "quantity": 3
+        }
+      ],
+      "output": {
+        "itemId": "stone_block",
+        "quantity": 1
+      }
+    },
+    "fairy_thread": {
+      "id": "fairy_thread",
+      "name": "요정실",
+      "description": "들풀과 요정꽃에서 가느다란 실을 뽑습니다.",
+      "ingredients": [
+        {
+          "itemId": "wild_herb",
+          "quantity": 2
+        },
+        {
+          "itemId": "fairy_bloom",
+          "quantity": 1
+        }
+      ],
+      "output": {
+        "itemId": "fairy_thread",
+        "quantity": 1
+      }
+    },
+    "wood_processor": {
+      "id": "wood_processor",
+      "name": "목재 가공기",
+      "description": "농장에 배치해 나무를 목재판으로 가공합니다.",
+      "ingredients": [
+        {
+          "itemId": "wood_plank",
+          "quantity": 2
+        },
+        {
+          "itemId": "stone_block",
+          "quantity": 1
+        }
+      ],
+      "output": {
+        "itemId": "wood_processor",
+        "quantity": 1
+      }
+    }
+  },
+  "machines": {
+    "saw_wood": {
+      "id": "saw_wood",
+      "name": "목재 가공",
+      "input": {
+        "itemId": "wood",
+        "quantity": 2
+      },
+      "output": {
+        "itemId": "wood_plank",
+        "quantity": 1
+      },
+      "durationMinutes": 120
+    }
+  },
+  "assets": {
+    "tile_grass": {
+      "assetId": "tile_grass",
+      "textureKey": "tile-grass",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-composition/tiles/grass.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "textureSize": {
+        "width": 128,
+        "height": 128
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "color": 8632414
+      }
+    },
+    "tile_path": {
+      "assetId": "tile_path",
+      "textureKey": "tile-path",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-first-pass/tiles/path.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "textureSize": {
+        "width": 128,
+        "height": 128
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "color": 13216369
+      }
+    },
+    "tile_water": {
+      "assetId": "tile_water",
+      "textureKey": "tile-water",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-first-pass/tiles/water.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "textureSize": {
+        "width": 128,
+        "height": 128
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "color": 6727882
+      }
+    },
+    "tile_farm_empty": {
+      "assetId": "tile_farm_empty",
+      "textureKey": "farm-empty",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-first-pass/tiles/farm-empty.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "textureSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "color": 12028501,
+        "alpha": 0.28,
+        "stroke": 7245642
+      }
+    },
+    "tile_farm_tilled": {
+      "assetId": "tile_farm_tilled",
+      "textureKey": "farm-tilled",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-first-pass/tiles/farm-tilled.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "textureSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "color": 9003076,
+        "stroke": 6833199
+      }
+    },
+    "tile_farm_watered": {
+      "assetId": "tile_farm_watered",
+      "textureKey": "farm-watered",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-first-pass/tiles/farm-watered.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "textureSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "color": 6179131,
+        "stroke": 6833199
+      }
+    },
+    "tile_wood_floor": {
+      "assetId": "tile_wood_floor",
+      "textureKey": "tile-wood-floor",
+      "source": {
+        "kind": "image",
+        "path": "/assets/tiles/wood-floor.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "textureSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "color": 12024652,
+        "stroke": 9395515
+      }
+    },
+    "tile_stone_floor": {
+      "assetId": "tile_stone_floor",
+      "textureKey": "tile-stone-floor",
+      "source": {
+        "kind": "image",
+        "path": "/assets/tiles/stone-floor.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "textureSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "color": 13155743,
+        "stroke": 11049853
+      }
+    },
+    "tile_mine_floor": {
+      "assetId": "tile_mine_floor",
+      "textureKey": "tile-mine-floor",
+      "source": {
+        "kind": "image",
+        "path": "/assets/tiles/mine-floor.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "textureSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "color": 5658205
+      }
+    },
+    "tile_mine_wall": {
+      "assetId": "tile_mine_wall",
+      "textureKey": "tile-mine-wall",
+      "source": {
+        "kind": "image",
+        "path": "/assets/tiles/mine-wall.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "textureSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "color": 3158328
+      }
+    },
+    "house": {
+      "assetId": "house",
+      "textureKey": "building-house",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-first-pass/objects/farm-house.png"
+      },
+      "frameSize": {
+        "width": 224,
+        "height": 192
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "visualFootprint": {
+        "width": 224,
+        "height": 192
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.96
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.96
+        },
+        "width": 168,
+        "height": 30,
+        "alpha": 0.2
+      },
+      "defaultCollisionBox": {
+        "x": -96,
+        "y": -80,
+        "width": 192,
+        "height": 135
+      },
+      "fallback": {
+        "wall": 15186802,
+        "roof": 12144195,
+        "trim": 9133114,
+        "door": 7290925
+      }
+    },
+    "tree": {
+      "assetId": "tree",
+      "textureKey": "world-tree",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-first-pass/objects/tree.png"
+      },
+      "frameSize": {
+        "width": 128,
+        "height": 160
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.92
+      },
+      "visualFootprint": {
+        "width": 128,
+        "height": 160
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.92
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.92
+        },
+        "width": 42,
+        "height": 13,
+        "alpha": 0.18
+      },
+      "defaultCollisionBox": {
+        "x": -11,
+        "y": -9,
+        "width": 22,
+        "height": 18
+      },
+      "fallback": {
+        "trunk": 7753779,
+        "crown": 3501122,
+        "highlight": 4424012
+      }
+    },
+    "forest_rock": {
+      "assetId": "forest_rock",
+      "textureKey": "forest-rock",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/forest-rock.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "fill": 9606534,
+        "stroke": 5332312
+      }
+    },
+    "forest_ore": {
+      "assetId": "forest_ore",
+      "textureKey": "forest-ore",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/forest-ore.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "fill": 6911102,
+        "stroke": 3687242
+      }
+    },
+    "mine_stone": {
+      "assetId": "mine_stone",
+      "textureKey": "mine-stone",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/mine-stone.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "fill": 9013650,
+        "stroke": 3947593
+      }
+    },
+    "mine_copper": {
+      "assetId": "mine_copper",
+      "textureKey": "mine-copper",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/mine-copper.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "fill": 11827021,
+        "stroke": 6637106
+      }
+    },
+    "mine_ladder": {
+      "assetId": "mine_ladder",
+      "textureKey": "mine-ladder",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/mine-ladder.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "fill": 8806467,
+        "stroke": 4927524
+      }
+    },
+    "mine_entrance": {
+      "assetId": "mine_entrance",
+      "textureKey": "mine-entrance",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/mine-entrance.png"
+      },
+      "frameSize": {
+        "width": 48,
+        "height": 48
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "fill": 5000018,
+        "stroke": 2631728
+      }
+    },
+    "forest_herb": {
+      "assetId": "forest_herb",
+      "textureKey": "forest-herb",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/forest-herb.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "stem": 4353346,
+        "leaf": 8432992
+      }
+    },
+    "forest_moon_mushroom": {
+      "assetId": "forest_moon_mushroom",
+      "textureKey": "forest-moon-mushroom",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/forest-moon-mushroom.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "stem": 10409166,
+        "cap": 6709149
+      }
+    },
+    "forest_fairy_bloom": {
+      "assetId": "forest_fairy_bloom",
+      "textureKey": "forest-fairy-bloom",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/forest-fairy-bloom.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "stem": 4883019,
+        "petal": 15972823
+      }
+    },
+    "sell_basket": {
+      "assetId": "sell_basket",
+      "textureKey": "building-sell-basket",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/sell-basket.png"
+      },
+      "frameSize": {
+        "width": 90,
+        "height": 76
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.9
+      },
+      "fallback": {
+        "fill": 10376251,
+        "stroke": 6765098
+      }
+    },
+    "store": {
+      "assetId": "store",
+      "textureKey": "building-store",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/store.png"
+      },
+      "frameSize": {
+        "width": 192,
+        "height": 160
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "fallback": {
+        "wall": 15254653,
+        "roof": 5603424,
+        "trim": 8212790,
+        "door": 7358772
+      }
+    },
+    "bed": {
+      "assetId": "bed",
+      "textureKey": "furniture-bed",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/bed.png"
+      },
+      "frameSize": {
+        "width": 96,
+        "height": 56
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "fill": 15718813,
+        "stroke": 9396295
+      }
+    },
+    "crafting_table": {
+      "assetId": "crafting_table",
+      "textureKey": "furniture-crafting-table",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/crafting-table.png"
+      },
+      "frameSize": {
+        "width": 64,
+        "height": 48
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "fill": 11434321,
+        "stroke": 6899253
+      }
+    },
+    "storage_chest": {
+      "assetId": "storage_chest",
+      "textureKey": "furniture-storage-chest",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/storage-chest.png"
+      },
+      "frameSize": {
+        "width": 64,
+        "height": 48
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "fill": 12023875,
+        "stroke": 3679775
+      }
+    },
+    "wood_processor": {
+      "assetId": "wood_processor",
+      "textureKey": "world-wood-processor",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/wood-processor.png"
+      },
+      "frameSize": {
+        "width": 40,
+        "height": 42
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.9
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 4273451
+      }
+    },
+    "work_shed": {
+      "assetId": "work_shed",
+      "textureKey": "building-work-shed",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/work-shed.png"
+      },
+      "frameSize": {
+        "width": 96,
+        "height": 96
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "fallback": {
+        "fill": 13210713,
+        "stroke": 5520682
+      }
+    },
+    "chicken_coop": {
+      "assetId": "chicken_coop",
+      "textureKey": "building-chicken-coop",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/chicken-coop.png"
+      },
+      "frameSize": {
+        "width": 128,
+        "height": 96
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "fallback": {
+        "fill": 14000735,
+        "stroke": 5847848
+      }
+    },
+    "chicken": {
+      "assetId": "chicken",
+      "textureKey": "animal-chicken",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/chicken.png"
+      },
+      "frameSize": {
+        "width": 32,
+        "height": 32
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.82
+      },
+      "fallback": {
+        "fill": 15985364,
+        "stroke": 8147264
+      }
+    },
+    "feed_trough": {
+      "assetId": "feed_trough",
+      "textureKey": "animal-feed-trough",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/feed-trough.png"
+      },
+      "frameSize": {
+        "width": 40,
+        "height": 24
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.82
+      },
+      "fallback": {
+        "fill": 10252354,
+        "stroke": 5256482
+      }
+    },
+    "shop_counter": {
+      "assetId": "shop_counter",
+      "textureKey": "furniture-shop-counter",
+      "source": {
+        "kind": "image",
+        "path": "/assets/objects/shop-counter.png"
+      },
+      "frameSize": {
+        "width": 224,
+        "height": 56
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.86
+      },
+      "fallback": {
+        "fill": 10249539,
+        "stroke": 6307887
+      }
+    },
+    "fence_horizontal": {
+      "assetId": "fence_horizontal",
+      "textureKey": "farm-fence-horizontal",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/fence-horizontal.png"
+      },
+      "frameSize": {
+        "width": 128,
+        "height": 64
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 128,
+        "height": 64
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 72,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "defaultCollisionBox": {
+        "x": -60,
+        "y": -12,
+        "width": 120,
+        "height": 20
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "fence_vertical": {
+      "assetId": "fence_vertical",
+      "textureKey": "farm-fence-vertical",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/fence-vertical.png"
+      },
+      "frameSize": {
+        "width": 64,
+        "height": 80
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 64,
+        "height": 80
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 43.52,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "defaultCollisionBox": {
+        "x": -10,
+        "y": -48,
+        "width": 20,
+        "height": 56
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "fence_corner": {
+      "assetId": "fence_corner",
+      "textureKey": "farm-fence-corner",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/fence-corner.png"
+      },
+      "frameSize": {
+        "width": 96,
+        "height": 80
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 96,
+        "height": 80
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 65.28,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "defaultCollisionBox": {
+        "x": -34,
+        "y": -18,
+        "width": 68,
+        "height": 28
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "gate": {
+      "assetId": "gate",
+      "textureKey": "farm-gate",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/gate.png"
+      },
+      "frameSize": {
+        "width": 128,
+        "height": 72
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 128,
+        "height": 72
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 72,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "flowering_bush": {
+      "assetId": "flowering_bush",
+      "textureKey": "farm-flowering-bush",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/flowering-bush.png"
+      },
+      "frameSize": {
+        "width": 96,
+        "height": 64
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 96,
+        "height": 64
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 65.28,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "green_shrub": {
+      "assetId": "green_shrub",
+      "textureKey": "farm-green-shrub",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/green-shrub.png"
+      },
+      "frameSize": {
+        "width": 88,
+        "height": 60
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 88,
+        "height": 60
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 59.84,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "flower_bed": {
+      "assetId": "flower_bed",
+      "textureKey": "farm-flower-bed",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/flower-bed.png"
+      },
+      "frameSize": {
+        "width": 104,
+        "height": 56
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 104,
+        "height": 56
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 70.72,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "mailbox": {
+      "assetId": "mailbox",
+      "textureKey": "farm-mailbox",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/mailbox.png"
+      },
+      "frameSize": {
+        "width": 56,
+        "height": 80
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 56,
+        "height": 80
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 38.080000000000005,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "bench": {
+      "assetId": "bench",
+      "textureKey": "farm-bench",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/bench.png"
+      },
+      "frameSize": {
+        "width": 112,
+        "height": 72
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 112,
+        "height": 72
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 72,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "rustic_lamp": {
+      "assetId": "rustic_lamp",
+      "textureKey": "farm-rustic-lamp",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/rustic-lamp.png"
+      },
+      "frameSize": {
+        "width": 64,
+        "height": 96
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 64,
+        "height": 96
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 43.52,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "stone_well": {
+      "assetId": "stone_well",
+      "textureKey": "farm-stone-well",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/stone-well.png"
+      },
+      "frameSize": {
+        "width": 112,
+        "height": 104
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 112,
+        "height": 104
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 72,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "defaultCollisionBox": {
+        "x": -36,
+        "y": -18,
+        "width": 72,
+        "height": 28
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "tree_variant_a": {
+      "assetId": "tree_variant_a",
+      "textureKey": "farm-tree-variant-a",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/tree-variant-a.png"
+      },
+      "frameSize": {
+        "width": 128,
+        "height": 160
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.92
+      },
+      "visualFootprint": {
+        "width": 128,
+        "height": 160
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.92
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.92
+        },
+        "width": 72,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "defaultCollisionBox": {
+        "x": -11,
+        "y": -9,
+        "width": 22,
+        "height": 18
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "tree_variant_b": {
+      "assetId": "tree_variant_b",
+      "textureKey": "farm-tree-variant-b",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/tree-variant-b.png"
+      },
+      "frameSize": {
+        "width": 128,
+        "height": 160
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.92
+      },
+      "visualFootprint": {
+        "width": 128,
+        "height": 160
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.92
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.92
+        },
+        "width": 72,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "defaultCollisionBox": {
+        "x": -11,
+        "y": -9,
+        "width": 22,
+        "height": 18
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "pond_rock_large": {
+      "assetId": "pond_rock_large",
+      "textureKey": "farm-pond-rock-large",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/pond-rock-large.png"
+      },
+      "frameSize": {
+        "width": 112,
+        "height": 88
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 112,
+        "height": 88
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 72,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "stump": {
+      "assetId": "stump",
+      "textureKey": "farm-stump",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/stump.png"
+      },
+      "frameSize": {
+        "width": 80,
+        "height": 72
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 80,
+        "height": 72
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 54.400000000000006,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "farm_crate": {
+      "assetId": "farm_crate",
+      "textureKey": "farm-crate",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-vertical-slice/objects/farm-crate.png"
+      },
+      "frameSize": {
+        "width": 72,
+        "height": 68
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "visualFootprint": {
+        "width": 72,
+        "height": 68
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.94
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.94
+        },
+        "width": 48.96,
+        "height": 9,
+        "alpha": 0.16
+      },
+      "fallback": {
+        "fill": 11040067,
+        "stroke": 5323563
+      }
+    },
+    "crop_sproutberry_seed": {
+      "assetId": "crop_sproutberry_seed",
+      "textureKey": "crop-sproutberry-0",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-first-pass/crops/sproutberry-seed.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 3,
+        "leaf": 4288310,
+        "fruit": 12178267
+      }
+    },
+    "crop_sproutberry_sprout": {
+      "assetId": "crop_sproutberry_sprout",
+      "textureKey": "crop-sproutberry-1",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-first-pass/crops/sproutberry-sprout.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 6,
+        "leaf": 4288310,
+        "fruit": 7910987
+      }
+    },
+    "crop_sproutberry_growing": {
+      "assetId": "crop_sproutberry_growing",
+      "textureKey": "crop-sproutberry-2",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-first-pass/crops/sproutberry-growing.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 9,
+        "leaf": 4288310,
+        "fruit": 4164421
+      }
+    },
+    "crop_sproutberry_mature": {
+      "assetId": "crop_sproutberry_mature",
+      "textureKey": "crop-sproutberry-3",
+      "source": {
+        "kind": "image",
+        "path": "/assets/graphics-first-pass/crops/sproutberry-mature.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 12,
+        "leaf": 4288310,
+        "fruit": 15239490
+      }
+    },
+    "crop_sunpotato_seed": {
+      "assetId": "crop_sunpotato_seed",
+      "textureKey": "crop-sunpotato-seed",
+      "source": {
+        "kind": "image",
+        "path": "/assets/crops/sunpotato-seed.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 3,
+        "leaf": 4288310,
+        "fruit": 15119427
+      }
+    },
+    "crop_sunpotato_sprout": {
+      "assetId": "crop_sunpotato_sprout",
+      "textureKey": "crop-sunpotato-sprout",
+      "source": {
+        "kind": "image",
+        "path": "/assets/crops/sunpotato-sprout.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 6,
+        "leaf": 4288310,
+        "fruit": 15119427
+      }
+    },
+    "crop_sunpotato_growing": {
+      "assetId": "crop_sunpotato_growing",
+      "textureKey": "crop-sunpotato-growing",
+      "source": {
+        "kind": "image",
+        "path": "/assets/crops/sunpotato-growing.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 9,
+        "leaf": 4288310,
+        "fruit": 15119427
+      }
+    },
+    "crop_sunpotato_mature": {
+      "assetId": "crop_sunpotato_mature",
+      "textureKey": "crop-sunpotato-mature",
+      "source": {
+        "kind": "image",
+        "path": "/assets/crops/sunpotato-mature.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 12,
+        "leaf": 4288310,
+        "fruit": 15119427
+      }
+    },
+    "crop_heartberry_seed": {
+      "assetId": "crop_heartberry_seed",
+      "textureKey": "crop-heartberry-seed",
+      "source": {
+        "kind": "image",
+        "path": "/assets/crops/heartberry-seed.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 3,
+        "leaf": 4288310,
+        "fruit": 15162469
+      }
+    },
+    "crop_heartberry_sprout": {
+      "assetId": "crop_heartberry_sprout",
+      "textureKey": "crop-heartberry-sprout",
+      "source": {
+        "kind": "image",
+        "path": "/assets/crops/heartberry-sprout.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 6,
+        "leaf": 4288310,
+        "fruit": 15162469
+      }
+    },
+    "crop_heartberry_growing": {
+      "assetId": "crop_heartberry_growing",
+      "textureKey": "crop-heartberry-growing",
+      "source": {
+        "kind": "image",
+        "path": "/assets/crops/heartberry-growing.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 9,
+        "leaf": 4288310,
+        "fruit": 15162469
+      }
+    },
+    "crop_heartberry_mature": {
+      "assetId": "crop_heartberry_mature",
+      "textureKey": "crop-heartberry-mature",
+      "source": {
+        "kind": "image",
+        "path": "/assets/crops/heartberry-mature.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 12,
+        "leaf": 4288310,
+        "fruit": 15162469
+      }
+    },
+    "crop_morningcarrot_seed": {
+      "assetId": "crop_morningcarrot_seed",
+      "textureKey": "crop-morningcarrot-seed",
+      "source": {
+        "kind": "image",
+        "path": "/assets/crops/morningcarrot-seed.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 3,
+        "leaf": 4288310,
+        "fruit": 15764274
+      }
+    },
+    "crop_morningcarrot_sprout": {
+      "assetId": "crop_morningcarrot_sprout",
+      "textureKey": "crop-morningcarrot-sprout",
+      "source": {
+        "kind": "image",
+        "path": "/assets/crops/morningcarrot-sprout.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 6,
+        "leaf": 4288310,
+        "fruit": 15764274
+      }
+    },
+    "crop_morningcarrot_growing": {
+      "assetId": "crop_morningcarrot_growing",
+      "textureKey": "crop-morningcarrot-growing",
+      "source": {
+        "kind": "image",
+        "path": "/assets/crops/morningcarrot-growing.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 9,
+        "leaf": 4288310,
+        "fruit": 15764274
+      }
+    },
+    "crop_morningcarrot_mature": {
+      "assetId": "crop_morningcarrot_mature",
+      "textureKey": "crop-morningcarrot-mature",
+      "source": {
+        "kind": "image",
+        "path": "/assets/crops/morningcarrot-mature.png"
+      },
+      "frameSize": {
+        "width": 29,
+        "height": 29
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "fallback": {
+        "size": 12,
+        "leaf": 4288310,
+        "fruit": 15764274
+      }
+    },
+    "item_hoe": {
+      "assetId": "item_hoe",
+      "textureKey": "item-hoe",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/hoe.png"
+      },
+      "icon": "⛏"
+    },
+    "item_seed": {
+      "assetId": "item_seed",
+      "textureKey": "item-seed",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/seed.png"
+      },
+      "icon": "◉"
+    },
+    "item_water": {
+      "assetId": "item_water",
+      "textureKey": "item-water",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/water.png"
+      },
+      "icon": "◒"
+    },
+    "item_hand": {
+      "assetId": "item_hand",
+      "textureKey": "item-hand",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/hand.png"
+      },
+      "icon": "✋"
+    },
+    "item_axe": {
+      "assetId": "item_axe",
+      "textureKey": "item-axe",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/axe.png"
+      },
+      "icon": "🪓"
+    },
+    "item_pickaxe": {
+      "assetId": "item_pickaxe",
+      "textureKey": "item-pickaxe",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/pickaxe.png"
+      },
+      "icon": "⛏"
+    },
+    "item_fishing_rod": {
+      "assetId": "item_fishing_rod",
+      "textureKey": "item-fishing-rod",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/fishing-rod.png"
+      },
+      "icon": "🎣"
+    },
+    "item_fish_minnow": {
+      "assetId": "item_fish_minnow",
+      "textureKey": "item-fish-minnow",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/fish-minnow.png"
+      },
+      "icon": "🐟"
+    },
+    "item_fish_crucian": {
+      "assetId": "item_fish_crucian",
+      "textureKey": "item-fish-crucian",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/fish-crucian.png"
+      },
+      "icon": "🐟"
+    },
+    "item_fish_carp": {
+      "assetId": "item_fish_carp",
+      "textureKey": "item-fish-carp",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/fish-carp.png"
+      },
+      "icon": "🐟"
+    },
+    "item_fish_catfish": {
+      "assetId": "item_fish_catfish",
+      "textureKey": "item-fish-catfish",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/fish-catfish.png"
+      },
+      "icon": "🐟"
+    },
+    "item_animal_feed": {
+      "assetId": "item_animal_feed",
+      "textureKey": "item-animal-feed",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/animal-feed.png"
+      },
+      "icon": "▧"
+    },
+    "item_stamina_biscuit": {
+      "assetId": "item_stamina_biscuit",
+      "textureKey": "item-stamina-biscuit",
+      "source": null,
+      "icon": "🍪"
+    },
+    "item_egg": {
+      "assetId": "item_egg",
+      "textureKey": "item-egg",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/egg.png"
+      },
+      "icon": "🥚"
+    },
+    "item_wood": {
+      "assetId": "item_wood",
+      "textureKey": "item-wood",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/wood.png"
+      },
+      "icon": "▰"
+    },
+    "item_pine_needles": {
+      "assetId": "item_pine_needles",
+      "textureKey": "item-pine-needles",
+      "source": null,
+      "icon": "🌿"
+    },
+    "item_pine_cone": {
+      "assetId": "item_pine_cone",
+      "textureKey": "item-pine-cone",
+      "source": null,
+      "icon": "🌰"
+    },
+    "item_stone": {
+      "assetId": "item_stone",
+      "textureKey": "item-stone",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/stone.png"
+      },
+      "icon": "◆"
+    },
+    "item_copper_ore": {
+      "assetId": "item_copper_ore",
+      "textureKey": "item-copper-ore",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/copper-ore.png"
+      },
+      "icon": "◆"
+    },
+    "item_wild_herb": {
+      "assetId": "item_wild_herb",
+      "textureKey": "item-wild-herb",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/wild-herb.png"
+      },
+      "icon": "❧"
+    },
+    "item_moon_mushroom": {
+      "assetId": "item_moon_mushroom",
+      "textureKey": "item-moon-mushroom",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/moon-mushroom.png"
+      },
+      "icon": "☾"
+    },
+    "item_fairy_bloom": {
+      "assetId": "item_fairy_bloom",
+      "textureKey": "item-fairy-bloom",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/fairy-bloom.png"
+      },
+      "icon": "✿"
+    },
+    "item_wood_plank": {
+      "assetId": "item_wood_plank",
+      "textureKey": "item-wood-plank",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/wood-plank.png"
+      },
+      "icon": "▤"
+    },
+    "item_stone_block": {
+      "assetId": "item_stone_block",
+      "textureKey": "item-stone-block",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/stone-block.png"
+      },
+      "icon": "▣"
+    },
+    "item_fairy_thread": {
+      "assetId": "item_fairy_thread",
+      "textureKey": "item-fairy-thread",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/fairy-thread.png"
+      },
+      "icon": "✧"
+    },
+    "item_wood_processor": {
+      "assetId": "item_wood_processor",
+      "textureKey": "item-wood-processor",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/wood-processor.png"
+      },
+      "icon": "▣"
+    },
+    "item_sproutberry": {
+      "assetId": "item_sproutberry",
+      "textureKey": "item-sproutberry",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/sproutberry.png"
+      },
+      "icon": "●"
+    },
+    "item_sunpotato_seed": {
+      "assetId": "item_sunpotato_seed",
+      "textureKey": "item-sunpotato_seed",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/sunpotato_seed.png"
+      },
+      "icon": "●"
+    },
+    "item_sunpotato": {
+      "assetId": "item_sunpotato",
+      "textureKey": "item-sunpotato",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/sunpotato.png"
+      },
+      "icon": "●"
+    },
+    "item_heartberry_seed": {
+      "assetId": "item_heartberry_seed",
+      "textureKey": "item-heartberry_seed",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/heartberry_seed.png"
+      },
+      "icon": "♥"
+    },
+    "item_heartberry": {
+      "assetId": "item_heartberry",
+      "textureKey": "item-heartberry",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/heartberry.png"
+      },
+      "icon": "♥"
+    },
+    "item_morningcarrot_seed": {
+      "assetId": "item_morningcarrot_seed",
+      "textureKey": "item-morningcarrot_seed",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/morningcarrot_seed.png"
+      },
+      "icon": "◆"
+    },
+    "item_morningcarrot": {
+      "assetId": "item_morningcarrot",
+      "textureKey": "item-morningcarrot",
+      "source": {
+        "kind": "image",
+        "path": "/assets/items/morningcarrot.png"
+      },
+      "icon": "◆"
+    },
+    "player": {
+      "assetId": "player_default",
+      "textureKey": "player-default",
+      "source": {
+        "kind": "spritesheet",
+        "path": "/assets/graphics-vertical-slice/player/adult-farmer-48.png",
+        "frameWidth": 48,
+        "frameHeight": 72
+      },
+      "frameSize": {
+        "width": 48,
+        "height": 72
+      },
+      "displayScale": {
+        "x": 1,
+        "y": 1
+      },
+      "origin": {
+        "x": 0.5,
+        "y": 0.7916666666666666
+      },
+      "visualFootprint": {
+        "width": 48,
+        "height": 72
+      },
+      "groundAnchor": {
+        "x": 0.5,
+        "y": 0.9722222222222222
+      },
+      "shadow": {
+        "anchor": {
+          "x": 0.5,
+          "y": 0.9722222222222222
+        },
+        "width": 22,
+        "height": 8,
+        "alpha": 0.24
+      },
+      "collisionBox": {
+        "width": 18,
+        "height": 22,
+        "offsetX": 15,
+        "offsetY": 48
+      },
+      "animations": {
+        "idle_down": {
+          "startFrame": 0,
+          "endFrame": 3,
+          "fps": 1,
+          "repeat": -1
+        },
+        "idle_up": {
+          "startFrame": 4,
+          "endFrame": 7,
+          "fps": 1,
+          "repeat": -1
+        },
+        "idle_left": {
+          "startFrame": 8,
+          "endFrame": 11,
+          "fps": 1,
+          "repeat": -1
+        },
+        "idle_right": {
+          "startFrame": 12,
+          "endFrame": 15,
+          "fps": 1,
+          "repeat": -1
+        },
+        "walk_down": {
+          "startFrame": 16,
+          "endFrame": 19,
+          "fps": 8,
+          "repeat": -1
+        },
+        "walk_up": {
+          "startFrame": 20,
+          "endFrame": 23,
+          "fps": 8,
+          "repeat": -1
+        },
+        "walk_left": {
+          "startFrame": 24,
+          "endFrame": 27,
+          "fps": 8,
+          "repeat": -1
+        },
+        "walk_right": {
+          "startFrame": 28,
+          "endFrame": 31,
+          "fps": 8,
+          "repeat": -1
+        },
+        "tool_down": {
+          "startFrame": 32,
+          "endFrame": 35,
+          "fps": 10,
+          "repeat": 0
+        },
+        "tool_up": {
+          "startFrame": 36,
+          "endFrame": 39,
+          "fps": 10,
+          "repeat": 0
+        },
+        "tool_left": {
+          "startFrame": 40,
+          "endFrame": 43,
+          "fps": 10,
+          "repeat": 0
+        },
+        "tool_right": {
+          "startFrame": 44,
+          "endFrame": 47,
+          "fps": 10,
+          "repeat": 0
+        }
+      },
+      "fallback": {
+        "skin": 15910043,
+        "hair": 3944489,
+        "shirt": 5933001,
+        "shadow": 3829050
+      }
+    }
+  },
+  "npcs": [
+    {
+      "id": "daon",
+      "name": "다온",
+      "displayName": "다온 · 상점 주인",
+      "personality": "꼼꼼하고 다정한 씨앗 수집가",
+      "asset": {
+        "assetId": "npc_daon",
+        "textureKey": "npc-daon",
+        "source": {
+          "kind": "spritesheet",
+          "path": "/assets/npc/daon.png",
+          "frameWidth": 32,
+          "frameHeight": 36
+        },
+        "frameSize": {
+          "width": 32,
+          "height": 36
+        },
+        "displayScale": {
+          "x": 1,
+          "y": 1
+        },
+        "origin": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "groundAnchor": {
+          "x": 0.5,
+          "y": 0.8611111111111112
+        }
+      },
+      "fallbackColor": 11824194,
+      "speed": 42,
+      "schedule": [
+        {
+          "minute": 360,
+          "mapId": "town",
+          "from": {
+            "x": 18,
+            "y": 12
+          },
+          "to": {
+            "x": 20,
+            "y": 12
+          },
+          "facing": "down",
+          "activity": "가게 열 준비"
+        },
+        {
+          "minute": 480,
+          "mapId": "general_store",
+          "from": {
+            "x": 4,
+            "y": 8
+          },
+          "to": {
+            "x": 4,
+            "y": 6
+          },
+          "facing": "down",
+          "activity": "씨앗 정리"
+        },
+        {
+          "minute": 780,
+          "mapId": "general_store",
+          "from": {
+            "x": 4,
+            "y": 6
+          },
+          "to": {
+            "x": 13,
+            "y": 7
+          },
+          "facing": "down",
+          "activity": "진열 살피기"
+        },
+        {
+          "minute": 1080,
+          "mapId": "town",
+          "from": {
+            "x": 20,
+            "y": 12
+          },
+          "to": {
+            "x": 14,
+            "y": 12
+          },
+          "facing": "down",
+          "activity": "저녁 산책"
+        }
+      ],
+      "dialogue": {
+        "first": [
+          "처음 뵙네요! 새봄 상점의 다온이에요.",
+          "씨앗은 작지만 그 안에는 계절 하나가 들어 있지요."
+        ],
+        "general": [
+          [
+            "씨앗 봉투를 종류별로 정리하면 마음도 차분해져요."
+          ],
+          [
+            "급하게 키우지 않아도 괜찮아요. 하루에 물 한 번이면 충분하니까요."
+          ],
+          [
+            "오늘도 새봄 상점을 찾아줘서 고마워요."
+          ]
+        ],
+        "morning": [
+          [
+            "아침엔 씨앗 봉투가 햇빛을 받아 반짝여요."
+          ]
+        ],
+        "afternoon": [
+          [
+            "점심 먹고 진열대를 한 바퀴 둘러보는 중이에요."
+          ]
+        ],
+        "evening": [
+          [
+            "오늘 장사는 여기까지. 저녁 바람을 만나러 가요."
+          ]
+        ],
+        "progress": [
+          {
+            "minDay": 4,
+            "lines": [
+              "벌써 며칠을 함께 보냈네요. 농장은 잘 자라고 있나요?"
+            ]
+          }
+        ],
+        "relationship": [
+          {
+            "minPoints": 80,
+            "lines": [
+              "네가 골라 준 씨앗이라면 안심하고 권할 수 있겠어요."
+            ]
+          }
+        ]
+      },
+      "giftPreferences": {
+        "loved": [
+          "heartberry",
+          "fairy_bloom"
+        ],
+        "neutral": [
+          "sproutberry",
+          "morningcarrot"
+        ],
+        "disliked": [
+          "stone"
+        ]
+      }
+    },
+    {
+      "id": "boram",
+      "name": "보람",
+      "displayName": "보람 · 농사 이웃",
+      "personality": "느긋하고 실용적인 흙의 관찰자",
+      "asset": {
+        "assetId": "npc_boram",
+        "textureKey": "npc-boram",
+        "source": {
+          "kind": "spritesheet",
+          "path": "/assets/npc/boram.png",
+          "frameWidth": 32,
+          "frameHeight": 36
+        },
+        "frameSize": {
+          "width": 32,
+          "height": 36
+        },
+        "displayScale": {
+          "x": 1,
+          "y": 1
+        },
+        "origin": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "groundAnchor": {
+          "x": 0.5,
+          "y": 0.8611111111111112
+        }
+      },
+      "fallbackColor": 7705418,
+      "speed": 36,
+      "schedule": [
+        {
+          "minute": 360,
+          "mapId": "farm",
+          "from": {
+            "x": 7,
+            "y": 12
+          },
+          "to": {
+            "x": 7,
+            "y": 16
+          },
+          "facing": "down",
+          "activity": "밭 둘러보기"
+        },
+        {
+          "minute": 660,
+          "mapId": "road",
+          "from": {
+            "x": 7,
+            "y": 7
+          },
+          "to": {
+            "x": 10,
+            "y": 7
+          },
+          "facing": "down",
+          "activity": "들꽃길 산책"
+        },
+        {
+          "minute": 900,
+          "mapId": "town",
+          "from": {
+            "x": 10,
+            "y": 12
+          },
+          "to": {
+            "x": 13,
+            "y": 12
+          },
+          "facing": "down",
+          "activity": "이웃 만나기"
+        },
+        {
+          "minute": 1140,
+          "mapId": "farm",
+          "from": {
+            "x": 7,
+            "y": 16
+          },
+          "to": {
+            "x": 7,
+            "y": 12
+          },
+          "facing": "down",
+          "activity": "저녁 흙 살피기"
+        }
+      ],
+      "dialogue": {
+        "first": [
+          "나는 보람이야. 근처에서 흙을 돌보며 지내지.",
+          "밭이 막막하면 우선 작은 한 칸부터 시작해 봐."
+        ],
+        "general": [
+          [
+            "흙 냄새가 매일 조금씩 달라. 오늘은 포근하네."
+          ],
+          [
+            "물은 많이보다 꾸준히가 중요해."
+          ],
+          [
+            "함께 농사지으면 힘든 날도 웃을 일이 생기지."
+          ]
+        ],
+        "morning": [
+          [
+            "이슬이 마르기 전에 밭을 한 바퀴 돌고 있어."
+          ]
+        ],
+        "afternoon": [
+          [
+            "한낮에는 잠깐 그늘에서 쉬어도 돼."
+          ]
+        ],
+        "evening": [
+          [
+            "오늘 돌본 밭은 내일 꼭 대답해 줄 거야."
+          ]
+        ],
+        "progress": [
+          {
+            "minDay": 3,
+            "lines": [
+              "며칠째 꾸준히 나오는구나. 벌써 농부의 눈빛인데?"
+            ]
+          }
+        ],
+        "relationship": [
+          {
+            "minPoints": 80,
+            "lines": [
+              "이젠 말하지 않아도 네가 흙을 아끼는 게 보여."
+            ]
+          }
+        ]
+      },
+      "giftPreferences": {
+        "loved": [
+          "morningcarrot",
+          "wild_herb"
+        ],
+        "neutral": [
+          "wood",
+          "stone_block"
+        ],
+        "disliked": [
+          "moon_mushroom"
+        ]
+      }
+    },
+    {
+      "id": "soli",
+      "name": "솔이",
+      "displayName": "솔이 · 자연 친구",
+      "personality": "호기심 많고 다정한 어린 자연 관찰자",
+      "asset": {
+        "assetId": "npc_soli",
+        "textureKey": "npc-soli",
+        "source": {
+          "kind": "spritesheet",
+          "path": "/assets/npc/soli.png",
+          "frameWidth": 32,
+          "frameHeight": 36
+        },
+        "frameSize": {
+          "width": 32,
+          "height": 36
+        },
+        "displayScale": {
+          "x": 1,
+          "y": 1
+        },
+        "origin": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "groundAnchor": {
+          "x": 0.5,
+          "y": 0.8611111111111112
+        }
+      },
+      "fallbackColor": 7904427,
+      "speed": 48,
+      "schedule": [
+        {
+          "minute": 360,
+          "mapId": "town",
+          "from": {
+            "x": 10,
+            "y": 13
+          },
+          "to": {
+            "x": 12,
+            "y": 13
+          },
+          "facing": "down",
+          "activity": "새소리 듣기"
+        },
+        {
+          "minute": 600,
+          "mapId": "road",
+          "from": {
+            "x": 7,
+            "y": 4
+          },
+          "to": {
+            "x": 7,
+            "y": 9
+          },
+          "facing": "down",
+          "activity": "들꽃 관찰"
+        },
+        {
+          "minute": 840,
+          "mapId": "farm",
+          "from": {
+            "x": 21,
+            "y": 13
+          },
+          "to": {
+            "x": 22,
+            "y": 18
+          },
+          "facing": "down",
+          "activity": "연못 구경"
+        },
+        {
+          "minute": 1080,
+          "mapId": "town",
+          "from": {
+            "x": 12,
+            "y": 13
+          },
+          "to": {
+            "x": 10,
+            "y": 13
+          },
+          "facing": "down",
+          "activity": "관찰 일기 쓰기"
+        }
+      ],
+      "dialogue": {
+        "first": [
+          "안녕! 나는 솔이야. 오늘 본 새를 그림으로 남기고 있어.",
+          "농장에 새로운 꽃이 피면 나한테도 알려 줘!"
+        ],
+        "general": [
+          [
+            "나뭇잎이 바람에 흔들리는 건 인사하는 것 같아."
+          ],
+          [
+            "작은 씨앗도 자기만의 지도를 갖고 있을까?"
+          ],
+          [
+            "오늘은 들꽃 색을 세 가지나 찾았어!"
+          ]
+        ],
+        "morning": [
+          [
+            "일찍 일어나니까 새들이 먼저 인사했어!"
+          ]
+        ],
+        "afternoon": [
+          [
+            "햇빛 아래 연못이 반짝반짝해."
+          ]
+        ],
+        "evening": [
+          [
+            "오늘 본 것들을 일기에 그려야지. 내일 또 만나!"
+          ]
+        ],
+        "progress": [
+          {
+            "minDay": 5,
+            "lines": [
+              "우리 인사한 날이 제법 많아졌네. 내 그림에도 네 농장이 있어!"
+            ]
+          }
+        ]
+      },
+      "giftPreferences": {
+        "loved": [
+          "fairy_bloom",
+          "fish_minnow"
+        ],
+        "neutral": [
+          "wild_herb",
+          "egg"
+        ],
+        "disliked": [
+          "stone_block"
+        ]
+      }
+    }
+  ],
+  "fish": {
+    "minnow": {
+      "id": "minnow",
+      "itemId": "fish_minnow",
+      "name": "송사리",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "weather": [
+        "clear",
+        "cloudy",
+        "rain"
+      ],
+      "startMinutes": 360,
+      "endMinutes": 1430,
+      "spots": [
+        "farm_pond"
+      ],
+      "weight": 50,
+      "rarity": "common",
+      "sellPrice": 12
+    },
+    "crucian": {
+      "id": "crucian",
+      "itemId": "fish_crucian",
+      "name": "붕어",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn"
+      ],
+      "weather": [
+        "clear",
+        "cloudy",
+        "rain"
+      ],
+      "startMinutes": 360,
+      "endMinutes": 1080,
+      "spots": [
+        "farm_pond"
+      ],
+      "weight": 30,
+      "rarity": "common",
+      "sellPrice": 25
+    },
+    "carp": {
+      "id": "carp",
+      "itemId": "fish_carp",
+      "name": "잉어",
+      "seasons": [
+        "spring"
+      ],
+      "weather": [
+        "clear",
+        "cloudy"
+      ],
+      "startMinutes": 600,
+      "endMinutes": 1200,
+      "spots": [
+        "farm_pond"
+      ],
+      "weight": 14,
+      "rarity": "uncommon",
+      "sellPrice": 42
+    },
+    "catfish": {
+      "id": "catfish",
+      "itemId": "fish_catfish",
+      "name": "메기",
+      "seasons": [
+        "summer",
+        "autumn"
+      ],
+      "weather": [
+        "rain"
+      ],
+      "startMinutes": 1080,
+      "endMinutes": 1430,
+      "spots": [
+        "farm_pond"
+      ],
+      "weight": 7,
+      "rarity": "rare",
+      "sellPrice": 75
+    }
+  }
+}
