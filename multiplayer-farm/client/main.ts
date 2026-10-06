@@ -591,7 +591,8 @@ el("action").addEventListener(
     e.preventDefault();
     el("action").setPointerCapture(e.pointerId);
     actionHeld = true;
-    nextAction = 0;
+    nextAction = performance.now() + 320;
+    act();
   },
   opts,
 );
@@ -614,7 +615,11 @@ window.addEventListener(
       return;
     if (e.code === "Space") {
       e.preventDefault();
-      actionHeld = true;
+      if (!actionHeld) {
+        nextAction = performance.now() + 320;
+        act();
+      }
+      actionHeld = !panel.open;
     }
     if (e.code === "KeyE") act();
   },
