@@ -1,0 +1,96 @@
+name: Multiplayer Lab Public Smoke
+
+# This checks the CURRENTLY LIVE lab. Ordinary candidate-code pushes must not
+# require that candidate to have already reached Railway before CI can pass.
+on:
+  push:
+    branches: [experiment/v2.4-multiplayer-lab-colyseus]
+    paths:
+      - .github/workflows/multiplayer-lab-public.yml
+      - multiplayer-lab/tests/public-smoke.mjs
+  # This workflow lives on the experiment branch. On mobile, open its existing
+  # Actions run and use "Re-run all jobs" instead of relying on a default-branch
+  # workflow-dispatch button being available.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: multiplayer-lab-public-smoke
+  cancel-in-progress: false
+
+jobs:
+  verify-live-lab:
+    if: github.ref == 'refs/heads/experiment/v2.4-multiplayer-lab-colyseus'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: multiplayer-lab
+        shell: bash
+    env:
+      PUBLIC_BACKEND_URL: https://backend-production-a9e97.up.railway.app
+      PUBLIC_FRONTEND_URL: https://frontend-production-768e.up.railway.app
+    steps:
+      - name: Check out the lab verification script
+        uses: actions/checkout@v4
+
+      - name: Initialize the transparent smoke report
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const metadata = {
+            result: 'NOT RUN YET',
+            scope: 'Currently live isolated Railway Multiplayer Lab',
+            workflowRevision: process.env.GITHUB_SHA,
+            note: 'Workflow revision is not an assertion of the deployed revision.',
+            backend: process.env.PUBLIC_BACKEND_URL,
+            frontend: process.env.PUBLIC_FRONTEND_URL,
+          };
+          fs.writeFileSync('public-smoke-report.log', JSON.stringify(metadata, null, 2) + '\n');
+          NODE
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: multiplayer-lab/package-lock.json
+
+      - name: Install pinned lab dependencies
+        run: npm ci
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify real public HTTPS and WSS multiplayer
+        id: public-smoke
+        run: |
+          set -o pipefail
+          npm run test:public 2>&1 | tee -a public-smoke-report.log
+
+      - name: Record the verification outcome
+        if: always()
+        env:
+          SMOKE_OUTCOME: ${{ steps.public-smoke.outcome }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const outcome = process.env.SMOKE_OUTCOME || 'not executed';
+          const message = `Public smoke step outcome: ${outcome}\n`;
+          fs.appendFileSync('public-smoke-report.log', message);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `### Live Multiplayer Lab verification\n\n${message}\n` +
+            'Uses the unchanged public-smoke script on a GitHub-hosted runner with normal DNS and TLS. ' +
+            'No localhost fixture flag, certificate bypass, or DNS guard changes.\n');
+          NODE
+
+      - name: Upload the public smoke report on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multiplayer-lab-public-smoke-report
+          path: multiplayer-lab/public-smoke-report.log
+          if-no-files-found: warn
+          retention-days: 14
