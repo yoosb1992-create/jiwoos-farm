@@ -1,0 +1,22 @@
+FROM node:22-bookworm-slim AS build
+WORKDIR /app/multiplayer-farm
+COPY multiplayer-farm/package.json multiplayer-farm/package-lock.json ./
+RUN npm ci
+COPY multiplayer-farm/tsconfig.json multiplayer-farm/vite.config.ts multiplayer-farm/index.html ./
+COPY multiplayer-farm/client ./client
+COPY multiplayer-farm/shared ./shared
+COPY multiplayer-farm/build ./build
+COPY public/assets /app/public/assets
+ARG VITE_MULTIPLAYER_SERVER_URL
+RUN npm run build:client && npm prune --omit=dev
+FROM node:22-bookworm-slim AS runtime
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=8080
+WORKDIR /app
+COPY --from=build --chown=node:node /app/multiplayer-farm/package.json /app/multiplayer-farm/package-lock.json ./
+COPY --from=build --chown=node:node /app/multiplayer-farm/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/multiplayer-farm/dist/client ./dist/client
+COPY --chown=node:node multiplayer-farm/deployment/static-server.mjs ./deployment/static-server.mjs
+USER node
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node","deployment/static-server.mjs"]

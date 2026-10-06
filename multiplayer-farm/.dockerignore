@@ -1,0 +1,11 @@
+node_modules
+dist
+test-results
+test-results-production
+playwright-report
+.env*
+tests
+README.md
+VALIDATION.md
+DEVELOPMENT.md
+.git

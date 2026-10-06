@@ -1,0 +1,104 @@
+name: Multiplayer Farm v2.5
+on:
+  push:
+    branches: [feature/v2.5-multiplayer-farm-rebuild]
+  pull_request:
+    paths: ['multiplayer-farm/**', '.github/workflows/multiplayer-farm.yml']
+permissions:
+  contents: read
+jobs:
+  farm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: farmtest
+          POSTGRES_PASSWORD: ci-test-only
+          POSTGRES_DB: farmtest
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U farmtest -d farmtest"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://farmtest:ci-test-only@127.0.0.1:5432/farmtest
+      VITE_MULTIPLAYER_SERVER_URL: wss://farm-validation.invalid
+    defaults:
+      run:
+        working-directory: multiplayer-farm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: multiplayer-farm/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run test:integration
+      - run: npm run test:db
+      - run: npm run test:deployment
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: npm run test:production-browser
+      - name: Build isolated farm images
+        run: |
+          docker build -t jiwoos-farm-backend -f multiplayer-farm/Dockerfile .
+          docker build -t jiwoos-farm-frontend -f multiplayer-farm/Dockerfile.client --build-arg VITE_MULTIPLAYER_SERVER_URL=wss://farm-validation.invalid .
+        working-directory: .
+      - name: Run production images, migration, health, restart, shutdown
+        run: |
+          docker run -d --init --network host --name farm-backend -e DATABASE_URL -e PORT=17881 -e CLIENT_ORIGINS=https://farm-validation.invalid jiwoos-farm-backend
+          docker run -d --init --name farm-frontend -p 127.0.0.1:17882:8080 jiwoos-farm-frontend
+          curl --fail --retry 20 --retry-delay 1 --retry-all-errors --retry-max-time 40 http://127.0.0.1:17881/healthz -o /tmp/farm-health.json
+          curl --fail --retry 20 --retry-delay 1 --retry-all-errors --retry-max-time 40 http://127.0.0.1:17882/healthz
+          node --input-type=module -e "import fs from 'node:fs';import assert from 'node:assert/strict';const h=JSON.parse(fs.readFileSync('/tmp/farm-health.json'));assert.equal(h.database,true);assert.equal(h.latencyMs,0);assert.equal(h.tickRate,30);"
+          docker restart -t 15 farm-backend
+          curl --fail --retry 20 --retry-delay 1 --retry-all-errors --retry-max-time 40 http://127.0.0.1:17881/healthz
+          docker stop -t 15 farm-backend farm-frontend
+          test "$(docker inspect -f '{{.State.ExitCode}}' farm-backend)" = 0
+          test "$(docker inspect -f '{{.State.ExitCode}}' farm-frontend)" = 0
+      - name: Container diagnostics
+        if: failure()
+        run: |
+          docker logs farm-backend || true
+          docker logs farm-frontend || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: farm-browser-results
+          path: |
+            multiplayer-farm/test-results/
+            multiplayer-farm/test-results-production/
+          if-no-files-found: ignore
+  golden-lab-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: multiplayer-lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: multiplayer-lab/package-lock.json
+      - name: Golden lab must remain byte-identical
+        working-directory: .
+        run: |
+          git fetch origin 982a94dec72ac7d125d55050f707f635c4407fd5
+          git diff --exit-code 982a94dec72ac7d125d55050f707f635c4407fd5 -- multiplayer-lab .github/workflows/multiplayer-lab.yml .github/workflows/multiplayer-lab-public.yml
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:deployment
+      - run: npm run build
+        env:
+          VITE_MULTIPLAYER_SERVER_URL: wss://lab-validation.invalid
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: npm run test:production-browser
