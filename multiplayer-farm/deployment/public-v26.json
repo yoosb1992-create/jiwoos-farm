@@ -4,5 +4,5 @@
   "backend": "https://backend-production-b244e.up.railway.app",
   "frontendDeployment": "b4ad17dc-b394-41fa-8ad1-ad62440c2154",
   "backendDeployment": "ce8d13df-4243-4a28-86d3-534bada7879c",
-  "purpose": "Verify deployed mobile controls, code-only joining and persistent editor templates through the existing public smoke workflow."
+  "purpose": "Verify deployed mobile controls, code-only joining and persistent editor templates; retain diagnostics for public navigation restoration."
 }

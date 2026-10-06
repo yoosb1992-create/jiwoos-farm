@@ -7,6 +7,8 @@ export default defineConfig({
   workers: 1,
   outputDir: "test-results-production",
   use: {
+    screenshot: "only-on-failure",
+    trace: "retain-on-failure",
     baseURL: process.env.PUBLIC_FARM_FRONTEND ?? "http://127.0.0.1:4175",
     viewport: { width: 390, height: 844 },
     hasTouch: true,

@@ -182,6 +182,16 @@ test("production mobile client: actual authority movement, remote canvas, planti
     await expect(page.locator("#panel-body")).toContainText("나무 ×1");
     await page.locator("#panel-close").click();
     await page.screenshot({ path: info.outputPath("farm-mobile.png") });
+  } catch (error) {
+    console.log("Production connection diagnostic", JSON.stringify({
+      observerOpen: sdk.connection.isOpen,
+      players: [...sdk.state.players.values()].map(p => ({ nickname: p.nickname, connected: p.connected })),
+      pageStatus: await page.locator("#connection").getAttribute("aria-label").catch(() => null),
+      peerStatus: await peer.locator("#connection").getAttribute("aria-label").catch(() => null),
+      pageUrl: page.url(),
+      errors,
+    }));
+    throw error;
   } finally {
     await sdk.leave();
     await peerContext.close();
