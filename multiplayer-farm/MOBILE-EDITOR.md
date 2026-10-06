@@ -84,3 +84,7 @@ Headless 모바일 viewport 검증은 실제 Android 기기 체감 테스트를 
 - production client/server build: 통과. editor bundle은 별도 약18KB(7.4KB gzip), Phaser vendor 기존 경고 유지. production URL 검사에서 localhost/LAN을 거부합니다.
 - Golden Lab byte-identical 확인 및 git diff whitespace 검사: 통과.
 - 이 Work 환경은 PostgreSQL 실행에 필요한 OS 사용자 전환을 허용하지 않아 로컬 DB 검사는 실행하지 않았습니다. 실제 PostgreSQL migration/설계도/기존 hash 호환/재시작 및 Docker 검사는 기존 GitHub CI gate에서 검사합니다. 메모리 fixture를 PostgreSQL 검사로 표현하지 않습니다.
+
+### CI 중 발견한 로딩/재접속 보정
+
+첫 CI의 PostgreSQL migration/설계도·기존 hash 호환, 모바일 3개, Golden Lab 전체는 통과했지만 production browser가 타격 중 재접속으로 실패했습니다. 원인은 이미지 preload가 끝나기 전에 input prediction clock이 시작되는 초기 공백과 render 주기에만 갱신되던 연결 UI였습니다. Phaser scene 준비 이후 연결하고 네트워크 상태 변경 즉시 행동 버튼/아이콘을 갱신합니다. 이동/보간 알고리즘이나 검사 기준은 바꾸지 않았고, 동일한 production browser assertion을 유지한 로컬 재실행이 통과했습니다. 전환 action의 중복 패킷도 cooldown 전에 기존 영속 receipt를 반환하도록 보정했습니다.

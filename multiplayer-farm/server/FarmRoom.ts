@@ -202,11 +202,6 @@ export class FarmRoom extends MovementRoom {
         p = this.state.players.get(client.sessionId);
       if (!identity || !p?.connected) throw new Error("접속을 복구하세요");
       const command = parseCommand(value);
-      if (
-        command.type === "enterArea" &&
-        Date.now() < (this.transitionUntil.get(client.sessionId) ?? 0)
-      )
-        throw new Error("지역 이동 준비 중입니다");
       actionId = command.actionId;
       const hash = tokenHash(JSON.stringify(command));
       const receipt = await this.lease.receipt(identity.playerId, actionId);
@@ -216,6 +211,12 @@ export class FarmRoom extends MovementRoom {
         this.privateState(client);
         return;
       }
+      // A retransmitted transition must receive its committed receipt before cooldown validation.
+      if (
+        command.type === "enterArea" &&
+        Date.now() < (this.transitionUntil.get(client.sessionId) ?? 0)
+      )
+        throw new Error("지역 이동 준비 중입니다");
       const now = Date.now();
       if (
         now - (this.cooldown.get(identity.playerId) ?? 0) <

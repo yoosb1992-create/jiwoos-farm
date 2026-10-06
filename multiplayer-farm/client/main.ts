@@ -641,6 +641,39 @@ const controls = new ControlLayout(notice, () => {
   actionHeld = false;
   touchNavigation.cancel();
 });
+// Connection events update controls synchronously; a slow render must not leave
+// an enabled action button or a stale green status during reconnect.
+function updateConnection(status: NetworkSnapshot["status"]): void {
+  const connection = el("connection"),
+    players = network.snapshot().players.length;
+  connection.dataset.status = status;
+  connection.textContent =
+    status === "connected"
+      ? "●"
+      : status === "reconnecting"
+        ? "↻ 복구 중"
+        : "○ 연결 대기";
+  connection.setAttribute(
+    "aria-label",
+    `${status === "connected" ? "연결됨" : status === "reconnecting" ? "재연결 중" : "연결 끊김"} · ${players}명`,
+  );
+  connection.title = `${players}명 · 가족 코드 ${session?.farmId ?? ""}`;
+  el<HTMLButtonElement>("action").disabled =
+    status !== "connected" || panel.open;
+}
+network.onConnection = (status) => {
+  updateConnection(status);
+  if (status !== "connected") {
+    input.reset();
+    actionHeld = false;
+    touchNavigation.cancel();
+  }
+  if (controlStatus === "connected" && status === "reconnecting")
+    notice("연결을 복구하고 있어요. 잠시 기다려 주세요.");
+  if (controlStatus === "reconnecting" && status === "connected")
+    notice("연결이 복구됐어요. 이동하거나 행동을 다시 눌러 주세요.");
+  controlStatus = status;
+};
 network.onAction = (result) => {
   notice(result.message);
   const kind = actionKinds.get(result.actionId);
@@ -781,19 +814,6 @@ const renderer = createRenderer((now, delta) => {
   latest = network.frame(now, command);
   el<HTMLButtonElement>("action").disabled =
     latest.status !== "connected" || panel.open;
-  if (controlStatus !== latest.status) {
-    if (controlStatus === "connected") {
-      actionHeld = false;
-      input.reset();
-      notice("연결을 복구하고 있어요. 잠시 기다려 주세요.");
-    } else if (
-      controlStatus === "reconnecting" &&
-      latest.status === "connected"
-    ) {
-      notice("연결이 복구됐어요. 이동하거나 행동을 다시 눌러 주세요.");
-    }
-    controlStatus = latest.status;
-  }
   if (actionHeld && now > nextAction) {
     nextAction = now + 320;
     act();
@@ -839,19 +859,7 @@ const renderer = createRenderer((now, delta) => {
       lastStep = now;
       audio.play("step");
     }
-    const connection = el("connection");
-    connection.dataset.status = latest.status;
-    connection.textContent =
-      latest.status === "connected"
-        ? "●"
-        : latest.status === "reconnecting"
-          ? "↻ 복구 중"
-          : "○ 연결 대기";
-    connection.setAttribute(
-      "aria-label",
-      `${latest.status === "connected" ? "연결됨" : latest.status === "reconnecting" ? "재연결 중" : "연결 끊김"} · ${latest.players.length}명`,
-    );
-    connection.title = `${latest.players.length}명 · 가족 코드 ${session?.farmId ?? ""}`;
+    updateConnection(latest.status);
     const stamina = local?.stamina ?? 100;
     el("stamina").querySelector("i")!.style.width = `${stamina}%`;
     el("stamina").querySelector("span")!.textContent =
@@ -955,6 +963,9 @@ function archiveSession(value: Session | undefined): void {
 async function connectSaved(): Promise<void> {
   if (!session) return;
   try {
+    // Do not start the fixed input clock while Phaser is still loading assets.
+    // Otherwise the first rendered frame can enqueue a preloading-time backlog.
+    await renderer.scene.ready;
     await network.openFarm(session);
     el("login").hidden = true;
     notice("연결됐습니다. 앞쪽 밭에서 괭이 → 씨앗 → 물뿌리개를 사용해 보세요.");

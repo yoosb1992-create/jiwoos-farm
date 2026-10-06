@@ -49,6 +49,10 @@ export class FarmScene extends Phaser.Scene {
   ) {
     super("Farm");
   }
+  private resolveReady?: () => void;
+  readonly ready = new Promise<void>((resolve) => {
+    this.resolveReady = resolve;
+  });
   preload(): void {
     for (const [id, asset] of Object.entries(ASSETS)) {
       if (!asset.source) continue;
@@ -99,6 +103,8 @@ export class FarmScene extends Phaser.Scene {
       .rectangle(0, 0, TILE, TILE)
       .setStrokeStyle(2, 0xfff1a4)
       .setDepth(9999);
+    this.resolveReady?.();
+    this.resolveReady = undefined;
     this.events.once("shutdown", () => {
       this.players.clear();
       this.objects.clear();

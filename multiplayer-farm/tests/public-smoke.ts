@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertPublicBundleText } from "../build/endpoint.js";
 import { randomBytes } from "node:crypto";
 import { Client, CloseCode } from "@colyseus/sdk";
 import { FarmState } from "../shared/schema.js";
@@ -33,19 +34,22 @@ const page = await fetch(frontend);
 assert.equal(page.status, 200);
 const html = await page.text();
 assert.ok(html.includes("지우네 농장"));
-for (const match of html.matchAll(/src="([^"]+\.js)"/g)) {
-  const bundle = await (await fetch(new URL(match[1]!, frontend))).text();
-  assert.ok(
-    bundle.includes(backend.hostname),
-    "Public backend must be in the built bundle",
-  );
-  assert.equal(
-    /(?:localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)/.test(
-      bundle,
-    ),
-    false,
-  );
+const scripts = [...html.matchAll(/(?:src|href)="([^"]+\.js)"/g)].map(
+  (m) => m[1]!,
+);
+assert.ok(scripts.length > 0);
+let endpointFound = false;
+for (const path of new Set(scripts)) {
+  const response = await fetch(new URL(path, frontend));
+  assert.equal(response.status, 200);
+  const bundle = await response.text();
+  endpointFound ||= bundle.includes(backend.hostname);
+  assertPublicBundleText(bundle, path);
 }
+assert.ok(
+  endpointFound,
+  "Public WSS endpoint must be present in the loaded module graph",
+);
 async function session(nickname: string, code = ""): Promise<Session> {
   const response = await fetch(new URL("/api/session", backend), {
     method: "POST",

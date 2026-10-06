@@ -16,6 +16,7 @@ export class ControlLayout {
   private selected: Control = "joystick";
   private panel: HTMLDivElement;
   private abort = new AbortController();
+  private observer = new ResizeObserver(() => this.apply(!this.editing));
   private drag?: { id: Control; pointer: number; dx: number; dy: number };
   constructor(
     private notice: (s: string) => void,
@@ -155,6 +156,10 @@ export class ControlLayout {
       () => this.apply(true),
       opts,
     );
+    for (const id of ["top", "toolbar"]) {
+      const e = document.getElementById(id);
+      if (e) this.observer.observe(e);
+    }
     this.apply(true);
   }
   private element(id: Control) {
@@ -296,6 +301,7 @@ export class ControlLayout {
   }
   dispose() {
     this.abort.abort();
+    this.observer.disconnect();
     this.panel.remove();
   }
 }

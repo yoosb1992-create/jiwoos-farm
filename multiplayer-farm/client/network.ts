@@ -92,7 +92,16 @@ export class ColyseusAdapter implements NetworkAdapter {
   private input?: InputHandle<MoveInput>;
   private me?: Reconciler<Player, MovementInput>;
   private self?: Player;
-  private status: ConnectionStatus = "disconnected";
+  private connectionStatus: ConnectionStatus = "disconnected";
+  onConnection?: (status: ConnectionStatus) => void;
+  private get status(): ConnectionStatus {
+    return this.connectionStatus;
+  }
+  private set status(value: ConnectionStatus) {
+    if (this.connectionStatus === value) return;
+    this.connectionStatus = value;
+    this.onConnection?.(value);
+  }
   private message = "방을 만들거나 참가 코드를 입력하세요.";
   private generation = 0;
   private reconnectCount = 0;
@@ -129,7 +138,7 @@ export class ColyseusAdapter implements NetworkAdapter {
     );
   }
   action(command: Command): void {
-    if (this.room && this.status === "connected")
+    if (this.room && this.status === "connected" && this.room.connection.isOpen)
       this.room.send("action", command);
   }
   setProfile(profile: keyof typeof INTERPOLATION_PROFILES): void {
