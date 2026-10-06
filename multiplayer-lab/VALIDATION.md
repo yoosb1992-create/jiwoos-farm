@@ -4,7 +4,50 @@
 
 브랜치: `experiment/v2.4-multiplayer-lab-colyseus`
 
-## 실제 실행 결과
+## Railway 모바일 배포 후속 검증
+
+후속 작업 기준 HEAD: `cf7379cbe613aa954f7edf307603a5e07c389977`.
+기존 `client/`, `server/`, `shared/` 코드는 이 작업에서 변경하지 않았습니다.
+배포 이미지, 정적 serving, 빌드 주소 검증, 테스트, 문서와 Lab CI만 추가/수정했습니다.
+
+| 실제 실행 항목 | 결과 |
+|---|---|
+| `npm ci` | PASS |
+| TypeScript strict typecheck | PASS |
+| 단위 테스트 | **22/22 PASS** (기존13 + 주소/배포검증9) |
+| 실제 Colyseus 서버 통합 | **23/23 PASS** |
+| 정적 HTTP 서버 및 종료 처리 | **6/6 PASS** |
+| 기존 브라우저 prediction/interpolation/reconnect/multitouch | **4/4 PASS** |
+| 컴파일된 production client + server 브라우저 | **1/1 PASS** |
+| production client build | PASS, 공개 WSS 필수 / 로컬 주소 번들 검사 통과 |
+| production server build | PASS, `npm start`는 컴파일된 JS |
+| localhost/LAN endpoint로 build 시도 | 의도대로 거부, custom build mode도 우회 불가 |
+| 공개 smoke 도구의 명시적 로컬 fixture | PASS, 실제 SDK2개 + 실제 브라우저1개, 이동48px·수렴·퇴장 정리 |
+| Docker 이미지 build/run | 실행 환경에 Docker 없음. GitHub CI에 두 이미지 build, PORT override, health, latency0, SIGTERM 검사 추가 |
+| Railway 계정·프로젝트·도메인 | 로그인 필요. 이 기록 시점에는 생성/배포하지 않음 |
+| 공개 HTTPS/WSS / 실제 Android 두 대·5G | **미검증**, 공개 주소와 인증 이후 수행 필요 |
+
+Production 브라우저 smoke는 정적 산출물의 `wss://lab-validation.invalid` 요청을
+**테스트에서만** 로컬의 실제 컴파일 서버로 전달합니다. 양쪽 브라우저의 방 생성/참가,
+서버 좌표 변화, 상대 canvas의 실제 픽셀 이동, 390×844 세로 화면의 컨트롤 영역,
+개발 debug hook 부재, production latency0을 확인했습니다.
+이 테스트는 공개 DNS·TLS·Railway 라우팅이 성공했다는 증거가 아닙니다.
+
+`tests/public-smoke.mjs`는 실제 배포 후 공개 HTTPS/WSS, 공개 DNS, 두 SDK client의 이동과
+state 수렴, 공개 production 페이지의 실제 browser 참가, 로컬 주소가 없는 JS bundle,
+정상 퇴장을 검사합니다. 기본값은 공개 주소만 허용하며 `--allow-local`은 fixture용으로
+명시해야 합니다. 공개 테스트 미실행을 성공으로 표시하지 않습니다.
+
+SDK0.18.5에 남아 있는 사용하지 않는 로컬 fallback 두 곳은 production bundling 중에만
+설정된 공개 주소로 치환합니다. SDK 설치 파일이나 netcode는 수정하지 않습니다.
+SDK 버전/정확한 모듈 형태가 달라지면 build가 실패하여 재검토를 요구합니다.
+
+GitHub Actions의 최종 실행 결과는 해당 commit의 **Multiplayer Lab** workflow에서 확인합니다.
+모바일 최초 설정은 [RAILWAY.md](./RAILWAY.md), 플레이 방법은 [README.md](./README.md)를 따릅니다.
+
+## 이전 Core 구현 검증 기록
+
+### 실제 실행 결과
 
 | 검증 | 결과 |
 |---|---|

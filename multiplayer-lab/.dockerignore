@@ -1,9 +1,11 @@
 node_modules
 dist
 test-results
+test-results-production
 playwright-report
 .env*
 tests
-client
 README.md
 VALIDATION.md
+DEVELOPMENT.md
+.git

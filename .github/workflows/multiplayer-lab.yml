@@ -27,15 +27,39 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:unit
       - run: npm run test:integration
+      - run: npm run test:deployment
       - run: npm run build:server
       - run: npm run build:client
         env:
           VITE_MULTIPLAYER_SERVER_URL: wss://lab-validation.invalid
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - run: npm run test:production-browser
+      - name: Build both isolated Railway images
+        run: |
+          docker build -t jiwoos-lab-backend -f Dockerfile .
+          docker build -t jiwoos-lab-frontend -f Dockerfile.client --build-arg VITE_MULTIPLAYER_SERVER_URL=wss://lab-validation.invalid .
+      - name: Verify production containers respect PORT and disable latency
+        run: |
+          docker run -d --init --name lab-backend -p 127.0.0.1:17881:8080 -e PORT=8080 -e CLIENT_ORIGINS=https://frontend.lab-validation.invalid -e LAB_LATENCY_MS=200 jiwoos-lab-backend
+          docker run -d --init --name lab-frontend -p 127.0.0.1:17882:8080 -e PORT=8080 jiwoos-lab-frontend
+          curl --fail --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:17881/healthz -o /tmp/lab-backend-health.json
+          curl --fail --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:17882/healthz
+          node --input-type=module -e "import fs from 'node:fs'; import assert from 'node:assert/strict'; const h=JSON.parse(fs.readFileSync('/tmp/lab-backend-health.json','utf8')); assert.equal(h.latencyMs,0); assert.equal(h.tickRate,30);"
+          curl --fail http://127.0.0.1:17882/ -o /tmp/lab-client.html
+          docker stop -t 15 lab-backend lab-frontend
+          test "$(docker inspect -f '{{.State.ExitCode}}' lab-backend)" = 0
+          test "$(docker inspect -f '{{.State.ExitCode}}' lab-frontend)" = 0
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          docker logs lab-backend || true
+          docker logs lab-frontend || true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: multiplayer-lab-test-results
-          path: multiplayer-lab/test-results/
+          path: |
+            multiplayer-lab/test-results/
+            multiplayer-lab/test-results-production/
           if-no-files-found: ignore

@@ -18,7 +18,11 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build": "npm run build:server && npm run build:client",
     "start": "node --enable-source-maps dist/server/index.js",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run typecheck && npm test && npm run test:deployment && npm run build",
+    "start:client": "node deployment/static-server.mjs",
+    "test:deployment": "node --test deployment/*.test.mjs",
+    "test:public": "node tests/public-smoke.mjs",
+    "test:production-browser": "playwright test --config playwright.production.config.ts"
   },
   "dependencies": {
     "@colyseus/core": "0.18.18",
