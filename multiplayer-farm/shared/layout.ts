@@ -1,6 +1,13 @@
+import { TERRAIN } from "./world2.js";
+import { validateProperties, validateWorld2 } from "./world2-validation.js";
 import { MAPS, ASSETS, TILE, type MapData, type MapObject } from "./content.js";
 import { dressing } from "./dressing.js";
-export type WorldLayout = { version: 1; maps: Record<string, MapData> };
+export type WorldLayout = {
+  version: 1 | 2;
+  worldVersion?: number;
+  blueprintId?: string;
+  maps: Record<string, MapData>;
+};
 export const FIXTURE_KINDS = [
   "tree",
   "well",
@@ -14,6 +21,10 @@ export const FIXTURE_KINDS = [
 ] as const;
 export const GENERATED_ASSETS = [
   "bridge",
+  "bridge_wide",
+  "reed",
+  "water_lily",
+  "mushroom",
   "decor_board",
   "decor_scarecrow",
   "icon_cow",
@@ -104,19 +115,22 @@ export function validateLayout(value: unknown): WorldLayout {
     raw = record(root.maps),
     maps: Record<string, MapData> = {};
   if (
-    root.version !== 1 ||
-    Object.keys(raw).length !== Object.keys(MAPS).length
+    ![1, 2].includes(root.version as number) ||
+    Object.keys(raw).length > 32 ||
+    !Object.keys(MAPS).every((k) => raw[k])
   )
     throw Error("기본 지역 목록을 유지하세요");
   let cells = 0;
-  for (const key of Object.keys(MAPS)) {
+  for (const key of Object.keys(raw)) {
+    id(key);
     const m = record(raw[key]),
-      width = num(m.width, 12, 128),
-      height = num(m.height, 12, 128);
+      width = num(m.width, 12, 1024),
+      height = num(m.height, 12, 1024);
     if (!Number.isInteger(width) || !Number.isInteger(height))
       throw Error("맵 크기는 정수입니다");
     cells += width * height;
-    if (cells > 80000) throw Error("전체 맵은 80,000타일 이하입니다");
+    if (width * height > 262144 || cells > 1048576)
+      throw Error("맵별 262,144 / 전체 1,048,576타일 이하입니다");
     const rect = (v: unknown) => {
       const r = record(v);
       const q = {
@@ -140,6 +154,7 @@ export function validateLayout(value: unknown): WorldLayout {
       const s = str(v);
       if (
         ![
+          ...TERRAIN,
           "grass",
           "path",
           "dirt",
@@ -156,7 +171,7 @@ export function validateLayout(value: unknown): WorldLayout {
         throw Error("지원하지 않는 바닥 타일");
       return s;
     };
-    const objects = list(m.objects, 600).map((v) => {
+    const objects = list(m.objects, 12000).map((v) => {
       const o = record(v),
         assetId = str(o.assetId);
       if (!ASSETS[assetId] && !GENERATED_ASSETS.includes(assetId))
@@ -165,6 +180,7 @@ export function validateLayout(value: unknown): WorldLayout {
         id: id(o.id),
         assetId,
         position: point(o.position),
+        ...validateProperties(o),
       };
       if (o.kind !== undefined) {
         const k = str(o.kind);
@@ -207,11 +223,30 @@ export function validateLayout(value: unknown): WorldLayout {
         area: rect(w.area),
         targetMapId: id(w.targetMapId),
         targetSpawnId: id(w.targetSpawnId),
+        ...(w.facing
+          ? {
+              facing: ["up", "down", "left", "right"].includes(String(w.facing))
+                ? str(w.facing)
+                : (() => {
+                    throw Error("출입구 방향 오류");
+                  })(),
+            }
+          : {}),
+        ...(w.effect
+          ? {
+              effect: ["fade", "instant"].includes(String(w.effect))
+                ? str(w.effect)
+                : (() => {
+                    throw Error("전환 효과 오류");
+                  })(),
+            }
+          : {}),
       };
     });
     if (new Set(warps.map((w) => w.id)).size !== warps.length)
       throw Error("출입구 ID 중복");
     maps[key] = {
+      ...(m.world2 ? { world2: validateWorld2(m.world2, width, height) } : {}),
       id: key,
       name: str(m.name, 60),
       width,
@@ -239,5 +274,19 @@ export function validateLayout(value: unknown): WorldLayout {
       if (!maps[w.targetMapId]?.spawns.some((s) => s.id === w.targetSpawnId))
         throw Error(`${map.name}: 출입구 목적지 spawn이 없습니다`);
   }
-  return { version: 1, maps };
+  for (const m of Object.values(maps))
+    for (const e of m.world2?.events ?? [])
+      if (
+        e.action === "warp" &&
+        !maps[e.destination ?? ""]?.spawns.some((s) => s.id === e.spawn)
+      )
+        throw Error("이벤트 출입구 목적지 오류");
+  return {
+    version: root.version as 1 | 2,
+    maps,
+    ...(root.worldVersion !== undefined
+      ? { worldVersion: num(root.worldVersion, 0, 1000000000) }
+      : {}),
+    ...(root.blueprintId ? { blueprintId: id(root.blueprintId) } : {}),
+  };
 }

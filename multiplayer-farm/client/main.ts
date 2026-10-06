@@ -1,3 +1,6 @@
+import { inRect } from "../shared/world2.js";
+import { worldNpcSchedule } from "../shared/world2-runtime.js";
+import { CLIENT_MAPS as NPC_MAPS } from "./layout.js";
 import "./style.css";
 import { TouchNavigator, type TouchTarget } from "./navigation.js";
 import { ControlLayout } from "./control-layout.js";
@@ -477,6 +480,13 @@ function act(): void {
     y: me.authoritativeY,
     facing: me.facing,
   });
+  const event = mapFor(me.area).world2?.events.find(
+    (e) =>
+      e.trigger === "interact" &&
+      inRect(e.area, Math.floor(me.x / 32), Math.floor(me.y / 32)),
+  );
+  if (event && selected === "hand")
+    return send("worldEvent", { targetId: event.id });
   if (selected === "hoe") return send("tillTile", tile);
   if (selected.endsWith("_seed"))
     return send("plantSeed", { ...tile, itemId: selected });
@@ -532,7 +542,7 @@ function act(): void {
   );
   if (warp) return send("enterArea", { targetId: warp.id });
   const npc = NPCS.find((n) => {
-    const s = npcSchedule(
+    const s = authoredNpcSchedule(
       n,
       network.state?.day ?? 1,
       network.state?.minute ?? 360,
@@ -713,7 +723,10 @@ network.onAction = (result) => {
     dialoguePage = 0;
     showPanel("dialogue", result.dialogue.name);
   }
-  if (result.ok && result.transition) touchNavigation.cancel();
+  if (result.ok && result.transition) {
+    touchNavigation.cancel();
+    renderer.scene.transition(result.transition.effect);
+  }
 };
 el("tool").addEventListener(
   "change",
@@ -840,7 +853,7 @@ const renderer = createRenderer((now, delta) => {
       : task
         ? `✦ ${task.title} · ${Math.min(task.goal, personal?.quests[task.stat] ?? 0)}/${task.goal}  ›`
         : `✦ ${info.name}의 하루 · 도감과 마을을 둘러보세요`;
-    const spot = local && fishingSpot(local.area, local.x, local.y);
+    const spot = local && fishingSpot(local.area, local.x, local.y, NPC_MAPS);
     el("context-hint").textContent = spot
       ? "≈ 낚시 가능 · 낚싯대를 선택하세요"
       : nearest("animal")
@@ -1094,3 +1107,11 @@ if (import.meta.env.DEV)
       screenPoint: (x: number, y: number) => renderer.scene.screenPoint(x, y),
     },
   });
+
+function authoredNpcSchedule(
+  npc: Parameters<typeof worldNpcSchedule>[0],
+  day: number,
+  minute: number,
+) {
+  return worldNpcSchedule(npc, day, minute, NPC_MAPS);
+}

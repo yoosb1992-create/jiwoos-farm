@@ -1,3 +1,6 @@
+import { waterTerrain, terrainAt, hasZone } from "../shared/world2.js";
+import { worldNpcSchedule } from "../shared/world2-runtime.js";
+import { CLIENT_MAPS as NPC_MAPS } from "./layout.js";
 import { findPath, type Point } from "../shared/pathfinding.js";
 import { frontTile, type MovementInput } from "../shared/applyMovement.js";
 import { TILE, NPCS, npcSchedule, tileIn } from "../shared/content.js";
@@ -73,17 +76,30 @@ export class TouchNavigator {
           y: (warp.area.startY + 0.5) * TILE,
         };
       else {
-        const water = map.terrainRegions.some(
-            (r) =>
-              r.tileType === "water" &&
-              tileIn(r, point.x / TILE, point.y / TILE),
-          ),
-          spot = FISHING_SPOTS.filter((s) => s.area === me.area).sort(
-            (a, b) =>
-              Math.hypot(a.x * TILE - point.x, a.y * TILE - point.y) -
-              Math.hypot(b.x * TILE - point.x, b.y * TILE - point.y),
-          )[0];
-        if ((water || fishingSpot(me.area, point.x, point.y)) && spot)
+        const water = map.world2
+            ? waterTerrain(
+                terrainAt(
+                  map,
+                  Math.floor(point.x / TILE),
+                  Math.floor(point.y / TILE),
+                ),
+              )
+            : map.terrainRegions.some(
+                (r) =>
+                  r.tileType === "water" &&
+                  tileIn(r, point.x / TILE, point.y / TILE),
+              ),
+          spot = map.world2
+            ? fishingSpot(me.area, point.x, point.y, CLIENT_MAPS)
+            : FISHING_SPOTS.filter((s) => s.area === me.area).sort(
+                (a, b) =>
+                  Math.hypot(a.x * TILE - point.x, a.y * TILE - point.y) -
+                  Math.hypot(b.x * TILE - point.x, b.y * TILE - point.y),
+              )[0];
+        if (
+          (water || fishingSpot(me.area, point.x, point.y, CLIENT_MAPS)) &&
+          spot
+        )
           t = {
             ...t,
             kind: "fish",
@@ -109,7 +125,7 @@ export class TouchNavigator {
     if (t.kind === "npc") {
       const n = NPCS.find((n) => n.id === t.id);
       if (!n) return false;
-      const s = npcSchedule(n, state.day, state.minute);
+      const s = authoredNpcSchedule(n, state.day, state.minute);
       if (s.mapId !== t.area) return false;
       t.x = s.from.x * TILE;
       t.y = s.from.y * TILE;
@@ -140,7 +156,8 @@ export class TouchNavigator {
       t.kind === "ground"
         ? Math.hypot(p.x - t.x, p.y - t.y) <= 24
         : t.kind === "fish"
-          ? fishingSpot(t.area, p.x, p.y)?.water === t.id
+          ? fishingSpot(t.area, p.x, p.y, CLIENT_MAPS)?.water === t.id &&
+            (!mapFor(t.area).world2 || Math.hypot(p.x - t.x, p.y - t.y) <= 80)
           : t.kind === "warp"
             ? !!mapFor(t.area).warps.find(
                 (w) =>
@@ -227,4 +244,12 @@ export class TouchNavigator {
       run: manual.run,
     };
   }
+}
+
+function authoredNpcSchedule(
+  npc: Parameters<typeof worldNpcSchedule>[0],
+  day: number,
+  minute: number,
+) {
+  return worldNpcSchedule(npc, day, minute, NPC_MAPS);
 }

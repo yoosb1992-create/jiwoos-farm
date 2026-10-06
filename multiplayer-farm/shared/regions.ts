@@ -20,13 +20,15 @@ export function safeSpawn(
     (!avoidWarps || !insideWarp(map, x, y));
   if (valid(s.tileX * TILE, s.tileY * TILE))
     return { x: s.tileX * TILE, y: s.tileY * TILE, facing: s.facing };
-  for (let r = 0; r < Math.max(map.width, map.height); r++)
-    for (let dy = -r; dy <= r; dy++)
-      for (let dx = -r; dx <= r; dx++) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+  for (let r = 1; r <= Math.max(map.width, map.height); r++) {
+    for (let side = 0; side < 4; side++)
+      for (let i = -r; i <= r; i++) {
+        const dx = side === 0 ? -r : side === 1 ? r : i,
+          dy = side === 2 ? -r : side === 3 ? r : i;
         const x = (Math.floor(s.tileX) + dx + 0.5) * TILE,
           y = (Math.floor(s.tileY) + dy + 0.5) * TILE;
         if (valid(x, y)) return { x, y, facing: s.facing };
       }
+  }
   throw Error("이 지역에 이동 가능한 spawn이 없습니다");
 }

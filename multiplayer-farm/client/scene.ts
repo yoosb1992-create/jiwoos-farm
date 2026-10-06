@@ -1,3 +1,7 @@
+import { SceneTerrain } from "./world/scene-terrain.js";
+import { objectVisible, nearbyObjects, objectById } from "../shared/world2.js";
+import { worldNpcSchedule } from "../shared/world2-runtime.js";
+import { CLIENT_MAPS } from "./layout.js";
 import Phaser from "phaser";
 import {
   ASSETS,
@@ -30,6 +34,8 @@ interface View {
 }
 export class FarmScene extends Phaser.Scene {
   private area = "";
+  private chunkTerrain?: SceneTerrain;
+  private staticRefresh = 0;
   private layoutVersion = -1;
   private season: Season = "spring";
   private atmosphere?: Phaser.GameObjects.Graphics;
@@ -114,6 +120,8 @@ export class FarmScene extends Phaser.Scene {
   private changeArea(id: string): void {
     this.area = id;
     this.terrain?.destroy(true);
+    this.chunkTerrain?.destroy();
+    this.chunkTerrain = undefined;
     for (const v of this.objects.values()) {
       v.body.destroy();
       v.label.destroy();
@@ -126,11 +134,14 @@ export class FarmScene extends Phaser.Scene {
     this.npcs.clear();
     const map = mapFor(id);
     const children: Phaser.GameObjects.GameObject[] = [];
-    children.push(
-      this.add.image(0, 0, createGround(this, map, this.season)).setOrigin(0),
-    );
+    if (map.world2)
+      this.chunkTerrain = new SceneTerrain(this, map, this.season);
+    else
+      children.push(
+        this.add.image(0, 0, createGround(this, map, this.season)).setOrigin(0),
+      );
     this.terrain = this.add.container(0, 0, children).setDepth(-20);
-    for (const o of map.objects) {
+    for (const o of map.world2 ? [] : map.objects) {
       if (o.kind) continue;
       const v = this.staticObject(
         `static-${o.id}`,
@@ -142,7 +153,9 @@ export class FarmScene extends Phaser.Scene {
       if (o.scale) v.body.setScale(o.scale);
       if (o.assetId === "bridge") v.body.setOrigin(0.5).setDepth(-5);
     }
-    for (const spot of FISHING_SPOTS.filter((s) => s.area === id)) {
+    for (const spot of FISHING_SPOTS.filter(
+      (s) => !map.world2 && s.area === id,
+    )) {
       this.staticObject(
         `static-fish-${spot.water}`,
         "item_fishing_rod",
@@ -163,6 +176,58 @@ export class FarmScene extends Phaser.Scene {
       ).body.setScale(0.48);
     }
     this.cameras.main.setBounds(0, 0, map.width * TILE, map.height * TILE);
+  }
+  private updateAuthoredObjects(): void {
+    const map = mapFor(this.area),
+      r = this.cameras.main.worldView,
+      candidates = new Map<string, (typeof map.objects)[number]>();
+    for (
+      let y = Math.floor((r.y - 256) / 512);
+      y <= Math.floor((r.bottom + 256) / 512);
+      y++
+    )
+      for (
+        let x = Math.floor((r.x - 256) / 512);
+        x <= Math.floor((r.right + 256) / 512);
+        x++
+      )
+        for (const o of nearbyObjects(map, x * 16, y * 16))
+          if (!o.kind && objectVisible(o, this.season)) candidates.set(o.id, o);
+    const ids = new Set<string>();
+    for (const o of candidates.values()) {
+      const x = o.position.tileX * TILE,
+        y = o.position.tileY * TILE;
+      if (
+        x < r.x - 768 ||
+        y < r.y - 768 ||
+        x > r.right + 768 ||
+        y > r.bottom + 768
+      )
+        continue;
+      const id = `static-${o.id}`;
+      ids.add(id);
+      let v = this.objects.get(id);
+      if (!v) v = this.staticObject(id, o.assetId, x, y, o.label ?? "");
+      if (o.width && o.height)
+        v.body.setDisplaySize(o.width * TILE, o.height * TILE);
+      else if (o.scale) v.body.setScale(o.scale);
+      v.body
+        .setAngle(o.rotation ?? 0)
+        .setDepth(
+          o.bridge || o.layer === "Ground Decoration"
+            ? -5
+            : o.layer === "Upper Decoration"
+              ? 20000
+              : y + (o.depth ?? 0),
+        );
+      if (o.bridge) v.body.setOrigin(0.5);
+    }
+    for (const [id, v] of this.objects)
+      if (id.startsWith("static-") && !ids.has(id)) {
+        v.body.destroy();
+        v.label.destroy();
+        this.objects.delete(id);
+      }
   }
   private textured(id: string): string {
     return this.textures.exists(id) ? id : "__WHITE";
@@ -215,6 +280,11 @@ export class FarmScene extends Phaser.Scene {
       this.layoutVersion = layoutRevision;
       this.season = season;
       this.changeArea(me.area);
+    }
+    this.chunkTerrain?.update();
+    if (mapFor(this.area).world2 && now - this.staticRefresh > 100) {
+      this.staticRefresh = now;
+      this.updateAuthoredObjects();
     }
     if (now - this.lastAtmosphere > 50) {
       this.lastAtmosphere = now;
@@ -284,6 +354,17 @@ export class FarmScene extends Phaser.Scene {
     const ids = new Set<string>();
     state.entities.forEach((e, id) => {
       if (e.area !== me.area) return;
+      const authored = objectById(mapFor(me.area), id);
+      if (authored && !objectVisible(authored, this.season)) return;
+      const viewport = this.cameras.main.worldView;
+      if (
+        mapFor(me.area).world2 &&
+        (e.x < viewport.x - 768 ||
+          e.y < viewport.y - 768 ||
+          e.x > viewport.right + 768 ||
+          e.y > viewport.bottom + 768)
+      )
+        return;
       ids.add(id);
       let asset = e.asset,
         label = "";
@@ -316,6 +397,18 @@ export class FarmScene extends Phaser.Scene {
       v.body
         .setTexture(this.textured(asset))
         .setDepth(e.kind === "crop" || e.kind === "soil" ? e.y - 100 : e.y);
+      if (authored) {
+        if (authored.width && authored.height)
+          v.body.setDisplaySize(authored.width * TILE, authored.height * TILE);
+        else if (authored.tree)
+          v.body.setScale(
+            (ASSETS[asset]?.displayScale?.x ?? 1) *
+              ([0.3, 0.55, 1, 1.3, 1.6][authored.tree.stage] ?? 1),
+          );
+        v.body
+          .setAngle(authored.rotation ?? 0)
+          .setDepth(e.y + (authored.depth ?? 0));
+      }
       v.body.clearTint();
       if (/tree|bush|shrub/.test(asset))
         v.body.setTint(SEASON_INFO[this.season].foliage);
@@ -348,7 +441,7 @@ export class FarmScene extends Phaser.Scene {
         this.objects.delete(id);
       }
     for (const npc of NPCS) {
-      const s = npcSchedule(npc, state.day, state.minute);
+      const s = worldNpcSchedule(npc, state.day, state.minute, CLIENT_MAPS);
       let v = this.npcs.get(npc.id);
       if (!v) {
         const body = this.add
@@ -368,6 +461,8 @@ export class FarmScene extends Phaser.Scene {
         v = { body, label, x: 0, y: 0 };
         this.npcs.set(npc.id, v);
       }
+      v.x = s.from.x * TILE;
+      v.y = s.from.y * TILE;
       v.body
         .setVisible(s.mapId === me.area)
         .setPosition(s.from.x * TILE, s.from.y * TILE)
@@ -437,6 +532,9 @@ export class FarmScene extends Phaser.Scene {
         )[0];
     this.highlight?.setVisible(Boolean(near));
     if (near) this.highlight?.setPosition(near.x, near.y);
+  }
+  transition(effect = "fade"): void {
+    if (effect !== "instant") this.cameras.main.fadeIn(240, 30, 48, 39);
   }
   setZoom(value: number): void {
     this.cameras.main?.setZoom(Phaser.Math.Clamp(value, 0.65, 2));

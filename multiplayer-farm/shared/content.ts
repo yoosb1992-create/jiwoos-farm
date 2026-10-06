@@ -1,3 +1,4 @@
+import type { World2Map, ObjectProperties } from "./world2.js";
 import snapshot from "./legacy-content.json" with { type: "json" };
 import {
   EXPANSION_CROPS,
@@ -13,7 +14,7 @@ export interface Rect {
   startY: number;
   endY: number;
 }
-export interface MapObject {
+export interface MapObject extends ObjectProperties {
   id: string;
   assetId: string;
   position: { tileX: number; tileY: number };
@@ -24,6 +25,7 @@ export interface MapObject {
   decorative?: boolean;
 }
 export interface MapData {
+  world2?: World2Map;
   id: string;
   name: string;
   width: number;
@@ -39,6 +41,8 @@ export interface MapData {
     area: Rect;
     targetMapId: string;
     targetSpawnId: string;
+    facing?: string;
+    effect?: string;
   }>;
 }
 export interface Asset {

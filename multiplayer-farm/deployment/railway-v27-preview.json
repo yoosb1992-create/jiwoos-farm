@@ -1,0 +1,94 @@
+{
+  "description": "Prepared World Editor 2.0 preview only; provisioning blocked by Railway resource limit. Never overwrite v2.6 services.",
+  "projectName": "jiwoos-farm-v2-5",
+  "environmentName": "production",
+  "repository": "yoosb1992-create/jiwoos-farm",
+  "branch": "feature/v2.7-world-editor-2",
+  "database": {
+    "name": "Postgres",
+    "existing": true,
+    "schema": "farm_v27_preview",
+    "preservedSchema": "farm_v26",
+    "privateOnly": true,
+    "automaticSchemaMigration": true
+  },
+  "services": {
+    "Editor27Backend": {
+      "rootDirectory": "/",
+      "dockerfilePath": "multiplayer-farm/Dockerfile",
+      "healthcheckPath": "/healthz",
+      "healthcheckTimeout": 120,
+      "sleepApplication": false,
+      "waitForCi": true,
+      "regions": {
+        "asia-southeast1-eqsg3a": {
+          "numReplicas": 1
+        }
+      },
+      "drainingSeconds": 30,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 5,
+      "watchPatterns": [
+        "/multiplayer-farm/server/**",
+        "/multiplayer-farm/shared/**",
+        "/multiplayer-farm/persistence/**",
+        "/multiplayer-farm/package*.json",
+        "/multiplayer-farm/tsconfig*.json",
+        "/multiplayer-farm/Dockerfile"
+      ],
+      "publicPort": 2567,
+      "variables": {
+        "RAILWAY_DOCKERFILE_PATH": "multiplayer-farm/Dockerfile",
+        "NODE_ENV": "production",
+        "HOST": "0.0.0.0",
+        "PORT": "2567",
+        "DATABASE_URL": "${{Postgres.DATABASE_URL}}",
+        "CLIENT_ORIGINS": "https://${{Editor27Frontend.RAILWAY_PUBLIC_DOMAIN}}",
+        "LAB_LATENCY_MS": "0",
+        "FARM_DATABASE_SCHEMA": "farm_v27_preview"
+      }
+    },
+    "Editor27Frontend": {
+      "rootDirectory": "/",
+      "dockerfilePath": "multiplayer-farm/Dockerfile.client",
+      "healthcheckPath": "/healthz",
+      "healthcheckTimeout": 120,
+      "sleepApplication": false,
+      "waitForCi": true,
+      "regions": {
+        "asia-southeast1-eqsg3a": {
+          "numReplicas": 1
+        }
+      },
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 5,
+      "watchPatterns": [
+        "/multiplayer-farm/client/**",
+        "/multiplayer-farm/shared/**",
+        "/multiplayer-farm/build/**",
+        "/multiplayer-farm/package*.json",
+        "/multiplayer-farm/tsconfig*.json",
+        "/multiplayer-farm/vite.config.ts",
+        "/multiplayer-farm/index.html",
+        "/multiplayer-farm/deployment/static-server.mjs",
+        "/multiplayer-farm/Dockerfile.client",
+        "/public/assets/**",
+        "/multiplayer-farm/editor.html"
+      ],
+      "publicPort": 8080,
+      "variables": {
+        "RAILWAY_DOCKERFILE_PATH": "multiplayer-farm/Dockerfile.client",
+        "NODE_ENV": "production",
+        "HOST": "0.0.0.0",
+        "PORT": "8080",
+        "VITE_MULTIPLAYER_SERVER_URL": "wss://${{Editor27Backend.RAILWAY_PUBLIC_DOMAIN}}"
+      }
+    }
+  },
+  "rollback": {
+    "branch": "feature/v2.6-farm-content-expansion",
+    "sha": "d4f645c30b0666151f7894ad9e32ec0d0422690a",
+    "databaseSchema": "farm_v26",
+    "sessionKey": "farm-v26-session"
+  }
+}

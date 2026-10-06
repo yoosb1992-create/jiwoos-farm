@@ -1,7 +1,7 @@
-name: Multiplayer Farm v2.5 and v2.6
+name: Multiplayer Farm v2.5, v2.6 and World Editor 2.0
 on:
   push:
-    branches: [feature/v2.5-multiplayer-farm-rebuild, feature/v2.6-farm-content-expansion]
+    branches: [feature/v2.5-multiplayer-farm-rebuild, feature/v2.6-farm-content-expansion, feature/v2.7-world-editor-2]
     paths: ['multiplayer-farm/**', '!multiplayer-farm/**/*.md', '.github/workflows/multiplayer-farm.yml']
   pull_request:
     paths: ['multiplayer-farm/**', '.github/workflows/multiplayer-farm.yml']

@@ -1,6 +1,6 @@
 {
   "name": "jiwoos-multiplayer-farm",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -24,7 +24,8 @@
     "test:public": "node --import tsx tests/public-smoke.ts",
     "test:production-browser": "playwright test --config playwright.production.config.ts",
     "migrate": "node dist/persistence/migrate.js",
-    "test:db": "node --import tsx --test --test-concurrency=1 tests/*.db.test.ts"
+    "test:db": "node --import tsx --test --test-concurrency=1 tests/*.db.test.ts",
+    "test:editor": "node --import tsx --test tests/editor2.unit.test.ts"
   },
   "dependencies": {
     "@colyseus/core": "0.18.18",

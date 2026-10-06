@@ -1,4 +1,10 @@
 import {
+  blockedTile,
+  nearbyObjects,
+  hasZone,
+  elevationPass,
+} from "./world2.js";
+import {
   MAX_MOVEMENT_SUBSTEP,
   MAX_SIMULATION_DT,
   PLAYER_RADIUS,
@@ -44,6 +50,19 @@ export function collidesWithObstacle(
     y > map.height * TILE - PLAYER_RADIUS
   )
     return true;
+  if (map.world2) {
+    for (
+      let ty = Math.floor((y - PLAYER_RADIUS + 0.001) / TILE);
+      ty <= Math.floor((y + PLAYER_RADIUS - 0.001) / TILE);
+      ty++
+    )
+      for (
+        let tx = Math.floor((x - PLAYER_RADIUS + 0.001) / TILE);
+        tx <= Math.floor((x + PLAYER_RADIUS - 0.001) / TILE);
+        tx++
+      )
+        if (blockedTile(map, tx, ty)) return true;
+  }
   const hit = (a: number, b: number, w: number, h: number) =>
     x + PLAYER_RADIUS > a &&
     x - PLAYER_RADIUS < a + w &&
@@ -61,8 +80,12 @@ export function collidesWithObstacle(
   )
     return true;
   // Dynamic harvestables are interaction targets, not prediction colliders. Static buildings/fences use identical geometry on both sides.
-  return map.objects.some(
+  return (
+    map.world2 ? nearbyObjects(map, x / TILE, y / TILE) : map.objects
+  ).some(
     (o) =>
+      o.visible !== false &&
+      !o.bridge &&
       o.collision &&
       !o.assetId.startsWith("tree") &&
       hit(
@@ -115,9 +138,27 @@ export function applyMovement(
     Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / MAX_MOVEMENT_SUBSTEP),
   );
   for (let s = 0; s < steps; s++) {
-    if (!collidesWithObstacle(p.x + dx / steps, p.y, p.area, maps))
+    if (
+      elevationPass(
+        mapFor(p.area ?? "farm", maps),
+        p.x,
+        p.y,
+        p.x + dx / steps,
+        p.y,
+      ) &&
+      !collidesWithObstacle(p.x + dx / steps, p.y, p.area, maps)
+    )
       p.x += dx / steps;
-    if (!collidesWithObstacle(p.x, p.y + dy / steps, p.area, maps))
+    if (
+      elevationPass(
+        mapFor(p.area ?? "farm", maps),
+        p.x,
+        p.y,
+        p.x,
+        p.y + dy / steps,
+      ) &&
+      !collidesWithObstacle(p.x, p.y + dy / steps, p.area, maps)
+    )
       p.y += dy / steps;
   }
   if (p.running && p.stamina !== undefined)
@@ -135,5 +176,8 @@ export function isFarmable(
   y: number,
   maps?: Record<string, MapData>,
 ): boolean {
-  return mapFor(area, maps).farmAreas.some((r) => tileIn(r, x, y));
+  const m = mapFor(area, maps);
+  return m.world2
+    ? hasZone(m, "farmable", x, y) && !blockedTile(m, x, y)
+    : m.farmAreas.some((r) => tileIn(r, x, y));
 }

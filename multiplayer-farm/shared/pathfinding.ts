@@ -1,3 +1,4 @@
+import { elevationPass } from "./world2.js";
 import { TILE, type MapData } from "./content.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 export interface Point {
@@ -54,6 +55,7 @@ export function findPath(
       const nx = (xx + 0.5) * TILE,
         ny = (yy + 0.5) * TILE;
       if (
+        !elevationPass(m, p.x, p.y, nx, ny) ||
         collidesWithObstacle(nx, ny, area, maps) ||
         collidesWithObstacle((nx + p.x) / 2, (ny + p.y) / 2, area, maps)
       )

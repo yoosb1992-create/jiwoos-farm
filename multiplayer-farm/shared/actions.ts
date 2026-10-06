@@ -1,3 +1,5 @@
+import { placementAllowed, inRect } from "./world2.js";
+import { worldNpcSchedule } from "./world2-runtime.js";
 import {
   CROPS,
   RECIPES,
@@ -43,6 +45,7 @@ function requireThat(condition: unknown, message: string): asserts condition {
   if (!condition) throw new ActionError(message);
 }
 const TYPES = new Set([
+  "worldEvent",
   "tillTile",
   "plantSeed",
   "waterCrop",
@@ -252,6 +255,50 @@ export function applyAction(
   const q = c.quantity ?? 1;
   requireThat(q >= 1 && q <= MAX_QUANTITY, "수량은 1~999입니다");
   switch (c.type) {
+    case "worldEvent": {
+      const e = mapFor(a.area, w.layout?.maps).world2?.events.find(
+        (e) => e.id === c.targetId,
+      );
+      requireThat(
+        e && inRect(e.area, Math.floor(a.x / TILE), Math.floor(a.y / TILE)),
+        "이벤트 영역 밖입니다",
+      );
+      const key = `event-${a.area}-${e.id}-${e.once ? "once" : w.day}`;
+      requireThat(!m.quests[key], "이미 실행한 이벤트입니다");
+      requireThat(
+        e.trigger === "enter" ||
+          e.trigger === "interact" ||
+          (e.trigger === "date" && String(w.day) === e.condition) ||
+          (e.trigger === "time" && w.minute >= Number(e.condition)) ||
+          (e.trigger === "weather" && w.weather === e.condition) ||
+          (e.trigger === "season" && calendar(w.day).season === e.condition) ||
+          (e.trigger === "quest" && !!m.quests[e.condition]),
+        "이벤트 조건 전입니다",
+      );
+      if (e.action === "item") {
+        requireThat(ITEMS[e.value], "이벤트 아이템 오류");
+        change(m.inventory, e.value, e.quantity);
+      }
+      if (e.action === "quest")
+        m.quests[e.value] = (m.quests[e.value] ?? 0) + e.quantity;
+      if (e.action === "dialogue")
+        result.dialogue = {
+          name: e.name,
+          npcId: "world-event",
+          lines: [e.value],
+        };
+      if (e.action === "warp") {
+        requireThat(
+          e.destination && w.layout?.maps[e.destination],
+          "이벤트 목적지 없음",
+        );
+        const p = safeSpawn(e.destination, e.spawn, w.layout.maps);
+        result.transition = { area: e.destination, x: p.x, y: p.y };
+      }
+      m.quests[key] = 1;
+      result.message = e.action === "effect" ? `✦ ${e.value}` : e.name;
+      break;
+    }
     case "tillTile": {
       own("hoe");
       const t = tile();
@@ -321,6 +368,13 @@ export function applyAction(
       break;
     }
     case "hitTree": {
+      const authored = mapFor(a.area, w.layout?.maps).objects.find(
+        (o) => o.id === c.targetId,
+      );
+      requireThat(
+        authored?.tree?.chop !== false,
+        "이 나무는 벌목할 수 없습니다",
+      );
       own("axe");
       const e = target();
       requireThat(e.kind === "tree" || e.kind === "stump", "나무가 아닙니다");
@@ -329,7 +383,14 @@ export function applyAction(
       e.hp -= m.toolLevel >= 2 ? 2 : 1;
       if (e.hp <= 0) {
         if (e.kind === "tree") {
-          addDrop(w, e, "wood", 1);
+          addDrop(
+            w,
+            e,
+            authored?.tree?.drop && ITEMS[authored.tree.drop]
+              ? authored.tree.drop
+              : "wood",
+            1,
+          );
           addDrop(w, e, "pine_needles", 1);
           addDrop(w, e, "pine_cone", 1);
           e.kind = "stump";
@@ -408,13 +469,22 @@ export function applyAction(
     }
     case "placeMachine": {
       own("wood_processor");
-      requireThat(a.area === "farm", "농장에서 배치하세요");
+      requireThat(
+        placementAllowed(
+          mapFor(a.area, w.layout?.maps),
+          "building",
+          frontTile(a).tileX,
+          frontTile(a).tileY,
+        ),
+        "건물 배치 가능 영역에 놓으세요",
+      );
       const t = frontTile(a);
       const p = { x: (t.tileX + 0.5) * TILE, y: (t.tileY + 0.5) * TILE };
       requireThat(
-        !Object.values(w.entities).some(
-          (e) => e.area === a.area && Math.hypot(e.x - p.x, e.y - p.y) < 24,
-        ),
+        !collidesWithObstacle(p.x, p.y, a.area, w.layout?.maps) &&
+          !Object.values(w.entities).some(
+            (e) => e.area === a.area && Math.hypot(e.x - p.x, e.y - p.y) < 24,
+          ),
         "빈 자리에 배치하세요",
       );
       change(m.inventory, "wood_processor", -1);
@@ -487,6 +557,8 @@ export function applyAction(
         area: dest.id,
         x: spawn.x,
         y: spawn.y,
+        facing: warp.facing ?? spawn.facing,
+        effect: warp.effect ?? "fade",
       };
       break;
     }
@@ -573,7 +645,12 @@ export function applyAction(
     case "deliverRequest": {
       const npc = NPCS.find((n) => n.id === c.targetId);
       requireThat(npc, "주민 없음");
-      const schedule = npcSchedule(npc, w.day, w.minute);
+      const schedule = worldNpcSchedule(
+        npc,
+        w.day,
+        w.minute,
+        w.layout?.maps ?? MAPS,
+      );
       near(
         {
           area: schedule.mapId,
@@ -657,9 +734,11 @@ export function applyAction(
         npcId: npc.id,
         name: npc.displayName,
         lines: [
-          first
-            ? npc.dialogue.first[0]!
-            : npc.dialogue.general[w.day % npc.dialogue.general.length]![0]!,
+          "dialogue" in schedule && schedule.dialogue
+            ? String(schedule.dialogue)
+            : first
+              ? npc.dialogue.first[0]!
+              : npc.dialogue.general[w.day % npc.dialogue.general.length]![0]!,
           condition,
           familiar,
         ],
@@ -736,14 +815,38 @@ export function applyAction(
         animals.length < 8,
         "우리는 최대 8마리까지 함께 지낼 수 있어요",
       );
+      const animalMap = mapFor(a.area, w.layout?.maps);
+      let animalPoint = {
+        x: (38 + (animals.length % 4) * 2) * TILE,
+        y: (12 + Math.floor(animals.length / 4) * 2) * TILE,
+      };
+      if (animalMap.world2) {
+        let found = false;
+        for (const [key, chunk] of Object.entries(animalMap.world2.chunks)) {
+          if (found) break;
+          for (const [index, z] of Object.entries(chunk.layers.zones ?? {})) {
+            if (!(z & 8) || z & 64) continue;
+            const [cx, cy] = key.split(",").map(Number),
+              i = Number(index),
+              x = (cx! * 16 + (i % 16) + 0.5) * TILE,
+              y = (cy! * 16 + Math.floor(i / 16) + 0.5) * TILE;
+            if (!collidesWithObstacle(x, y, a.area, w.layout?.maps)) {
+              animalPoint = { x, y };
+              found = true;
+              break;
+            }
+          }
+        }
+        requireThat(found, "동물 가능 영역이 없습니다");
+      }
       m.money -= def.price;
       const id = `animal-${++w.nextEntity}`,
         e = entity(
           id,
-          "farm",
+          a.area,
           "animal",
-          (38 + (animals.length % 4) * 2) * TILE,
-          (12 + Math.floor(animals.length / 4) * 2) * TILE,
+          animalPoint.x,
+          animalPoint.y,
           def.asset,
         );
       e.crop = c.itemId!;
@@ -780,7 +883,16 @@ export function applyAction(
     }
     case "placeDecoration": {
       const def = DECORATIONS[c.itemId as keyof typeof DECORATIONS];
-      requireThat(def && a.area === "farm", "농장에서 장식을 선택하세요");
+      requireThat(
+        def &&
+          placementAllowed(
+            mapFor(a.area, w.layout?.maps),
+            "decoration",
+            frontTile(a).tileX,
+            frontTile(a).tileY,
+          ),
+        "장식 배치 가능 영역에 놓으세요",
+      );
       own(c.itemId!);
       const t = frontTile(a),
         x = (t.tileX + 0.5) * TILE,
@@ -817,7 +929,7 @@ export function applyAction(
     }
     case "castFishing": {
       own("fishing_rod");
-      const spot = fishingSpot(a.area, a.x, a.y);
+      const spot = fishingSpot(a.area, a.x, a.y, w.layout?.maps);
       requireThat(spot, "물결 표시가 있는 물가에서 낚싯대를 사용하세요");
       requireThat(
         !m.fishing || ctx.now > m.fishing.expiresAt,
@@ -825,9 +937,17 @@ export function applyAction(
       );
       spend(3);
       const rng = random(w.seed + w.day * 919 + w.nextEntity++),
-        season = calendar(w.day).season;
+        season =
+          mapFor(a.area, w.layout?.maps).world2?.fishing.seasonOverride ||
+          calendar(w.day).season;
+      const fishConfig = mapFor(a.area, w.layout?.maps).world2?.fishing;
       const available = FISH_CATALOG.filter(
         (f) =>
+          (!fishConfig ||
+            fishConfig.table === "seasonal" ||
+            (fishConfig.table === "common"
+              ? f.difficulty < 0.6
+              : f.difficulty >= 0.5)) &&
           f.seasons.includes(season) &&
           f.waters.includes(spot.water) &&
           w.minute >= f.from &&
@@ -836,7 +956,9 @@ export function applyAction(
       );
       requireThat(available.length, "이 시간에는 물고기가 쉬고 있어요");
       const weights = available.map(
-          (f) => 1 / (0.15 + f.difficulty * f.difficulty * 7),
+          (f) =>
+            (1 + (fishConfig?.rareFishBonus ?? 0) * f.difficulty * 10) /
+            (0.15 + f.difficulty * f.difficulty * 7),
         ),
         total = weights.reduce((a, b) => a + b, 0);
       let pick = rng() * total,

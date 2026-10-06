@@ -223,6 +223,56 @@ export function createContentTextures(scene: Phaser.Scene): void {
       c.fillRect(41, y, 7, 12);
     }
   });
+  for (const key of ["bridge_wide", "reed", "water_lily", "mushroom"])
+    texture(
+      scene,
+      key,
+      key === "bridge_wide" ? 128 : 48,
+      key === "bridge_wide" ? 160 : 64,
+      (c) => {
+        if (key === "bridge_wide") {
+          c.fillStyle = "#b99463";
+          c.fillRect(0, 0, 128, 160);
+          c.strokeStyle = "#70563d";
+          c.lineWidth = 4;
+          for (let y = 0; y < 160; y += 14) {
+            c.beginPath();
+            c.moveTo(0, y);
+            c.lineTo(128, y);
+            c.stroke();
+          }
+          c.fillStyle = "#735739";
+          c.fillRect(0, 0, 5, 160);
+          c.fillRect(123, 0, 5, 160);
+        } else if (key === "reed") {
+          c.strokeStyle = "#778958";
+          c.lineWidth = 3;
+          for (let i = 0; i < 5; i++) {
+            c.beginPath();
+            c.moveTo(12 + i * 6, 58);
+            c.lineTo(9 + i * 7, 15 + (i % 2) * 10);
+            c.stroke();
+            ellipse(c, 9 + i * 7, 15 + (i % 2) * 10, 2, 8, "#a49367");
+          }
+        } else if (key === "water_lily") {
+          ellipse(c, 24, 45, 22, 10, "#73995e");
+          for (let i = 0; i < 6; i++)
+            ellipse(
+              c,
+              24 + Math.cos(i) * 6,
+              39 + Math.sin(i) * 4,
+              5,
+              3,
+              "#f3dad1",
+            );
+        } else {
+          c.fillStyle = "#d8cfaf";
+          c.fillRect(21, 34, 7, 20);
+          ellipse(c, 24, 32, 16, 9, "#b96851");
+          ellipse(c, 19, 29, 3, 2, "#f1d9ac");
+        }
+      },
+    );
   for (const [key, color] of [
     ["milk", "#e8eee2"],
     ["wool", "#efe6d2"],

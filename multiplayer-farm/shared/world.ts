@@ -1,3 +1,4 @@
+import { cell, hasZone, tileHash } from "./world2.js";
 import { TILE, mapFor } from "./content.js";
 import { calendar, FORAGE } from "./expansion.js";
 import type { FishingChallenge } from "./fishing.js";
@@ -44,6 +45,8 @@ export interface Entity {
   owner: string;
 }
 export interface World {
+  initialWorldVersion?: number;
+  blueprintId?: string;
   layout?: WorldLayout;
   version: number;
   revision: number;
@@ -84,7 +87,13 @@ export interface ActionResult {
   ok: boolean;
   message: string;
   revision: number;
-  transition?: { area: string; x: number; y: number };
+  transition?: {
+    area: string;
+    x: number;
+    y: number;
+    facing?: string;
+    effect?: string;
+  };
   fishing?: FishingChallenge;
   serverNow?: number;
   dialogue?: { name: string; lines: string[]; npcId: string };
@@ -151,7 +160,11 @@ export function random(seed: number): () => number {
 }
 export function generateDaily(world: World): void {
   for (const [id, e] of Object.entries(world.entities))
-    if (e.area === "forest" || e.area.startsWith("mine"))
+    if (
+      e.area === "forest" ||
+      e.area.startsWith("mine") ||
+      id.startsWith("zoneforage-")
+    )
       delete world.entities[id];
   const rng = random(world.seed + world.day * 7919);
   const forage = FORAGE.filter((f) =>
@@ -193,7 +206,56 @@ export function generateDaily(world: World): void {
       e.item = e.asset === "mine_copper" ? "copper_ore" : "stone";
       placeDaily(world, e);
     }
+  for (const map of Object.values(world.layout?.maps ?? {}))
+    if (map.world2) {
+      let count = 0;
+      for (const [key, c] of Object.entries(map.world2.chunks))
+        for (const [index, value] of Object.entries(c.layers.zones ?? {})) {
+          if (!(value & 16) || count >= 64) continue;
+          const [cx, cy] = key.split(",").map(Number),
+            i = Number(index),
+            x = cx! * 16 + (i % 16),
+            y = cy! * 16 + Math.floor(i / 16),
+            hash = tileHash(map.world2.seed + world.day, x, y);
+          if (
+            hash % 5 ||
+            collidesWithObstacle(
+              (x + 0.5) * TILE,
+              (y + 0.5) * TILE,
+              map.id,
+              world.layout!.maps,
+            )
+          )
+            continue;
+          const f = forage[hash % forage.length]!,
+            e = entity(
+              `zoneforage-${map.id}-${world.day}-${count++}`,
+              map.id,
+              "gather",
+              (x + 0.5) * TILE,
+              (y + 0.5) * TILE,
+              f.asset,
+            );
+          e.item = f.id;
+          world.entities[e.id] = e;
+        }
+    }
   seedFixtures(world, true);
+  for (const map of Object.values(world.layout?.maps ?? {}))
+    for (const o of map.objects)
+      if (o.tree?.regrow && o.kind === "tree" && !world.entities[o.id]) {
+        const e = entity(
+          o.id,
+          map.id,
+          "tree",
+          o.position.tileX * TILE,
+          o.position.tileY * TILE,
+          o.assetId,
+        );
+        e.hp = 3;
+        e.stage = o.tree.stage;
+        world.entities[e.id] = e;
+      }
 }
 function placeDaily(w: World, e: Entity): void {
   const maps = w.layout?.maps ?? defaultLayout().maps,
@@ -226,6 +288,8 @@ export function newWorld(
 ): World {
   const w: World = {
     version: WORLD_VERSION,
+    initialWorldVersion: layout.worldVersion ?? 0,
+    ...(layout.blueprintId ? { blueprintId: layout.blueprintId } : {}),
     revision: 0,
     day: 1,
     minute: 360,
@@ -247,7 +311,7 @@ function seedFixtures(w: World, daily: boolean): void {
   for (const map of Object.values(w.layout?.maps ?? defaultLayout().maps)) {
     if ((map.id === "forest" || map.id.startsWith("mine")) !== daily) continue;
     for (const o of map.objects)
-      if (o.kind) {
+      if (o.kind && o.visible !== false) {
         const e = entity(
           o.id,
           map.id,
@@ -256,7 +320,14 @@ function seedFixtures(w: World, daily: boolean): void {
           o.position.tileY * TILE,
           o.assetId,
         );
-        if (e.kind === "tree") e.hp = 3;
+        if (e.kind === "tree") {
+          e.hp = 3;
+          e.stage = o.tree?.stage ?? 2;
+          if (o.tree?.stump) {
+            e.kind = "stump";
+            e.asset = "stump";
+          }
+        }
         if (e.kind === "animal")
           e.crop = o.assetId.includes("cow")
             ? "cow"

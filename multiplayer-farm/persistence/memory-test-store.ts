@@ -81,6 +81,7 @@ export class MemoryTestStore implements Store {
     const r = this.blueprints.get(id);
     if (!r || r.editToken !== editToken || r.revision !== revision)
       throw Error("편집 권한/버전 오류");
+    layout = { ...layout, blueprintId: id, worldVersion: revision + 1 };
     r.layout = structuredClone(layout);
     r.revision++;
     if (publish) {

@@ -1,3 +1,5 @@
+import type { MapData } from "./content.js";
+import { hasZone, terrainAt, waterTerrain } from "./world2.js";
 /** v2.6 original content. Plain data, shared by the authority and the field guide. */
 export const SEASONS = ["spring", "summer", "autumn", "winter"] as const;
 export type Season = (typeof SEASONS)[number];
@@ -422,7 +424,33 @@ export const FISHING_SPOTS: Array<{
   { area: "coast", water: "sea", x: 5, y: 9, w: 20, h: 3 },
   { area: "mine5", water: "cave", x: 16, y: 13, w: 7, h: 2 },
 ];
-export function fishingSpot(area: string, x: number, y: number) {
+export function fishingSpot(
+  area: string,
+  x: number,
+  y: number,
+  maps?: Record<string, MapData>,
+) {
+  const map = maps?.[area];
+  if (map?.world2) {
+    const tx = Math.floor(x / 32),
+      ty = Math.floor(y / 32);
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -2; dx <= 2; dx++)
+        if (
+          Math.abs(dx) + Math.abs(dy) <= 2 &&
+          hasZone(map, "fishing", tx + dx, ty + dy) &&
+          waterTerrain(terrainAt(map, tx + dx, ty + dy))
+        )
+          return {
+            area,
+            water: map.world2.fishing.waterType,
+            x: tx + dx,
+            y: ty + dy,
+            w: 1,
+            h: 1,
+          };
+    return undefined;
+  }
   return FISHING_SPOTS.find(
     (s) =>
       s.area === area &&

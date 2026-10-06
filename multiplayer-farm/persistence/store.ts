@@ -46,7 +46,9 @@ export interface Store extends BlueprintStore {
   lease(farmId: string, onLost: () => void): Promise<FarmLease>;
   close(): Promise<void>;
 }
-export const DATABASE_SCHEMA = "farm_v26";
+export const DATABASE_SCHEMA = process.env.FARM_DATABASE_SCHEMA || "farm_v26";
+if (!["farm_v26", "farm_v27_preview"].includes(DATABASE_SCHEMA))
+  throw Error("Unsupported FARM_DATABASE_SCHEMA");
 export class PostgresStore implements Store {
   readonly namespace = DATABASE_SCHEMA;
   readonly pool: Pool;
@@ -204,6 +206,7 @@ export class PostgresStore implements Store {
     revision: number,
     publish: boolean,
   ): Promise<Blueprint> {
+    layout = { ...layout, blueprintId: id, worldVersion: revision + 1 };
     const r = await this.pool.query<{
       revision: number;
       published: WorldLayout | null;

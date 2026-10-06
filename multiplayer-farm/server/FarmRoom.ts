@@ -1,3 +1,5 @@
+import { inRect } from "../shared/world2.js";
+import { calendar } from "../shared/expansion.js";
 import { Encoder } from "@colyseus/schema";
 // Initial immutable layout is sent once. Subsequent 30 Hz patches remain deltas.
 Encoder.BUFFER_SIZE = 1024 * 1024;
@@ -175,7 +177,10 @@ export class FarmRoom extends MovementRoom {
     }
   }
   private proposal(): World {
-    const w = structuredClone(this.world);
+    const w = {
+      ...structuredClone({ ...this.world, layout: undefined }),
+      layout: this.world.layout,
+    };
     w.minute = this.state.minute;
     for (const p of this.state.players.values()) {
       const m = w.members[p.playerId];
@@ -268,6 +273,7 @@ export class FarmRoom extends MovementRoom {
         p.area = result.transition.area;
         p.x = result.transition.x;
         p.y = result.transition.y;
+        if (result.transition.facing) p.facing = result.transition.facing;
         p.moving = false;
         p.running = false;
         this.resetCatchupBudget(client.sessionId);
@@ -299,28 +305,46 @@ export class FarmRoom extends MovementRoom {
     for (const [sid, p] of this.state.players) {
       if (
         !p.connected ||
-        !p.moving ||
         this.transitionPending.has(sid) ||
         now < (this.transitionUntil.get(sid) ?? 0)
       )
         continue;
       const warp = insideWarp(mapFor(p.area, this.movementMaps), p.x, p.y),
         client = this.clients.get(sid);
-      if (!warp || !client) continue;
+      if (!client) continue;
+      const ev = mapFor(p.area, this.movementMaps).world2?.events.find(
+        (e) =>
+          e.trigger !== "interact" &&
+          inRect(e.area, Math.floor(p.x / 32), Math.floor(p.y / 32)) &&
+          !this.world.members[p.playerId]?.quests[
+            `event-${p.area}-${e.id}-${e.once ? "once" : this.world.day}`
+          ] &&
+          (e.trigger === "enter" ||
+            (e.trigger === "date" && e.condition === String(this.world.day)) ||
+            (e.trigger === "time" &&
+              this.world.minute >= Number(e.condition)) ||
+            (e.trigger === "weather" && this.world.weather === e.condition) ||
+            (e.trigger === "season" &&
+              calendar(this.world.day).season === e.condition) ||
+            (e.trigger === "quest" &&
+              !!this.world.members[p.playerId]?.quests[e.condition])),
+      );
+      if (!warp && !ev) continue;
       const fromArea = p.area;
       this.transitionPending.add(sid);
       this.pending++;
       void this.enqueue(async () => {
         if (
           p.area !== fromArea ||
-          insideWarp(mapFor(p.area, this.movementMaps), p.x, p.y)?.id !==
-            warp.id
+          (warp &&
+            insideWarp(mapFor(p.area, this.movementMaps), p.x, p.y)?.id !==
+              warp.id)
         )
           return;
         await this.command(client, {
           actionId: crypto.randomUUID(),
-          type: "enterArea",
-          targetId: warp.id,
+          type: warp ? "enterArea" : "worldEvent",
+          targetId: warp?.id ?? ev!.id,
         });
       }).finally(() => {
         this.transitionPending.delete(sid);

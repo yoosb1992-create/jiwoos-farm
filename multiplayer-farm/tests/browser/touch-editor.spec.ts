@@ -84,7 +84,8 @@ test("mobile touch action, saved control layout and new-world editor isolation",
   await page.screenshot({ path: info.outputPath("landscape-controls.png") });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/editor.html");
-  await page.getByText("맵 설정 · 크기 적용", { exact: true }).click();
+  await page.locator("#menu").click();
+  await page.locator("[data-panel=world]").click();
   await page.locator("#width").fill("60");
   expect(
     await page.evaluate(
@@ -98,6 +99,8 @@ test("mobile touch action, saved control layout and new-world editor isolation",
   await expect(page.locator("#width")).not.toHaveValue("60");
   await page.locator("#redo").click();
   await expect(page.locator("#width")).toHaveValue("60");
+  await page.locator("#menu").click();
+  await page.locator("[data-panel=save]").click();
   await page.locator("#publish").click();
   await expect(page.locator("#status")).toContainText("초기 월드 적용 완료");
   await page.screenshot({ path: info.outputPath("mobile-world-editor.png") });

@@ -7,7 +7,7 @@ export function blueprintRoutes(app: Application, store: Store): void {
   const attempts = new Map<string, { count: number; until: number }>();
   app.use(
     "/api/blueprints",
-    express.json({ limit: "1mb" }),
+    express.json({ limit: "16mb" }),
     (req, res, next) => {
       res.setHeader("Cache-Control", "no-store");
       const key = req.socket.remoteAddress ?? "unknown",
