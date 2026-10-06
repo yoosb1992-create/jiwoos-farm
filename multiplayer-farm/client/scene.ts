@@ -385,6 +385,9 @@ export class FarmScene extends Phaser.Scene {
     const g = this.atmosphere;
     if (!g) return;
     const { width: w, height: h } = this.scale;
+    // Screen-space weather must still cover the viewport after camera pinch zoom.
+    const zoom = this.cameras.main.zoom;
+    g.setPosition((w - w / zoom) / 2, (h - h / zoom) / 2).setScale(1 / zoom);
     g.clear();
     const indoors = ["farmhouse", "general_store", "cafe", "workshop"].includes(
         this.area,
