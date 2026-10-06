@@ -54,6 +54,7 @@ let session: Session | undefined,
   lastUi = 0,
   lastMoveTime = 0;
 let target: { x: number; y: number } | undefined;
+let controlStatus = latest.status;
 let fishing: ActionResult["fishing"];
 let fishingUI: FishingUI | undefined;
 let fishingOffset = 0,
@@ -449,8 +450,15 @@ function refreshTools(): void {
 }
 
 function act(): void {
+  // Pointer/keyboard events can arrive between render frames. Read the live
+  // connection before selecting an authoritative target or sending a command.
+  latest = network.snapshot();
+  if (latest.status !== "connected") {
+    notice("연결을 복구하고 있어요. 연결된 뒤 행동을 다시 눌러 주세요.");
+    return;
+  }
   const me = latest.players.find((p) => p.local);
-  if (!me || latest.status !== "connected" || modal) return;
+  if (!me || modal) return;
   const tile = frontTile({
     x: me.authoritativeX,
     y: me.authoritativeY,
@@ -665,6 +673,19 @@ const renderer = createRenderer((now, delta) => {
     }
   }
   latest = network.frame(now, command);
+  el<HTMLButtonElement>("action").disabled =
+    latest.status !== "connected" || panel.open;
+  if (controlStatus !== latest.status) {
+    if (controlStatus === "connected") {
+      actionHeld = false;
+      target = undefined;
+      input.reset();
+      notice("연결을 복구하고 있어요. 잠시 기다려 주세요.");
+    } else if (controlStatus === "reconnecting" && latest.status === "connected") {
+      notice("연결이 복구됐어요. 이동하거나 행동을 다시 눌러 주세요.");
+    }
+    controlStatus = latest.status;
+  }
   if (actionHeld && now > nextAction) {
     nextAction = now + 320;
     act();
