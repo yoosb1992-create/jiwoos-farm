@@ -28,7 +28,14 @@
       "drainingSeconds": 30,
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 5,
-      "watchPatterns": ["/multiplayer-farm/**"],
+      "watchPatterns": [
+        "/multiplayer-farm/server/**",
+        "/multiplayer-farm/shared/**",
+        "/multiplayer-farm/persistence/**",
+        "/multiplayer-farm/package*.json",
+        "/multiplayer-farm/tsconfig*.json",
+        "/multiplayer-farm/Dockerfile"
+      ],
       "publicPort": 2567,
       "variables": {
         "RAILWAY_DOCKERFILE_PATH": "multiplayer-farm/Dockerfile",
@@ -54,7 +61,18 @@
       },
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 5,
-      "watchPatterns": ["/multiplayer-farm/**", "/public/assets/**"],
+      "watchPatterns": [
+        "/multiplayer-farm/client/**",
+        "/multiplayer-farm/shared/**",
+        "/multiplayer-farm/build/**",
+        "/multiplayer-farm/package*.json",
+        "/multiplayer-farm/tsconfig*.json",
+        "/multiplayer-farm/vite.config.ts",
+        "/multiplayer-farm/index.html",
+        "/multiplayer-farm/deployment/static-server.mjs",
+        "/multiplayer-farm/Dockerfile.client",
+        "/public/assets/**"
+      ],
       "publicPort": 8080,
       "variables": {
         "RAILWAY_DOCKERFILE_PATH": "multiplayer-farm/Dockerfile.client",

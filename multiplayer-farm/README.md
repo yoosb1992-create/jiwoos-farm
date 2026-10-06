@@ -5,13 +5,13 @@
 - 작업 브랜치: `feature/v2.6-farm-content-expansion`
 - 복구 기준 v2.5: `3fad61ce6c567fe5449371e8ecf871282b6b69df`
 - Golden Lab: `982a94dec72ac7d125d55050f707f635c4407fd5` (파일·브랜치 보존)
-- 공개 게임 URL: https://frontend-production-a998.up.railway.app/ (v2.6 전환은 CI 성공 후 진행. 실제 배포 결과는 V26-VALIDATION.md 확인)
+- 공개 게임 URL: https://frontend-production-a998.up.railway.app/ (**현재 v2.5 운영 중**. v2.6 CI는 통과했으나 Railway 배포 적용 요청이 승인되지 않아 전환 대기. 결과는 [V26-VALIDATION.md](./V26-VALIDATION.md))
 - Backend health: https://backend-production-b244e.up.railway.app/healthz
 - Railway 무료 플랜의 신규 리소스 한도 때문에 기존 Farm 서비스의 Source를 새 브랜치로 전환합니다. v2.5 브랜치와 `public` 저장 schema는 보존하고 v2.6는 **`farm_v26` schema**와 별도 브라우저 세션을 사용합니다. 새 PostgreSQL 인스턴스 추가·D1 변경·데이터 이관은 없습니다.
 
 ## 휴대폰에서 시작하기
 
-v2.6 Frontend 공개 주소가 발급되면 그 주소만 엽니다. 닉네임/비밀번호(2글자 이상)로 새 가족 농장을 만들고, 메뉴의 가족 코드를 복사해 다른 휴대폰에 전달합니다. 다른 기기는 별도 닉네임으로 같은 코드·비밀번호를 입력합니다. 같은 Wi-Fi일 필요가 없습니다. PC, 터미널, LAN 주소는 필요하지 않습니다.
+Railway의 대기 중인 v2.6 배포를 적용한 뒤 위의 기존 공개 주소를 엽니다. 닉네임/비밀번호(2글자 이상)로 새 가족 농장을 만들고, 메뉴의 가족 코드를 복사해 다른 휴대폰에 전달합니다. 다른 기기는 별도 닉네임으로 같은 코드·비밀번호를 입력합니다. 같은 Wi-Fi일 필요가 없습니다. PC, 터미널, LAN 주소는 필요하지 않습니다.
 
 서버/클라이언트 전환 후 사용자는 공개 URL을 열기만 하면 됩니다. v2.6에서는 **새 가족 농장**을 만듭니다. 기존 v2.5 가족 코드·세션·가방은 보존되어 있지만 v2.6와 공유하지 않습니다. 사용자가 PC/결제 업그레이드를 해야 하는 방식 대신 현재 할당된 서비스 안에서 저장 공간을 분리합니다. 배포·복구 설정은 [RAILWAY-V26.md](./RAILWAY-V26.md).
 

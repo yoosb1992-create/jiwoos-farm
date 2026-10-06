@@ -1,5 +1,13 @@
 # v2.6 Railway · 공개 URL 유지와 v2.5 복구
 
+## 현재 상태 · 2026-10-06
+
+런타임 commit `53fe66658fc224d02c47c37b28446717e09894fa`의 기존 게임 CI, Farm 전체 CI, Golden Lab 회귀가 모두 통과했습니다. Backend/Frontend Source 전환과 watchPatterns 설정 **7개 변경이 staged** 상태입니다. 배포 적용 도구는 `Cancelled — the user did not approve this action. No changes were made.`를 반환했습니다. 반복 실행하거나 다른 경로로 승인을 우회하지 않았습니다. 공개 서버는 아직 v2.5이며 v2.6 공개 WSS/멀티 검증은 실행하지 않았습니다.
+
+휴대폰 Railway 웹 → [jiwoos-farm-v2-5 프로젝트](https://railway.com/project/60e07bfd-eb89-4879-b082-f57a565fff1a?environmentId=7a8eb991-df6f-4f08-bca3-3c57cf42d43c) → 대기 변경 검토 → Deploy. 대상은 Backend/Frontend 두 서비스뿐이며 Postgres 서비스·볼륨·variables 변경은 없습니다. 대기 patch: `d6a45d10-78f9-4a68-8e7b-65c6c42d694b` (destructive=false).
+
+승인 후 빌드가 끝나면 아래 health 조건과 공개 smoke를 확인합니다. 이 문서는 배포 성공을 뜻하지 않습니다.
+
 ## 배포 방식
 
 신규 프로젝트 생성은 Railway 무료 플랜 리소스 한도로 거절되었습니다. 새 리소스를 만들거나 플랜을 바꾸지 않고, 사용자가 허용한 **기존 Farm 서비스의 새 브랜치 재배포**를 적용합니다.
@@ -51,9 +59,13 @@ VITE_MULTIPLAYER_SERVER_URL=wss://${{Backend.RAILWAY_PUBLIC_DOMAIN}}
 
 CI 성공 → 두 서비스 Source branch 변경 → Deploy. Backend health에서 `service=jiwoos-farm-v2.6`, `storageNamespace=farm_v26`, `database=true`, `latencyMs=0`, `tickRate=30` 확인 후 Frontend 공개 페이지/새 가족/다른 기기 참가를 확인합니다. domain과 reference variables는 바뀌지 않습니다. 이후 v2.6 branch push → CI → 자동 재배포입니다. Frontend는 compiled static server, Backend는 compiled JS를 실행합니다.
 
+watchPatterns는 런타임 코드·공유 정의·package/TypeScript/build/Dockerfile·사용 asset에 한정합니다. 문서나 공개 smoke 기록만 수정해 테스트 중 서버가 재배포되는 일을 막습니다. 정확한 목록은 서비스 설정 JSON에 있습니다.
+
 ## 공개 smoke
 
 `Multiplayer Farm v2.6 Public Smoke`는 `deployment/public-v26.json` 배포 기록이 갱신될 때, 또는 workflow_dispatch로 실행합니다. 후보 CI에는 포함하지 않아 CI→Railway 순환 대기를 피합니다. 기존 3 SDK client·2 production browser 검사를 재사용합니다. health의 서비스 버전과 namespace가 v2.6가 아니면 게임 데이터를 만들기 전에 실패합니다.
+
+휴대폰 GitHub → 저장소 Actions → `Multiplayer Farm v2.6 Public Smoke` → Run workflow → v2.6 브랜치 선택. Frontend는 `https://frontend-production-a998.up.railway.app`, Backend는 `https://backend-production-b244e.up.railway.app`를 입력합니다. 배포 승인 전에는 실행하지 않습니다. 현재는 배포 성공 기록인 `public-v26.json`을 만들지 않았습니다.
 
 ## 모바일 복구
 
