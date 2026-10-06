@@ -1,0 +1,31 @@
+name: Multiplayer Farm Public Restart Verification
+# A deliberate maintenance test, only when this workflow changes or is rerun.
+# While its smoke step waits, restart ONLY the new v2.5 Backend in Railway.
+on:
+  push:
+    branches: [feature/v2.5-multiplayer-farm-rebuild]
+    paths: ['.github/workflows/multiplayer-farm-restart.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  persisted-public-restart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: multiplayer-farm
+    env:
+      PUBLIC_FARM_BACKEND: https://backend-production-b244e.up.railway.app
+      PUBLIC_FARM_FRONTEND: https://frontend-production-a998.up.railway.app
+      PUBLIC_WAIT_FOR_RESTART: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: multiplayer-farm/package-lock.json
+      - run: npm ci
+      - name: Create persisted crop, wait for real Backend restart, restore inventory and world
+        run: npm run test:public

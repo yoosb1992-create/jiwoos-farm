@@ -118,6 +118,59 @@ try {
   assert.ok(
     [...A.state.entities.values()].some((e) => e.kind === "crop" && e.watered),
   );
+  let processRestart = false;
+  if (process.env.PUBLIC_WAIT_FOR_RESTART === "1") {
+    const beforeRestart = (await (
+      await fetch(new URL("/healthz", backend))
+    ).json()) as { uptimeSeconds: number };
+    const bootAt = Date.now() - beforeRestart.uptimeSeconds * 1000;
+    console.log(
+      "RESTART READY: disposable farm is committed; restart only the v2.5 Backend in Railway.",
+    );
+    const deadline = Date.now() + 300000;
+    while (Date.now() < deadline) {
+      await delay(1000);
+      try {
+        const response = await fetch(new URL("/healthz", backend), {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (!response.ok) continue;
+        const current = (await response.json()) as { uptimeSeconds: number };
+        if (Date.now() - current.uptimeSeconds * 1000 > bootAt + 5000) {
+          processRestart = true;
+          break;
+        }
+      } catch {
+        /* Expected connection interruption during the requested restart. */
+      }
+    }
+    assert.ok(
+      processRestart,
+      "No actual Backend process restart was observed within five minutes",
+    );
+    let restored: TestRoom | undefined;
+    for (let attempt = 0; attempt < 20 && !restored; attempt++) {
+      try {
+        restored = await join(ws, a);
+      } catch {
+        await delay(1000);
+      }
+    }
+    assert.ok(
+      restored,
+      "Server must restore the persisted family after process restart",
+    );
+    A = restored;
+    rooms.push(A);
+    personal = undefined;
+    observe(A);
+    await until(() => personal?.inventory.sproutberry_seed === 11, 15000);
+    assert.ok(
+      [...A.state.entities.values()].some(
+        (e) => e.kind === "crop" && e.watered,
+      ),
+    );
+  }
   intervals.sort((x, y) => x - y);
   console.log(
     JSON.stringify({
@@ -129,6 +182,7 @@ try {
       farming: true,
       reconnect: true,
       postgresReload: true,
+      processRestart,
       observedPatchHz: +(patches / ((last - started) / 1000)).toFixed(1),
       patchGapP95Ms: +(
         intervals[Math.floor(intervals.length * 0.95)] ?? 0
