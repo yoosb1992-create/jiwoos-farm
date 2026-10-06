@@ -18,7 +18,7 @@
 
 ## 재현 가능한 증거
 
-아래 실행은 런타임 변경 commit `53b4d03ec84777b32ab77b9cd64b12a38048408d`를 배포한 공개 서버를 검증했습니다. 검증 스크립트 revision은 후속 `f5df60873011bfb41485f27736a7b9e9a35a5f34`입니다. 검증 revision과 배포 revision을 동일하다고 간주하지 않습니다. 이후 문서 commit은 런타임을 변경하지 않습니다.
+아래 첫 공개 실행은 런타임 변경 commit `53b4d03ec84777b32ab77b9cd64b12a38048408d`를 배포한 서버를 검증했습니다. 검증 스크립트 revision은 후속 `f5df60873011bfb41485f27736a7b9e9a35a5f34`입니다. 검증 revision과 배포 revision을 동일하다고 간주하지 않습니다. 후속 수정에서는 브라우저 뒤로가기의 bfcache 복귀 시 폐기된 canvas/socket을 저장된 세션으로 재구축하도록 처리했고 개발·production 브라우저 검사에 페이지 이탈/복귀를 추가했습니다. 각 최종 revision의 CI는 GitHub branch Checks에서 확인할 수 있습니다.
 
 | 검증 | 결과 | GitHub Actions |
 |---|---|---|

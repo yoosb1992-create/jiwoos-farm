@@ -584,6 +584,11 @@ try {
 } catch {
   localStorage.removeItem("farm-v25-session");
 }
+// pagehide releases sockets/rendering; a bfcache restoration must rebuild them
+// from the saved family session instead of showing a disposed canvas.
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) window.location.reload();
+});
 window.addEventListener(
   "pagehide",
   () => {

@@ -165,6 +165,13 @@ test("production mobile client: actual authority movement, remote canvas, planti
       await page.evaluate(() => Object.hasOwn(window, "__FARM_DEBUG__")),
     ).toBe(false);
     expect(errors).toEqual([]);
+    await page.goto("about:blank");
+    await page.goBack();
+    await expect(page.locator("#login")).toBeHidden();
+    await expect(page.locator("#connection")).toContainText("3명");
+    await page.locator("#bag").click();
+    await expect(page.locator("#panel-body")).toContainText("나무 ×1");
+    await page.locator("#panel-close").click();
     await page.screenshot({ path: info.outputPath("farm-mobile.png") });
   } finally {
     await sdk.leave();

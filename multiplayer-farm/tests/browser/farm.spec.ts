@@ -70,5 +70,10 @@ test("mobile farm load, two contexts, joystick+RUN, action, inventory and reconn
   await expect(page.locator("#login")).toBeHidden();
   await expect(page.locator("#connection")).toContainText("연결됨");
   expect(errors).toEqual([]);
+  await page.goto("about:blank");
+  await page.goBack();
+  await expect(page.locator("#login")).toBeHidden();
+  await expect(page.locator("#connection")).toContainText("연결됨");
+  await expect(page.locator("canvas")).toBeVisible();
   await context.close();
 });
