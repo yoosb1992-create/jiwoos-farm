@@ -94,3 +94,11 @@ Headless 모바일 viewport 검증은 실제 Android 기기 체감 테스트를 
 런타임 commit **7850f1e70588b1b7ae96892ddea2345dd011620a**에서 기존 게임 CI [37483604248](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37483604248)와 Farm/Golden Lab 전체 [37483604330](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37483604330)가 SUCCESS입니다. Farm 31개 검사와 Golden Lab 56개 검사, 실제 PostgreSQL migration/복원, Docker 2개 이미지/health/restart/shutdown gate를 통과했습니다.
 
 Railway 자동배포는 추가 승인/설정 변경 없이 성공했습니다. Backend `ce8d13df-4243-4a28-86d3-534bada7879c`, Frontend `b4ad17dc-b394-41fa-8ad1-ad62440c2154`, 모두 위 런타임 commit입니다. 공개 HTTPS health는 database=true, tickRate=30, patchRate=30, latencyMs=0이고 `/editor.html`은 HTTP 200입니다. Work의 외부 Chromium 접근은 ERR_EMPTY_RESPONSE로 제한되어 기존 GitHub 공개 smoke를 사용합니다. `deployment/public-v26.json`은 배포가 끝난 SHA를 기록하며 공개 검증을 실행하고, runtime watchPatterns에 포함되지 않으므로 서버를 재배포하지 않습니다.
+
+### 공개 검증 결과 (2026-10-06)
+
+[공개 smoke 37485822184](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37485822184)는 SUCCESS입니다. 실제 공개 HTTPS/WSS에서 3 SDK client의 같은 가족 접속, 양방향 이동/상태 수렴, 농사, 재연결, 모든 접속 종료 후 PostgreSQL에서 농장 재로딩을 통과했습니다. 비밀번호 없는 참가와 서버에 발행한 편집 맵으로 새 농장 생성도 통과했습니다. 이 짧은 측정에서 patch 30.3Hz, patch 간격 p95 35.3ms였습니다. 공개 서버 프로세스를 강제로 재시작하지는 않았으며 프로세스 재시작은 CI Docker/DB gate에서 검증했습니다.
+
+같은 workflow의 실제 production 페이지 검사도 통과했습니다. 모바일 viewport 2개와 SDK observer 1개로 이동, 상대 canvas 변화, 경작/심기/물주기, 나무 3회 타격/드랍/획득/가방, 새로고침과 뒤로 가기 후 세션·아이템 유지까지 검사했습니다. 성공 화면은 workflow artifact `public-v26-browser-results`에 있습니다.
+
+첫 공개 browser 실행은 마지막 뒤로 가기 후 인원 표시가 5초 안에 3명으로 돌아오지 않아 실패했습니다(2명 표시). 원인을 단정하지 않았으며 스크린샷/trace/연결 진단을 추가했습니다. 런타임·timeout·assertion을 변경하지 않은 재실행은 통과했습니다. 실제 Android의 다른 앱/페이지 방문 후 복귀와 Wi-Fi/5G 전환은 계속 직접 확인할 항목입니다.
