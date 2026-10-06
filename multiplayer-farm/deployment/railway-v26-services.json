@@ -1,14 +1,16 @@
 {
-  "description": "Reviewable service plan for Railway dashboard/API; this is not an auto-loaded railway.json file.",
-  "projectName": "jiwoos-farm-v2-6",
+  "description": "v2.6 cutover on existing services after CI; prior branch and public DB schema remain recoverable. Dashboard/API service plan, not auto-loaded config.",
+  "projectName": "jiwoos-farm-v2-5",
   "environmentName": "production",
   "repository": "yoosb1992-create/jiwoos-farm",
   "branch": "feature/v2.6-farm-content-expansion",
   "database": {
     "name": "Postgres",
-    "template": "postgres",
+    "existing": true,
+    "schema": "farm_v26",
+    "preservedSchema": "public",
     "privateOnly": true,
-    "newDatabaseRequired": true
+    "automaticSchemaMigration": true
   },
   "services": {
     "Backend": {
@@ -18,7 +20,11 @@
       "healthcheckTimeout": 120,
       "sleepApplication": false,
       "waitForCi": true,
-      "regions": { "asia-southeast1-eqsg3a": { "numReplicas": 1 } },
+      "regions": {
+        "asia-southeast1-eqsg3a": {
+          "numReplicas": 1
+        }
+      },
       "drainingSeconds": 30,
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 5,
@@ -41,7 +47,11 @@
       "healthcheckTimeout": 120,
       "sleepApplication": false,
       "waitForCi": true,
-      "regions": { "asia-southeast1-eqsg3a": { "numReplicas": 1 } },
+      "regions": {
+        "asia-southeast1-eqsg3a": {
+          "numReplicas": 1
+        }
+      },
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 5,
       "watchPatterns": ["/multiplayer-farm/**", "/public/assets/**"],
@@ -54,5 +64,11 @@
         "VITE_MULTIPLAYER_SERVER_URL": "wss://${{Backend.RAILWAY_PUBLIC_DOMAIN}}"
       }
     }
+  },
+  "rollback": {
+    "branch": "feature/v2.5-multiplayer-farm-rebuild",
+    "sha": "3fad61ce6c567fe5449371e8ecf871282b6b69df",
+    "databaseSchema": "public",
+    "sessionKey": "farm-v25-session"
   }
 }

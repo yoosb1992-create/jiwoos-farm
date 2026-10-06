@@ -5,14 +5,15 @@
 - 작업 브랜치: `feature/v2.6-farm-content-expansion`
 - 복구 기준 v2.5: `3fad61ce6c567fe5449371e8ecf871282b6b69df`
 - Golden Lab: `982a94dec72ac7d125d55050f707f635c4407fd5` (파일·브랜치 보존)
-- **v2.6 공개 배포: 현재 대기.** Railway가 새 프로젝트 생성 시 `Free plan resource provision limit exceeded. Please upgrade to provision more resources!`를 반환했습니다. 기존 서비스/DB를 덮어쓰지 않았습니다.
-- 기존 **v2.5** 공개 게임은 계속 https://frontend-production-a998.up.railway.app/ 에 있습니다. 이 주소에는 v2.6 콘텐츠가 아직 없습니다.
+- 공개 게임 URL: https://frontend-production-a998.up.railway.app/ (v2.6 전환은 CI 성공 후 진행. 실제 배포 결과는 V26-VALIDATION.md 확인)
+- Backend health: https://backend-production-b244e.up.railway.app/healthz
+- Railway 무료 플랜의 신규 리소스 한도 때문에 기존 Farm 서비스의 Source를 새 브랜치로 전환합니다. v2.5 브랜치와 `public` 저장 schema는 보존하고 v2.6는 **`farm_v26` schema**와 별도 브라우저 세션을 사용합니다. 새 PostgreSQL 인스턴스 추가·D1 변경·데이터 이관은 없습니다.
 
 ## 휴대폰에서 시작하기
 
 v2.6 Frontend 공개 주소가 발급되면 그 주소만 엽니다. 닉네임/비밀번호(2글자 이상)로 새 가족 농장을 만들고, 메뉴의 가족 코드를 복사해 다른 휴대폰에 전달합니다. 다른 기기는 별도 닉네임으로 같은 코드·비밀번호를 입력합니다. 같은 Wi-Fi일 필요가 없습니다. PC, 터미널, LAN 주소는 필요하지 않습니다.
 
-현재 필요한 외부 조작은 Railway 로그인 후 **워크스페이스 Settings → Billing/Plans에서 신규 리소스를 만들 수 있는 플랜/한도를 확인하고, 필요한 결제는 사용자가 직접 승인하는 것**입니다. 앱 코드·CI·배포 파일은 저장소에 준비되어 있습니다. 구체적인 신규 서비스 설정은 [RAILWAY-V26.md](./RAILWAY-V26.md)에 있습니다.
+서버/클라이언트 전환 후 사용자는 공개 URL을 열기만 하면 됩니다. v2.6에서는 **새 가족 농장**을 만듭니다. 기존 v2.5 가족 코드·세션·가방은 보존되어 있지만 v2.6와 공유하지 않습니다. 사용자가 PC/결제 업그레이드를 해야 하는 방식 대신 현재 할당된 서비스 안에서 저장 공간을 분리합니다. 배포·복구 설정은 [RAILWAY-V26.md](./RAILWAY-V26.md).
 
 ## 첫날 안내
 
@@ -54,12 +55,12 @@ v2.6 Frontend 공개 주소가 발급되면 그 주소만 엽니다. 닉네임/�
 - 이동은 입력만 전송합니다. 식물·동물·낚시·주민·장식·보상도 서버 command → 가족 queue → DB transaction/action receipt → 승인 state. 인벤토리는 본인에게만 전송합니다.
 - 낚시는 seed·어종·입질 시각을 서버가 지정하고 0/1 홀드 기록(최대400개)·경과 시간·거리·중복 보상을 검증합니다. 클라이언트가 점수/어종/보상을 지정하지 않습니다. 자동화 입력을 완전히 차단하는 anti-bot 시스템은 아닙니다.
 - PostgreSQL 테이블 구조는 그대로: `farm_migrations`, `farms`, `members`, `sessions`, `action_receipts`, `world_checkpoints`. **world JSON version2**가 도감·친밀도·동물·장식을 더하며 `upgradeWorld`는 v1 필드를 보존하는 additive upgrade입니다. SQL migration 추가 없음.
-- 중요 행동 직후 원자 저장, 5초 checkpoint, leave/empty/shutdown 저장. tick 위치는 DB에 기록하지 않습니다. 새 v2.6 DB를 사용하며 기존 Production D1/세이브/인증, v2.5 DB를 이관하거나 수정하지 않습니다.
-- v1 JSON의 v2 변환은 구현했지만 v2.5 서버로 v2 DB를 거꾸로 여는 것은 지원하지 않습니다. 별도 DB가 복구 경계를 유지합니다.
+- 중요 행동 직후 원자 저장, 5초 checkpoint, leave/empty/shutdown 저장. tick 위치는 DB에 기록하지 않습니다. 같은 PostgreSQL 인스턴스의 `farm_v26` schema만 사용합니다. `search_path=farm_v26`이며 public fallback을 허용하지 않습니다. 기존 Production D1/세이브/인증과 v2.5 `public` 테이블은 이관하거나 변경하지 않습니다.
+- v1 JSON의 v2 변환은 구현했지만 v2.5 서버로 v2 DB를 거꾸로 여는 것은 지원하지 않습니다. 별도 schema와 `farm-v26-session`/`farm-v25-session` 키가 복구 경계를 유지합니다.
 
 ## 검증과 한계
 
-기존 단위14·SDK통합6·DB1·정적배포6·브라우저3 검사를 유지합니다. 기존 낚시 테스트를 입력 재생 검증으로 교체하고 기존 모바일 smoke에 도감 열기를 더했습니다. 새 콘텐츠마다 대규모 자동 테스트를 추가하지 않았습니다. CI는 기존 게임, Golden Lab 회귀 및 Farm의 설치/타입/테스트/production build/Docker health·restart를 유지합니다. 결과는 [V26-VALIDATION.md](./V26-VALIDATION.md).
+기존 단위14·SDK통합6·DB1·정적배포6·브라우저3 검사를 유지합니다. 기존 DB 테스트에 public 동명 테이블 보존과 farm_v26 namespace 확인을 추가했습니다. 기존 낚시 테스트를 입력 재생 검증으로 교체하고 기존 모바일 smoke에 도감 열기를 더했습니다. 새 콘텐츠마다 대규모 자동 테스트를 추가하지 않았습니다. CI는 기존 게임, Golden Lab 회귀 및 Farm의 설치/타입/테스트/production build/Docker health·restart를 유지합니다. 결과는 [V26-VALIDATION.md](./V26-VALIDATION.md).
 
 남은 범위: 실제 Android 장시간 체감/저사양 FPS·발열, 경제/낚시 난이도 밸런스, 독자적인 모든 캐릭터/동물 정밀 애니메이션, 고급 NPC 경로 AI·관계 이벤트/대형 컷신, 오리·염소·돼지, 온실·축사 증축, 지도 편집기. 동적 나무와 배치 장식은 이동 장애물이 아니며 건물/기존 fence/water가 공용 collision입니다. NPC 4명은 기존 sprite를 색으로 구분하여 재사용했습니다. 새 동물/작물 일부는 단순한 절차적 그림으로, 전체가 실사풍 신규 아트인 것은 아닙니다. 음악은 짧은 원본 합성 루프이며 녹음 오케스트라 BGM이 아닙니다.
 

@@ -54,6 +54,7 @@ export interface FarmLease {
   close(): Promise<void>;
 }
 export interface Store {
+  readonly namespace?: string;
   migrate(): Promise<void>;
   health(): Promise<boolean>;
   login(
@@ -66,11 +67,19 @@ export interface Store {
   lease(farmId: string, onLost: () => void): Promise<FarmLease>;
   close(): Promise<void>;
 }
+export const DATABASE_SCHEMA = "farm_v26";
 export class PostgresStore implements Store {
+  readonly namespace = DATABASE_SCHEMA;
   readonly pool: Pool;
   constructor(connectionString: string) {
+    if (new URL(connectionString).searchParams.has("options"))
+      throw new Error(
+        "DATABASE_URL options cannot override the isolated farm namespace",
+      );
     this.pool = new Pool({
       connectionString,
+      // No public fallback: v2.5 tables and sessions remain untouched.
+      options: `-c search_path=${DATABASE_SCHEMA}`,
       max: 12,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
@@ -83,8 +92,12 @@ export class PostgresStore implements Store {
   async migrate(): Promise<void> {
     const db = await this.pool.connect();
     try {
+      const path = await db.query<{ search_path: string }>("SHOW search_path");
+      if (path.rows[0]?.search_path !== DATABASE_SCHEMA)
+        throw new Error("Farm namespace isolation failed");
       await db.query("BEGIN");
-      await db.query("SELECT pg_advisory_xact_lock(25250001)");
+      await db.query("SELECT pg_advisory_xact_lock(25260001)");
+      await db.query(`CREATE SCHEMA IF NOT EXISTS ${DATABASE_SCHEMA}`);
       await db.query(
         "CREATE TABLE IF NOT EXISTS farm_migrations(version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())",
       );
@@ -201,7 +214,7 @@ export class PostgresStore implements Store {
       lost = false;
     try {
       const lock = await db.query<{ locked: boolean }>(
-        "SELECT pg_try_advisory_lock(hashtextextended($1,2525)) AS locked",
+        "SELECT pg_try_advisory_lock(hashtextextended($1,2526)) AS locked",
         [farmId],
       );
       if (!lock.rows[0]?.locked)
@@ -284,7 +297,7 @@ export class PostgresStore implements Store {
         try {
           if (!lost)
             await db.query(
-              "SELECT pg_advisory_unlock(hashtextextended($1,2525))",
+              "SELECT pg_advisory_unlock(hashtextextended($1,2526))",
               [farmId],
             );
         } finally {

@@ -11,7 +11,7 @@ async function login(page: Page, code?: string) {
   await expect(page.locator("#connection")).toContainText("연결됨");
   return page.evaluate(
     () =>
-      JSON.parse(localStorage.getItem("farm-v25-session")!).farmId as string,
+      JSON.parse(localStorage.getItem("farm-v26-session")!).farmId as string,
   );
 }
 test("mobile farm load, two contexts, joystick+RUN, action, inventory and reconnect after reload", async ({

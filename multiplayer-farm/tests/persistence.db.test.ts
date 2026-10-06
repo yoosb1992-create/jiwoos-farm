@@ -10,8 +10,32 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
     "DATABASE_URL is required for real PostgreSQL tests; never report a memory fixture as DB validation",
   );
   const db = new PostgresStore(url);
+  // Disposable CI database only: a v2.5-shaped namespace must never be selected
+  // or migrated by the v2.6 runtime, even when it has a table with the same name.
+  const marker = randomUUID();
+  await db.pool.query(
+    "CREATE TABLE IF NOT EXISTS public.farms(id text PRIMARY KEY, legacy_marker text NOT NULL)",
+  );
+  await db.pool.query(
+    "INSERT INTO public.farms(id,legacy_marker) VALUES($1,$1)",
+    [marker],
+  );
   try {
     await Promise.all([db.migrate(), db.migrate()]);
+    const schema = await db.pool.query("SELECT current_schema() AS name");
+    assert.equal(schema.rows[0].name, "farm_v26");
+    const legacy = await db.pool.query(
+      "SELECT legacy_marker FROM public.farms WHERE id=$1",
+      [marker],
+    );
+    assert.equal(legacy.rows[0].legacy_marker, marker);
+    const columns = await db.pool.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='farms' ORDER BY ordinal_position",
+    );
+    assert.deepEqual(
+      columns.rows.map((r) => r.column_name),
+      ["id", "legacy_marker"],
+    );
     const s = await db.login(
       true,
       "",

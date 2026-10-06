@@ -24,9 +24,9 @@
 
 ## Railway / 공개
 
-신규 `jiwoos-farm-v2-6` 프로젝트 생성 API가 `Free plan resource provision limit exceeded. Please upgrade to provision more resources!`로 거부했습니다. v2.6 서비스/DB/domain provisioning 및 공개 HTTPS/WSS/두 client 검증은 **미실행**입니다. 자동 승인 거절이 아니라 Railway 계정 플랜 한도입니다. 사용자가 모바일 Railway에서 한도/플랜/결제를 직접 처리해야 합니다.
+신규 프로젝트 생성은 플랜 한도로 거절되어 새 리소스를 할당하지 않았습니다. 현재 허용된 기존 Farm 서비스의 Source를 v2.6로 전환하는 방식으로 변경합니다. 추가된 schema/session 격리 변경이 실제 PostgreSQL CI를 통과한 뒤 배포합니다. 기존 v2.5 브랜치·public 저장 테이블·브라우저 세션은 보존합니다. 실제 공개 결과는 완료 후 기록합니다.
 
-기존 `jiwoos-farm-v2-5`의 Backend/Frontend/Postgres 세 서비스는 API read에서 모두 SUCCESS이고 staged changes 없음. Source는 여전히 v2.5 branch. 신규 버전을 기존 프로젝트나 DB에 덮어쓰지 않았습니다.
+첫 콘텐츠 후보 `3d55906fa62ea412ffc1aa31c3b4d554da85741f`: [기존 게임 CI](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37455228933) SUCCESS, [Farm + Golden Lab 전체 CI](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37455229124) SUCCESS. 별도 schema를 추가한 후속 commit도 같은 전체 CI로 확인합니다.
 
 ## 수동 확인
 

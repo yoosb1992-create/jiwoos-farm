@@ -41,7 +41,7 @@ async function enter(page: Page, name: string, code?: string) {
   } else await page.locator("#create-farm").click();
   await expect(page.locator("#login")).toBeHidden();
   return page.evaluate(
-    () => JSON.parse(localStorage.getItem("farm-v25-session")!) as Session,
+    () => JSON.parse(localStorage.getItem("farm-v26-session")!) as Session,
   );
 }
 async function hold(page: Page, id: string, ms = 110) {

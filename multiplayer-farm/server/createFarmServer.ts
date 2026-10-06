@@ -155,11 +155,9 @@ export function createFarmServer(options: FarmServerOptions) {
           response.setHeader("Cache-Control", "no-store");
           response.json(result);
         } catch (error) {
-          response
-            .status(400)
-            .json({
-              error: error instanceof Error ? error.message : "농장 접속 실패",
-            });
+          response.status(400).json({
+            error: error instanceof Error ? error.message : "농장 접속 실패",
+          });
         }
       });
       app.get("/api/session", async (request, response) => {
@@ -182,6 +180,7 @@ export function createFarmServer(options: FarmServerOptions) {
               : "database-unavailable",
           database,
           service: "jiwoos-farm-v2.6",
+          storageNamespace: options.store.namespace ?? "test",
           tickRate: SERVER_TICK_RATE,
           patchRate: PATCH_RATE,
           latencyMs,

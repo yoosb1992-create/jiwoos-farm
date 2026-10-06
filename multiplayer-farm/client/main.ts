@@ -365,7 +365,7 @@ function renderPanel(): void {
     row("이 기기의 세션 보관", [
       button("로그아웃", () => {
         void network.leave();
-        localStorage.removeItem("farm-v25-session");
+        localStorage.removeItem("farm-v26-session");
         session = undefined;
         closePanel();
         el("login").hidden = false;
@@ -813,7 +813,7 @@ async function login(create: boolean): Promise<void> {
     const result = (await r.json()) as Session & { error?: string };
     if (!r.ok) throw new Error(result.error ?? "로그인 실패");
     session = result;
-    localStorage.setItem("farm-v25-session", JSON.stringify(session));
+    localStorage.setItem("farm-v26-session", JSON.stringify(session));
     el<HTMLInputElement>("password").value = "";
     await connectSaved();
   } catch (e) {
@@ -844,7 +844,7 @@ el("resume").addEventListener(
   opts,
 );
 try {
-  const saved = localStorage.getItem("farm-v25-session");
+  const saved = localStorage.getItem("farm-v26-session");
   if (saved) {
     const value = JSON.parse(saved) as Session;
     if (value.token && value.farmId) {
@@ -854,7 +854,7 @@ try {
     }
   }
 } catch {
-  localStorage.removeItem("farm-v25-session");
+  localStorage.removeItem("farm-v26-session");
 }
 // pagehide releases sockets/rendering; a bfcache restoration must rebuild them
 // from the saved family session instead of showing a disposed canvas.

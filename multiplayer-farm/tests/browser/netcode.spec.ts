@@ -26,7 +26,7 @@ async function enter(page: Page, name: string, farmId?: string) {
   return {
     roomId: await page.evaluate(
       () =>
-        JSON.parse(localStorage.getItem("farm-v25-session")!).farmId as string,
+        JSON.parse(localStorage.getItem("farm-v26-session")!).farmId as string,
     ),
     sessionId: (await snapshot(page)).sessionId,
   };
