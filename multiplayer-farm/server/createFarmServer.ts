@@ -181,7 +181,7 @@ export function createFarmServer(options: FarmServerOptions) {
               ? "ok"
               : "database-unavailable",
           database,
-          service: "jiwoos-farm-v2.5",
+          service: "jiwoos-farm-v2.6",
           tickRate: SERVER_TICK_RATE,
           patchRate: PATCH_RATE,
           latencyMs,

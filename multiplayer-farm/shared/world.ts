@@ -1,5 +1,7 @@
 import { MAPS, TILE } from "./content.js";
-export const WORLD_VERSION = 1;
+import { calendar, FORAGE } from "./expansion.js";
+import type { FishingChallenge } from "./fishing.js";
+export const WORLD_VERSION = 2;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
 export const ACTION_RANGE = 64;
@@ -17,13 +19,10 @@ export interface Member {
   toolLevel: number;
   quests: Record<string, number>;
   water: number;
-  fishing?: {
-    id: string;
-    size: number;
-    walls: number[];
-    biteAt: number;
-    expiresAt: number;
-  };
+  fishing?: FishingChallenge;
+  fishBook?: Record<string, { count: number; bestCm: number }>;
+  friendship?: Record<string, number>;
+  collections?: Record<string, number>;
 }
 export interface Entity {
   id: string;
@@ -73,7 +72,7 @@ export interface Command {
   itemId?: string;
   quantity?: number;
   area?: string;
-  path?: number[];
+  inputs?: number[];
   value?: boolean;
 }
 export interface ActionResult {
@@ -82,13 +81,9 @@ export interface ActionResult {
   message: string;
   revision: number;
   transition?: { area: string; x: number; y: number };
-  fishing?: {
-    id: string;
-    size: number;
-    walls: number[];
-    biteAt: number;
-    expiresAt: number;
-  };
+  fishing?: FishingChallenge;
+  serverNow?: number;
+  dialogue?: { name: string; lines: string[]; npcId: string };
 }
 export const entity = (
   id: string,
@@ -113,7 +108,7 @@ export const entity = (
   readyAt: 0,
   owner: "",
 });
-export function newMember(id: string, nickname: string): Member {
+export function newMember(id: string, nickname: string, day = 1): Member {
   return {
     id,
     nickname,
@@ -123,7 +118,13 @@ export function newMember(id: string, nickname: string): Member {
       axe: 1,
       pickaxe: 1,
       fishing_rod: 1,
-      sproutberry_seed: 12,
+      [calendar(day).season === "spring" || calendar(day).season === "summer"
+        ? "sproutberry_seed"
+        : calendar(day).season === "autumn"
+          ? "morningcarrot_seed"
+          : "snowradish_seed"]: 12,
+      animal_feed: 8,
+      decor_planter: 2,
       stamina_biscuit: 5,
     },
     stamina: 100,
@@ -131,6 +132,9 @@ export function newMember(id: string, nickname: string): Member {
     xp: 0,
     toolLevel: 1,
     quests: {},
+    fishBook: {},
+    friendship: {},
+    collections: {},
     water: 30,
   };
 }
@@ -146,6 +150,9 @@ export function generateDaily(world: World): void {
     if (e.area === "forest" || e.area.startsWith("mine"))
       delete world.entities[id];
   const rng = random(world.seed + world.day * 7919);
+  const forage = FORAGE.filter((f) =>
+    f.seasons.includes(calendar(world.day).season),
+  );
   for (let i = 0; i < 28; i++) {
     const kind = i < 12 ? "tree" : i < 20 ? "gather" : "rock";
     const e = entity(
@@ -162,7 +169,10 @@ export function generateDaily(world: World): void {
     );
     e.hp = kind === "tree" ? 3 : 2;
     e.item =
-      kind === "gather" ? (rng() < 0.3 ? "fairy_bloom" : "wild_herb") : "stone";
+      kind === "gather"
+        ? forage[Math.floor(rng() * forage.length)]!.id
+        : "stone";
+    if (kind === "gather") e.asset = forage.find((f) => f.id === e.item)!.asset;
     world.entities[e.id] = e;
   }
   for (let floor = 1; floor <= 5; floor++)
@@ -246,6 +256,17 @@ export function newWorld(seed: number): World {
     "stone_well",
   );
   w.entities[well.id] = well;
+  const chick = entity(
+    "animal-starter",
+    "farm",
+    "animal",
+    39 * TILE,
+    12 * TILE,
+    "chicken",
+  );
+  chick.crop = "chicken";
+  w.entities[chick.id] = chick;
+  upgradeWorld(w);
   generateDaily(w);
   return w;
 }
@@ -261,4 +282,38 @@ export function addDrop(
   e.quantity = quantity;
   w.entities[id] = e;
   return e;
+}
+
+/** Additive JSON upgrade. Existing crops, inventories and receipts are retained. */
+export function upgradeWorld(w: World): void {
+  if (w.version > WORLD_VERSION)
+    throw new Error("This farm needs a newer server");
+  for (const m of Object.values(w.members)) {
+    m.fishBook ??= {};
+    m.friendship ??= {};
+    m.collections ??= {};
+    if (m.fishing && !("seed" in m.fishing)) delete m.fishing;
+  }
+  const fixed = [
+    ["animal-home", "farm", "barn", 41, 8, "chicken_coop"],
+    ["feeding-trough", "farm", "trough", 40, 12, "feed_trough"],
+    ["town-board", "town", "board", 18, 9, "decor_board"],
+    ["workshop-table", "workshop", "craft", 10, 6, "crafting_table"],
+    ["cafe-kitchen", "cafe", "craft", 12, 5, "crafting_table"],
+  ] as const;
+  for (const [id, area, kind, x, y, asset] of fixed)
+    w.entities[id] ??= entity(id, area, kind, x * TILE, y * TILE, asset);
+  if (!w.entities["animal-starter"] && w.version < 2) {
+    const chick = entity(
+      "animal-starter",
+      "farm",
+      "animal",
+      39 * TILE,
+      12 * TILE,
+      "chicken",
+    );
+    chick.crop = "chicken";
+    w.entities[chick.id] = chick;
+  }
+  w.version = WORLD_VERSION;
 }

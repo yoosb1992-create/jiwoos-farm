@@ -17,7 +17,7 @@ async function login(page: Page, code?: string) {
 test("mobile farm load, two contexts, joystick+RUN, action, inventory and reconnect after reload", async ({
   page,
   browser,
-}) => {
+}, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const code = await login(page);
@@ -29,6 +29,22 @@ test("mobile farm load, two contexts, joystick+RUN, action, inventory and reconn
   await login(second, code);
   await expect(page.locator("#connection")).toContainText("2명");
   await expect(page.locator("canvas")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("v26-mobile-farm.png") });
+  await page.locator("#menu").click();
+  await page
+    .getByRole("button", { name: "❧ 사계절 도감", exact: true })
+    .click();
+  await expect(page.locator("#panel-body")).toContainText("겨울별꽃");
+  await page.locator("#panel-close").click();
+  await page.locator("#menu").click();
+  await page
+    .getByRole("button", { name: "≈ 물고기 도감", exact: true })
+    .click();
+  await expect(page.locator("#panel-body")).toContainText("0/24");
+  await page.screenshot({
+    path: testInfo.outputPath("v26-mobile-encyclopedia.png"),
+  });
+  await page.locator("#panel-close").click();
   const touch = await context.newCDPSession(second);
   const joy = await second.locator("#joystick").boundingBox(),
     run = await second.locator("#run").boundingBox();

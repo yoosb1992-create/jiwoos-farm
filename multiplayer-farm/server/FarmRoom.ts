@@ -4,6 +4,7 @@ import { WorldEntity, type Player } from "../shared/schema.js";
 import { applyAction, parseCommand } from "../shared/actions.js";
 import {
   newMember,
+  upgradeWorld,
   ACTION_COOLDOWN_MS,
   CHECKPOINT_MS,
   GAME_MINUTE_MS,
@@ -64,6 +65,7 @@ export class FarmRoom extends MovementRoom {
       void this.disconnect(4010);
     });
     this.world = await this.lease.load();
+    upgradeWorld(this.world);
     this.clockMinute = this.world.minute;
     this.clockDay = this.world.day;
     this.clockStarted = Date.now();
@@ -136,6 +138,7 @@ export class FarmRoom extends MovementRoom {
           proposed.members[auth.playerId] = newMember(
             auth.playerId,
             auth.nickname,
+            proposed.day,
           );
           proposed.revision++;
           await this.lease.save(proposed, this.world.revision);

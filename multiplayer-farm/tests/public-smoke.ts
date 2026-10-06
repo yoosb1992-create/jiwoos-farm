@@ -25,7 +25,7 @@ for (const url of [backend, frontend]) {
 const healthResponse = await fetch(new URL("/healthz", backend));
 assert.equal(healthResponse.status, 200);
 const health = (await healthResponse.json()) as Record<string, unknown>;
-assert.equal(health.service, "jiwoos-farm-v2.5");
+assert.equal(health.service, "jiwoos-farm-v2.6");
 assert.equal(health.database, true);
 assert.equal(health.latencyMs, 0);
 const page = await fetch(frontend);
@@ -125,7 +125,7 @@ try {
     ).json()) as { uptimeSeconds: number };
     const bootAt = Date.now() - beforeRestart.uptimeSeconds * 1000;
     console.log(
-      "RESTART READY: disposable farm is committed; restart only the v2.5 Backend in Railway.",
+      "RESTART READY: disposable farm is committed; restart only the v2.6 Backend in Railway.",
     );
     const deadline = Date.now() + 300000;
     while (Date.now() < deadline) {

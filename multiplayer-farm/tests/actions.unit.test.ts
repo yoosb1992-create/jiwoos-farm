@@ -228,57 +228,62 @@ test("machines: inputs consumed once, server world time controls collection", ()
   assert.equal(w.members.a!.inventory.wood_plank, 1);
   assert.throws(() => act(w, a, "collectMachine", { targetId: "machine" }));
 });
-test("fishing: server validates bite time, path adjacency and a single reward", () => {
+test("fishing: validates bite, elapsed time, hold replay and a single reward", () => {
   const { w, a } = setup();
   a.x = 26 * TILE;
   a.y = 14 * TILE;
+  const ctx = (now: number) => ({
+    now,
+    online: ["a"],
+    votes: new Set<string>(),
+  });
   const result = applyAction(
     w,
     a,
     { actionId: "fishing-001", type: "castFishing" },
-    { now: 100, online: ["a"], votes: new Set() },
+    ctx(100),
   );
-  assert.ok(result.fishing);
-  const path = [0, 1, 2, 3, 4, 9, 14, 19, 24];
-  assert.throws(() =>
-    applyAction(
-      w,
-      a,
-      {
-        actionId: "fishing-002",
-        type: "fishingResult",
-        targetId: "fishing-001",
-        path,
-      },
-      { now: 500, online: ["a"], votes: new Set() },
-    ),
-  );
-  applyAction(
-    w,
-    a,
-    {
-      actionId: "fishing-002",
-      type: "fishingResult",
-      targetId: "fishing-001",
-      path,
-    },
-    { now: 2500, online: ["a"], votes: new Set() },
-  );
-  assert.equal(w.members.a!.inventory.fish_minnow, 1);
-  assert.throws(() =>
-    applyAction(
-      w,
-      a,
-      {
-        actionId: "fishing-003",
-        type: "fishingResult",
-        targetId: "fishing-001",
-        path,
-      },
-      { now: 2600, online: ["a"], votes: new Set() },
-    ),
-  );
+  const challenge = result.fishing!;
+  assert.ok(challenge);
+  const hook = {
+    actionId: "fishing-002",
+    type: "hookFishing",
+    targetId: challenge.id,
+  };
+  assert.throws(() => applyAction(w, a, hook, ctx(500)));
+  applyAction(w, a, hook, ctx(challenge.biteAt + 100));
+  const frame = newFishingFrame(),
+    inputs: number[] = [];
+  while (!frame.done) {
+    const target = fishPosition(
+      challenge.seed,
+      challenge.difficulty,
+      frame.tick + 4,
+    );
+    const held = target > frame.cursor + frame.velocity * 0.16;
+    inputs.push(Number(held));
+    fishingStep(frame, held, challenge.seed, challenge.difficulty);
+  }
+  assert.ok(frame.won);
+  const finish = {
+    actionId: "fishing-003",
+    type: "fishingResult",
+    targetId: challenge.id,
+    inputs,
+  };
+  assert.throws(() => applyAction(w, a, finish, ctx(challenge.biteAt + 200)));
+  const now = challenge.biteAt + 100 + inputs.length * FISH_STEP_MS;
+  applyAction(w, a, finish, ctx(now));
+  assert.equal(w.members.a!.inventory[challenge.fishId], 1);
+  assert.equal(w.members.a!.fishBook?.[challenge.fishId]?.count, 1);
+  assert.throws(() => applyAction(w, a, finish, ctx(now + 100)));
 });
+import {
+  fishPosition,
+  fishingStep,
+  newFishingFrame,
+  FISH_STEP_MS,
+} from "../shared/fishing.js";
 import { TILE } from "../shared/content.js";
 test("passwords: salted scrypt supports short and long passwords without plaintext", async () => {
   for (const password of ["지우", "x".repeat(512)]) {

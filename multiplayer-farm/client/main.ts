@@ -8,6 +8,7 @@ import {
   RECIPES,
   ITEMS,
   NPCS,
+  npcSchedule,
   mapFor,
   TILE,
   itemName,
@@ -15,14 +16,27 @@ import {
 import { frontTile, type MovementInput } from "../shared/applyMovement.js";
 import type { Session } from "../persistence/store.js";
 import type { Command, ActionResult, Entity } from "../shared/world.js";
+import {
+  calendar,
+  SEASON_INFO,
+  QUESTS,
+  DECORATIONS,
+  fishingSpot,
+  festivalOn,
+} from "../shared/expansion.js";
+import { FarmAudio } from "./audio.js";
+import { FishingUI } from "./fishing-ui.js";
+import { renderLifePanel } from "./life-panels.js";
+const audio = new FarmAudio();
+const actionKinds = new Map<string, string>();
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `<div id="arena" aria-label="가족 농장 게임 화면"></div>
-<header id="top"><div><strong>지우네 농장 <small>v2.5</small></strong><span id="calendar">우리 가족의 작은 세계</span></div><button id="bag" aria-label="가방">가방</button><button id="menu" aria-label="메뉴">☰</button><div id="stamina"><i></i><span>기력</span></div></header>
+<header id="top"><div class="day-block"><span class="brand">JIWOO’S FARM · v2.6</span><strong id="calendar">우리 가족의 작은 세계</strong><span id="place">사계절을 함께 가꾸어요</span></div><div class="top-actions"><span id="wallet">0 G</span><button id="bag" aria-label="가방">가방 <small id="bag-space">0/48</small></button><button id="menu" aria-label="메뉴">☰</button></div><div id="stamina"><i></i><span>기력</span></div></header><button id="today" aria-label="오늘 할 일">✦ 오늘의 작은 한 걸음</button>
 <div id="notice" role="status">가족 농장에 오신 것을 환영합니다.</div><div id="connection"></div>
-<div id="toolbar"><label for="tool">선택</label><select id="tool"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="fishing_rod">낚싯대</option></select></div>
-<div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
+<div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><label for="tool">선택</label><select id="tool"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="fishing_rod">낚싯대</option></select></div>
+<div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action" aria-label="행동">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
 <pre id="hud" hidden></pre><dialog id="panel"><div id="panel-top"><h2 id="panel-title"></h2><button id="panel-close">닫기</button></div><div id="panel-body"></div></dialog>
-<section id="login"><div class="login-card"><span class="eyebrow">A LITTLE WORLD, TOGETHER</span><h1>지우네 농장</h1><p>같이 심고, 가꾸고, 새로운 하루를 맞이해요.</p><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>가족 비밀번호<input id="password" type="password" minlength="2" autocomplete="current-password" required placeholder="2글자 이상"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><p id="login-error" role="alert"></p><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>코드와 비밀번호를 가족에게 공유하세요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
+<section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>가족 비밀번호<input id="password" type="password" minlength="2" autocomplete="current-password" required placeholder="2글자 이상"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><p id="login-error" role="alert"></p><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>코드와 비밀번호를 가족에게 공유하세요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
 function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
@@ -41,30 +55,66 @@ let session: Session | undefined,
   lastMoveTime = 0;
 let target: { x: number; y: number } | undefined;
 let fishing: ActionResult["fishing"];
-let fishPath: number[] = [];
+let fishingUI: FishingUI | undefined;
+let fishingOffset = 0,
+  panelTarget: string | undefined,
+  dialogue: ActionResult["dialogue"],
+  dialoguePage = 0;
+let lastStep = 0;
+document.documentElement.style.setProperty(
+  "--ui-scale",
+  localStorage.getItem("farm-ui-scale") ?? "1",
+);
+document.addEventListener(
+  "pointerdown",
+  () => {
+    void audio.unlock();
+  },
+  opts,
+);
+document.addEventListener(
+  "click",
+  (e) => {
+    if ((e.target as HTMLElement).closest("button")) audio.play("click");
+  },
+  opts,
+);
 const panel = el<HTMLDialogElement>("panel"),
   panelBody = el("panel-body");
+let noticeUntil = 0;
 const notice = (message: string) => {
+  noticeUntil = performance.now() + 5500;
   el("notice").textContent = message;
+  el("notice").classList.remove("quiet");
 };
-const send = (type: string, extra: Partial<Command> = {}) =>
-  network.action({ actionId: crypto.randomUUID(), type, ...extra });
-function closePanel(): void {
+const send = (type: string, extra: Partial<Command> = {}) => {
+  const actionId = crypto.randomUUID();
+  actionKinds.set(actionId, type);
+  if (actionKinds.size > 100)
+    actionKinds.delete(actionKinds.keys().next().value!);
+  network.action({ actionId, type, ...extra });
+};
+function closePanel(cancelFishing = true): void {
+  if (modal === "fishing" && fishing && cancelFishing) send("cancelFishing");
+  fishingUI?.dispose();
+  fishingUI = undefined;
+  fishing = undefined;
   panel.close();
   modal = "";
   input.reset();
   actionHeld = false;
 }
-el("panel-close").addEventListener("click", closePanel, opts);
+el("panel-close").addEventListener("click", () => closePanel(), opts);
 panel.addEventListener(
   "cancel",
-  () => {
-    modal = "";
-    input.reset();
+  (e) => {
+    e.preventDefault();
+    closePanel();
   },
   opts,
 );
-function showPanel(type: string, title: string): void {
+function showPanel(type: string, title: string, targetId?: string): void {
+  panelTarget = targetId;
   modal = type;
   input.reset();
   target = undefined;
@@ -94,7 +144,21 @@ function nearest(kind?: string): Entity | undefined {
     .filter(
       (e) =>
         e.area === me.area &&
-        (!kind || e.kind === kind) &&
+        (kind
+          ? e.kind === kind
+          : [
+              "chest",
+              "craft",
+              "gather",
+              "ladder",
+              "animal",
+              "barn",
+              "trough",
+              "board",
+              "decoration",
+              "well",
+              "machine",
+            ].includes(e.kind)) &&
         Math.hypot(e.x - me.authoritativeX, e.y - me.authoritativeY) <= 64,
     )
     .sort(
@@ -103,9 +167,39 @@ function nearest(kind?: string): Entity | undefined {
     )[0];
 }
 function renderPanel(): void {
+  fishingUI?.dispose();
+  fishingUI = undefined;
   panelBody.replaceChildren();
   const personal = network.personal,
     m = personal?.member;
+  const local = latest.players.find((p) => p.local),
+    state = network.state;
+  if (
+    renderLifePanel(modal, panelBody, {
+      member: m,
+      day: state?.day ?? 1,
+      minute: state?.minute ?? 360,
+      weather: state?.weather ?? "clear",
+      area: local?.area ?? "farm",
+      entities: [...(state?.entities.values() ?? [])],
+      players: latest.players,
+      targetId: panelTarget,
+      dialogue,
+      dialoguePage,
+      audio,
+      send,
+      select: selectTool,
+      close: () => closePanel(),
+      open: showPanel,
+      page: (n) => {
+        dialoguePage = n;
+        renderPanel();
+      },
+      notice,
+      zoom: (v) => renderer.scene.setZoom(v),
+    })
+  )
+    return;
   if (modal === "bag" && m) {
     row(
       `기력 ${Math.floor(m.stamina)} · ${m.money}골드 · 경험치 ${m.xp} · 도구 Lv${m.toolLevel} · 물 ${m.water}/30`,
@@ -127,7 +221,7 @@ function renderPanel(): void {
   }
   if (modal === "chest" && personal) {
     const chest = nearest("chest");
-    row("보관함 가까이에서 원자적으로 입출고합니다.");
+    row("가족이 함께 쓰는 보관함이에요. 가까이에서 물건을 넣고 꺼내세요.");
     for (const [id, count] of Object.entries(personal.member.inventory))
       if (ITEMS[id]?.kind !== "tool")
         row(`${itemName(id)} 소지 ${count}`, [
@@ -166,20 +260,65 @@ function renderPanel(): void {
     ]);
   }
   if (modal === "shop") {
-    for (const crop of Object.values(CROPS))
-      row(`${crop.name} 씨앗 · 10골드`, [
-        button("구매", () => send("buyItem", { itemId: crop.seedItemId })),
+    const season = calendar(network.state?.day ?? 1).season;
+    row(
+      `${SEASON_INFO[season].icon} ${SEASON_INFO[season].name} 장터 · ${m?.money ?? 0} G`,
+    );
+    for (const crop of Object.values(CROPS).filter((c) =>
+      c.seasons.includes(season),
+    ))
+      row(
+        `${crop.name} 씨앗 · ${crop.seedPrice} G · ${crop.growthDays}일${crop.regrowDays ? " / 재수확" : ""}`,
+        [
+          button("1개", () => send("buyItem", { itemId: crop.seedItemId })),
+          button("5개", () =>
+            send("buyItem", { itemId: crop.seedItemId, quantity: 5 }),
+          ),
+        ],
+      );
+    for (const [id, price] of [
+      ["stamina_biscuit", 10],
+      ["animal_feed", 8],
+      ["herb_tea", 45],
+      ["harvest_stew", 95],
+    ] as const)
+      row(`${itemName(id)} · ${price} G`, [
+        button("구매", () => send("buyItem", { itemId: id })),
       ]);
-    row("기력 비스켓 · 10골드", [
-      button("구매", () => send("buyItem", { itemId: "stamina_biscuit" })),
-    ]);
+    for (const [id, d] of Object.entries(DECORATIONS))
+      row(`${d.name} · ${d.price} G`, [
+        button("구입", () => send("buyItem", { itemId: id })),
+      ]);
+    row("수확물 판매");
     for (const [id, count] of Object.entries(m?.inventory ?? {}))
-      if (CROPS[id] || id.startsWith("fish_"))
-        row(`${itemName(id)} ×${count}`, [
+      if ((ITEMS[id]?.sellPrice ?? 0) > 0)
+        row(`${itemName(id)} ×${count} · 개당 ${ITEMS[id]!.sellPrice} G`, [
           button("1개 판매", () => send("sellItem", { itemId: id })),
+          button("모두 판매", () =>
+            send("sellItem", { itemId: id, quantity: Math.min(999, count) }),
+          ),
         ]);
   }
   if (modal === "menu") {
+    const menuGrid = document.createElement("div");
+    menuGrid.className = "menu-grid";
+    for (const [id, title] of [
+      ["journal", "✦ 오늘 할 일"],
+      ["crops", "❧ 사계절 도감"],
+      ["fish", "≈ 물고기 도감"],
+      ["map", "⌖ 지역 지도"],
+      ["residents", "♧ 주민과 부탁"],
+      ["calendar", "▦ 행사 달력"],
+      ["animals", "♡ 동물 돌보기"],
+      ["decoration", "⌂ 정원 꾸미기"],
+      ["settings", "⚙ 소리·화면 설정"],
+    ])
+      menuGrid.append(button(title!, () => showPanel(id!, title!)));
+    panelBody.append(menuGrid);
+    if (["general_store", "cafe"].includes(local?.area ?? ""))
+      menuGrid.append(
+        button("상점 둘러보기", () => showPanel("shop", "사계절 상점")),
+      );
     row(`가족 코드 ${session?.farmId ?? ""}`, [
       button("코드 복사", () => {
         void navigator.clipboard
@@ -234,47 +373,81 @@ function renderPanel(): void {
     ]);
   }
   if (modal === "fishing" && fishing) {
-    row(
-      Date.now() < fishing.biteAt
-        ? "입질을 기다리세요…"
-        : "입질! 0에서 시작해 밝은 칸을 이어 별까지 이동하세요",
-    );
-    const grid = document.createElement("div");
-    grid.className = "fish-grid";
-    for (let n = 0; n < fishing.size * fishing.size; n++) {
-      const b = button(
-        n === 0 ? "시작" : n === fishing.size * fishing.size - 1 ? "★" : "·",
-        () => {
-          if (!fishing || Date.now() < fishing.biteAt) return;
-          const prev = fishPath.at(-1);
-          if (
-            (prev === undefined && n === 0) ||
-            (prev !== undefined &&
-              Math.abs((n % 5) - (prev % 5)) +
-                Math.abs(Math.floor(n / 5) - Math.floor(prev / 5)) ===
-                1)
-          ) {
-            fishPath.push(n);
-            b.classList.add("visited");
-            if (n === 24) {
-              send("fishingResult", { targetId: fishing.id, path: fishPath });
-              closePanel();
-            }
-          }
-        },
-      );
-      b.disabled = fishing.walls.includes(n);
-      grid.append(b);
-    }
-    panelBody.append(grid);
-    panelBody.append(
-      button("경로 다시", () => {
-        fishPath = [];
-        renderPanel();
-      }),
+    const current = fishing;
+    fishingUI = new FishingUI(
+      panelBody,
+      current,
+      fishingOffset,
+      () => send("hookFishing", { targetId: current.id }),
+      (inputs) => send("fishingResult", { targetId: current.id, inputs }),
+      (s) => audio.play(s),
     );
   }
 }
+function selectTool(id: string): void {
+  selected = id;
+  el<HTMLSelectElement>("tool").value = id;
+  for (const b of el("quickslots").querySelectorAll<HTMLButtonElement>(
+    "button",
+  ))
+    b.classList.toggle("selected", b.dataset.tool === id);
+}
+function refreshTools(): void {
+  const choices: Array<[string, string]> = [
+    ["hand", "손 · 줍기/상호작용"],
+    ["hoe", "괭이"],
+    ["water", "물뿌리개"],
+    ["axe", "도끼"],
+    ["pickaxe", "곡괭이"],
+    ["fishing_rod", "낚싯대"],
+  ];
+  const inventory = network.personal?.member.inventory ?? {};
+  for (const c of Object.values(CROPS))
+    if (inventory[c.seedItemId])
+      choices.push([
+        c.seedItemId,
+        `${c.name} 씨앗 ×${inventory[c.seedItemId]}`,
+      ]);
+  const select = el<HTMLSelectElement>("tool");
+  select.replaceChildren();
+  for (const [id, text] of choices) {
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = text;
+    select.append(option);
+  }
+  if (!choices.some(([id]) => id === selected)) selected = "hand";
+  select.value = selected;
+  const slots = el("quickslots");
+  slots.replaceChildren();
+  for (const [id, label] of [
+    ["hand", "手"],
+    ["hoe", "耕"],
+    ["water", "水"],
+    ["axe", "斧"],
+    ["pickaxe", "石"],
+    ["fishing_rod", "魚"],
+  ]) {
+    const b = button(
+      (
+        {
+          hand: "손",
+          hoe: "괭이",
+          water: "물",
+          axe: "도끼",
+          pickaxe: "곡괭이",
+          fishing_rod: "낚시",
+        } as Record<string, string>
+      )[id!] ?? label!,
+      () => selectTool(id!),
+    );
+    b.dataset.tool = id;
+    b.setAttribute("aria-label", `${b.textContent} 빠른 선택`);
+    b.classList.toggle("selected", id === selected);
+    slots.append(b);
+  }
+}
+
 function act(): void {
   const me = latest.players.find((p) => p.local);
   if (!me || latest.status !== "connected" || modal) return;
@@ -286,7 +459,12 @@ function act(): void {
   if (selected === "hoe") return send("tillTile", tile);
   if (selected.endsWith("_seed"))
     return send("plantSeed", { ...tile, itemId: selected });
-  if (selected === "water") return send("waterCrop", tile);
+  if (selected === "water") {
+    const well = nearest("well");
+    return well
+      ? send("refill", { targetId: well.id })
+      : send("waterCrop", tile);
+  }
   if (selected === "axe") {
     const e = nearest("tree") ?? nearest("stump");
     if (e) send("hitTree", { targetId: e.id });
@@ -312,6 +490,11 @@ function act(): void {
     if (e.kind === "craft") return showPanel("craft", "제작대");
     if (e.kind === "gather") return send("gather", { targetId: e.id });
     if (e.kind === "ladder") return send("mineAction", { targetId: e.id });
+    if (["animal", "barn", "trough"].includes(e.kind))
+      return showPanel("animals", "사계절 우리", e.id);
+    if (e.kind === "board") return showPanel("board", "마을 게시판", e.id);
+    if (e.kind === "decoration")
+      return showPanel("decoration", "정원 꾸미기", e.id);
     if (e.kind === "well") return send("refill", { targetId: e.id });
     if (e.kind === "machine")
       return send(e.readyAt ? "collectMachine" : "startMachine", {
@@ -327,35 +510,73 @@ function act(): void {
       me.y / TILE <= w.area.endY + 2,
   );
   if (warp) return send("enterArea", { targetId: warp.id });
-  if (me.area === "general_store") return showPanel("shop", "새봄 상점");
   const npc = NPCS.find((n) => {
-    const s =
-      [...n.schedule]
-        .reverse()
-        .find((s) => s.minute <= (network.state?.minute ?? 360)) ??
-      n.schedule[0]!;
+    const s = npcSchedule(
+      n,
+      network.state?.day ?? 1,
+      network.state?.minute ?? 360,
+    );
     return (
       s.mapId === me.area &&
       Math.hypot(s.from.x * TILE - me.x, s.from.y * TILE - me.y) < 96
     );
   });
   if (npc) return send("talkNpc", { targetId: npc.id });
+  if (["general_store", "cafe"].includes(me.area))
+    return showPanel("shop", me.area === "cafe" ? "바람찻집" : "사계절 상점");
   notice("도구를 선택하거나 입구·주민·보관함 가까이에서 행동하세요");
 }
 network.onAction = (result) => {
   notice(result.message);
+  const kind = actionKinds.get(result.actionId);
+  actionKinds.delete(result.actionId);
+  if (result.ok) {
+    const effect = (
+      {
+        hitTree: "wood",
+        hitRock: "stone",
+        waterCrop: "water",
+        harvestCrop: "harvest",
+        pickupDrop: "harvest",
+        collectAnimal: "harvest",
+      } as const
+    )[
+      kind as
+        | "hitTree"
+        | "hitRock"
+        | "waterCrop"
+        | "harvestCrop"
+        | "pickupDrop"
+        | "collectAnimal"
+    ];
+    if (effect) audio.play(effect);
+  }
   if (result.fishing) {
     fishing = result.fishing;
-    fishPath = [];
-    showPanel("fishing", "낚시 · 미로");
+    fishingOffset = (result.serverNow ?? Date.now()) - Date.now();
+    showPanel("fishing", "낚시 · 손끝의 물결");
+  }
+  if (kind === "fishingResult") {
+    closePanel(false);
+    if (!result.ok) send("cancelFishing");
+  }
+  if (result.dialogue) {
+    dialogue = result.dialogue;
+    dialoguePage = 0;
+    showPanel("dialogue", result.dialogue.name);
   }
   if (result.ok && result.transition) target = undefined;
 };
 el("tool").addEventListener(
   "change",
   () => {
-    selected = el<HTMLSelectElement>("tool").value;
+    selectTool(el<HTMLSelectElement>("tool").value);
   },
+  opts,
+);
+el("today").addEventListener(
+  "click",
+  () => showPanel("journal", "오늘의 작은 한 걸음"),
   opts,
 );
 el("bag").addEventListener("click", () => showPanel("bag", "가방"), opts);
@@ -385,7 +606,12 @@ for (const name of ["pointerup", "pointercancel", "lostpointercapture"])
 window.addEventListener(
   "keydown",
   (e) => {
-    if ((e.target as HTMLElement).tagName === "INPUT") return;
+    if (
+      ["INPUT", "SELECT", "TEXTAREA"].includes(
+        (e.target as HTMLElement).tagName,
+      )
+    )
+      return;
     if (e.code === "Space") {
       e.preventDefault();
       actionHeld = true;
@@ -440,11 +666,45 @@ const renderer = createRenderer((now, delta) => {
   }
   if (now - lastUi > 200) {
     lastUi = now;
+    el("notice").classList.toggle("quiet", now > noticeUntil);
     const state = network.state;
     const local = latest.players.find((p) => p.local);
+    const cal = calendar(state?.day ?? 1),
+      info = SEASON_INFO[cal.season];
+    const personal = network.personal?.member;
     el("calendar").textContent = state
-      ? `${Math.floor((state.day - 1) / 28) + 1}계절 ${((state.day - 1) % 28) + 1}일 · ${String(Math.floor(state.minute / 60)).padStart(2, "0")}:${String(state.minute % 60).padStart(2, "0")} · ${state.weather === "rain" ? "비" : "맑음"} · ${local ? mapFor(local.area).name : ""}`
-      : "가족 농장";
+      ? `${info.icon} ${info.name} ${cal.day}일 · ${String(Math.floor(state.minute / 60)).padStart(2, "0")}:${String(state.minute % 60).padStart(2, "0")}`
+      : "우리 가족의 작은 세계";
+    el("place").textContent =
+      `${local ? mapFor(local.area).name : "사계절을 함께 가꾸어요"} · ${state?.weather === "rain" ? "☂ 비" : state?.weather === "snow" ? "❄ 눈" : "☀ 맑음"}`;
+    el("wallet").textContent = `${personal?.money ?? 0} G`;
+    el("bag-space").textContent =
+      `${Object.keys(personal?.inventory ?? {}).length}/48`;
+    const task = QUESTS.find((q) => !personal?.quests[`reward-${q.id}`]);
+    el("today").textContent = festivalOn(state?.day ?? 1)
+      ? `✦ 오늘 ${festivalOn(state?.day ?? 1)!.name} · 달력을 확인하세요`
+      : task
+        ? `✦ ${task.title} · ${Math.min(task.goal, personal?.quests[task.stat] ?? 0)}/${task.goal}  ›`
+        : `✦ ${info.name}의 하루 · 도감과 마을을 둘러보세요`;
+    const spot = local && fishingSpot(local.area, local.x, local.y);
+    el("context-hint").textContent = spot
+      ? "≈ 낚시 가능 · 낚싯대를 선택하세요"
+      : nearest("animal")
+        ? "♡ 동물에게 먹이와 인사를 주세요"
+        : selected.endsWith("_seed")
+          ? "행동을 누른 채 걷기 · RUN 중에는 심기 불가"
+          : `${selected === "hand" ? "손 · 가까운 사물과 대화 / 줍기" : selected === "water" ? "물뿌리개 · 앞칸에서 행동" : `${itemName(selected)} · 앞칸에서 행동`}`;
+    audio.context(
+      local?.area ?? "farm",
+      cal.season,
+      state?.weather ?? "clear",
+      state?.minute ?? 360,
+      Boolean(festivalOn(state?.day ?? 1)),
+    );
+    if (local?.moving && now - lastStep > (local.running ? 240 : 410)) {
+      lastStep = now;
+      audio.play("step");
+    }
     el("connection").textContent =
       `${latest.status === "connected" ? "● 연결됨" : latest.status} · ${latest.players.length}명 · 코드 ${session?.farmId ?? "—"}${state?.votes ? ` · 잠자기 ${state.votes}/${latest.players.filter((p) => p.connected).length}` : ""}${state?.storage !== "ready" && state ? " · 저장 연결 확인 중" : ""}`;
     const stamina = local?.stamina ?? 100;
@@ -456,12 +716,15 @@ const renderer = createRenderer((now, delta) => {
         `FPS ${Math.round(1000 / delta)} | RTT ${latest.rtt?.toFixed(0) ?? "—"}ms\nPATCH ${latest.patchRate.toFixed(1)}Hz | TICK ${latest.tickRate ?? "—"}\nBUFFER ${network.delay.toFixed(1)}ms (${network.profile})\nCORRECTION ${latest.correctionDistance.toFixed(2)}px | ${latest.players.length}명\nRECONNECT ${latest.reconnectCount} | ${state?.storage ?? ""}`;
     if (network.personal !== lastPersonal) {
       lastPersonal = network.personal;
-      if (modal && modal !== "fishing") renderPanel();
+      refreshTools();
+      if (modal && !["fishing", "settings", "dialogue"].includes(modal))
+        renderPanel();
     }
   }
   return { snapshot: latest, state: network.state };
 });
 const pointers = new Map<number, { x: number; y: number }>();
+const pointerStarts = new Map<number, { x: number; y: number }>();
 let pinch = 0,
   pinched = false;
 el("arena").addEventListener(
@@ -470,6 +733,7 @@ el("arena").addEventListener(
     if (panel.open || !session) return;
     el("arena").setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pointerStarts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 2) {
       pinched = true;
       const [a, b] = [...pointers.values()];
@@ -496,11 +760,18 @@ el("arena").addEventListener(
 el("arena").addEventListener(
   "pointerup",
   (e) => {
-    if (pointers.has(e.pointerId) && !pinched) {
+    const start = pointerStarts.get(e.pointerId);
+    if (
+      pointers.has(e.pointerId) &&
+      !pinched &&
+      start &&
+      Math.hypot(start.x - e.clientX, start.y - e.clientY) < 12
+    ) {
       target = renderer.scene.worldPoint(e.clientX, e.clientY);
       lastMoveTime = performance.now();
     }
     pointers.delete(e.pointerId);
+    pointerStarts.delete(e.pointerId);
     if (!pointers.size) pinched = false;
   },
   opts,
@@ -509,6 +780,7 @@ el("arena").addEventListener(
   "pointercancel",
   (e) => {
     pointers.delete(e.pointerId);
+    pointerStarts.delete(e.pointerId);
     target = undefined;
     pinched = false;
   },
@@ -592,6 +864,8 @@ window.addEventListener("pageshow", (event) => {
 window.addEventListener(
   "pagehide",
   () => {
+    fishingUI?.dispose();
+    audio.dispose();
     input.dispose();
     network.dispose();
     renderer.game.destroy(true);
