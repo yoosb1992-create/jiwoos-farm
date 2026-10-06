@@ -272,9 +272,10 @@ function draw() {
   ctx.beginPath();
   ctx.rect(ox, oy, m.width * zoom, m.height * zoom);
   ctx.clip();
-  if (layer("Terrain").visible) {
+  {
     ctx.globalAlpha = layer("Terrain").opacity;
     painter.draw(ctx, m, zoom, ox, oy, viewWidth, viewHeight, season, {
+      terrain: layer("Terrain").visible,
       water: layer("Water").visible,
       elevation: layer("Elevation").visible,
       seasonal: layer("Seasonal").visible,
@@ -754,6 +755,18 @@ function addObject(x: number, y: number) {
   localStorage.setItem("world2-recent", JSON.stringify(recent));
 }
 function pasteStamp(stamp: Stamp, x: number, y: number) {
+  const names: Record<string, string> = {
+    terrain: "Terrain",
+    water: "Water",
+    elevation: "Elevation",
+    collision: "Collision",
+    zones: "Zones",
+  };
+  if (
+    stamp.tiles.some(([l]) => layer(names[l] ?? "Seasonal").locked) ||
+    stamp.objects.some((o) => layer(o.layer ?? "Objects").locked)
+  )
+    throw Error("붙여넣을 레이어의 잠금을 먼저 해제하세요");
   const group = `group-${uid()}`;
   for (const [l, dx, dy, v] of stamp.tiles)
     journal.tile(area, l, x + dx, y + dy, v);
@@ -1561,6 +1574,7 @@ function applyProperties() {
   transaction("속성", () => {
     const o = map().objects.find((o) => selected.has(o.id));
     if (o && selected.size === 1) {
+      if (layer(o.layer ?? "Objects").locked) throw Error("잠긴 레이어입니다");
       const next: MapObject = {
         ...clone(o),
         position: {
@@ -2489,6 +2503,7 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden && dirty) void autosave();
 });
 async function init() {
+  let restoreError = "";
   try {
     const draft = await loadDraft(),
       legacy = localStorage.getItem("farm-editor-draft-v1");
@@ -2504,7 +2519,7 @@ async function init() {
     recent = JSON.parse(localStorage.getItem("world2-recent") ?? "[]");
     prefabs = JSON.parse(localStorage.getItem("world2-prefabs") ?? "[]");
   } catch (e) {
-    status(`초안 복원 오류: ${String(e)} · 서버 저장본/JSON을 불러오세요.`);
+    restoreError = `초안 복원 오류: ${String(e)} · 서버 저장본/JSON을 불러오세요.`;
   }
   el<HTMLSelectElement>("npc-id").innerHTML = NPCS.map(
     (n) => `<option value="${n.id}">${n.name}</option>`,
@@ -2535,7 +2550,7 @@ async function init() {
     oy = viewHeight / 2 - s.tileY * zoom;
     render();
   });
-  status("초안 준비 완료 · 브러시를 눌러 월드를 만드세요.");
+  status(restoreError || "초안 준비 완료 · 브러시를 눌러 월드를 만드세요.");
 }
 void init();
 // Read-only smoke diagnostics; no credentials or production farm mutation.

@@ -1,6 +1,9 @@
 import type { MapData } from "../../shared/content.js";
 import {
   CHUNK,
+  TERRAIN,
+  terrainCode,
+  type Terrain,
   terrainAt,
   neighborMask,
   tileHash,
@@ -31,9 +34,37 @@ export const COLORS: Record<string, string> = {
   mine_floor: "#7d817e",
 };
 export interface PaintOptions {
+  terrain?: boolean;
   water?: boolean;
   elevation?: boolean;
   seasonal?: boolean;
+}
+function previewTerrain(
+  m: MapData,
+  x: number,
+  y: number,
+  season: SeasonKey,
+  options: PaintOptions,
+): Terrain {
+  let t = terrainAt(m, x, y, options.seasonal === false ? undefined : season);
+  if (options.water === false && waterTerrain(t))
+    t = TERRAIN[(cell(m, "terrain", x, y) || terrainCode(m.baseTileType)) - 1]!;
+  if (options.elevation === false && cell(m, "elevation", x, y) > 0)
+    t = TERRAIN[terrainCode(m.baseTileType) - 1]!;
+  return t;
+}
+function previewVisible(
+  m: MapData,
+  x: number,
+  y: number,
+  t: Terrain,
+  options: PaintOptions,
+) {
+  return (
+    options.terrain !== false ||
+    (options.water !== false && waterTerrain(t)) ||
+    (options.elevation !== false && cell(m, "elevation", x, y) > 0)
+  );
 }
 export function paintChunk(
   ctx: CanvasRenderingContext2D,
@@ -50,20 +81,19 @@ export function paintChunk(
     for (let x = 0; x < CHUNK && ox + x < m.width; x++) {
       const xx = ox + x,
         yy = oy + y,
-        t = terrainAt(
-          m,
-          xx,
-          yy,
-          options.seasonal === false ? undefined : season,
-        ),
+        t = previewTerrain(m, xx, yy, season, options),
         wet = waterTerrain(t),
-        mask = neighborMask(
-          m,
-          xx,
-          yy,
-          options.seasonal === false ? undefined : season,
-        ),
+        mask =
+          options.water === false || options.elevation === false
+            ? 255
+            : neighborMask(
+                m,
+                xx,
+                yy,
+                options.seasonal === false ? undefined : season,
+              ),
         h = tileHash(m.world2?.seed ?? 173, xx, yy);
+      if (!previewVisible(m, xx, yy, t, options)) continue;
       let color = COLORS[t] ?? COLORS.grass!;
       if (t === "grass" || t === "dark_grass" || t === "hill")
         color =
@@ -72,7 +102,6 @@ export function paintChunk(
             : season === "autumn"
               ? "#aab56b"
               : color;
-      if (wet && options.water === false) color = COLORS.grass!;
       ctx.save();
       ctx.translate(x * size, y * size);
       ctx.fillStyle = color;
@@ -255,7 +284,9 @@ export class ChunkPainter {
           x < Math.min(m.width, (w - ox) / zoom + step);
           x += step
         ) {
-          ctx.fillStyle = COLORS[terrainAt(m, x, y, season)]!;
+          const t = previewTerrain(m, x, y, season, options);
+          if (!previewVisible(m, x, y, t, options)) continue;
+          ctx.fillStyle = COLORS[t]!;
           ctx.fillRect(
             ox + x * zoom,
             oy + y * zoom,
