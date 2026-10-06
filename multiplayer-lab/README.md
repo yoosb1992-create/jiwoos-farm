@@ -2,7 +2,7 @@
 
 휴대폰 두 대가 같은 방에서 움직이며 **내 캐릭터의 즉시 반응과 상대 캐릭터의 부드러운 이동**을 확인하는 독립 실험입니다. 농사·NPC·아이템은 포함하지 않습니다.
 
-**현재 공개 플레이 URL은 아직 없습니다.** Railway 로그인 화면까지 확인했으며 로그인, 프로젝트·서비스 생성, 공개 배포는 완료하지 않았습니다. [휴대폰으로 Railway 배포하기](./RAILWAY.md)에 인증 이후 설정을 정리했습니다. 공개 URL이 준비되면 플레이하는 사람은 아래 순서만 따르면 됩니다. PC, 터미널, Node.js, Docker 설치는 필요 없습니다.
+**현재 공개 서비스는 아직 실행되지 않습니다.** Railway 로그인과 독립 Lab 프로젝트, Backend/Frontend 서비스·공개 도메인 생성 및 실행 설정은 완료했습니다. GitHub의 Railway App 설치 화면에서 이 저장소만 선택했으며, 마지막 **Install & Authorize** 승인이 남았습니다. Source·실험 브랜치·Wait for CI와 코드 배포는 아직 진행하지 않았습니다. [Frontend 주소](https://frontend-production-768e.up.railway.app)는 생성되었지만 아직 오프라인이며, 실제 브라우저 접속에서도 Railway의 404 안내 페이지를 확인했습니다. [Railway 배포 기록과 남은 단계](./RAILWAY.md)를 참고하세요. 배포가 완료되면 플레이하는 사람은 아래 순서만 따르면 됩니다. PC, 터미널, Node.js, Docker 설치는 필요 없습니다.
 
 ## 휴대폰 두 대로 플레이
 
@@ -88,7 +88,7 @@ Phaser client는 입력을 WebSocket으로 Colyseus에 보내고, 서버의 auth
 - 네트워크 장기 단절이나 모바일 OS의 백그라운드 중단에서는 부드러운 연속 이동을 보장할 수 없습니다.
 - 정적 2D 맵만 검증합니다. 플레이어 간 물리 충돌, 농사·NPC·광산 등은 포함하지 않습니다.
 - `NetworkAdapter` 경계는 마련했으나 Cloudflare DO 비교 백엔드는 구현하지 않았습니다. 기존 `FAMILY_ROOM`은 그대로입니다.
-- 공개 URL과 실제 Android/5G 검증이 없으므로 기존 농장 이식 판단은 **NOT READY**입니다. 배포와 위 benchmark를 통과한 뒤 이식을 판단합니다.
+- 공개 서비스 기동과 실제 Android/5G 검증이 남아 있으므로 기존 농장 이식 판단은 **NOT READY**입니다. 배포와 위 benchmark를 통과한 뒤 이식을 판단합니다.
 
 ## 관련 문서
 

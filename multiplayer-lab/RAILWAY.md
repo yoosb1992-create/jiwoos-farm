@@ -2,7 +2,20 @@
 
 이 안내는 Android Chrome의 Railway 웹 대시보드만 사용합니다. 앱·PC·터미널·Node.js·Docker를 설치하지 않아도 됩니다. 설정이 화면에서 잘리면 Chrome의 **데스크톱 사이트** 표시를 켭니다.
 
-**현재 상태: 인증 전입니다.** Railway `/new`에서 로그인 창의 **Continue with GitHub / Log in using email**까지 확인했습니다. 로그인하지 않았으며 프로젝트, Backend/Frontend 서비스, 공개 URL은 아직 만들지 않았습니다. 아래 설정은 실제 배포 완료 기록이 아닙니다. 계정 로그인과 GitHub 연결은 계정 소유자가 먼저 완료해야 합니다.
+**현재 상태: Railway 로그인과 독립 프로젝트·두 서비스·도메인 설정을 완료했습니다.** Railway GitHub App의 `yoosb1992-create/jiwoos-farm` 접근 권한 연결이 남아 있으며, 두 서비스의 Source는 아직 연결되지 않았습니다. 도메인은 생성되었지만 서비스는 **오프라인·미배포**입니다. Frontend 기본 주소와 Backend `/healthz`를 실제 브라우저로 열었으나 Railway의 404 안내 페이지만 표시했습니다. 공개 WSS·두 플레이어·실기기 테스트는 아직 실행하지 않았습니다.
+
+현재 GitHub의 **Install & Authorize Railway** 화면에서 **Only select repositories**와 **`yoosb1992-create/jiwoos-farm` 하나만** 선택한 상태입니다. 최종 **Install & Authorize** 버튼은 누르지 않았습니다. 이 앱은 metadata 읽기, actions·administration·checks·code·commit statuses·deployments·pull requests·workflows 읽기/쓰기 및 계정 이메일 읽기를 요청합니다. 브라우저의 제3자 앱 권한 승인 정책에 따라 이 실제 권한을 보고 사용자가 승인해야 하므로, 계정 소유자의 최종 승인을 기다립니다. 앱 설치 승인 전에는 자동 배포가 활성화된 상태가 아닙니다.
+
+기존에 생성한 프로젝트는 `jiwoos-farm-multiplayer-lab`입니다. 아래 1–3절은 설정을 재현하는 안내이며, 같은 프로젝트나 서비스를 다시 만들 필요는 없습니다. 기존 프로젝트에서 GitHub App의 **이 저장소만** 접근 권한을 마친 뒤 4절의 Source·실험 브랜치 연결부터 진행합니다.
+
+| 생성한 항목 | 실제 값 |
+|---|---|
+| Project | `jiwoos-farm-multiplayer-lab` / `aebabf47-0d3f-45b1-93d2-4d13c95286d7` |
+| Environment ID | `6894f013-1f3b-4d8b-8ccf-5f87f44c348b` |
+| Backend service ID | `cb76d3f9-3ee0-4fa1-ac75-1fd9d67ee395` |
+| Frontend service ID | `a8173270-4f34-4bc4-be7d-0fcf4143400b` |
+
+Root Directory `/multiplayer-lab`, 각각의 Dockerfile·PORT·`/healthz`, Singapore, replica 1, Serverless 끔과 상호 도메인 참조 변수는 설정했습니다. 두 서비스의 Watch Paths도 `/multiplayer-lab/**`, `/.github/workflows/multiplayer-lab.yml`로 설정·적용했습니다. Source·실험 브랜치·Autodeploy·Wait for CI는 GitHub 저장소 권한 연결 후 확인·완료해야 합니다.
 
 ## 1. 로그인과 빈 Lab 프로젝트
 
@@ -88,7 +101,7 @@ Source를 연결할 때 기본 브랜치가 표시되면 **실험 브랜치로 �
 
 이 저장소의 `.github/workflows/multiplayer-lab.yml`은 실험 브랜치 push에서 Lab 테스트, 빌드, Docker 이미지 검증을 수행합니다. **Wait for CI**는 GitHub Actions workflow들의 결과를 기다리게 합니다. 보이지 않거나 켤 수 없다면 연결한 GitHub 계정의 저장소 contributor 권한, Railway GitHub App의 이 저장소 접근, 요청된 권한 업데이트를 확인합니다. CI가 실패한 커밋을 배포하기 위해 이 설정을 끄지 않습니다.
 
-Watch Paths를 사용하는 경우 두 서비스에 `/multiplayer-lab/**`와 `/.github/workflows/multiplayer-lab.yml`을 포함합니다. 문서만 바뀌어도 Lab CI가 실행될 수 있습니다. 해당 경로와 관계없는 커밋을 억지로 재배포할 필요는 없습니다.
+Watch Paths는 두 서비스에 `/multiplayer-lab/**`와 `/.github/workflows/multiplayer-lab.yml`로 설정·적용했습니다. 재현할 때도 이 두 경로를 사용합니다. 문서만 바뀌어도 Lab CI가 실행될 수 있습니다. 해당 경로와 관계없는 커밋을 억지로 재배포할 필요는 없습니다.
 
 ## 5. 휴대폰에서 실제 배포 확인
 
@@ -99,15 +112,22 @@ Watch Paths를 사용하는 경우 두 서비스에 `/multiplayer-lab/**`와 `/.
 5. Frontend 주소를 두 번째 휴대폰에서 엽니다. A가 만든 방 코드를 B에 입력해 참가합니다. A Wi-Fi / B 5G 조합으로 인원 2와 양방향 이동을 확인합니다.
 6. [README의 실기기 benchmark](./README.md#휴대폰태블릿-benchmark)를 수행합니다. `/healthz` 성공만으로 멀티플레이 품질까지 검증된 것은 아닙니다.
 
-공유할 주소는 **Frontend HTTPS URL 하나**입니다. 이 문서에는 아직 실제 배포 주소를 기입하지 않았습니다.
+배포 완료 후 공유할 주소는 **Frontend HTTPS URL 하나**입니다. 아래는 실제 생성한 도메인이며, 현재는 Source가 연결되지 않아 두 서비스 모두 오프라인입니다. 주소 생성은 배포 성공이나 공개 테스트 통과를 뜻하지 않습니다.
 
-| 배포 기록 | 실제 배포 후 기록 |
+| 배포 기록 | 현재 확인한 상태 |
 |---|---|
-| Frontend 공개 HTTPS URL | 미생성 |
-| Backend 공개 HTTPS/WSS 호스트 | 미생성 |
+| Frontend 공개 HTTPS URL | [frontend-production-768e.up.railway.app](https://frontend-production-768e.up.railway.app) — 생성만 완료, 오프라인 |
+| Backend 공개 HTTPS URL | [backend-production-a9e97.up.railway.app](https://backend-production-a9e97.up.railway.app) — 생성만 완료, 오프라인 |
+| Backend WebSocket 주소 | `wss://backend-production-a9e97.up.railway.app` — 미기동 |
+| GitHub App | 대상 저장소 하나 선택 완료 / 최종 Install & Authorize 승인 대기 |
+| Source / 실험 브랜치 / Wait for CI | 두 서비스 모두 미설정, 자동 배포 비활성 |
 | 배포한 실험 브랜치 commit SHA | 미배포 |
-| 두 `/healthz` 확인 | 미실시 |
+| 코드 검증 commit / CI | `ea7eae0dd4d4d8115bca2a64cbe2efefdaad91d4` — Lab·기존 게임 CI 성공, [검증 기록](./VALIDATION.md) |
+| 실제 Frontend HTTPS 기본 주소 접속 | Railway **404 Not Found / train has not arrived** 안내 페이지 확인. Lab 화면 아님 |
+| 실제 Backend HTTPS `/healthz` 접속 | 같은 Railway **404 Not Found** 안내 페이지 확인. 앱 health 미정상 |
+| Frontend `/healthz` | 별도 접속 미실시 |
 | 공개 WSS 자동 smoke | 미실시 |
+| 공개 서비스 두 플레이어 참가·이동 | 미실시 |
 | 실제 Android Wi-Fi + 5G | 미실시 |
 
 공개 자동 smoke는 유지보수자/CI가 실제 주소로 실행합니다. 휴대폰 사용자에게 명령 실행을 요구하지 않습니다. 안내와 실행 기준은 [DEVELOPMENT.md](./DEVELOPMENT.md#공개-배포-자동-smoke--유지보수자ci용)에 있습니다.
