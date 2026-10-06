@@ -23,7 +23,8 @@
 | production server build | PASS, `npm start`는 컴파일된 JS |
 | localhost/LAN endpoint로 build 시도 | 의도대로 거부, custom build mode도 우회 불가 |
 | 공개 smoke 도구의 명시적 로컬 fixture | PASS, 실제 SDK2개 + 실제 브라우저1개, 이동48px·수렴·퇴장 정리 |
-| Docker 이미지 build/run | 실행 환경에 Docker 없음. GitHub CI에 두 이미지 build, PORT override, health, latency0, SIGTERM 검사 추가 |
+| Docker 이미지 build | **Backend / Frontend 모두 GitHub CI에서 PASS** (`8760838`) |
+| Docker 실행 검증 | 첫 CI에서 컨테이너 시작 직후 curl connection reset 재시도 누락으로 중단. 제한된 readiness retry로 수정, 최종 CI 결과 확인 필요 |
 | Railway 계정·프로젝트·도메인 | 로그인 필요. 이 기록 시점에는 생성/배포하지 않음 |
 | 공개 HTTPS/WSS / 실제 Android 두 대·5G | **미검증**, 공개 주소와 인증 이후 수행 필요 |
 
@@ -41,6 +42,8 @@ state 수렴, 공개 production 페이지의 실제 browser 참가, 로컬 주�
 SDK0.18.5에 남아 있는 사용하지 않는 로컬 fallback 두 곳은 production bundling 중에만
 설정된 공개 주소로 치환합니다. SDK 설치 파일이나 netcode는 수정하지 않습니다.
 SDK 버전/정확한 모듈 형태가 달라지면 build가 실패하여 재검토를 요구합니다.
+
+첫 배포 CI(`37428475066`)는 기존 게임 CI와 Lab의 설치·타입·모든 테스트·양쪽 build·두 Docker image build를 통과했습니다. 컨테이너 시작 약0.1초 뒤 첫 health 요청의 connection reset(curl56)이 재시도 대상에서 빠진 문제를 발견해, 모든 일시 연결 오류에 대한 재시도를 총30초로 제한하여 추가했습니다. health 응답 내용과 종료 코드는 계속 검사합니다.
 
 GitHub Actions의 최종 실행 결과는 해당 commit의 **Multiplayer Lab** workflow에서 확인합니다.
 모바일 최초 설정은 [RAILWAY.md](./RAILWAY.md), 플레이 방법은 [README.md](./README.md)를 따릅니다.

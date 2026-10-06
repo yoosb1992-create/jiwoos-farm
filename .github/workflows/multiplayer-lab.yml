@@ -43,8 +43,8 @@ jobs:
         run: |
           docker run -d --init --name lab-backend -p 127.0.0.1:17881:8080 -e PORT=8080 -e CLIENT_ORIGINS=https://frontend.lab-validation.invalid -e LAB_LATENCY_MS=200 jiwoos-lab-backend
           docker run -d --init --name lab-frontend -p 127.0.0.1:17882:8080 -e PORT=8080 jiwoos-lab-frontend
-          curl --fail --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:17881/healthz -o /tmp/lab-backend-health.json
-          curl --fail --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:17882/healthz
+          curl --fail --retry 20 --retry-delay 1 --retry-all-errors --retry-max-time 30 --max-time 3 http://127.0.0.1:17881/healthz -o /tmp/lab-backend-health.json
+          curl --fail --retry 20 --retry-delay 1 --retry-all-errors --retry-max-time 30 --max-time 3 http://127.0.0.1:17882/healthz
           node --input-type=module -e "import fs from 'node:fs'; import assert from 'node:assert/strict'; const h=JSON.parse(fs.readFileSync('/tmp/lab-backend-health.json','utf8')); assert.equal(h.latencyMs,0); assert.equal(h.tickRate,30);"
           curl --fail http://127.0.0.1:17882/ -o /tmp/lab-client.html
           docker stop -t 15 lab-backend lab-frontend
