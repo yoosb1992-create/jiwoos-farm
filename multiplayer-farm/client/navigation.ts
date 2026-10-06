@@ -41,11 +41,18 @@ export class TouchNavigator {
     },
     me: RenderPlayer,
     state: FarmState,
+    groundAction?: "hoe",
   ): void {
     this.cancel();
     const map = mapFor(me.area),
       entity = point.entityId && state.entities.get(point.entityId);
-    let t: TouchTarget = { area: me.area, kind: "ground", id: "", ...point };
+    let t: TouchTarget = {
+      area: me.area,
+      kind: "ground",
+      id: "",
+      ...point,
+      signature: groundAction,
+    };
     if (entity)
       t = {
         ...t,
@@ -149,12 +156,18 @@ export class TouchNavigator {
       this.cancel();
       return stop;
     }
+    const groundAction = t.kind === "ground" && t.signature === "hoe";
     const tileTarget =
-      t.kind === "entity" &&
-      ["crop", "soil", "withered"].includes(t.signature ?? "");
+      groundAction ||
+      (t.kind === "entity" &&
+        ["crop", "soil", "withered"].includes(t.signature ?? ""));
     const near = (p: Point) =>
       t.kind === "ground"
-        ? Math.hypot(p.x - t.x, p.y - t.y) <= 24
+        ? groundAction
+          ? Math.abs(Math.floor(p.x / TILE) - Math.floor(t.x / TILE)) +
+              Math.abs(Math.floor(p.y / TILE) - Math.floor(t.y / TILE)) ===
+            1
+          : Math.hypot(p.x - t.x, p.y - t.y) <= 24
         : t.kind === "fish"
           ? fishingSpot(t.area, p.x, p.y, CLIENT_MAPS)?.water === t.id &&
             (!mapFor(t.area).world2 || Math.hypot(p.x - t.x, p.y - t.y) <= 80)
@@ -175,7 +188,7 @@ export class TouchNavigator {
               : Math.hypot(p.x - t.x, p.y - t.y) <= 48;
     const authoritative = { x: me.authoritativeX, y: me.authoritativeY };
     if (t.kind !== "warp" && near(authoritative) && (!tileTarget || near(me))) {
-      if (t.kind === "ground") {
+      if (t.kind === "ground" && !groundAction) {
         this.cancel();
         return stop;
       }
@@ -190,10 +203,11 @@ export class TouchNavigator {
               ? "down"
               : "up";
       if (
-        t.kind === "entity" &&
-        ["tree", "stump", "rock", "crop", "soil", "withered"].includes(
-          t.signature ?? "",
-        )
+        groundAction ||
+        (t.kind === "entity" &&
+          ["tree", "stump", "rock", "crop", "soil", "withered"].includes(
+            t.signature ?? "",
+          ))
       ) {
         const front = frontTile({ ...authoritative, facing: me.facing });
         if (

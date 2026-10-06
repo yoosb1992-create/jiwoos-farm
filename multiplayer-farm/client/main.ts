@@ -558,6 +558,14 @@ function act(): void {
   notice("도구를 선택하거나 입구·주민·보관함 가까이에서 행동하세요");
 }
 function touchAct(t: TouchTarget): void {
+  if (t.kind === "ground" && t.signature === "hoe") {
+    selectTool("hoe");
+    send("tillTile", {
+      tileX: Math.floor(t.x / TILE),
+      tileY: Math.floor(t.y / TILE),
+    });
+    return;
+  }
   const e = network.state?.entities.get(t.id);
   if (t.kind === "shop") {
     showPanel("shop", "사계절 상점");
@@ -939,6 +947,7 @@ el("arena").addEventListener(
           renderer.scene.pickWorld(e.clientX, e.clientY),
           me,
           network.state,
+          selected === "hoe" ? "hoe" : undefined,
         );
     }
     pointers.delete(e.pointerId);
