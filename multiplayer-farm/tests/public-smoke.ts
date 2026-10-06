@@ -50,11 +50,51 @@ assert.ok(
   endpointFound,
   "Public WSS endpoint must be present in the loaded module graph",
 );
+// Exercise the isolated editor API against the real production database.
+const editorPage = await fetch(new URL("/editor.html", frontend));
+assert.equal(editorPage.status, 200);
+const defaults = (await (
+  await fetch(new URL("/api/blueprints/defaults", backend))
+).json()) as import("../shared/layout.js").WorldLayout;
+defaults.maps.farm!.width = 60;
+const blueprintResponse = await fetch(new URL("/api/blueprints", backend), {
+  method: "POST",
+  headers: { "Content-Type": "application/json", Origin: frontend.origin },
+  body: JSON.stringify(defaults),
+});
+assert.equal(blueprintResponse.status, 200);
+const blueprint = (await blueprintResponse.json()) as {
+  id: string;
+  editToken: string;
+  revision: number;
+};
+const published = await fetch(
+  new URL("/api/blueprints/" + blueprint.id, backend),
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: frontend.origin,
+      Authorization: "Bearer " + blueprint.editToken,
+    },
+    body: JSON.stringify({
+      layout: defaults,
+      revision: blueprint.revision,
+      publish: true,
+    }),
+  },
+);
+assert.equal(published.status, 200);
 async function session(nickname: string, code = ""): Promise<Session> {
   const response = await fetch(new URL("/api/session", backend), {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: frontend.origin },
-    body: JSON.stringify({ create: !code, code, nickname }),
+    body: JSON.stringify({
+      create: !code,
+      code,
+      nickname,
+      templateId: !code ? blueprint.id : undefined,
+    }),
   });
   assert.equal(response.status, 200);
   return (await response.json()) as Session;
@@ -85,6 +125,7 @@ B.onStateChange(() => {
 });
 try {
   await until(() => C.state.players.size === 3, 15000);
+  assert.equal(JSON.parse(C.state.layout).maps.farm.width, 60);
   const startX = A.state.players.get(A.sessionId)!.x;
   await Promise.all([move(A, 1, 0, 15), move(B, 0, 1, 6)]);
   await move(A, 0, 1, 1);
@@ -179,6 +220,8 @@ try {
   console.log(
     JSON.stringify({
       https: true,
+      editorPublishedTemplate: true,
+      codeOnlyJoin: true,
       wss: true,
       clients: 3,
       movement: true,

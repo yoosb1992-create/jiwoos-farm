@@ -1,0 +1,8 @@
+{
+  "runtimeCommit": "7850f1e70588b1b7ae96892ddea2345dd011620a",
+  "frontend": "https://frontend-production-a998.up.railway.app/",
+  "backend": "https://backend-production-b244e.up.railway.app",
+  "frontendDeployment": "b4ad17dc-b394-41fa-8ad1-ad62440c2154",
+  "backendDeployment": "ce8d13df-4243-4a28-86d3-534bada7879c",
+  "purpose": "Verify deployed mobile controls, code-only joining and persistent editor templates through the existing public smoke workflow."
+}

@@ -88,3 +88,9 @@ Headless 모바일 viewport 검증은 실제 Android 기기 체감 테스트를 
 ### CI 중 발견한 로딩/재접속 보정
 
 첫 CI의 PostgreSQL migration/설계도·기존 hash 호환, 모바일 3개, Golden Lab 전체는 통과했지만 production browser가 타격 중 재접속으로 실패했습니다. 원인은 이미지 preload가 끝나기 전에 input prediction clock이 시작되는 초기 공백과 render 주기에만 갱신되던 연결 UI였습니다. Phaser scene 준비 이후 연결하고 네트워크 상태 변경 즉시 행동 버튼/아이콘을 갱신합니다. 이동/보간 알고리즘이나 검사 기준은 바꾸지 않았고, 동일한 production browser assertion을 유지한 로컬 재실행이 통과했습니다. 전환 action의 중복 패킷도 cooldown 전에 기존 영속 receipt를 반환하도록 보정했습니다.
+
+### 공개 배포 기준
+
+런타임 commit **7850f1e70588b1b7ae96892ddea2345dd011620a**에서 기존 게임 CI [37483604248](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37483604248)와 Farm/Golden Lab 전체 [37483604330](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37483604330)가 SUCCESS입니다. Farm 31개 검사와 Golden Lab 56개 검사, 실제 PostgreSQL migration/복원, Docker 2개 이미지/health/restart/shutdown gate를 통과했습니다.
+
+Railway 자동배포는 추가 승인/설정 변경 없이 성공했습니다. Backend `ce8d13df-4243-4a28-86d3-534bada7879c`, Frontend `b4ad17dc-b394-41fa-8ad1-ad62440c2154`, 모두 위 런타임 commit입니다. 공개 HTTPS health는 database=true, tickRate=30, patchRate=30, latencyMs=0이고 `/editor.html`은 HTTP 200입니다. Work의 외부 Chromium 접근은 ERR_EMPTY_RESPONSE로 제한되어 기존 GitHub 공개 smoke를 사용합니다. `deployment/public-v26.json`은 배포가 끝난 SHA를 기록하며 공개 검증을 실행하고, runtime watchPatterns에 포함되지 않으므로 서버를 재배포하지 않습니다.
