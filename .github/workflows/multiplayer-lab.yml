@@ -1,0 +1,41 @@
+name: Multiplayer Lab
+
+on:
+  push:
+    branches: [experiment/v2.4-multiplayer-lab-colyseus]
+    paths: ['multiplayer-lab/**', '.github/workflows/multiplayer-lab.yml']
+  pull_request:
+    paths: ['multiplayer-lab/**', '.github/workflows/multiplayer-lab.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: multiplayer-lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: multiplayer-lab/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run test:integration
+      - run: npm run build:server
+      - run: npm run build:client
+        env:
+          VITE_MULTIPLAYER_SERVER_URL: wss://lab-validation.invalid
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: multiplayer-lab-test-results
+          path: multiplayer-lab/test-results/
+          if-no-files-found: ignore

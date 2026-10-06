@@ -1,0 +1,40 @@
+{
+  "name": "jiwoos-multiplayer-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev:server": "node --watch --import tsx server/index.ts",
+    "dev:client": "vite --host 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "node --import tsx --test tests/*.unit.test.ts",
+    "test:integration": "node --import tsx --test --test-concurrency=1 tests/*.integration.test.ts",
+    "test:browser": "playwright test",
+    "test": "npm run test:unit && npm run test:integration",
+    "build:client": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build": "npm run build:server && npm run build:client",
+    "start": "node --enable-source-maps dist/server/index.js",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@colyseus/core": "0.18.18",
+    "@colyseus/schema": "5.0.36",
+    "@colyseus/sdk": "0.18.5",
+    "@colyseus/ws-transport": "0.18.4",
+    "dotenv": "18.0.5",
+    "express": "5.2.1",
+    "phaser": "3.90.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/express": "5.0.6",
+    "@types/node": "22.20.5",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vite": "8.0.13"
+  }
+}

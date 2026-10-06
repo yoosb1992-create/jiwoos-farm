@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f8f7f0" />
+    <title>지우네 농장 · Multiplayer Lab</title>
+  </head>
+  <body>
+    <main class="lab">
+      <header class="header">
+        <div><p class="eyebrow">JIWOO'S FARM / EXPERIMENT 2.4</p><h1>Multiplayer Lab<span class="lab-badge">COLYSEUS</span></h1><p class="subtitle">같은 방에서 움직이고, 실시간을 확인하세요.</p></div>
+        <div class="isolation"><span class="isolation-dot"></span>독립 실험 환경</div>
+      </header>
+
+      <section class="connection-card" aria-label="방 연결">
+        <div class="field nickname-field"><label for="nickname">닉네임</label><input id="nickname" type="text" placeholder="예: 지우" maxlength="20" required autocomplete="off" value="플레이어" /></div>
+        <button id="create-room" type="button" class="primary">새 방 만들기 <span>↗</span></button>
+        <span class="or">또는</span>
+        <div class="field code-field"><label for="room-code">참가 코드 <span>대소문자 구분</span></label><input id="room-code" type="text" placeholder="다른 기기의 방 코드" maxlength="24" required autocomplete="off" autocapitalize="none" spellcheck="false" /></div>
+        <button id="join-room" type="button" class="secondary">참가</button>
+      </section>
+
+      <section class="session-bar" aria-label="연결 상태">
+        <span id="connection-status" class="status" data-state="disconnected" role="status">연결 대기</span>
+        <span class="room-detail">ROOM <strong id="current-room">아직 연결되지 않음</strong></span>
+        <button id="leave-room" type="button" class="text-button" disabled>나가기</button>
+      </section>
+      <p id="status-message" class="status-message" aria-live="polite">방을 만들거나 참가 코드를 입력하세요.</p>
+
+      <section id="playfield" class="playfield" tabindex="0" aria-label="멀티플레이 테스트 맵. WASD 또는 방향키 이동, Shift 달리기."><div id="arena"></div><span class="field-tag">MOVEMENT & COLLISION</span></section>
+
+      <section class="controls-bar" aria-label="이동 조작">
+        <div class="touch-control"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div class="joystick-axis horizontal"></div><div class="joystick-axis vertical"></div><span id="joystick-knob"></span></div><span class="control-caption">MOVE</span></div>
+        <div class="control-help"><strong>가볍게, 함께 움직이세요.</strong><p><kbd>W A S D</kbd> / <kbd>방향키</kbd> 이동<br /><kbd>Shift</kbd> 달리기 · 터치는 이동 + RUN 동시 누르기</p></div>
+        <div class="touch-control"><button id="run-button" type="button" aria-label="달리기. 누르고 있는 동안 달립니다." aria-pressed="false"><span>↗</span>RUN</button><span class="control-caption">HOLD TO RUN</span></div>
+      </section>
+
+      <section class="telemetry">
+        <div class="telemetry-heading"><h2><span class="telemetry-dot"></span>NETWORK HUD</h2><button id="hud-toggle" class="text-button" type="button" aria-controls="network-hud" aria-expanded="true">HUD 숨기기</button></div>
+        <div id="network-hud">
+          <dl class="hud-grid">
+            <div><dt>RENDER FPS</dt><dd id="hud-fps">—</dd></div><div><dt>RTT · EMA</dt><dd id="hud-rtt">측정 중</dd></div><div><dt>SERVER TICK</dt><dd id="hud-tick">—</dd></div><div><dt>STATE PATCH</dt><dd id="hud-patches">—</dd></div><div><dt>PLAYERS</dt><dd id="hud-players">0</dd></div><div><dt>RECONNECT</dt><dd id="hud-reconnect">0회</dd></div>
+            <div class="wide"><dt>LOCAL · PREDICTED</dt><dd id="hud-local">—</dd></div><div class="wide"><dt>SERVER · AUTHORITATIVE</dt><dd id="hud-authority">—</dd></div><div><dt>REPLAY CORRECTION</dt><dd id="hud-correction">0.000 px</dd></div><div><dt>DRIFT · EMA / PEAK</dt><dd id="hud-drift">0 / 0</dd></div><div class="wide"><dt>INPUTS · ACK / SENT</dt><dd id="hud-input">0 / 0</dd></div>
+          </dl>
+          <p class="hud-note">RTT는 입력 확인 왕복 시간입니다. Correction은 같은 입력 순서의 예측 오차이며, 전송 중인 입력으로 생기는 위치 차이와 다릅니다. 상대 위치는 100ms 버퍼로 보간합니다.</p>
+        </div>
+      </section>
+      <footer><span>INPUT → SERVER → STATE → RECONCILIATION</span><span>기존 농장 · 세이브 데이터와 연결되지 않습니다.</span></footer>
+    </main>
+    <script type="module" src="/client/main.ts"></script>
+  </body>
+</html>
