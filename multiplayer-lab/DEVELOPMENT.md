@@ -190,11 +190,11 @@ TLS는 호스팅 앞단에서 제공해야 합니다. Docker만 로컬에서 실
 
 ## 공개 배포 자동 smoke — 유지보수자·CI용
 
-실제 서비스가 배포된 후 유지보수자/자동화가 다음을 실행합니다. 휴대폰 사용자는 이 명령을 실행하지 않습니다. 두 변수에는 실제 **HTTPS** 주소를 넣으며 Backend는 경로 없는 origin이어야 합니다. 테스트가 WSS 주소로 변환합니다.
+현재 공개 Lab은 Railway에 배포되어 있습니다. 유지보수자/자동화는 아래 실제 주소로 검사할 수 있습니다. 휴대폰 사용자는 명령을 실행하지 않고 [GitHub Actions 재실행 안내](./RAILWAY.md#휴대폰에서-공개-자동-검증-다시-실행)를 선택적으로 사용합니다. Backend는 경로 없는 HTTPS origin이며 테스트가 WSS 주소로 변환합니다.
 
 ```bash
-PUBLIC_BACKEND_URL=https://YOUR-BACKEND.example.com \
-PUBLIC_FRONTEND_URL=https://YOUR-FRONTEND.example.com \
+PUBLIC_BACKEND_URL=https://backend-production-a9e97.up.railway.app \
+PUBLIC_FRONTEND_URL=https://frontend-production-768e.up.railway.app \
 npm run test:public
 ```
 
@@ -202,7 +202,9 @@ npm run test:public
 
 `--allow-local`은 유지보수자의 명시적인 로컬 fixture 검증 옵션입니다. 이 모드의 통과는 **공개 배포 인증이 아니며** Android/5G 확인도 아닙니다. production browser 테스트는 예약 HTTPS/WSS 주소를 로컬 HTTP/WebSocket 서버로 전달하는 fixture와 Chromium으로 실제 build를 검증하지만 인터넷 TLS 또는 공개 배포를 증명하지 않습니다.
 
-GitHub Actions는 타입 검사, 단위·통합·배포·브라우저 검증, 클라이언트/서버 빌드, 두 Docker 이미지 build/start/health, PORT override, production 지연 비활성화 및 SIGTERM 종료를 검사합니다. 워크플로 파일의 존재와 실제 실행 성공을 구분하고 결과는 [VALIDATION.md](./VALIDATION.md)에 기록합니다.
+독립 `.github/workflows/multiplayer-lab-public.yml`은 GitHub-hosted runner에서 **현재 실행 중인 공개 Lab**을 검사하고 결과 artifact를 남깁니다. workflow SHA를 배포 SHA라고 표시하지 않습니다. 이 작업 환경의 OS DNS 조회는 `EAI_AGAIN`으로 사전 검사에 실패했으므로, 공개 DNS 검사를 약화시키거나 `--allow-local`로 우회하지 않고 동일한 스크립트를 정상 DNS를 가진 runner에서 실행합니다.
+
+기존 Lab GitHub Actions는 타입 검사, 단위·통합·배포·브라우저 검증, 클라이언트/서버 빌드, 두 Docker 이미지 build/start/health, PORT override, production 지연 비활성화 및 SIGTERM 종료를 검사합니다. 워크플로 파일의 존재와 실제 실행 성공을 구분하고 결과는 [VALIDATION.md](./VALIDATION.md)에 기록합니다.
 
 ## 실제 기기 benchmark
 
@@ -215,7 +217,7 @@ GitHub Actions는 타입 검사, 단위·통합·배포·브라우저 검증, �
 - 결정적 이동 검증 범위는 정적인 2D 테스트 맵입니다. 플레이어끼리의 물리 충돌, 농사·인벤토리·NPC 등은 포함하지 않습니다.
 - `NetworkAdapter`는 다음 비교 백엔드의 경계입니다. Cloudflare DO 백엔드는 이 단계에서 구현/배포하지 않습니다. 기존 `FAMILY_ROOM`을 재사용하지 않습니다.
 - `run`은 boolean wire schema입니다. 일반 JavaScript 클라이언트가 잘못된 문자열을 넣으면 SDK 인코더가 전송 전에 boolean으로 바꿀 수 있습니다. 서버는 원래 문자열을 복원하지 못하지만 최종 이동은 항상 걷기/달리기 상한 안에 있으며 입력 폭주로 상한을 늘리지 못합니다. 공용 sanitizer는 원본 JavaScript 입력에서도 `true`만 달리기로 인정합니다.
-- 실기기 benchmark를 통과하기 전 기존 농장으로 이식하지 않습니다. 다음 작업은 공개 Lab 전용 테스트 환경, 한국 내 RTT 관찰, reconnect/5분 이상 연속 플레이 검증입니다. 이후 영구 상태 명령을 이동 stream과 분리해 단계적으로 이식합니다.
+- 실기기 benchmark를 통과하기 전 기존 농장으로 이식하지 않습니다. 공개 Lab 배포는 완료했으며 다음 작업은 한국 내 실제 Android/태블릿의 RTT 관찰, reconnect/5분 이상 연속 플레이 검증입니다. 이후 영구 상태 명령을 이동 stream과 분리해 단계적으로 이식합니다.
 
 ## 확인한 공식 문서
 

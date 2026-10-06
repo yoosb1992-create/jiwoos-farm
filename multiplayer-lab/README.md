@@ -2,11 +2,13 @@
 
 휴대폰 두 대가 같은 방에서 움직이며 **내 캐릭터의 즉시 반응과 상대 캐릭터의 부드러운 이동**을 확인하는 독립 실험입니다. 농사·NPC·아이템은 포함하지 않습니다.
 
-**현재 공개 서비스는 아직 실행되지 않습니다.** Railway 로그인과 독립 Lab 프로젝트, Backend/Frontend 서비스·공개 도메인 생성 및 실행 설정은 완료했습니다. GitHub의 Railway App 설치 화면에서 이 저장소만 선택했으며, 마지막 **Install & Authorize** 승인이 남았습니다. Source·실험 브랜치·Wait for CI와 코드 배포는 아직 진행하지 않았습니다. [Frontend 주소](https://frontend-production-768e.up.railway.app)는 생성되었지만 아직 오프라인이며, 실제 브라우저 접속에서도 Railway의 404 안내 페이지를 확인했습니다. [Railway 배포 기록과 남은 단계](./RAILWAY.md)를 참고하세요. 배포가 완료되면 플레이하는 사람은 아래 순서만 따르면 됩니다. PC, 터미널, Node.js, Docker 설치는 필요 없습니다.
+**[휴대폰에서 Multiplayer Lab 열기](https://frontend-production-768e.up.railway.app)**
+
+Railway의 Frontend·Backend를 실제 배포했고, 두 공개 health endpoint의 HTTP 200 및 클라우드 브라우저 두 명의 같은 방 접속을 확인했습니다. 두 서비스는 실험 브랜치만 연결하고 **Wait for CI**를 켜 두었습니다. PC, 터미널, Node.js, Docker 설치 없이 위 주소를 열면 됩니다. 실제 Android Wi-Fi/5G의 이동 체감과 장시간 플레이는 아래 benchmark로 확인해야 합니다.
 
 ## 휴대폰 두 대로 플레이
 
-1. 두 휴대폰의 Chrome에서 배포된 **Frontend의 HTTPS 주소**를 엽니다. Backend 주소는 게임 화면 주소가 아닙니다.
+1. 두 휴대폰의 Chrome에서 **[같은 Lab 주소](https://frontend-production-768e.up.railway.app)**를 엽니다. Backend 주소는 게임 화면 주소가 아닙니다.
 2. 휴대폰 A에서 닉네임을 입력하고 **방 만들기**를 누릅니다. 화면의 방 코드를 B에게 알려줍니다.
 3. 휴대폰 B에서 다른 닉네임과 같은 방 코드를 입력하고 **참가**를 누릅니다.
 4. 서로 다른 색과 이름의 플레이어 두 명, 연결됨 상태, HUD의 인원 2를 확인합니다.
@@ -40,9 +42,9 @@
 
 | Test | 조합 | 상태 |
 |---|---|---|
-| A | Android Chrome 두 대 / 같은 Wi-Fi | 공개 배포 후 실제 기기 확인 필요 |
-| B | Android A Wi-Fi + Android B 5G/LTE | 공개 배포 후 실제 기기 확인 필요 |
-| C | Android Chrome + 태블릿 / 세로·가로 전환 | 공개 배포 후 실제 기기 확인 필요 |
+| A | Android Chrome 두 대 / 같은 Wi-Fi | 실제 기기 확인 필요 |
+| B | Android A Wi-Fi + Android B 5G/LTE | 실제 기기 확인 필요 |
+| C | Android Chrome + 태블릿 / 세로·가로 전환 | 실제 기기 확인 필요 |
 
 각 조합에서 다음을 확인합니다.
 
@@ -88,11 +90,12 @@ Phaser client는 입력을 WebSocket으로 Colyseus에 보내고, 서버의 auth
 - 네트워크 장기 단절이나 모바일 OS의 백그라운드 중단에서는 부드러운 연속 이동을 보장할 수 없습니다.
 - 정적 2D 맵만 검증합니다. 플레이어 간 물리 충돌, 농사·NPC·광산 등은 포함하지 않습니다.
 - `NetworkAdapter` 경계는 마련했으나 Cloudflare DO 비교 백엔드는 구현하지 않았습니다. 기존 `FAMILY_ROOM`은 그대로입니다.
-- 공개 서비스 기동과 실제 Android/5G 검증이 남아 있으므로 기존 농장 이식 판단은 **NOT READY**입니다. 배포와 위 benchmark를 통과한 뒤 이식을 판단합니다.
+- 공개 배포와 같은 방 접속을 확인했지만 실제 Android/5G benchmark가 남아 있으므로 기존 농장 이식 판단은 **NOT READY**입니다. 위 benchmark를 통과한 뒤 이식을 판단합니다.
 
 ## 관련 문서
 
 - [RAILWAY.md](./RAILWAY.md): 휴대폰 브라우저로 최초 배포·자동 배포 설정
-- [VALIDATION.md](./VALIDATION.md): 실제 자동 테스트·빌드 결과와 미검증 항목
+- [VALIDATION.md](./VALIDATION.md): 실제 배포·테스트·빌드 결과와 미검증 항목
+- [공개 배포 재검증](./RAILWAY.md#휴대폰에서-공개-자동-검증-다시-실행): GitHub Actions에서 선택적으로 다시 검사
 - [DEVELOPMENT.md](./DEVELOPMENT.md): 유지보수자용 로컬 실행, 환경변수, Docker, 지연 시뮬레이션, 자동 검증 명령 — 플레이 사용자에게 필요 없음
 - [Colyseus server input](https://docs.colyseus.io/netcode/server-input), [prediction/reconciliation](https://docs.colyseus.io/netcode/client-prediction), [determinism](https://docs.colyseus.io/netcode/determinism)

@@ -2,11 +2,11 @@
 
 이 안내는 Android Chrome의 Railway 웹 대시보드만 사용합니다. 앱·PC·터미널·Node.js·Docker를 설치하지 않아도 됩니다. 설정이 화면에서 잘리면 Chrome의 **데스크톱 사이트** 표시를 켭니다.
 
-**현재 상태: Railway 로그인과 독립 프로젝트·두 서비스·도메인 설정을 완료했습니다.** Railway GitHub App의 `yoosb1992-create/jiwoos-farm` 접근 권한 연결이 남아 있으며, 두 서비스의 Source는 아직 연결되지 않았습니다. 도메인은 생성되었지만 서비스는 **오프라인·미배포**입니다. Frontend 기본 주소와 Backend `/healthz`를 실제 브라우저로 열었으나 Railway의 404 안내 페이지만 표시했습니다. 공개 WSS·두 플레이어·실기기 테스트는 아직 실행하지 않았습니다.
+**현재 상태: 두 서비스 모두 실제 배포되어 Active / SUCCESS입니다.** [Frontend 플레이 URL](https://frontend-production-768e.up.railway.app)에서 바로 접속할 수 있습니다. 사용자 승인 후 Railway GitHub App을 대상 저장소 하나에 연결했고, Backend·Frontend의 Source와 실험 브랜치, **Wait for CI**를 설정·적용했습니다. 처음 `Waiting for CI`에서 `Building`을 거쳐 `Success`로 진행하는 것을 확인했습니다.
 
-현재 GitHub의 **Install & Authorize Railway** 화면에서 **Only select repositories**와 **`yoosb1992-create/jiwoos-farm` 하나만** 선택한 상태입니다. 최종 **Install & Authorize** 버튼은 누르지 않았습니다. 이 앱은 metadata 읽기, actions·administration·checks·code·commit statuses·deployments·pull requests·workflows 읽기/쓰기 및 계정 이메일 읽기를 요청합니다. 브라우저의 제3자 앱 권한 승인 정책에 따라 이 실제 권한을 보고 사용자가 승인해야 하므로, 계정 소유자의 최종 승인을 기다립니다. 앱 설치 승인 전에는 자동 배포가 활성화된 상태가 아닙니다.
+Frontend·Backend `/healthz`가 실제 HTTPS에서 HTTP 200으로 응답했고, 클라우드 브라우저 두 명이 같은 방에 접속해 인원 2와 연결됨·30Hz tick을 확인한 뒤 모두 나갔습니다. 공개 자동 smoke 첫 실행에서 bundle 주소 검사 오류를 발견했으며, 안내 문구 수정 후 재검증이 남아 있습니다. 자동 검사 성공은 아직 선언하지 않습니다. 실제 Android Wi-Fi/5G benchmark는 남아 있습니다.
 
-기존에 생성한 프로젝트는 `jiwoos-farm-multiplayer-lab`입니다. 아래 1–3절은 설정을 재현하는 안내이며, 같은 프로젝트나 서비스를 다시 만들 필요는 없습니다. 기존 프로젝트에서 GitHub App의 **이 저장소만** 접근 권한을 마친 뒤 4절의 Source·실험 브랜치 연결부터 진행합니다.
+기존 프로젝트는 `jiwoos-farm-multiplayer-lab`입니다. 아래 1–4절은 설정 재현 안내입니다. 이미 만들어진 프로젝트·서비스나 완료한 앱 승인 작업을 반복할 필요가 없습니다.
 
 | 생성한 항목 | 실제 값 |
 |---|---|
@@ -15,7 +15,7 @@
 | Backend service ID | `cb76d3f9-3ee0-4fa1-ac75-1fd9d67ee395` |
 | Frontend service ID | `a8173270-4f34-4bc4-be7d-0fcf4143400b` |
 
-Root Directory `/multiplayer-lab`, 각각의 Dockerfile·PORT·`/healthz`, Singapore, replica 1, Serverless 끔과 상호 도메인 참조 변수는 설정했습니다. 두 서비스의 Watch Paths도 `/multiplayer-lab/**`, `/.github/workflows/multiplayer-lab.yml`로 설정·적용했습니다. Source·실험 브랜치·Autodeploy·Wait for CI는 GitHub 저장소 권한 연결 후 확인·완료해야 합니다.
+Root Directory `/multiplayer-lab`, 각각의 Dockerfile·PORT·`/healthz`, Singapore, replica 1, Serverless 끔과 상호 도메인 참조 변수는 설정했습니다. 두 서비스의 Watch Paths도 `/multiplayer-lab/**`, `/.github/workflows/multiplayer-lab.yml`로 설정·적용했습니다. 두 서비스의 Source는 `yoosb1992-create/jiwoos-farm`, 브랜치는 `experiment/v2.4-multiplayer-lab-colyseus`이며 Autodeploy와 Wait for CI가 활성화되어 있습니다.
 
 ## 1. 로그인과 빈 Lab 프로젝트
 
@@ -112,25 +112,37 @@ Watch Paths는 두 서비스에 `/multiplayer-lab/**`와 `/.github/workflows/mul
 5. Frontend 주소를 두 번째 휴대폰에서 엽니다. A가 만든 방 코드를 B에 입력해 참가합니다. A Wi-Fi / B 5G 조합으로 인원 2와 양방향 이동을 확인합니다.
 6. [README의 실기기 benchmark](./README.md#휴대폰태블릿-benchmark)를 수행합니다. `/healthz` 성공만으로 멀티플레이 품질까지 검증된 것은 아닙니다.
 
-배포 완료 후 공유할 주소는 **Frontend HTTPS URL 하나**입니다. 아래는 실제 생성한 도메인이며, 현재는 Source가 연결되지 않아 두 서비스 모두 오프라인입니다. 주소 생성은 배포 성공이나 공개 테스트 통과를 뜻하지 않습니다.
+공유할 플레이 주소는 **Frontend HTTPS URL 하나**입니다.
 
-| 배포 기록 | 현재 확인한 상태 |
+| 배포 기록 | 실제 확인한 상태 |
 |---|---|
-| Frontend 공개 HTTPS URL | [frontend-production-768e.up.railway.app](https://frontend-production-768e.up.railway.app) — 생성만 완료, 오프라인 |
-| Backend 공개 HTTPS URL | [backend-production-a9e97.up.railway.app](https://backend-production-a9e97.up.railway.app) — 생성만 완료, 오프라인 |
-| Backend WebSocket 주소 | `wss://backend-production-a9e97.up.railway.app` — 미기동 |
-| GitHub App | 대상 저장소 하나 선택 완료 / 최종 Install & Authorize 승인 대기 |
-| Source / 실험 브랜치 / Wait for CI | 두 서비스 모두 미설정, 자동 배포 비활성 |
-| 배포한 실험 브랜치 commit SHA | 미배포 |
-| 코드 검증 commit / CI | `ea7eae0dd4d4d8115bca2a64cbe2efefdaad91d4` — Lab·기존 게임 CI 성공, [검증 기록](./VALIDATION.md) |
-| 실제 Frontend HTTPS 기본 주소 접속 | Railway **404 Not Found / train has not arrived** 안내 페이지 확인. Lab 화면 아님 |
-| 실제 Backend HTTPS `/healthz` 접속 | 같은 Railway **404 Not Found** 안내 페이지 확인. 앱 health 미정상 |
-| Frontend `/healthz` | 별도 접속 미실시 |
-| 공개 WSS 자동 smoke | 미실시 |
-| 공개 서비스 두 플레이어 참가·이동 | 미실시 |
+| Frontend 공개 HTTPS URL | [frontend-production-768e.up.railway.app](https://frontend-production-768e.up.railway.app) — Active / SUCCESS |
+| Backend 공개 HTTPS URL | [backend-production-a9e97.up.railway.app](https://backend-production-a9e97.up.railway.app) — Active / SUCCESS |
+| Backend WebSocket 주소 | `wss://backend-production-a9e97.up.railway.app` |
+| GitHub App / Source | 사용자 승인 완료 / 대상 저장소와 실험 브랜치 연결 완료 |
+| Wait for CI / Autodeploy | 두 서비스 모두 활성화·적용 완료 |
+| 확인한 실행 commit SHA | `2a93b13a9c126aae02cd35ac7f7f480aafa091bb` |
+| Backend deployment ID | `011760d3-9484-4b3f-b018-26d701b23cfd` |
+| Frontend deployment ID | `5f3fda87-daa6-4666-b909-63cf13c0f373` |
+| Frontend / Backend `/healthz` | 모두 공개 HTTPS HTTP 200. Backend tickRate30·patchRate30·latencyMs0 |
+| 공개 브라우저 두 명 같은 방 참가 | PASS, 인원2·연결됨 확인 후 모두 나가기·연결 대기 복귀 |
+| 공개 WSS 자동 smoke | 첫 실행에서 bundle 주소 검사 오류. 안내 문구 수정·배포 후 재검증 대기 |
 | 실제 Android Wi-Fi + 5G | 미실시 |
 
-공개 자동 smoke는 유지보수자/CI가 실제 주소로 실행합니다. 휴대폰 사용자에게 명령 실행을 요구하지 않습니다. 안내와 실행 기준은 [DEVELOPMENT.md](./DEVELOPMENT.md#공개-배포-자동-smoke--유지보수자ci용)에 있습니다.
+배포 후 새 commit이 자동 반영되면 실행 revision이 달라질 수 있습니다. 위 값은 직접 확인한 배포 기록입니다. 최신 결과는 [VALIDATION.md](./VALIDATION.md)와 Railway Deployments에서 확인합니다.
+
+## 휴대폰에서 공개 자동 검증 다시 실행
+
+직접 플레이하는 데 필요하지 않은 선택 사항입니다. 휴대폰 브라우저에서 기존 GitHub Actions 실행을 다시 돌릴 수 있습니다.
+
+1. [Multiplayer Lab Public Smoke 실행 목록](https://github.com/yoosb1992-create/jiwoos-farm/actions/workflows/multiplayer-lab-public.yml)을 엽니다.
+2. `experiment/v2.4-multiplayer-lab-colyseus`의 기존 실행을 선택합니다.
+3. **Re-run jobs → Re-run all jobs**를 누릅니다. 계정에 저장소 실행 권한이 있어야 하며 메뉴가 잘리면 브라우저의 데스크톱 사이트 표시를 사용합니다.
+4. 실행이 끝난 뒤 `Verify real public HTTPS and WSS multiplayer` 단계와 결과를 확인합니다. 상세 기록은 `multiplayer-lab-public-smoke-report` artifact에 있습니다.
+
+이 workflow는 **실행할 때 공개된 Lab**을 검사합니다. workflow의 commit SHA가 실제 Railway 배포 revision과 같다는 보장은 없습니다. 최초 실행의 workflow revision은 `8987c46`이고 검사 대상은 실행 중인 `2a93b13` 배포입니다. 아직 배포되지 않은 후보 코드가 이미 인터넷에서 실행된다고 가정하지 않습니다.
+
+workflow는 실험 브랜치에만 있으며 기본 브랜치의 Run workflow 버튼을 요구하지 않습니다. 기존 실행의 재실행 메뉴를 사용하면 됩니다. 개발자용 명령은 [DEVELOPMENT.md](./DEVELOPMENT.md#공개-배포-자동-smoke--유지보수자ci용)에 있으며 휴대폰 사용자에게 터미널 실행을 요구하지 않습니다.
 
 ## 연결되지 않을 때
 

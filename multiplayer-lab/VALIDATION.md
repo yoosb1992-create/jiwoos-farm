@@ -7,9 +7,9 @@
 ## Railway 모바일 배포 후속 검증
 
 후속 작업 시작 기준 HEAD: `cf7379cbe613aa954f7edf307603a5e07c389977`.
-아래 최종 원격 CI 검증 대상: **`ea7eae0dd4d4d8115bca2a64cbe2efefdaad91d4`**.
-기존 `client/`, `server/`, `shared/` 코드는 이 작업에서 변경하지 않았습니다.
-배포 이미지, 정적 serving, 빌드 주소 검증, 테스트, 문서와 Lab CI만 추가/수정했습니다.
+아래 상세 원격 CI 기록 대상: **`ea7eae0dd4d4d8115bca2a64cbe2efefdaad91d4`**. 이후 실제 배포한 **`2a93b13a9c126aae02cd35ac7f7f480aafa091bb`**도 Lab·기존 게임 CI 모두 성공했습니다.
+기존 `server/`, `shared/` 및 이동·prediction·reconciliation 로직은 이 후속 작업에서 변경하지 않았습니다. `client/config.ts`의 한국어 오류 안내 두 곳에서 URL처럼 읽히는 문자열을 WS/WSS 설명으로 바꿨습니다. 연결 동작은 그대로입니다.
+배포 이미지, 정적 serving, 빌드 주소 검증, 테스트, 문서와 Lab CI를 추가/수정했습니다.
 
 | 실제 실행 항목 | 결과 |
 |---|---|
@@ -27,9 +27,12 @@
 | Docker 이미지 build | **Backend / Frontend 모두 최종 GitHub CI에서 PASS** (`ea7eae0`) |
 | Docker 실행 검증 | **PASS**, 두 이미지 시작·`/healthz`, Backend PORT override, production latency0, 두 컨테이너 SIGTERM 정상 종료 exit0 |
 | 기존 게임 CI | **PASS**, 같은 `ea7eae0` commit |
-| Railway 계정·프로젝트·서비스·도메인 | 로그인·독립 프로젝트와 Backend/Frontend 생성·설정 적용 완료. GitHub App 최종 Install & Authorize 승인 대기, Source·실험 브랜치·Wait for CI 미설정·서비스 오프라인 |
-| 생성한 도메인 HTTPS 접속 | Frontend 기본 주소·Backend `/healthz` 모두 실제 브라우저에서 Railway **404 Not Found / train has not arrived** 확인. 앱 미기동·health 미정상 |
-| 공개 WSS / 두 플레이어 / 실제 Android 두 대·5G | **미검증**, 실제 코드 배포·기동 이후 수행 필요 |
+| Railway 계정·프로젝트·서비스·도메인 | 사용자 앱 승인·저장소 Source·실험 브랜치·Wait for CI 연결 완료. 두 서비스 **Active / SUCCESS** |
+| 공개 HTTPS health | Frontend·Backend `/healthz` 모두 **HTTP 200**. Backend status ok·tick30·patch30·latency0 |
+| 공개 브라우저 두 명 같은 방 참가 | **PASS**, 같은 room 인원2·연결됨·30Hz 관찰. 두 명 모두 나가기 후 연결 대기 복귀 |
+| 작업 환경의 공개 smoke 실행 | **사전 검사 실패**, OS DNS `EAI_AGAIN`. 앱 테스트 성공으로 간주하지 않으며 DNS 가드 변경 없음 |
+| GitHub Actions 공개 smoke | **첫 실행 FAIL / 수정 후 재검증 대기**. bundle 검사에서 오류 안내 문구를 URL로 해석. 실제 공개 smoke 스크립트·DNS/주소 가드 변경 없음 |
+| 실제 Android 두 대·Wi-Fi/5G·태블릿 | **미검증**, 실제 기기 benchmark 필요 |
 
 Production 브라우저 smoke는 정적 산출물의 `wss://lab-validation.invalid` 요청을
 **테스트에서만** 로컬의 실제 컴파일 서버로 전달합니다. 양쪽 브라우저의 방 생성/참가,
@@ -53,15 +56,37 @@ SDK 버전/정확한 모듈 형태가 달라지면 build가 실패하여 재검�
 - [Multiplayer Lab — run 37428877941](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37428877941): 설치·strict typecheck·22 unit·23 integration·6 deployment·4 browser·1 production browser·client/server build·두 Docker image build/run/health/PORT/종료 검증 **PASS**.
 - [기존 게임 CI — run 37428877967](https://github.com/yoosb1992-create/jiwoos-farm/actions/runs/37428877967): **PASS**.
 
-Railway에는 `jiwoos-farm-multiplayer-lab` 프로젝트(`aebabf47-0d3f-45b1-93d2-4d13c95286d7`)와 환경(`6894f013-1f3b-4d8b-8ccf-5f87f44c348b`)을 생성했습니다. Backend `cb76d3f9-3ee0-4fa1-ac75-1fd9d67ee395`는 `https://backend-production-a9e97.up.railway.app` / PORT2567, Frontend `a8173270-4f34-4bc4-be7d-0fcf4143400b`는 `https://frontend-production-768e.up.railway.app` / PORT8080 도메인을 생성했습니다.
+### 실제 공개 배포와 접속
 
-두 서비스의 Root Directory `/multiplayer-lab`, Dockerfile, `/healthz`, Singapore, replica1, Serverless 끔, production·HOST·latency0과 상대 도메인 참조 변수는 설정·적용했습니다. Watch Paths도 두 서비스 모두 `/multiplayer-lab/**`, `/.github/workflows/multiplayer-lab.yml`로 설정·적용했습니다. **이 URL들은 생성만 되었으며 실행 중인 배포가 아닙니다.** 실제 브라우저로 Frontend HTTPS 기본 주소와 Backend HTTPS `/healthz`를 열었으며, 둘 다 Railway의 **404 Not Found / train has not arrived** 페이지였습니다. 이는 앱이 아직 없다는 관찰 결과이며 정상 health나 멀티플레이 성공이 아닙니다.
+Railway 프로젝트는 `jiwoos-farm-multiplayer-lab` (`aebabf47-0d3f-45b1-93d2-4d13c95286d7`), 환경은 `6894f013-1f3b-4d8b-8ccf-5f87f44c348b`입니다. GitHub App은 사용자 승인 후 `yoosb1992-create/jiwoos-farm` 하나에 연결했습니다. 두 서비스 모두 Source의 `experiment/v2.4-multiplayer-lab-colyseus` 브랜치와 Root Directory `/multiplayer-lab`, Wait for CI 켬을 확인·적용했습니다. 실제 배포가 Waiting for CI → Building → Success로 진행했습니다.
 
-GitHub Install & Authorize Railway 화면에서 Only select repositories와 대상 저장소 하나만 선택했습니다. 최종 설치 버튼은 누르지 않았습니다. 제3자 앱 권한에 대한 브라우저 승인 정책상 실제 권한을 본 사용자의 승인이 필요합니다. 따라서 Source·실험 브랜치·Wait for CI는 아직 미설정이며 자동 배포도 활성화하지 않았습니다. 공개 WSS smoke, 공개 두 플레이어 참가·이동, 실제 Android Wi-Fi/5G는 아직 실행하지 않았습니다. 기존 Production 서비스에는 연결하지 않았습니다.
+| 실제 확인한 배포 | 값 |
+|---|---|
+| 실행 코드 | `2a93b13a9c126aae02cd35ac7f7f480aafa091bb` |
+| Backend service / deployment | `cb76d3f9-3ee0-4fa1-ac75-1fd9d67ee395` / `011760d3-9484-4b3f-b018-26d701b23cfd` |
+| Frontend service / deployment | `a8173270-4f34-4bc4-be7d-0fcf4143400b` / `5f3fda87-daa6-4666-b909-63cf13c0f373` |
+| Backend 공개 HTTPS | [backend-production-a9e97.up.railway.app](https://backend-production-a9e97.up.railway.app) |
+| Frontend 공개 HTTPS | [frontend-production-768e.up.railway.app](https://frontend-production-768e.up.railway.app) |
+| 실제 공개 health | 두 `/healthz` HTTP200, Backend `status=ok`, `tickRate=30`, `patchRate=30`, `latencyMs=0` |
+| 실제 공개 브라우저 | 두 클라우드 브라우저가 room `mfQIxXCGY` 생성·참가, 인원2·연결됨·30Hz patch 관찰, 두 명 나가기 정리 |
+
+테스트 room 코드는 당시 검사 기록이며 계속 사용할 방 코드가 아닙니다. 앱에서 새 방을 만드세요. 이 두 브라우저 검사는 실제 Android Wi-Fi/5G 또는 5분 이상 이동 체감 검증이 아닙니다.
+
+각 Dockerfile·PORT(Backend2567/Frontend8080)·`/healthz`, Singapore, replica1, Serverless 끔, production·HOST·latency0과 상대 도메인 참조 변수를 적용했습니다. Watch Paths는 두 서비스 모두 `/multiplayer-lab/**`, `/.github/workflows/multiplayer-lab.yml`입니다. 기존 Production 서비스에는 연결하지 않았습니다.
+
+### 공개 자동 smoke 실행 환경
+
+작업 환경에서 실제 URL로 `tests/public-smoke.mjs`를 실행했지만 OS DNS 조회가 `EAI_AGAIN`으로 사전 검사에서 실패했습니다. 이 결과를 성공으로 바꾸거나 DNS 검사를 제거하지 않았습니다. 공개 HTTPS/WSS·정상 인증서·DNS 가드를 유지한 동일 스크립트를 GitHub-hosted runner에서 실행하도록 `.github/workflows/multiplayer-lab-public.yml`을 추가했습니다.
+
+최초 workflow revision은 `8987c46d733c2f8b2c76828cb1eeda27326026b7`이며 **검사하는 배포 revision은 위의 `2a93b13`**입니다. workflow는 현재 공개된 Lab을 검사하므로 workflow revision 자체가 이미 배포되었다고 주장하지 않습니다. 첫 실행은 두 실제 SDK client의 이동·수렴 및 browser 참가까지 진행했으나, bundle 주소 검사에서 한국어 오류 안내의 `wss://로`와 `wss://)가`를 서버 URL로 해석해 실패했습니다. 두 안내 문자열만 WS/WSS 표현으로 수정하며, 검사 스크립트·DNS 가드·이동 및 네트워크 코어를 바꾸지 않습니다. 수정본 배포 후 재검증이 필요하며 **전체 공개 smoke PASS는 아직 선언하지 않습니다**. 최종 결과와 `multiplayer-lab-public-smoke-report` artifact를 함께 확인해야 합니다.
+
+휴대폰에서는 [기존 Public Smoke 실행](https://github.com/yoosb1992-create/jiwoos-farm/actions/workflows/multiplayer-lab-public.yml)을 열어 **Re-run jobs → Re-run all jobs**로 재검사할 수 있습니다. 자세한 순서는 [RAILWAY.md](./RAILWAY.md#휴대폰에서-공개-자동-검증-다시-실행)에 있습니다.
 
 모바일 최초 설정은 [RAILWAY.md](./RAILWAY.md), 플레이 방법은 [README.md](./README.md)를 따릅니다.
 
 ## 이전 Core 구현 검증 기록
+
+아래는 공개 배포 이전의 이력입니다. 당시 미실행한 Docker·인터넷 배포의 현재 결과는 위 후속 검증 기록을 따릅니다.
 
 ### 실제 실행 결과
 
@@ -157,4 +182,4 @@ Cloudflare DO 비교 backend: **미구현**. `NetworkAdapter` 경계와 Colyseus
 
 기존 Production 배포·D1·인증·세이브·게임 코드는 변경하지 않았습니다. 기존 root TypeScript 설정에는 Lab 제외 항목만 추가했고, 신규 Lab 전용 CI workflow는 배포하지 않습니다. 기존 production branch에는 commit/merge하지 않습니다.
 
-**기존 지우네 농장으로 즉시 이식: NOT READY.** 격리된 Lab의 구현·자동 테스트·빌드 기반은 준비되었습니다. 다만 사용자의 가장 중요한 완료 기준인 실제 PC/Android/태블릿, Wi-Fi/5G에서의 체감과 5분 이상 연속 플레이는 아직 검증하지 않았습니다. README의 benchmark를 통과한 후 별도 이식 작업을 결정해야 합니다.
+**기존 지우네 농장으로 즉시 이식: NOT READY.** 격리된 Lab의 구현·자동 테스트·빌드 기반은 준비되었습니다. 다만 사용자의 가장 중요한 완료 기준인 실제 Android/태블릿, Wi-Fi/5G에서의 체감과 5분 이상 연속 플레이는 아직 검증하지 않았습니다. 공개 서비스 기동과 클라우드 브라우저 두 명의 같은 방 접속은 확인했습니다. README의 benchmark를 통과한 후 별도 이식 작업을 결정해야 합니다.

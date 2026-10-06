@@ -14,10 +14,10 @@ export function serverUrl(): string {
   }
   const url = new URL(configured);
   if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
-    throw new Error('서버 주소는 ws:// 또는 wss://로 시작해야 합니다.');
+    throw new Error('서버 주소는 WS 또는 WSS 프로토콜을 사용해야 합니다.');
   }
   if (window.location.protocol === 'https:' && url.protocol !== 'wss:') {
-    throw new Error('HTTPS 화면에는 보안 WebSocket 주소(wss://)가 필요합니다.');
+    throw new Error('HTTPS 화면에는 보안 WebSocket 주소가 필요합니다.');
   }
   return url.toString().replace(/\/$/, '');
 }
