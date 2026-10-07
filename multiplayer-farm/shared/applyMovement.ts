@@ -25,6 +25,9 @@ export interface Position {
 export interface MovementInput {
   moveX: number;
   moveY: number;
+  /** Optional turn-in-place intent. It changes facing without translating. */
+  faceX?: number;
+  faceY?: number;
   run: boolean;
 }
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
@@ -34,7 +37,13 @@ const axis = (v: unknown) =>
     : 0;
 export function sanitizeMovementInput(v: unknown): MovementInput {
   const i = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
-  return { moveX: axis(i.moveX), moveY: axis(i.moveY), run: i.run === true };
+  return {
+    moveX: axis(i.moveX),
+    moveY: axis(i.moveY),
+    faceX: axis(i.faceX),
+    faceY: axis(i.faceY),
+    run: i.run === true,
+  };
 }
 export function collidesWithObstacle(
   x: number,
@@ -112,9 +121,16 @@ export function applyMovement(
     return;
   const i = sanitizeMovementInput(raw);
   const length = Math.hypot(i.moveX, i.moveY);
+  const faceLength = Math.hypot(i.faceX ?? 0, i.faceY ?? 0);
   const active = length > 0.01;
   p.moving = active;
   p.running = active && i.run && (p.stamina ?? 100) > 0;
+  if ((p.actionTicks ?? 0) > 0) {
+    p.actionTicks = Math.max(0, (p.actionTicks ?? 0) - 1);
+    p.moving = false;
+    p.running = false;
+    return;
+  }
   if (active)
     p.facing =
       Math.abs(i.moveX) > Math.abs(i.moveY)
@@ -124,12 +140,15 @@ export function applyMovement(
         : i.moveY > 0
           ? "down"
           : "up";
-  if ((p.actionTicks ?? 0) > 0) {
-    p.actionTicks = Math.max(0, (p.actionTicks ?? 0) - 1);
-    p.moving = false;
-    p.running = false;
-    return;
-  }
+  else if (faceLength > 0.01)
+    p.facing =
+      Math.abs(i.faceX ?? 0) > Math.abs(i.faceY ?? 0)
+        ? (i.faceX ?? 0) > 0
+          ? "right"
+          : "left"
+        : (i.faceY ?? 0) > 0
+          ? "down"
+          : "up";
   const speed = p.running ? RUN_SPEED : WALK_SPEED;
   const dx = (i.moveX / Math.max(1, length)) * speed * dt,
     dy = (i.moveY / Math.max(1, length)) * speed * dt;
