@@ -17,6 +17,11 @@ export type TouchTarget = {
   signature?: string;
 };
 const stop: MovementInput = { moveX: 0, moveY: 0, run: false };
+const faceOnly = (face: string): MovementInput => ({
+  ...stop,
+  faceX: face === "right" ? 1 : face === "left" ? -1 : 0,
+  faceY: face === "down" ? 1 : face === "up" ? -1 : 0,
+});
 export class TouchNavigator {
   target?: TouchTarget;
   private path: Point[] = [];
@@ -202,6 +207,9 @@ export class TouchNavigator {
             : dy > 0
               ? "down"
               : "up";
+      // Brake first and wait until the server confirms movement has stopped.
+      // This drains queued movement frames before action range/front-tile checks.
+      if (me.moving) return stop;
       if (
         groundAction ||
         (t.kind === "entity" &&
@@ -216,11 +224,9 @@ export class TouchNavigator {
             (front.tileX !== Math.floor(t.x / TILE) ||
               front.tileY !== Math.floor(t.y / TILE)))
         )
-          return {
-            moveX: Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) : 0,
-            moveY: Math.abs(dx) > Math.abs(dy) ? 0 : Math.sign(dy),
-            run: false,
-          };
+          // Turn without translating. Walking one extra tick to fix facing was
+          // the source of intermittent overshoot before touch interactions.
+          return faceOnly(face);
       }
       this.cancel();
       this.act(t);
