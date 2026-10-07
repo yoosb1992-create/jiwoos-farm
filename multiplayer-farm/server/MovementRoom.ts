@@ -59,6 +59,8 @@ export class MovementRoom extends Room<{ state: FarmState; input: MoveInput }> {
       const sanitized = sanitizeMovementInput(frame);
       frame.moveX = sanitized.moveX;
       frame.moveY = sanitized.moveY;
+      frame.faceX = sanitized.faceX ?? 0;
+      frame.faceY = sanitized.faceY ?? 0;
       frame.run = sanitized.run;
     },
   });
