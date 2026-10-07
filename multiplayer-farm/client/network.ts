@@ -463,6 +463,8 @@ export class ColyseusAdapter implements NetworkAdapter {
         for (let step = 0; step < steps; step++) {
           this.input.data.moveX = command.moveX;
           this.input.data.moveY = command.moveY;
+          this.input.data.faceX = command.faceX ?? 0;
+          this.input.data.faceY = command.faceY ?? 0;
           this.input.data.run = command.run;
           this.input.send();
         }
