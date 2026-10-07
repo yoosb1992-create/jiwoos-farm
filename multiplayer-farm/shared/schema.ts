@@ -5,6 +5,8 @@ export const MoveInput = schema(
   {
     moveX: t.float32().default(0),
     moveY: t.float32().default(0),
+    faceX: t.float32().default(0),
+    faceY: t.float32().default(0),
     run: t.boolean().default(false),
   },
   "FarmMoveInput",
