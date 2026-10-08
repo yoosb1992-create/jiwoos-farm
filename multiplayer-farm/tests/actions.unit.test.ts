@@ -12,10 +12,10 @@ import {
 } from "../shared/world.js";
 import { applyMovement } from "../shared/applyMovement.js";
 import { MemoryTestStore } from "../persistence/memory-test-store.js";
-import { defaultLayout, validateLayout } from "../shared/layout.js";
+import { defaultLayout, legacyLayout, validateLayout } from "../shared/layout.js";
 let seq = 0;
 function setup() {
-  const w = newWorld(42);
+  const w = newWorld(42, legacyLayout());
   w.members.a = newMember("a", "A");
   w.members.b = newMember("b", "B");
   const a: Actor = {
@@ -292,7 +292,6 @@ test("code-only family access and published layouts isolate existing worlds", as
   const b = await store.login(false, original.farmId, "B");
   assert.equal(b.farmId, original.farmId);
   const layout = validateLayout(defaultLayout());
-  layout.maps.farm!.farmAreas[0]!.endX = 15;
   layout.maps.farm!.objects.find(
     (o) => o.id === "family-chest",
   )!.position.tileX = 10;
@@ -311,7 +310,7 @@ test("code-only family access and published layouts isolate existing worlds", as
   );
   assert.equal(
     store.worlds.get(original.farmId)!.entities["family-chest"]!.x,
-    256,
+    defaultLayout().maps.farm!.objects.find(o => o.id === "family-chest")!.position.tileX * 32,
   );
   assert.equal(
     (await store.authenticate(original.token)).playerId,

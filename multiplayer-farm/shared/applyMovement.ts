@@ -96,7 +96,9 @@ export function collidesWithObstacle(
       o.visible !== false &&
       !o.bridge &&
       o.collision &&
-      !o.assetId.startsWith("tree") &&
+      // Harvestable trees keep their existing dynamic behavior. Authored static
+      // trees must honor their small trunk box, just like other static objects.
+      !(o.assetId.startsWith("tree") && o.kind === "tree") &&
       hit(
         o.position.tileX * TILE + o.collision.x,
         o.position.tileY * TILE + o.collision.y,

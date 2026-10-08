@@ -257,7 +257,9 @@ export class TouchNavigator {
       this.cancel();
       return stop;
     }
-    if (distance < 6) return stop;
+    // A diagonal approach can be within 6px of the last waypoint while still
+    // outside interaction range. Brake only after entering the actual goal.
+    if (distance < 6 && near(me)) return stop;
     return {
       moveX: (p.x - me.x) / Math.max(distance, 12),
       moveY: (p.y - me.y) / Math.max(distance, 12),

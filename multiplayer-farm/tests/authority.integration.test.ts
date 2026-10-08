@@ -49,7 +49,7 @@ test("three real WebSocket/SDK clients share one family authority; input-only mo
     f.A.send("inventory", { wood: 99999 });
     f.A.send("state", { entities: { hack: true } });
     await delay(100);
-    assert.ok(f.A.state.players.get(f.A.sessionId)!.x < 1664);
+    assert.ok(f.A.state.players.get(f.A.sessionId)!.x < JSON.parse(f.A.state.layout).maps.farm.width * 32);
     assert.equal(f.A.state.entities.has("hack"), false);
     // Walk into the real portal with inputs only; no enterArea command.
     const room = roomServer(f.A.roomId),
@@ -132,7 +132,7 @@ test("concurrent real clients: tree felling, drop pickup, chest withdrawal and d
       false,
     );
     // Duplicate successful till command must return the committed receipt and spend stamina once.
-    place(room, f.C.sessionId, 304, 272);
+    place(room, f.C.sessionId, 36.5 * 32, 58.5 * 32);
     await delay(230);
     const id = randomUUID();
     const [one, two] = await Promise.all([
@@ -223,17 +223,17 @@ test("farming shares plant/water, all-online sleep advances crop and forest, con
   const f = await fixture();
   try {
     const room = roomServer(f.A.roomId);
-    for (const r of [f.A, f.B, f.C]) place(room, r.sessionId, 304, 272);
+    for (const r of [f.A, f.B, f.C]) place(room, r.sessionId, 36.5 * 32, 58.5 * 32);
     assert.equal((await action(f.A, "tillTile")).ok, true);
     await delay(230);
     assert.equal(
       (await action(f.A, "plantSeed", { itemId: "sproutberry_seed" })).ok,
       true,
     );
-    await until(() => f.B.state.entities.get("soil-farm-9-9")?.kind === "crop");
+    await until(() => f.B.state.entities.get("soil-farm-36-59")?.kind === "crop");
     for (let day = 0; day < 3; day++) {
       await delay(230);
-      if (!room.state.entities.get("soil-farm-9-9")!.watered)
+      if (!room.state.entities.get("soil-farm-36-59")!.watered)
         assert.equal((await action(f.A, "waterCrop")).ok, true);
       await delay(230);
       const results = await Promise.all(
@@ -289,7 +289,7 @@ test("single-family lease fences duplicate authorities and durable state survive
   const { url } = await server.listen();
   const A = await join(url, a);
   const r = roomServer(A.roomId);
-  place(r, A.sessionId, 304, 272);
+  place(r, A.sessionId, 36.5 * 32, 58.5 * 32);
   assert.ok((await action(A, "tillTile")).ok);
   await assert.rejects(() => store.lease(a.farmId, () => undefined));
   await A.leave();
@@ -305,7 +305,7 @@ test("single-family lease fences duplicate authorities and durable state survive
   const second = await next.listen();
   const restored = await join(second.url, a);
   try {
-    assert.equal(restored.state.entities.get("soil-farm-9-9")?.kind, "soil");
+    assert.equal(restored.state.entities.get("soil-farm-36-59")?.kind, "soil");
     assert.equal(restored.state.players.get(restored.sessionId)!.stamina, 98);
   } finally {
     await restored.leave();

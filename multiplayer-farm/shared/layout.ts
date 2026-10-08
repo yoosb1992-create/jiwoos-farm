@@ -2,6 +2,7 @@ import { TERRAIN } from "./world2.js";
 import { validateProperties, validateWorld2 } from "./world2-validation.js";
 import { MAPS, ASSETS, TILE, type MapData, type MapObject } from "./content.js";
 import { dressing } from "./dressing.js";
+import { createDefaultFarm } from "./default-farm.js";
 export type WorldLayout = {
   version: 1 | 2;
   worldVersion?: number;
@@ -30,7 +31,8 @@ export const GENERATED_ASSETS = [
   "icon_cow",
   "icon_sheep",
 ];
-export function defaultLayout(): WorldLayout {
+/** Frozen v2.6 geometry for saves that predate per-family layout snapshots. */
+export function legacyLayout(): WorldLayout {
   const maps = Object.fromEntries(
     Object.entries(MAPS).map(([id, map]) => [id, structuredClone(map)]),
   );
@@ -75,6 +77,14 @@ export function defaultLayout(): WorldLayout {
   // The old well is replaced by its authoritative interactive counterpart.
   maps.farm!.objects = maps.farm!.objects.filter((o) => o.id !== "yard_well");
   return { version: 1, maps };
+}
+/** The same editable data is used by new families, the defaults API and editor. */
+export function defaultLayout(): WorldLayout {
+  const layout = legacyLayout();
+  layout.maps.farm = createDefaultFarm(layout.maps.farm!);
+  layout.version = 2;
+  layout.worldVersion = 1;
+  return layout;
 }
 const record = (v: unknown): Record<string, unknown> => {
   if (!v || typeof v !== "object" || Array.isArray(v))

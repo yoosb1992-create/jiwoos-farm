@@ -56,7 +56,7 @@ assert.equal(editorPage.status, 200);
 const defaults = (await (
   await fetch(new URL("/api/blueprints/defaults", backend))
 ).json()) as import("../shared/layout.js").WorldLayout;
-defaults.maps.farm!.width = 60;
+defaults.maps.farm!.width = 136;
 const blueprintResponse = await fetch(new URL("/api/blueprints", backend), {
   method: "POST",
   headers: { "Content-Type": "application/json", Origin: frontend.origin },
@@ -125,7 +125,7 @@ B.onStateChange(() => {
 });
 try {
   await until(() => C.state.players.size === 3, 15000);
-  assert.equal(JSON.parse(C.state.layout).maps.farm.width, 60);
+  assert.equal(JSON.parse(C.state.layout).maps.farm.width, 136);
   const startX = A.state.players.get(A.sessionId)!.x;
   await Promise.all([move(A, 1, 0, 15), move(B, 0, 1, 6)]);
   await move(A, 0, 1, 1);

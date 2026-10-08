@@ -94,14 +94,21 @@ test("production mobile client: actual authority movement, remote canvas, planti
     )!;
   try {
     const before = await peer.locator("canvas").screenshot();
+    const startX = local().x;
     await page.keyboard.down("ArrowRight");
-    await expect.poll(() => local().x).toBeGreaterThan(304);
+    await expect.poll(() => local().x).toBeGreaterThan(startX + 4);
     await page.keyboard.up("ArrowRight");
     const after = await peer.locator("canvas").screenshot();
     expect(before.equals(after)).toBe(false);
+    // The new yard is deliberately protected from tilling. Walk to clear grass
+    // with real inputs instead of assuming the former 52x26 starter field.
+    await page.keyboard.down("ArrowRight");
+    await expect.poll(() => local().x, { intervals: [30] }).toBeGreaterThan(67.5 * 32);
+    await page.keyboard.up("ArrowRight");
     await page.keyboard.down("ArrowDown");
-    await page.waitForTimeout(50);
+    await expect.poll(() => local().y, { intervals: [30] }).toBeGreaterThan(43.5 * 32);
     await page.keyboard.up("ArrowDown");
+    await delay(250);
     await page.locator("#tool").selectOption("hoe");
     await hold(page, "#action");
     await expect
@@ -143,10 +150,14 @@ test("production mobile client: actual authority movement, remote canvas, planti
       "연결됨 · 3명",
     );
     // Reload restores the safe spawn. All tree interactions below use actual UI inputs.
+    const tree = sdk.state.entities.get("starter-pine")!;
+    await page.keyboard.down("ArrowLeft");
+    await expect.poll(() => local().x, { intervals: [20] }).toBeLessThan(tree.x + 4);
+    await page.keyboard.up("ArrowLeft");
     await page.keyboard.down("ArrowDown");
-    await page.waitForTimeout(330);
+    await expect.poll(() => local().y, { intervals: [20] }).toBeGreaterThan(tree.y - 36);
     await page.keyboard.up("ArrowDown");
-    await expect.poll(() => local().y).toBeGreaterThan(326);
+    await delay(250);
     await page.locator("#tool").selectOption("axe");
     for (let hit = 0; hit < 3; hit++) {
       await delay(300);

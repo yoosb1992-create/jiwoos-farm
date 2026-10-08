@@ -990,7 +990,7 @@ async function connectSaved(): Promise<void> {
     await renderer.scene.ready;
     await network.openFarm(session);
     el("login").hidden = true;
-    notice("연결됐습니다. 앞쪽 밭에서 괭이 → 씨앗 → 물뿌리개를 사용해 보세요.");
+    notice("연결됐습니다. 길 밖의 잔디 평지를 괭이로 갈아 우리 가족의 밭을 만들어 보세요.");
   } catch (e) {
     el("login-error").textContent =
       e instanceof Error ? e.message : "연결 실패";

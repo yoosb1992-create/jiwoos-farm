@@ -53,7 +53,7 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
       s.farmId,
     );
     const layout = defaultLayout();
-    layout.maps.farm!.width = 60;
+    layout.maps.farm!.width = 136;
     const draft = await db.createBlueprint(layout);
     await assert.rejects(() =>
       db.saveBlueprint(draft.id, "invalid", layout, 0, true),
@@ -64,7 +64,7 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
     );
     const edited = await db.login(true, "", "Blueprint farmer", draft.id);
     const isolated = await db.lease(edited.farmId, () => undefined);
-    assert.equal((await isolated.load()).layout!.maps.farm!.width, 60);
+    assert.equal((await isolated.load()).layout!.maps.farm!.width, 136);
     await isolated.close();
     const sessionRows = await db.pool.query(
       "SELECT token_hash FROM sessions WHERE member_id=$1",
@@ -75,7 +75,7 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
     const lease = await db.lease(s.farmId, () => undefined);
     try {
       const w = await lease.load();
-      assert.notEqual(w.layout!.maps.farm!.width, 60);
+      assert.notEqual(w.layout!.maps.farm!.width, 136);
       w.members[s.playerId] = newMember(s.playerId, s.nickname);
       w.revision++;
       await lease.save(w, 0);

@@ -19,6 +19,7 @@ test("mobile touch action, saved control layout and new-world editor isolation",
   test.setTimeout(60000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem("farm-zoom", "0.7"));
   await page.goto("/");
   await expect(page.locator("#password")).toHaveCount(0);
   await page.locator("#nickname").fill("Touch");
@@ -36,9 +37,15 @@ test("mobile touch action, saved control layout and new-world editor isolation",
     () =>
       JSON.parse(localStorage.getItem("farm-v26-session")!).farmId as string,
   );
+  // Wait for the first camera follow frame before translating world to screen.
+  await page.waitForTimeout(350);
   // Tap the tree artwork, walk into range and automatically send one hitTree action.
   const target = await page.evaluate(() =>
-    window.__FARM_DEBUG__.screenPoint(225, 342),
+    (() => {
+      const farm = JSON.parse(window.__FARM_DEBUG__.state().layout).maps.farm;
+      const tree = farm.objects.find((o: { id: string }) => o.id === "starter-pine");
+      return window.__FARM_DEBUG__.screenPoint(tree.position.tileX * 32, tree.position.tileY * 32 - 42);
+    })(),
   );
   await page.touchscreen.tap(target.x, target.y);
   await expect
@@ -86,19 +93,19 @@ test("mobile touch action, saved control layout and new-world editor isolation",
   await page.goto("/editor.html");
   await page.locator("#menu").click();
   await page.locator("[data-panel=world]").click();
-  await page.locator("#width").fill("60");
+  await page.locator("#width").fill("136");
   expect(
     await page.evaluate(
       () =>
         JSON.parse(localStorage.getItem("farm-editor-draft-v1") ?? "null")?.maps
           .farm.width,
     ),
-  ).not.toBe(60);
+  ).not.toBe(136);
   await page.locator("#resize").click();
   await page.locator("#undo").click();
-  await expect(page.locator("#width")).not.toHaveValue("60");
+  await expect(page.locator("#width")).not.toHaveValue("136");
   await page.locator("#redo").click();
-  await expect(page.locator("#width")).toHaveValue("60");
+  await expect(page.locator("#width")).toHaveValue("136");
   await page.locator("#menu").click();
   await page.locator("[data-panel=save]").click();
   await page.locator("#publish").click();
@@ -118,7 +125,7 @@ test("mobile touch action, saved control layout and new-world editor isolation",
         () => JSON.parse(window.__FARM_DEBUG__.state().layout).maps.farm.width,
       ),
     )
-    .toBe(60);
+    .toBe(136);
   expect(
     await page.evaluate(
       (old) =>

@@ -2,7 +2,7 @@ import { cell, hasZone, tileHash } from "./world2.js";
 import { TILE, mapFor } from "./content.js";
 import { calendar, FORAGE } from "./expansion.js";
 import type { FishingChallenge } from "./fishing.js";
-import { defaultLayout, type WorldLayout } from "./layout.js";
+import { defaultLayout, legacyLayout, type WorldLayout } from "./layout.js";
 import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 export const WORLD_VERSION = 3;
@@ -385,6 +385,7 @@ export function upgradeWorld(w: World): void {
     chick.crop = "chicken";
     w.entities[chick.id] = chick;
   }
-  w.layout ??= defaultLayout();
+  // Missing snapshots belong to legacy families, never opt them into new maps.
+  w.layout ??= legacyLayout();
   w.version = WORLD_VERSION;
 }
