@@ -57,9 +57,15 @@ test("movement: normalized diagonals, boundaries, shared collision and run stami
 test("6/7/8 farming, watering and harvest only once", () => {
   const { w, a } = setup();
   act(w, a, "tillTile");
+  const soil = w.entities["soil-farm-9-9"]!;
+  assert.equal(soil.kind, "soil");
+  assert.equal(soil.watered, false);
+  act(w, a, "waterCrop");
+  assert.equal(soil.watered, true);
   act(w, a, "plantSeed", { itemId: "sproutberry_seed" });
   const crop = w.entities["soil-farm-9-9"]!;
   assert.equal(crop.kind, "crop");
+  assert.equal(crop.watered, true);
   for (let d = 0; d < 3; d++) {
     if (!crop.watered) act(w, a, "waterCrop");
     nextDay(w);
