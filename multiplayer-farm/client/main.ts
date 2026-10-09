@@ -603,24 +603,23 @@ function touchAct(t: TouchTarget): void {
       send("tillTile", tile);
       break;
     case "crop":
-      if (e.stage >= 3) {
+      if (selected === "water") {
+        send("waterCrop", tile);
+      } else if (e.stage >= (CROPS[e.crop]?.growthDays ?? 3)) {
         selectTool("hand");
         send("harvestCrop", tile);
       } else {
-        selectTool("water");
-        send("waterCrop", tile);
+        notice("물뿌리개를 선택해 물을 주세요");
       }
       break;
     case "soil": {
-      const seed = selected.endsWith("_seed")
-        ? selected
-        : Object.keys(network.personal?.member.inventory ?? {}).find((i) =>
-            i.endsWith("_seed"),
-          );
-      if (seed) {
-        selectTool(seed);
-        send("plantSeed", { ...tile, itemId: seed });
-      } else notice("가방에 씨앗이 없어요");
+      if (selected === "water") {
+        send("waterCrop", tile);
+        break;
+      }
+      if (selected.endsWith("_seed")) {
+        send("plantSeed", { ...tile, itemId: selected });
+      } else notice("씨앗이나 물뿌리개를 선택하세요");
       break;
     }
     case "chest":
