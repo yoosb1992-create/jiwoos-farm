@@ -1,6 +1,7 @@
 import type Phaser from "phaser";
 import { CROPS, type MapData, TILE } from "../shared/content.js";
 import { SEASON_INFO, FISH_CATALOG, type Season } from "../shared/expansion.js";
+import { paintMaterial } from "./world/painted-materials.js";
 
 // Original small painted details, generated once into textures. No per-frame canvas uploads.
 const hex = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
@@ -35,6 +36,23 @@ function texture(
   t.refresh();
 }
 export function createContentTextures(scene: Phaser.Scene): void {
+  // A 2x painted soil patch keeps furrows readable on phone zoom. Texture work
+  // happens once at launch, never per plant or per animation frame.
+  if (scene.textures.exists("terrain-art-soil"))
+    for (const key of ["tile_farm_empty", "tile_farm_watered"]) {
+      if (scene.textures.exists(key)) scene.textures.remove(key);
+      texture(scene, key, 64, 64, c => {
+        c.beginPath(); c.roundRect(1, 1, 62, 62, 7); c.clip();
+        paintMaterial(c, "tilled_soil", 0, 0, 64, "spring", 173);
+        for (const y of [17, 33, 49]) {
+          c.strokeStyle = "#372a214f"; c.lineWidth = 3;
+          c.beginPath(); c.moveTo(6, y); c.quadraticCurveTo(31, y + 3, 58, y); c.stroke();
+          c.strokeStyle = "#e0ae6339"; c.lineWidth = 1;
+          c.beginPath(); c.moveTo(6, y - 3); c.lineTo(58, y - 3); c.stroke();
+        }
+        if (key.endsWith("watered")) { c.fillStyle = "#344f583b"; c.fillRect(0, 0, 64, 64); }
+      });
+    }
   for (const crop of Object.values(CROPS))
     for (const stage of ["seed", "sprout", "growing", "mature"] as const) {
       const key = `crop_${crop.id}_${stage}`;
@@ -317,6 +335,12 @@ export function createGround(
         ? "#dacead"
         : hex(SEASON_INFO[season].grass);
   c.fillRect(0, 0, w, h);
+  if (!mine && !indoor)
+    for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) {
+      c.save(); c.translate(x * TILE, y * TILE);
+      paintMaterial(c, map.id === "coast" ? "beach_sand" : "grass", x, y, TILE, season, 173);
+      c.restore();
+    }
   for (let i = 0; i < (indoor ? 1000 : 7500); i++) {
     const x = r() * w,
       y = r() * h;
@@ -361,6 +385,13 @@ export function createGround(
     gradient.addColorStop(1, colors[1]!);
     c.fillStyle = gradient;
     c.fillRect(x, y, rw, rh);
+    const material = region.tileType === "water" ? "water" : region.tileType === "farm"
+      ? "tilled_soil" : region.tileType === "stone_floor" ? "stone_path" : "dirt_path";
+    for (let ty = region.startY; ty <= region.endY; ty++)
+      for (let tx = region.startX; tx <= region.endX; tx++) {
+        c.save(); c.translate(tx * TILE, ty * TILE);
+        paintMaterial(c, material, tx, ty, TILE, season, 173); c.restore();
+      }
     if (region.tileType === "water") {
       c.strokeStyle = "#deefd56b";
       c.lineWidth = 2;

@@ -52,6 +52,7 @@ import {
   builtinPrefab,
 } from "./catalog.js";
 import { ChunkPainter, COLORS } from "../world/terrain.js";
+import { loadMaterials } from "../world/painted-materials.js";
 import { loadDraft, storeDraft } from "./storage.js";
 import { serverUrl } from "../config.js";
 import { findPath, type Point } from "../../shared/pathfinding.js";
@@ -376,6 +377,7 @@ function draw() {
       zoom,
       render,
       l.opacity,
+      season,
     );
     if (selected.has(o.id) && !sandbox) {
       ctx.strokeStyle = "#ffe7a5";
@@ -1295,9 +1297,13 @@ function palette() {
     const draw = () => {
       c2.clearRect(0, 0, 90, 72);
       const o = objectFor(id, 0, 0);
-      o.width = 3.6;
-      o.height = 3.6;
-      drawObject(c2, o, 45, 57, 16, draw);
+      const a = ASSETS[id], fw = a?.frameSize?.width ?? 64,
+        fh = a?.frameSize?.height ?? 96, fit = Math.min(78 / fw, 62 / fh);
+      o.width = fw * fit / 16;
+      o.height = fh * fit / 16;
+      const origin = o.bridge ? { x: .5, y: .5 } : (a?.origin ?? { x: .5, y: .8 });
+      drawObject(c2, o, (90 - fw * fit) / 2 + fw * fit * origin.x,
+        (72 - fh * fit) / 2 + fh * fit * origin.y, 16, draw);
     };
     draw();
   }
@@ -2503,6 +2509,7 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden && dirty) void autosave();
 });
 async function init() {
+  void loadMaterials().then(() => { painter.clear(); render(); });
   let restoreError = "";
   try {
     const draft = await loadDraft(),

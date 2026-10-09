@@ -1,0 +1,391 @@
+{
+  "version": 1,
+  "style": "Warm painted farm RPG, upper-left sunlight",
+  "assets": [
+    {
+      "path": "crops/ambermelon-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 3304,
+      "sha256": "2f0445a88cb1a3aa70f5175fc8553de348d1273b8d5383d5dc94437d218fee4e"
+    },
+    {
+      "path": "crops/berry-growing.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 2462,
+      "sha256": "520350467db903fac4010c7eb7ebaa5db689ef79239fc9a2c9c6df25500ddfda"
+    },
+    {
+      "path": "crops/berry-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 3174,
+      "sha256": "f0a8b5e9020c28ad6dffb2489403bca0a794779636b3aeaf39a65cf6108420c0"
+    },
+    {
+      "path": "crops/berry-seed.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 1022,
+      "sha256": "b6852f248dbe51fa63e9ebb75407b7ce705e156cf9003786fa710b18c23edad1"
+    },
+    {
+      "path": "crops/berry-sprout.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 1470,
+      "sha256": "2416855e467d1a940cd9266c1be073b3c06f8ce8c71a7ccf5060ff2c9b2c337b"
+    },
+    {
+      "path": "crops/bluepearl-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 4640,
+      "sha256": "604db2a441b5df62139412a1aeb8e0d8f4e6df13dbe123d140b0010f54b4bf9e"
+    },
+    {
+      "path": "crops/cabbage-growing.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 2280,
+      "sha256": "0270c82e26b8be23405f98269755f7dc3589876c6e520647fe83207b039d1d3b"
+    },
+    {
+      "path": "crops/cabbage-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 3172,
+      "sha256": "e3b97c57ce70b29b345918e5d90756f6ea03efeb16b9e7808d75004222f7a1ce"
+    },
+    {
+      "path": "crops/cabbage-seed.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 956,
+      "sha256": "c0af0f606e5fec65b1efe1f32d1635ff5e85d74d516223cf3a6f5164f1004a91"
+    },
+    {
+      "path": "crops/cabbage-sprout.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 1452,
+      "sha256": "5a5ea81f4e9ccb46140afb4d35da52fcfd963cf90148809fe2b0ee363008d88f"
+    },
+    {
+      "path": "crops/carrot-growing.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 2372,
+      "sha256": "61ce0602234e4036f28576d68ed0ec291f575d3924a2eefe2035bef369445995"
+    },
+    {
+      "path": "crops/carrot-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 3718,
+      "sha256": "06d5804fe4e6ccf1fee931e30063b883c987144c413b041a630253d9b2cca829"
+    },
+    {
+      "path": "crops/carrot-seed.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 998,
+      "sha256": "9df0bfb433713cbde01bf11dfb0dd090576fe1eef30a6d83b6ffc09c0b823f1f"
+    },
+    {
+      "path": "crops/carrot-sprout.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 1414,
+      "sha256": "3a4295611b2de156c4f3e87e57f45c696cd22111ce0de0b99eccf2d09e24fca7"
+    },
+    {
+      "path": "crops/cloudturnip-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 4476,
+      "sha256": "d47093e0bff1b1287884fa79d80dd00f607395b10bf0d25a8adc051606b33707"
+    },
+    {
+      "path": "crops/dewflower-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 3552,
+      "sha256": "090e4785ce3d5378aaa85824c042a4962c5f7c56a8b45cca7ecfa401067b8cdb"
+    },
+    {
+      "path": "crops/duskgrape-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 3896,
+      "sha256": "5a068e33791b5f5355e1b1fe4162dfd150b2dc1f8dd5b374194448820ad1d56c"
+    },
+    {
+      "path": "crops/frostkale-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 3840,
+      "sha256": "674ea869e741338c019bd55d3a34a18f5a8384f64e60ecb5166da87cd436ed81"
+    },
+    {
+      "path": "crops/goldcorn-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 4552,
+      "sha256": "ac94b7a69cdb41d32154ee401c093ff28910573b5f14a669f0f4ab090a49e31b"
+    },
+    {
+      "path": "crops/honeyyam-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 3976,
+      "sha256": "c895459afd4038a95323e29e44c789e56194a3c985ebb9f9b144a6f1db0edd27"
+    },
+    {
+      "path": "crops/moonpumpkin-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 3240,
+      "sha256": "e9c181969370335691c3f678eea7e8caba8f0d543febd1474a2c29de9297e87e"
+    },
+    {
+      "path": "crops/redbell-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 4274,
+      "sha256": "8e9f3edd062f11bb0e3940684135c112fd6bcaa2dabfba43b504b2b714ccc8de"
+    },
+    {
+      "path": "crops/snowradish-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 4638,
+      "sha256": "d916f9237d16c93d0628c7424085ff671d73cc1fd006d1627405b72649a267a4"
+    },
+    {
+      "path": "crops/sunpepper-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 4832,
+      "sha256": "a674dabf779d1ca93a1f8739b8d8007289f29e438e739b993f2e0aaad714d12d"
+    },
+    {
+      "path": "crops/sunpotato-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 5710,
+      "sha256": "f6e5b164483cdac7d44c2e5d812a2ed1f7394e3fdcee974a89c5e2ed597d7120"
+    },
+    {
+      "path": "crops/sunwheel-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 4404,
+      "sha256": "9805a385b4d51d0e280b0bfee021b5dfe9417db435d779a276d851a9c85d4952"
+    },
+    {
+      "path": "crops/tomato-growing.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 2236,
+      "sha256": "4b60a01bee983d73b3850d903e08ce0da039ed62ab4fabe85300721c1bb6bed9"
+    },
+    {
+      "path": "crops/tomato-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 3848,
+      "sha256": "bf5cdc25ea63198a31c87abb6cccc7dc3c3be35cb074543292409fdfb6c87bf5"
+    },
+    {
+      "path": "crops/tomato-seed.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 736,
+      "sha256": "e30f582cc75fd74f5c63b575f2552b375fb6adb8a5b0be4615dacf78cc13396c"
+    },
+    {
+      "path": "crops/tomato-sprout.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 1038,
+      "sha256": "5c0ae372a83db8c30996302dbeef2e521f0287f78107bfc89f7d0683a6f76595"
+    },
+    {
+      "path": "crops/velveteggplant-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 5004,
+      "sha256": "246f3fb34f7a8f30468a48b55659d6607c6b6f22131cdd76c769742a3d56d8bc"
+    },
+    {
+      "path": "crops/winterstar-mature.webp",
+      "width": 80,
+      "height": 104,
+      "bytes": 4038,
+      "sha256": "d6136e48506437ba291be54c62267a9b81e35afb5d4d4c9d626b0c37e29cfe6f"
+    },
+    {
+      "path": "sprites/bridge.webp",
+      "width": 256,
+      "height": 320,
+      "bytes": 22718,
+      "sha256": "c18388b63f9b8dad3c7a8523fd29a1060ec484765a62ff25600b7e1fc9d51f50"
+    },
+    {
+      "path": "sprites/broadleaf.webp",
+      "width": 256,
+      "height": 320,
+      "bytes": 45928,
+      "sha256": "8e7b985394f654233ca4012bd2f8c32f20ab6b4ed2cf71c23b8161a703cb1dd0"
+    },
+    {
+      "path": "sprites/chicken.webp",
+      "width": 64,
+      "height": 64,
+      "bytes": 2286,
+      "sha256": "26d86e299bb356659ca42a1271585f98e8822b7a0c3b926a00eeffb21fbab466"
+    },
+    {
+      "path": "sprites/cow.webp",
+      "width": 140,
+      "height": 128,
+      "bytes": 8176,
+      "sha256": "886dcbc3acbba2325b38b0c41cc54b0e1ec6f301676aae3dbdff724a1330bd59"
+    },
+    {
+      "path": "sprites/crafting-table.webp",
+      "width": 128,
+      "height": 96,
+      "bytes": 5424,
+      "sha256": "efcdb1bcce3ec7839d535ac8230f6d8a427a6e440b37770c96dd4a8d2d396b82"
+    },
+    {
+      "path": "sprites/decor-board.webp",
+      "width": 148,
+      "height": 172,
+      "bytes": 9010,
+      "sha256": "247c3430adc0294d0e2bd2ad63b7eca9fca954dd5bfc449962dba7320f06d10e"
+    },
+    {
+      "path": "sprites/flowering-bush.webp",
+      "width": 192,
+      "height": 128,
+      "bytes": 13460,
+      "sha256": "250f279aeefcb8a47855751705d33ffa4e8130f00f3cedbaf981dc77c1c6fba6"
+    },
+    {
+      "path": "sprites/grass-tuft.webp",
+      "width": 96,
+      "height": 72,
+      "bytes": 4534,
+      "sha256": "e740e78f7d3b7163467a19fef7e2eb790c3aa11ddc310e1b80c7d3a65a4346d2"
+    },
+    {
+      "path": "sprites/house.webp",
+      "width": 448,
+      "height": 384,
+      "bytes": 71980,
+      "sha256": "44b6f77b8d64cd49d87edc72da67ef2e50c29cb48efd97d01e040cc44761c26d"
+    },
+    {
+      "path": "sprites/mushroom.webp",
+      "width": 96,
+      "height": 128,
+      "bytes": 2930,
+      "sha256": "532c8ed9d33e224dd481c03e3bd2818abe179cdbfa0683e9a8f1609235d402a7"
+    },
+    {
+      "path": "sprites/pine.webp",
+      "width": 256,
+      "height": 320,
+      "bytes": 43022,
+      "sha256": "a7e02603ec3a2205c0f07aae7542e6fd23d43310430d81c615d28eba0f89c477"
+    },
+    {
+      "path": "sprites/reed.webp",
+      "width": 96,
+      "height": 128,
+      "bytes": 8010,
+      "sha256": "e0359e4a0f2a994872cfc8c7b537343e6ad8c1da0e19ec888572a5574b9ef301"
+    },
+    {
+      "path": "sprites/sheep.webp",
+      "width": 140,
+      "height": 128,
+      "bytes": 6970,
+      "sha256": "f0a3c6e2f67ae7384a5af87e3e9fef02a661a1ab1a7ddaf747de7900d58131b7"
+    },
+    {
+      "path": "sprites/small-rock.webp",
+      "width": 96,
+      "height": 72,
+      "bytes": 3426,
+      "sha256": "17a5ad21b5ebdf239a703d778b0bddd98272e845495fe6f0425a0a72ce63bb80"
+    },
+    {
+      "path": "sprites/stone-well.webp",
+      "width": 224,
+      "height": 208,
+      "bytes": 15616,
+      "sha256": "32cb07610dc7c77d583007cfdc11297e37d045d00b6168a73bdbd43273eb2eee"
+    },
+    {
+      "path": "sprites/storage-chest.webp",
+      "width": 128,
+      "height": 96,
+      "bytes": 4764,
+      "sha256": "063ad1a4ebe12955cddc6e27bc91021999b168c32f70f637cbdd47c04f791334"
+    },
+    {
+      "path": "sprites/water-lily.webp",
+      "width": 96,
+      "height": 128,
+      "bytes": 3722,
+      "sha256": "ac1f8637db969ab27b0d837d68fc864b57a20ced0d5daee3eda0a3799e7541c4"
+    },
+    {
+      "path": "terrain/dirt.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 76506,
+      "sha256": "75328fdc654e94d3d6a650f4caaf23cd1f0211a4854b7271d33fff5633eb1327"
+    },
+    {
+      "path": "terrain/grass.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 133878,
+      "sha256": "23721f79ff94c92d6ab2b31926018528057a4374b27e785deede60bcbe77c21f"
+    },
+    {
+      "path": "terrain/gravel.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 93068,
+      "sha256": "7458cf7da09291a2a45b3ccda1d61a0265238021201f5460005ae5693e62cbe1"
+    },
+    {
+      "path": "terrain/soil.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 100674,
+      "sha256": "575ba0093503c4a5c4d6fcc98a363a6a6b51489c3d95a7edfc9986dcc0ea6beb"
+    },
+    {
+      "path": "terrain/stone.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 93654,
+      "sha256": "7735638f120bab73e250067826abcba0ab5e5eba0ab9a8b13e7282208143263c"
+    },
+    {
+      "path": "terrain/water.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 83086,
+      "sha256": "981d9306153fee782f00b553efefbd5e216e38a06d4efd4437282ef2905d812e"
+    }
+  ]
+}

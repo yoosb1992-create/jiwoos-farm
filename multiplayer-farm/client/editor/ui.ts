@@ -5,6 +5,8 @@ import {
   SEASONS,
   ZONES,
 } from "../../shared/world2.js";
+import { TERRAIN_ART } from "../../shared/art-assets.js";
+import { materialFor } from "../world/painted-materials.js";
 export const html = `<header><a href="/" aria-label="농장으로">←</a><strong>World Editor <b>2.0</b></strong><select id="map" aria-label="편집 지역"></select><button id="menu" aria-label="설정과 저장">☰</button></header>
 <div id="preview-bar"><div id="seasons">${SEASONS.map((s, i) => `<button data-season="${s}" ${i === 0 ? 'class="active"' : ""}>${["봄", "여름", "가을", "겨울"][i]}</button>`).join("")}</div><select id="time" aria-label="시간 미리보기"><option value="420">아침</option><option value="720" selected>낮</option><option value="1110">저녁</option><option value="1320">밤</option></select><select id="weather" aria-label="날씨 미리보기"><option value="clear">맑음</option><option value="rain">비</option><option value="snow">눈</option><option value="fog">안개</option></select></div>
 <main id="viewport"><canvas id="map-canvas" aria-label="월드 편집 캔버스"></canvas><div id="coordinates">0, 0</div><canvas id="minimap" width="150" height="96" aria-label="미니맵"></canvas><div id="zoom"><button id="minus">−</button><button id="fit">전체</button><button id="plus">＋</button></div><div id="test-controls" hidden><button data-walk="up">↑</button><div><button data-walk="left">←</button><button id="test-action">행동</button><button data-walk="right">→</button></div><button data-walk="down">↓</button><button id="test-exit">편집기로 복귀</button></div></main>
@@ -35,7 +37,7 @@ export const html = `<header><a href="/" aria-label="농장으로">←</a><stron
     "",
   )}</select></label><label>크기 <input id="brush-size" type="range" min="1" max="15" value="1"><output id="brush-size-value">1 × 1</output></label></div>
 <label>편집 레이어<select id="active-layer">${LAYERS.map((l) => `<option>${l}</option>`).join("")}</select></label>
-<div class="terrain-grid">${TERRAIN.map((t, i) => `<button data-terrain="${t}"><i style="background:var(--terrain-${i},#96b56f)"></i>${TERRAIN_NAMES[i]}</button>`).join("")}</div>
+<div class="terrain-grid">${TERRAIN.map((t, i) => `<button data-terrain="${t}"><i style="background-color:var(--terrain-${i},#96b56f);${materialFor[t] ? `background-image:url('${TERRAIN_ART[materialFor[t]!]}');background-size:96px;${t === "dark_grass" ? "filter:brightness(.76)" : ""}` : ""}"></i>${TERRAIN_NAMES[i]}</button>`).join("")}</div>
 <div class="row"><label>충돌<select id="collision-value"><option value="1">통행 불가</option><option value="2">통행 가능</option><option value="0">자동 판정</option></select></label><label>영역<select id="zone-value">${Object.keys(
   ZONES,
 )

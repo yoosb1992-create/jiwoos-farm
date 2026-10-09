@@ -1,4 +1,6 @@
 import { ASSETS, type MapObject } from "../../shared/content.js";
+import { PAINTED_SPRITES, visualSize, foliageColor } from "../../shared/art-assets.js";
+import type { SeasonKey } from "../../shared/world2.js";
 import type { Stamp } from "./model.js";
 import { terrainCode, ZONES, tileHash } from "../../shared/world2.js";
 export const uid = () => crypto.randomUUID().replaceAll("-", "").slice(0, 16);
@@ -32,8 +34,9 @@ const labels: Record<string, string> = {
   decor_board: "안내판",
   decor_scarecrow: "허수아비",
 };
-export const label = (id: string) => labels[id] ?? id.replaceAll("_", " ");
+export const label = (id: string) => PAINTED_SPRITES[id]?.name ?? labels[id] ?? id.replaceAll("_", " ");
 export const CATALOG = [
+  ...Object.keys(PAINTED_SPRITES),
   ...Object.keys(ASSETS).filter(
     (id) =>
       !/^player$|^npc_|^item_|^crop_|^tile_|^icon_|^effect_|^portrait|^ground_|^ui_/.test(
@@ -83,6 +86,26 @@ export function objectFor(assetId: string, x: number, y: number): MapObject {
   return o;
 }
 export const images = new Map<string, HTMLImageElement>();
+const seasonalImages = new Map<string, HTMLCanvasElement>();
+function seasonImage(id: string, image: HTMLImageElement, season: SeasonKey) {
+  const color = foliageColor(id, season);
+  if (color === 0xffffff) return image;
+  const key = `${id}:${season}`;
+  let canvas = seasonalImages.get(key);
+  if (canvas) return canvas;
+  canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+  const c = canvas.getContext("2d")!;
+  c.drawImage(image, 0, 0);
+  c.globalCompositeOperation = "multiply";
+  c.fillStyle = `#${color.toString(16).padStart(6, "0")}`;
+  c.fillRect(0, 0, canvas.width, canvas.height);
+  c.globalCompositeOperation = "destination-in";
+  c.drawImage(image, 0, 0);
+  seasonalImages.set(key, canvas);
+  if (seasonalImages.size > 32) seasonalImages.delete(seasonalImages.keys().next().value!);
+  return canvas;
+}
 export function spriteImage(id: string, ready: () => void) {
   const src = ASSETS[id]?.source;
   if (!src) return;
@@ -90,6 +113,10 @@ export function spriteImage(id: string, ready: () => void) {
   if (!img) {
     img = new Image();
     img.onload = ready;
+    img.onerror = () => {
+      if (src.fallbackPath && img!.src !== new URL(src.fallbackPath, location.href).href)
+        img!.src = src.fallbackPath;
+    };
     img.src = src.path;
     images.set(id, img);
   }
@@ -103,21 +130,17 @@ export function drawObject(
   zoom: number,
   ready: () => void,
   alpha = 1,
+  season: SeasonKey = "spring",
 ) {
   const art = o.tree?.stump ? "stump" : o.assetId;
   const a = ASSETS[art],
     img = spriteImage(art, ready),
-    fw =
-      a?.source?.frameWidth ?? a?.frameSize?.width ?? img?.naturalWidth ?? 64,
-    fh =
-      a?.source?.frameHeight ??
-      a?.frameSize?.height ??
-      img?.naturalHeight ??
-      96;
+    fw = a?.source?.frameWidth ?? img?.naturalWidth ?? 64,
+    fh = a?.source?.frameHeight ?? img?.naturalHeight ?? 96;
   const stage = o.tree ? ([0.3, 0.55, 1, 1.3, 1.6][o.tree.stage] ?? 1) : 1;
-  const scale = (o.scale ?? a?.displayScale?.x ?? 1) * stage,
-    w = (o.width ?? (fw * scale) / 32) * zoom,
-    h = (o.height ?? (fh * scale) / 32) * zoom,
+  const logical = visualSize(a, o.scale),
+    w = (o.width ?? (logical.width * stage) / 32) * zoom,
+    h = (o.height ?? (logical.height * stage) / 32) * zoom,
     origin = o.bridge ? { x: 0.5, y: 0.5 } : (a?.origin ?? { x: 0.5, y: 0.8 });
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -130,7 +153,7 @@ export function drawObject(
     ctx.fill();
   }
   if (img?.complete && img.naturalWidth)
-    ctx.drawImage(img, 0, 0, fw, fh, -w * origin.x, -h * origin.y, w, h);
+    ctx.drawImage(seasonImage(art, img, season), 0, 0, fw, fh, -w * origin.x, -h * origin.y, w, h);
   else if (o.bridge) {
     ctx.fillStyle = "#b68b58";
     ctx.fillRect(-w / 2, -h / 2, w, h);

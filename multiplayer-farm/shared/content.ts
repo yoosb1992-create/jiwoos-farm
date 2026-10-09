@@ -1,5 +1,6 @@
 import type { World2Map, ObjectProperties } from "./world2.js";
 import snapshot from "./legacy-content.json" with { type: "json" };
+import { withPaintedArt } from "./art-assets.js";
 import {
   EXPANSION_CROPS,
   FORAGE,
@@ -51,6 +52,7 @@ export interface Asset {
   source: {
     kind: string;
     path: string;
+    fallbackPath?: string;
     frameWidth?: number;
     frameHeight?: number;
   } | null;
@@ -59,7 +61,7 @@ export interface Asset {
   origin?: { x: number; y: number };
 }
 export const MAPS: Record<string, MapData> = snapshot.maps;
-export const ASSETS: Record<string, Asset> = snapshot.assets;
+export const ASSETS: Record<string, Asset> = withPaintedArt(snapshot.assets, EXPANSION_CROPS);
 export const CROPS: Record<string, CropDef> = Object.fromEntries(
   EXPANSION_CROPS.map((c) => [c.id, c]),
 );

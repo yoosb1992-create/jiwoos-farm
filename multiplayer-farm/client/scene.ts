@@ -1,4 +1,6 @@
 import { SceneTerrain } from "./world/scene-terrain.js";
+import { TERRAIN_ART, visualSize, foliageColor } from "../shared/art-assets.js";
+import { installMaterial } from "./world/painted-materials.js";
 import { objectVisible, nearbyObjects, objectById } from "../shared/world2.js";
 import { worldNpcSchedule } from "../shared/world2-runtime.js";
 import { CLIENT_MAPS } from "./layout.js";
@@ -60,6 +62,12 @@ export class FarmScene extends Phaser.Scene {
     this.resolveReady = resolve;
   });
   preload(): void {
+    this.load.on("loaderror", (file: Phaser.Loader.File) => {
+      const fallback = ASSETS[file.key]?.source?.fallbackPath;
+      if (fallback) this.load.image(`art-fallback-${file.key}`, fallback);
+    });
+    for (const [id, path] of Object.entries(TERRAIN_ART))
+      this.load.image(`terrain-art-${id}`, path);
     for (const [id, asset] of Object.entries(ASSETS)) {
       if (!asset.source) continue;
       const s = asset.source;
@@ -77,6 +85,16 @@ export class FarmScene extends Phaser.Scene {
       });
   }
   create(): void {
+    for (const id of Object.keys(ASSETS))
+      if (!this.textures.exists(id) && this.textures.exists(`art-fallback-${id}`))
+        this.textures.renameTexture(`art-fallback-${id}`, id);
+    for (const id of Object.keys(TERRAIN_ART)) {
+      const key = `terrain-art-${id}`;
+      if (this.textures.exists(key)) installMaterial(id, this.textures.get(key).getSourceImage() as HTMLImageElement);
+    }
+    // Painted environments use linear sampling; keep legacy animated pixel actors crisp.
+    for (const id of ["player", ...NPCS.map(n => `npc-${n.id}`)])
+      if (this.textures.exists(id)) this.textures.get(id).setFilter(Phaser.Textures.FilterMode.NEAREST);
     createContentTextures(this);
     const directions = ["down", "up", "left", "right"];
     for (const [state, offset] of [
@@ -150,7 +168,7 @@ export class FarmScene extends Phaser.Scene {
         o.position.tileY * TILE,
         o.label ?? "",
       );
-      if (o.scale) v.body.setScale(o.scale);
+      if (o.scale) this.sizeObject(v.body, o.assetId, o.scale);
       if (o.assetId === "bridge") v.body.setOrigin(0.5).setDepth(-5);
     }
     for (const spot of FISHING_SPOTS.filter(
@@ -167,13 +185,14 @@ export class FarmScene extends Phaser.Scene {
     for (const warp of map.warps) {
       const x = ((warp.area.startX + warp.area.endX + 1) / 2) * TILE,
         y = ((warp.area.startY + warp.area.endY + 1) / 2) * TILE;
-      this.staticObject(
+      const marker = this.staticObject(
         `warp-${warp.id}`,
         "decor_board",
         x,
         y,
         `↗ ${mapFor(warp.targetMapId).name}`,
-      ).body.setScale(0.48);
+      );
+      this.sizeObject(marker.body, "decor_board", .48);
     }
     this.cameras.main.setBounds(0, 0, map.width * TILE, map.height * TILE);
   }
@@ -210,7 +229,7 @@ export class FarmScene extends Phaser.Scene {
       if (!v) v = this.staticObject(id, o.assetId, x, y, o.label ?? "");
       if (o.width && o.height)
         v.body.setDisplaySize(o.width * TILE, o.height * TILE);
-      else if (o.scale) v.body.setScale(o.scale);
+      else if (o.scale) this.sizeObject(v.body, o.assetId, o.scale);
       v.body
         .setAngle(o.rotation ?? 0)
         .setDepth(
@@ -232,6 +251,13 @@ export class FarmScene extends Phaser.Scene {
   private textured(id: string): string {
     return this.textures.exists(id) ? id : "__WHITE";
   }
+  private sizeObject(body: Phaser.GameObjects.Sprite, id: string, scale?: number) {
+    const a = ASSETS[id];
+    if (a?.frameSize) {
+      const size = visualSize(a, scale);
+      body.setDisplaySize(size.width, size.height);
+    } else body.setScale(scale ?? 1);
+  }
   private staticObject(
     id: string,
     asset: string,
@@ -243,14 +269,13 @@ export class FarmScene extends Phaser.Scene {
     const body = this.add.sprite(x, y, this.textured(asset));
     if (a?.origin) body.setOrigin(a.origin.x, a.origin.y);
     else body.setOrigin(0.5, 0.8);
-    if (a?.displayScale) body.setScale(a.displayScale.x, a.displayScale.y);
+    this.sizeObject(body, asset);
     body.setDepth(
       ["house", "store", "chicken_coop", "work_shed"].includes(asset)
         ? y + body.displayHeight * 0.45
         : y,
     );
-    if (/tree|bush|shrub|flower_bed/.test(asset))
-      body.setTint(SEASON_INFO[this.season].foliage);
+    body.setTint(foliageColor(asset, this.season));
     const text = this.add
       .text(x, y + 10, label, {
         fontFamily: "sans-serif",
@@ -394,24 +419,23 @@ export class FarmScene extends Phaser.Scene {
         label = Math.hypot(e.x - me.x, e.y - me.y) < 60 ? "정원 장식" : "";
       let v = this.objects.get(id);
       if (!v) v = this.staticObject(id, asset, e.x, e.y, label);
+      const changedTexture = v.body.texture.key !== asset;
       v.body
         .setTexture(this.textured(asset))
         .setDepth(e.kind === "crop" || e.kind === "soil" ? e.y - 100 : e.y);
+      if (changedTexture) this.sizeObject(v.body, asset);
       if (authored) {
         if (authored.width && authored.height)
           v.body.setDisplaySize(authored.width * TILE, authored.height * TILE);
         else if (authored.tree)
-          v.body.setScale(
-            (ASSETS[asset]?.displayScale?.x ?? 1) *
-              ([0.3, 0.55, 1, 1.3, 1.6][authored.tree.stage] ?? 1),
-          );
+          this.sizeObject(v.body, asset, (authored.scale ?? ASSETS[asset]?.displayScale?.x ?? 1) *
+            ([0.3, 0.55, 1, 1.3, 1.6][authored.tree.stage] ?? 1));
         v.body
           .setAngle(authored.rotation ?? 0)
           .setDepth(e.y + (authored.depth ?? 0));
       }
       v.body.clearTint();
-      if (/tree|bush|shrub/.test(asset))
-        v.body.setTint(SEASON_INFO[this.season].foliage);
+      v.body.setTint(foliageColor(asset, this.season));
       if (e.kind === "withered") v.body.setTint(0x8d765d);
       const forage = FORAGE.find((f) => f.id === e.item);
       if (forage && (e.kind === "gather" || e.kind === "drop"))
@@ -630,7 +654,8 @@ export function createRenderer(
     width: window.innerWidth,
     height: window.innerHeight,
     banner: false,
-    pixelArt: true,
+    pixelArt: false,
+    antialias: true,
     backgroundColor: "#7fa765",
     scale: { mode: Phaser.Scale.RESIZE },
     input: { keyboard: false, mouse: false, touch: false },

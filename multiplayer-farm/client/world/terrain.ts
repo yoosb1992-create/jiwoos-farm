@@ -1,4 +1,5 @@
 import type { MapData } from "../../shared/content.js";
+import { paintMaterial, materialRevision } from "./painted-materials.js";
 import {
   CHUNK,
   TERRAIN,
@@ -12,19 +13,19 @@ import {
   type SeasonKey,
 } from "../../shared/world2.js";
 export const COLORS: Record<string, string> = {
-  grass: "#92b969",
-  dark_grass: "#668f53",
+  grass: "#9dbb64",
+  dark_grass: "#739855",
   soil: "#b58b60",
   tilled_soil: "#91683f",
   sand: "#ded09c",
   beach_sand: "#ead9a6",
   stone: "#a6a79b",
   gravel: "#aaa48e",
-  stone_path: "#b9b5a2",
-  dirt_path: "#c9ae7b",
+  stone_path: "#d5c69b",
+  dirt_path: "#d7b982",
   wood_floor: "#b98b5d",
   snow: "#e4eee9",
-  water: "#69aeb6",
+  water: "#68b8bd",
   shallow_water: "#96c7bd",
   deep_water: "#487f9c",
   cliff: "#9a8a6b",
@@ -66,6 +67,23 @@ function previewVisible(
     (options.elevation !== false && cell(m, "elevation", x, y) > 0)
   );
 }
+function softBank(ctx: CanvasRenderingContext2D, size: number, mask: number) {
+  const r = size * .3;
+  const tl = !(mask & 1) && !(mask & 8) ? r : 0;
+  const tr = !(mask & 1) && !(mask & 2) ? r : 0;
+  const br = !(mask & 4) && !(mask & 2) ? r : 0;
+  const bl = !(mask & 4) && !(mask & 8) ? r : 0;
+  ctx.beginPath();
+  ctx.moveTo(tl, 0); ctx.lineTo(size - tr, 0); ctx.quadraticCurveTo(size, 0, size, tr);
+  ctx.lineTo(size, size - br); ctx.quadraticCurveTo(size, size, size - br, size);
+  ctx.lineTo(bl, size); ctx.quadraticCurveTo(0, size, 0, size - bl);
+  ctx.lineTo(0, tl); ctx.quadraticCurveTo(0, 0, tl, 0); ctx.closePath(); ctx.clip();
+}
+const pathTerrain = (t: Terrain) => ["dirt_path", "stone_path", "gravel"].includes(t);
+function pathMask(m: MapData, x: number, y: number, season: SeasonKey, options: PaintOptions) {
+  return [[0,-1],[1,0],[0,1],[-1,0],[1,-1],[1,1],[-1,1],[-1,-1]]
+    .reduce((mask, [dx,dy], i) => mask | (+pathTerrain(previewTerrain(m, x + dx!, y + dy!, season, options)) << i), 0);
+}
 export function paintChunk(
   ctx: CanvasRenderingContext2D,
   m: MapData,
@@ -86,7 +104,7 @@ export function paintChunk(
         mask =
           options.water === false || options.elevation === false
             ? 255
-            : neighborMask(
+            : pathTerrain(t) ? pathMask(m, xx, yy, season, options) : neighborMask(
                 m,
                 xx,
                 yy,
@@ -104,12 +122,19 @@ export function paintChunk(
               : color;
       ctx.save();
       ctx.translate(x * size, y * size);
+      const rounded = (pathTerrain(t) || wet) && (mask & 15) !== 15;
+      if (rounded) {
+        ctx.fillStyle = COLORS.grass!;
+        ctx.fillRect(0, 0, size + .2, size + .2);
+        paintMaterial(ctx, "grass", xx, yy, size, season, m.world2?.seed ?? 173);
+        softBank(ctx, size, mask);
+      }
       ctx.fillStyle = color;
       ctx.fillRect(0, 0, size + 0.2, size + 0.2);
       const r = (h % 1000) / 1000;
-      ctx.fillStyle = h % 3 === 0 ? "#fff6db18" : "#375b3610";
-      ctx.fillRect(0, 0, size, size);
-      for (let j = 0; j < 3; j++) {
+      const painted = paintMaterial(ctx, t, xx, yy, size, season, m.world2?.seed ?? 173);
+      // Procedural detail is only the loading/missing-material fallback.
+      for (let j = 0; !painted && j < 3; j++) {
         const q = tileHash(h, j, 3);
         ctx.fillStyle = wet
           ? "#dcf6e655"
@@ -123,7 +148,7 @@ export function paintChunk(
           size * 0.025,
         );
       }
-      if (t === "stone_path" || t === "stone" || t === "gravel") {
+      if (!painted && (t === "stone_path" || t === "stone" || t === "gravel")) {
         ctx.strokeStyle = "#746f5b33";
         ctx.lineWidth = Math.max(0.5, size * 0.025);
         ctx.strokeRect(size * 0.07, size * 0.07, size * 0.86, size * 0.86);
@@ -132,7 +157,7 @@ export function paintChunk(
         ctx.lineTo(size * 0.48, size * 0.8);
         ctx.stroke();
       }
-      if (t === "wood_floor" || t === "tilled_soil") {
+      if (t === "wood_floor" || (!painted && t === "tilled_soil")) {
         ctx.strokeStyle = t === "wood_floor" ? "#684d3544" : "#49382044";
         ctx.lineWidth = size * 0.05;
         for (let i = 1; i < 4; i++) {
@@ -143,13 +168,13 @@ export function paintChunk(
         }
       }
       // Connected edges + rounded outer corners and concave inner corners.
-      if (mask !== 255) {
+      if (mask !== 255 && !["grass", "dark_grass", "hill"].includes(t)) {
         ctx.strokeStyle = wet
           ? "#e9deb5"
           : t === "cliff"
             ? "#635c46"
-            : "#ede1b444";
-        ctx.lineWidth = wet ? size * 0.11 : size * 0.065;
+            : "#8e805a30";
+        ctx.lineWidth = wet ? size * 0.10 : size * 0.05;
         ctx.lineCap = "round";
         const pad = size * 0.06;
         const edges = [
@@ -176,6 +201,31 @@ export function paintChunk(
             ctx.arc(px, py, size * 0.18, 0, Math.PI * 2);
             ctx.stroke();
           }
+        }
+      }
+      // Fine irregular grass fringe softens path banks without hiding the tile
+      // boundary or changing navigation. Hash is stable across chunk rebuilds.
+      if (["dirt_path", "stone_path", "gravel", "soil"].includes(t) || wet) {
+        const steps = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+        for (let edge = 0; edge < 4; edge++) {
+          const [dx, dy] = steps[edge]!;
+          const near = previewTerrain(m, xx + dx!, yy + dy!, season, options);
+          if (!["grass", "dark_grass", "hill"].includes(near)) continue;
+          ctx.save();
+          ctx.translate(size / 2, size / 2);
+          ctx.rotate(edge * Math.PI / 2);
+          ctx.translate(-size / 2, -size / 2);
+          const fringe = new Path2D();
+          fringe.moveTo(0, 0);
+          for (let i = 0; i <= 8; i++) {
+            const depth = .018 + (tileHash(h, edge, i) % 7) * .009;
+            fringe.lineTo(i * size / 8, size * depth);
+          }
+          fringe.lineTo(size, 0); fringe.closePath();
+          ctx.clip(fringe);
+          ctx.fillStyle = COLORS[near]!; ctx.fillRect(0, 0, size, size);
+          paintMaterial(ctx, near, xx, yy, size, season, m.world2?.seed ?? 173);
+          ctx.restore();
         }
       }
       const elevation = cell(m, "elevation", xx, yy);
@@ -236,7 +286,7 @@ export class ChunkPainter {
     season: SeasonKey,
     options: PaintOptions = {},
   ) {
-    const key = `${m.id}:${cx}:${cy}:${season}:${JSON.stringify(options)}`;
+    const key = `${m.id}:${cx}:${cy}:${season}:${materialRevision()}:${JSON.stringify(options)}`;
     let c = this.cache.get(key);
     if (c) {
       this.cache.delete(key);

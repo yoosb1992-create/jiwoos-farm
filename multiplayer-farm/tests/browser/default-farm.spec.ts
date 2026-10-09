@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { ASSETS } from "../../shared/content.js";
+import { TERRAIN_ART } from "../../shared/art-assets.js";
 
 test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch layout", async ({ page }, info) => {
   test.setTimeout(60000);
@@ -10,6 +12,18 @@ test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch la
   await page.locator("#create-farm").click();
   await expect(page.locator("#connection")).toHaveAttribute("data-status", "connected");
   await expect.poll(() => page.evaluate(() => window.__FARM_DEBUG__.snapshot().local !== null)).toBe(true);
+  // Decode the shipped art too: a 200 response can still contain an empty or
+  // corrupt sprite, and Phaser's canvas fallback would otherwise conceal it.
+  const artPaths = [...new Set([...Object.values(ASSETS).map(a => a.source?.path)
+    .filter((p): p is string => Boolean(p?.startsWith("/assets/art-foundation/"))), ...Object.values(TERRAIN_ART)])];
+  const failedArt = await page.evaluate(async paths => {
+    const decoded = await Promise.all(paths.map(async src => {
+      const image = new Image(); image.src = src;
+      try { await image.decode(); return ""; } catch { return src; }
+    }));
+    return decoded.filter(Boolean);
+  }, artPaths);
+  expect(failedArt).toEqual([]);
   const state = await page.evaluate(() => ({
     layout: JSON.parse(window.__FARM_DEBUG__.state().layout),
     actor: window.__FARM_DEBUG__.snapshot().local!.authoritative,
@@ -35,6 +49,13 @@ test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch la
   await expect(page.locator("#status")).toContainText("초안 준비");
   expect((await page.evaluate(() => window.__WORLD_EDITOR__.snapshot())).maps.farm).toEqual(state.layout.maps.farm);
   await page.setViewportSize({ width: 1024, height: 768 });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: info.outputPath("farm-editor-detail.png") });
+  await page.locator("#menu").click();
+  await page.locator("[data-panel=objects]").click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: info.outputPath("farm-editor-palette.png") });
+  await page.locator("#close-sheet").click();
   await page.locator("#menu").click();
   await page.locator("[data-panel=world]").click();
   await page.locator("#grid").uncheck();
