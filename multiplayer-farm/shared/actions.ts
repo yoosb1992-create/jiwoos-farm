@@ -161,6 +161,10 @@ export function nextDay(w: World): void {
       }
       if (e.watered) e.stage = Math.min(crop.growthDays, e.stage + 1);
       e.watered = w.weather === "rain";
+    } else if (e.kind === "soil") {
+      // Bare tilled soil can be watered too. It dries the next morning unless rain
+      // waters it again, matching the same daily visual state as planted soil.
+      e.watered = w.weather === "rain";
     }
     if (e.kind === "animal" && e.stage === previousDay) {
       e.quantity = Math.min(5, e.quantity + 1);
@@ -334,14 +338,18 @@ export function applyAction(
       e.kind = "crop";
       e.crop = crop.id;
       e.stage = 0;
-      e.watered = w.weather === "rain";
+      // Preserve pre-watered tilled soil when a seed is planted into it.
+      e.watered = e.watered || w.weather === "rain";
       break;
     }
     case "waterCrop": {
       own("water");
       const t = tile(),
         e = w.entities[t.id];
-      requireThat(e?.kind === "crop" && !e.watered, "물을 줄 작물이 없습니다");
+      requireThat(
+        (e?.kind === "soil" || e?.kind === "crop") && !e.watered,
+        "물을 줄 경작지가 없습니다",
+      );
       requireThat(m.water > 0, "우물에서 물을 채우세요");
       spend(1);
       m.water--;
