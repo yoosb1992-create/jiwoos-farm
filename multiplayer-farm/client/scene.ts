@@ -31,6 +31,8 @@ import { mapFor, layoutRevision } from "./layout.js";
 interface View {
   body: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
+  /** Tilled-soil underlay kept beneath crops so planting never replaces the soil. */
+  ground?: Phaser.GameObjects.Sprite;
   x: number;
   y: number;
 }
@@ -141,11 +143,13 @@ export class FarmScene extends Phaser.Scene {
     this.chunkTerrain?.destroy();
     this.chunkTerrain = undefined;
     for (const v of this.objects.values()) {
+      v.ground?.destroy();
       v.body.destroy();
       v.label.destroy();
     }
     this.objects.clear();
     for (const v of this.npcs.values()) {
+      v.ground?.destroy();
       v.body.destroy();
       v.label.destroy();
     }
@@ -395,7 +399,6 @@ export class FarmScene extends Phaser.Scene {
         label = "";
       if (e.kind === "crop") {
         asset = `crop_${e.crop}_${e.stage === 0 ? "seed" : e.stage >= (CROPS[e.crop]?.growthDays ?? 3) ? "mature" : e.stage === 1 ? "sprout" : "growing"}`;
-        label = e.watered ? "💧" : "";
       } else if (e.kind === "withered") {
         asset = "crop_morningcarrot_growing";
         label = "마른 작물 · 괭이";
@@ -434,15 +437,35 @@ export class FarmScene extends Phaser.Scene {
           .setAngle(authored.rotation ?? 0)
           .setDepth(e.y + (authored.depth ?? 0));
       }
+      const needsTilledGround = e.kind === "crop" || e.kind === "withered";
+      if (needsTilledGround) {
+        if (!v.ground) {
+          v.ground = this.add
+            .sprite(e.x, e.y, this.textured("tile_farm_empty"))
+            .setOrigin(0.5)
+            .setDepth(e.y - 110);
+          this.sizeObject(v.ground, "tile_farm_empty");
+        }
+        v.ground
+          .setPosition(e.x, e.y)
+          .setTexture(this.textured("tile_farm_empty"))
+          .setDepth(e.y - 110)
+          .setTint(e.watered ? 0xa07a62 : 0xffffff);
+      } else if (v.ground) {
+        v.ground.destroy();
+        v.ground = undefined;
+      }
       v.body.clearTint();
       v.body.setTint(foliageColor(asset, this.season));
       if (e.kind === "withered") v.body.setTint(0x8d765d);
       const forage = FORAGE.find((f) => f.id === e.item);
       if (forage && (e.kind === "gather" || e.kind === "drop"))
         v.body.setTint(forage.color);
-      if (e.kind === "soil") v.body.setOrigin(0.5);
+      if (e.kind === "soil")
+        v.body.setOrigin(0.5).setTint(e.watered ? 0xa07a62 : 0xffffff);
       if (e.kind === "crop")
-        v.body.setOrigin(0.5, 0.8).setTint(e.watered ? 0xffffff : 0xefefce);
+        // Water is shown on the tilled soil beneath the plant, not by tinting the crop.
+        v.body.setOrigin(0.5, 0.8).setTint(0xffffff);
       if (e.kind === "animal") {
         v.body.setPosition(
           e.x + Math.sin(now / 1200 + e.x) * 5,
