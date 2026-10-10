@@ -1,4 +1,4 @@
-import { DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, NATURAL_TREE_FIRST, TREE_SPECIES, treeHp } from "./nature.js";
+import { DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, FARM_GRASS, GRASS_FIRST, GRASS_MAX, NATURAL_TREE_FIRST, TREE_SPECIES, treeHp } from "./nature.js";
 import { initializeTree, naturalPlacement, fencedInterior } from "./nature-world.js";
 import { cell, hasZone, tileHash } from "./world2.js";
 import { TILE, mapFor } from "./content.js";
@@ -7,7 +7,7 @@ import type { FishingChallenge } from "./fishing.js";
 import { defaultLayout, legacyLayout, type WorldLayout } from "./layout.js";
 import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
-export const WORLD_VERSION = 4;
+export const WORLD_VERSION = 5;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
 export const ACTION_RANGE = 64;
@@ -57,6 +57,8 @@ export interface Entity {
 export interface World {
   natureCleared?: Record<string, number>;
   debrisDay?: number;
+  grassDay?: number;
+  naturalTreesSeeded?: boolean;
   initialWorldVersion?: number;
   blueprintId?: string;
   layout?: WorldLayout;
@@ -179,11 +181,14 @@ export function random(seed: number): () => number {
  * grass until the player clears/tills it. */
 export function seedFarmTrees(world: World, rng: () => number): void {
   const map = world.layout?.maps?.farm;
-  if (!map?.world2 || world.day !== 1) return;
+  if (!map?.world2 || world.naturalTreesSeeded) return;
   const existing = Object.values(world.entities).filter(
     e => e.area === "farm" && e.id.startsWith("farmnature-tree-"),
   ).length;
-  if (existing >= NATURAL_TREE_FIRST) return;
+  if (existing >= NATURAL_TREE_FIRST) {
+    world.naturalTreesSeeded = true;
+    return;
+  }
 
   let count = existing;
   for (let attempt = 0; count < NATURAL_TREE_FIRST && attempt < 4000; attempt++) {
@@ -211,14 +216,17 @@ export function seedFarmTrees(world: World, rng: () => number): void {
     world.entities[e.id] = e;
     count++;
   }
+  world.naturalTreesSeeded = true;
 }
 
-export function seedFarmDebris(world: World, rng: () => number): void {
+export function seedFarmDebris(world: World, rng: () => number, bootstrap = false): void {
   const map = world.layout?.maps?.farm;
   if (!map?.world2 || world.debrisDay === world.day) return;
   world.debrisDay = world.day;
   const existing = Object.values(world.entities).filter(e => e.area === "farm" && e.id.startsWith("farmdebris-")).length;
-  const target = world.day === 1 ? DEBRIS_FIRST : Math.min(DEBRIS_MAX, existing + 2 + Math.floor(rng()*5));
+  const target = bootstrap || world.day === 1
+    ? DEBRIS_FIRST
+    : Math.min(DEBRIS_MAX, existing + 4 + Math.floor(rng()*7));
   const enclosed = fencedInterior(world,"farm");
   for(const [k,d] of Object.entries(world.natureCleared??{})) if(world.day-d>=7)delete world.natureCleared![k];
   let count=existing;
@@ -231,6 +239,31 @@ export function seedFarmDebris(world: World, rng: () => number): void {
     e.hp=1; e.item=d.item; world.entities[id]=e; count++;
   }
 }
+export function seedFarmGrass(world: World, rng: () => number, bootstrap = false): void {
+  const map = world.layout?.maps?.farm;
+  if (!map?.world2 || world.grassDay === world.day) return;
+  world.grassDay = world.day;
+  const existing = Object.values(world.entities).filter(
+    e => e.area === "farm" && e.id.startsWith("farmgrass-"),
+  ).length;
+  const target = bootstrap || world.day === 1
+    ? GRASS_FIRST
+    : Math.min(GRASS_MAX, existing + 6 + Math.floor(rng() * 7));
+  const enclosed = fencedInterior(world, "farm");
+  let count = existing;
+  for (let attempt = 0; count < target && attempt < 6000; attempt++) {
+    const x = 2 + Math.floor(rng() * Math.max(1, map.width - 4));
+    const y = 2 + Math.floor(rng() * Math.max(1, map.height - 4));
+    if (!naturalPlacement(world, "farm", x, y, "debris", enclosed)) continue;
+    const g = FARM_GRASS[Math.floor(rng() * FARM_GRASS.length)]!;
+    const id = `farmgrass-${world.day}-${++world.nextEntity}`;
+    const e = entity(id, "farm", g.kind, (x + .5) * TILE, (y + .5) * TILE, g.id);
+    e.item = g.item;
+    world.entities[id] = e;
+    count++;
+  }
+}
+
 export function generateDaily(world: World): void {
   for (const [id, e] of Object.entries(world.entities))
     if (
@@ -244,6 +277,7 @@ export function generateDaily(world: World): void {
   );
   seedFarmTrees(world, rng);
   seedFarmDebris(world, rng);
+  seedFarmGrass(world, rng);
   // Natural forest trees age too. Keep occupied resource slots across days;
   // only a fully cleared slot receives a new natural tree the next morning.
   const forestSlots = new Set(Object.values(world.entities)
@@ -356,6 +390,8 @@ export function newWorld(
   const w: World = {
     version: WORLD_VERSION,
     debrisDay: 0,
+    grassDay: 0,
+    naturalTreesSeeded: false,
     initialWorldVersion: layout.worldVersion ?? 0,
     ...(layout.blueprintId ? { blueprintId: layout.blueprintId } : {}),
     revision: 0,
@@ -398,7 +434,7 @@ function seedFixtures(w: World, daily: boolean): void {
             e.hp = 3;
           }
         }
-        const debris = DEBRIS.find(d => d.id === o.assetId);
+        const debris = [...DEBRIS, ...FARM_GRASS].find(d => d.id === o.assetId);
         if(debris) { e.kind=debris.kind; e.hp=1; e.item=debris.item; }
         if (e.kind === "animal")
           e.crop = o.assetId.includes("cow")
@@ -435,6 +471,7 @@ export function upgradeWorld(w: World): void {
     if (m.fishing && !("seed" in m.fishing)) delete m.fishing;
   }
   const needsUpgrade = w.version < 2;
+  const natureDensityUpgrade = w.version < 5;
   const fixed = [
     ["animal-home", "farm", "barn", 41, 8, "chicken_coop"],
     ["feeding-trough", "farm", "trough", 40, 12, "feed_trough"],
@@ -466,6 +503,17 @@ export function upgradeWorld(w: World): void {
     if(e.stage===undefined)e.stage=2;
     initializeTree(w,e,o);
   }
+  if (natureDensityUpgrade) {
+    // Populate only still-natural grass, so existing fields/buildings remain untouched.
+    w.debrisDay = 0;
+    w.grassDay = 0;
+    w.naturalTreesSeeded = false;
+    seedFarmTrees(w, random(w.seed + 0x7135));
+    seedFarmDebris(w, random(w.seed + 0x4d2b), true);
+    seedFarmGrass(w, random(w.seed + 0x9a61), true);
+  }
   w.debrisDay ??= w.day;
+  w.grassDay ??= w.day;
+  w.naturalTreesSeeded ??= true;
   w.version = WORLD_VERSION;
 }
