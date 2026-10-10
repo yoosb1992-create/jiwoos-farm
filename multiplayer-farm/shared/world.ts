@@ -158,6 +158,57 @@ export function random(seed: number): () => number {
     return s / 4294967296;
   };
 }
+
+function seedFarmDebris(world: World, rng: () => number): void {
+  const map = world.layout?.maps?.farm;
+  if (!map?.world2) return;
+
+  const existing = Object.values(world.entities).filter(
+    (e) => e.area === "farm" && e.id.startsWith("farmdebris-"),
+  );
+  const target = world.day === 1 ? 30 : Math.min(42, existing.length + 5);
+  if (existing.length >= target) return;
+
+  const occupied = (x: number, y: number) =>
+    Object.values(world.entities).some((e) => {
+      if (e.area !== "farm") return false;
+      const tx = Math.floor(e.x / TILE), ty = Math.floor(e.y / TILE);
+      return tx === x && ty === y;
+    });
+
+  let attempts = 0, serial = existing.length;
+  while (serial < target && attempts++ < 4000) {
+    const x = 2 + Math.floor(rng() * Math.max(1, map.width - 4));
+    const y = 2 + Math.floor(rng() * Math.max(1, map.height - 4));
+    if (
+      !hasZone(map, "farmable", x, y) ||
+      occupied(x, y) ||
+      collidesWithObstacle((x + 0.5) * TILE, (y + 0.5) * TILE, "farm", world.layout!.maps)
+    ) continue;
+
+    const roll = rng();
+    const id = "farmdebris-" + world.day + "-" + serial + "-" + x + "-" + y;
+    if (roll < 0.42) {
+      const e = entity(id, "farm", "twig", (x + 0.5) * TILE, (y + 0.5) * TILE,
+        rng() < 0.5 ? "farm_twig_a" : "farm_twig_b");
+      e.hp = 1;
+      e.item = "wood";
+      world.entities[id] = e;
+    } else if (roll < 0.78) {
+      const e = entity(id, "farm", "rock", (x + 0.5) * TILE, (y + 0.5) * TILE,
+        rng() < 0.5 ? "farm_stone_a" : "farm_stone_b");
+      e.hp = 1;
+      e.item = "stone";
+      world.entities[id] = e;
+    } else {
+      const e = entity(id, "farm", "gather", (x + 0.5) * TILE, (y + 0.5) * TILE,
+        roll < 0.9 ? "farm_weed" : "farm_wildflower");
+      e.item = roll < 0.9 ? "wild_herb" : "dawn_petals";
+      world.entities[id] = e;
+    }
+    serial++;
+  }
+}
 export function generateDaily(world: World): void {
   for (const [id, e] of Object.entries(world.entities))
     if (
@@ -170,6 +221,7 @@ export function generateDaily(world: World): void {
   const forage = FORAGE.filter((f) =>
     f.seasons.includes(calendar(world.day).season),
   );
+  seedFarmDebris(world, rng);
   for (let i = 0; i < 28; i++) {
     const kind = i < 12 ? "tree" : i < 20 ? "gather" : "rock";
     const e = entity(
