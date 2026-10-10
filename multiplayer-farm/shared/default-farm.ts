@@ -140,7 +140,10 @@ export function createDefaultFarm(previous: MapData): MapData {
       const id = `border-${serial++}`;
       if (h % 10 < 6) {
         const scale = 0.9 + (h % 65) / 100;
-        add(id, ["tree", "tree_variant_a", "tree_variant_b"][h % 3]!, x, y, scale, {
+        add(id, [
+          "tree", "tree_variant_a", "tree_variant_b", "tree_pine",
+          "tree_cherry", "tree_maple", "tree_birch", "tree_willow",
+        ][h % 8]!, x, y, scale, {
           decorative: true,
           collision: { x: -11 * scale, y: -9 * scale, width: 22 * scale, height: 18 * scale },
         });
@@ -149,7 +152,14 @@ export function createDefaultFarm(previous: MapData): MapData {
       } else add(id, "pond_rock_large", x, y, 0.55, {
         decorative: true, collision: { x: -22, y: -12, width: 44, height: 20 },
       });
-      if (h % 3 === 0) add(`${id}-flowers`, "flower_bed", x + 1.3, y + 1.1, 0.45, { decorative: true });
+      if (h % 3 === 0) add(
+        `${id}-flowers`,
+        ["flower_bed", "flower_daisy", "flower_poppy", "flower_bluebell", "flower_lavender"][h % 5]!,
+        x + 1.3,
+        y + 1.1,
+        0.45 + (h % 18) / 100,
+        { decorative: true },
+      );
     }
 
   for (let y = 0; y < height; y++)
