@@ -66,3 +66,6 @@ export const GARDEN_FLOWERS = [
   {id:"flower_lavender",name:"라벤더 군락"},
 ];
 export const DEBRIS_FIRST = 30, DEBRIS_MAX = 50;
+/** Sparse natural trees placed on a brand-new farm. Farmable is only a hoe permission;
+ * until a tile is actually tilled it remains ordinary natural grass. */
+export const NATURAL_TREE_FIRST = 14;
