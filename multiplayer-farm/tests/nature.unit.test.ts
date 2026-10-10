@@ -1,20 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { newWorld, newMember, entity, upgradeWorld, seedFarmDebris, seedFarmTrees, random, type Actor, type World } from "../shared/world.js";
+import { newWorld, newMember, entity, upgradeWorld, seedFarmDebris, seedFarmGrass, seedFarmTrees, random, type Actor, type World } from "../shared/world.js";
 import { applyAction, nextDay, parseCommand } from "../shared/actions.js";
 import { defaultLayout, validateLayout } from "../shared/layout.js";
-import { TREE_SPECIES, TREES, TREE_STAGES, TREE_STAGE_IDS, DEBRIS, NATURAL_TREE_FIRST, treeHp, natureRoll, treeSprite } from "../shared/nature.js";
+import { TREE_SPECIES, TREES, TREE_STAGES, TREE_STAGE_IDS, DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, FARM_GRASS, GRASS_FIRST, GRASS_MAX, NATURAL_TREE_FIRST, treeHp, natureRoll, treeSprite } from "../shared/nature.js";
 import { initializeTree, growTrees, naturalPlacement, fencedInterior } from "../shared/nature-world.js";
 import { newWorld2, setCell, terrainCode, ZONES, hasZone } from "../shared/world2.js";
-import { ASSETS, ITEMS, CROPS } from "../shared/content.js";
+import { ASSETS, ITEMS, CROPS, RECIPES } from "../shared/content.js";
 import { NEW_CROP_ART } from "../shared/nature-assets.js";
 import { SEASONS, SEASON_DAYS } from "../shared/expansion.js";
 import { objectFor, CATALOG, category } from "../client/editor/catalog.js";
 function setup() {
   const l=defaultLayout(),m=l.maps.farm!;
   Object.assign(m,{width:40,height:40,baseTileType:"grass",world2:newWorld2(),objects:[],spawns:[{id:"farm_entry",tileX:2.5,tileY:2.5,facing:"down"}],warps:[],collisionRegions:[],farmAreas:[]});
-  const w=newWorld(725,l); w.entities={}; w.members.a=newMember("a","A");w.members.b=newMember("b","B");
+  const w=newWorld(725,l); w.entities={}; w.naturalTreesSeeded=false; w.debrisDay=0; w.grassDay=0; w.members.a=newMember("a","A");w.members.b=newMember("b","B");
   const a:Actor={id:"a",area:"farm",x:20.5*32,y:19.5*32,facing:"down",running:false,stamina:100};
   return {w,a,m:w.layout!.maps.farm!};
 }
@@ -109,16 +109,39 @@ test("natural placement protects paths/water/soil/crops/warps/spawns/collision/f
   for(let i=18;i<=22;i++)for(const [x,y] of [[i,18],[i,22],[18,i],[22,i]])w.entities[`${x},${y}`]=entity(`${x},${y}`,"farm","decoration",(x!+.5)*32,(y!+.5)*32,"fence_horizontal");
   assert(fencedInterior(w,"farm").has("20,20"));assert(!naturalPlacement(w,"farm",20,20,"debris",fencedInterior(w,"farm")));
 });
-test("debris 30 first day, 2–6 daily, max 50, idempotent daily spawning and cleared tile respite",()=>{
-  const {w}=setup();w.debrisDay=0;seedFarmDebris(w,random(12));assert.equal(Object.keys(w.entities).length,30);
-  seedFarmDebris(w,random(12));assert.equal(Object.keys(w.entities).length,30);
+test("dense debris remains bounded, idempotent and respects cleared-tile respite",()=>{
+  const {w}=setup();w.debrisDay=0;seedFarmDebris(w,random(12));assert.equal(Object.keys(w.entities).length,DEBRIS_FIRST);
+  seedFarmDebris(w,random(12));assert.equal(Object.keys(w.entities).length,DEBRIS_FIRST);
   const debris=Object.values(w.entities)[0]!;const x=Math.floor(debris.x/32),y=Math.floor(debris.y/32);
   w.members.a!.stamina=100;const a={id:"a",area:"farm",x:debris.x,y:debris.y-32,facing:"down",running:false,stamina:100};
   act(w,a,debris.kind==="twig"?"clearTwig":debris.kind==="rock"?"hitRock":"gather",{targetId:debris.id});
   for(const [id,e] of Object.entries(w.entities))if(e.kind==="drop")delete w.entities[id];
   assert(!naturalPlacement(w,"farm",x,y,"debris"));
-  let previous=29;for(let day=2;day<25;day++){w.day=day;seedFarmDebris(w,random(day));const n=Object.keys(w.entities).length;assert(n<=50);assert(n>=Math.min(50,previous+2)&&n<=Math.min(50,previous+6));previous=n;}
-  assert.equal(previous,50);assert.equal(DEBRIS.length,22);
+  let previous=DEBRIS_FIRST-1;
+  for(let day=2;day<40 && previous<DEBRIS_MAX;day++){
+    w.day=day;seedFarmDebris(w,random(day));
+    const n=Object.values(w.entities).filter(e=>e.id.startsWith("farmdebris-")).length;
+    assert(n<=DEBRIS_MAX);assert(n>=Math.min(DEBRIS_MAX,previous+4)&&n<=Math.min(DEBRIS_MAX,previous+10));previous=n;
+  }
+  assert.equal(previous,DEBRIS_MAX);assert.equal(DEBRIS.length,19);
+});
+test("farm grass fills untouched farmable land and crafts into animal feed",()=>{
+  const {w,m}=setup();
+  for(let y=1;y<m.height-1;y++)for(let x=1;x<m.width-1;x++)
+    setCell(m,"zones",x,y,ZONES.farmable|ZONES.building|ZONES.decoration|ZONES.animal);
+  seedFarmGrass(w,random(991));
+  const grass=Object.values(w.entities).filter(e=>e.id.startsWith("farmgrass-"));
+  assert.equal(grass.length,GRASS_FIRST);
+  assert(grass.every(e=>e.item==="grass"));
+  assert(grass.every(e=>FARM_GRASS.some(g=>g.id===e.asset)));
+  const first=grass[0]!,tx=Math.floor(first.x/32),ty=Math.floor(first.y/32);
+  assert(hasZone(m,"farmable",tx,ty));
+  w.day=2;seedFarmGrass(w,random(992));
+  const next=Object.values(w.entities).filter(e=>e.id.startsWith("farmgrass-")).length;
+  assert(next>=GRASS_FIRST+6 && next<=GRASS_FIRST+12 && next<=GRASS_MAX);
+  assert(ITEMS.grass?.name==="목초");
+  assert.equal(RECIPES.animal_feed!.ingredients[0]!.itemId,"grass");
+  assert.equal(RECIPES.animal_feed!.ingredients[0]!.quantity,3);
 });
 test("old trees migrate additively; editor roundtrip, stage art, species and nature thumbnails resolve",()=>{
   const {w,m}=setup();w.version=3;const before=structuredClone(w.members);
