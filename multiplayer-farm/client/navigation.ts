@@ -213,7 +213,7 @@ export class TouchNavigator {
       if (
         groundAction ||
         (t.kind === "entity" &&
-          ["tree", "stump", "rock", "crop", "soil", "withered"].includes(
+          ["tree", "stump", "twig", "rock", "crop", "soil", "withered"].includes(
             t.signature ?? "",
           ))
       ) {
