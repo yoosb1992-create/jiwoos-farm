@@ -2,7 +2,7 @@ import { inRect } from "../shared/world2.js";
 import { calendar } from "../shared/expansion.js";
 import { Encoder } from "@colyseus/schema";
 // Initial immutable layout is sent once. Subsequent 30 Hz patches remain deltas.
-Encoder.BUFFER_SIZE = 1024 * 1024;
+Encoder.BUFFER_SIZE = 4 * 1024 * 1024;
 import { ServerError, type Client, type StepContext } from "@colyseus/core";
 import { MovementRoom } from "./MovementRoom.js";
 import { WorldEntity, type Player } from "../shared/schema.js";

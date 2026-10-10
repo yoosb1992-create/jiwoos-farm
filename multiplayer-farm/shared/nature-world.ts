@@ -68,7 +68,7 @@ export function fencedInterior(w: World, area: string): Set<string> {
 
 /** Authority checks natural ground, authored protection and current live entities. */
 export function naturalPlacement(w: World, area: string, x: number, y: number,
-  purpose: "tree"|"debris", enclosed = new Set<string>()): boolean {
+  purpose: "tree"|"debris", enclosed = new Set<string>(), treeSpacing = 3): boolean {
   const map = mapFor(area,w.layout?.maps);
   if (area !== "farm" || x < 1 || y < 1 || x >= map.width-1 || y >= map.height-1) return false;
   if (!/^(grass|dark_grass|meadow)$/.test(terrainAt(map,x,y))) return false;
@@ -81,7 +81,7 @@ export function naturalPlacement(w: World, area: string, x: number, y: number,
     const dx=x+.5-o.position.tileX, dy=y+.5-o.position.tileY;
     if(o.kind==="tree" || o.assetId.startsWith("tree")) {
       // Removed harvestables no longer reserve land; static border trees do.
-      if ((!o.kind || w.entities[o.id]) && Math.hypot(dx,dy)<(purpose==="tree"?3:2)) return false;
+      if ((!o.kind || w.entities[o.id]) && Math.hypot(dx,dy)<(purpose==="tree"?treeSpacing:2)) return false;
     } else if (o.kind==="well" || o.assetId==="stone_well") {
       if(Math.abs(dx)<3 && Math.abs(dy)<3)return false;
     } else if(o.collision) {
@@ -95,7 +95,7 @@ export function naturalPlacement(w: World, area: string, x: number, y: number,
     if(e.area!==area)continue;
     const dx=e.x/TILE-(x+.5),dy=e.y/TILE-(y+.5);
     if(Math.floor(e.x/TILE)===x && Math.floor(e.y/TILE)===y)return false;
-    if((e.kind==="tree"||e.kind==="stump") && Math.hypot(dx,dy)<(purpose==="tree"?3:2))return false;
+    if((e.kind==="tree"||e.kind==="stump") && Math.hypot(dx,dy)<(purpose==="tree"?treeSpacing:2))return false;
     if(["decoration","machine","well","chest","craft","barn","trough"].includes(e.kind) && Math.abs(dx)<2 && Math.abs(dy)<2)return false;
   }
   return true;

@@ -72,8 +72,9 @@ export const GARDEN_FLOWERS = [
 ];
 // The opening farm should feel overgrown: clearing space is an early-game activity.
 // Daily regrowth is intentionally much gentler than this first dense pass.
-export const DEBRIS_FIRST = 320, DEBRIS_MAX = 380;
-export const GRASS_FIRST = 420, GRASS_MAX = 500;
+export const DEBRIS_FIRST = 1800, DEBRIS_MAX = 2200;
+export const GRASS_FIRST = 2400, GRASS_MAX = 3000;
 /** Natural trees are deliberately spread through the future field too. Farmable is
- * only permission to use the hoe; until a tile is actually tilled it is natural grass. */
-export const NATURAL_TREE_FIRST = 48;
+ * only permission to use the hoe; until a tile is actually tilled it is natural grass.
+ * This is intentionally extreme: the opening cleanup is a major part of day one. */
+export const NATURAL_TREE_FIRST = 260;

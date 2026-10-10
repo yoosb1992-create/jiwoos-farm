@@ -45,11 +45,27 @@ export function sanitizeMovementInput(v: unknown): MovementInput {
     run: i.run === true,
   };
 }
+export interface DynamicObstacle {
+  area: string;
+  x: number;
+  y: number;
+  kind: string;
+  asset?: string;
+}
+const dynamicObstacleRadius = (e: DynamicObstacle): number => {
+  if (e.kind === "tree" || e.kind === "stump") return 13;
+  if (e.kind === "rock") return 12;
+  if (e.kind === "twig") return 10;
+  if (["machine", "decoration", "barn", "trough"].includes(e.kind)) return 13;
+  if (e.kind === "gather" && /weed/.test(e.asset ?? "")) return 8;
+  return 0;
+};
 export function collidesWithObstacle(
   x: number,
   y: number,
   area = "farm",
   maps?: Record<string, MapData>,
+  dynamic?: Iterable<DynamicObstacle>,
 ): boolean {
   const map = mapFor(area, maps);
   if (
@@ -88,7 +104,13 @@ export function collidesWithObstacle(
     )
   )
     return true;
-  // Dynamic harvestables are interaction targets, not prediction colliders. Static buildings/fences use identical geometry on both sides.
+  if (dynamic)
+    for (const e of dynamic) {
+      if (e.area !== area) continue;
+      const radius = dynamicObstacleRadius(e);
+      if (radius && Math.hypot(e.x - x, e.y - y) < PLAYER_RADIUS + radius)
+        return true;
+    }
   return (
     map.world2 ? nearbyObjects(map, x / TILE, y / TILE) : map.objects
   ).some(
@@ -112,6 +134,7 @@ export function applyMovement(
   raw: unknown,
   dt: number,
   maps?: Record<string, MapData>,
+  dynamic?: Iterable<DynamicObstacle>,
 ): void {
   if (
     !Number.isFinite(dt) ||
@@ -167,7 +190,7 @@ export function applyMovement(
         p.x + dx / steps,
         p.y,
       ) &&
-      !collidesWithObstacle(p.x + dx / steps, p.y, p.area, maps)
+      !collidesWithObstacle(p.x + dx / steps, p.y, p.area, maps, dynamic)
     )
       p.x += dx / steps;
     if (
@@ -178,7 +201,7 @@ export function applyMovement(
         p.x,
         p.y + dy / steps,
       ) &&
-      !collidesWithObstacle(p.x, p.y + dy / steps, p.area, maps)
+      !collidesWithObstacle(p.x, p.y + dy / steps, p.area, maps, dynamic)
     )
       p.y += dy / steps;
   }

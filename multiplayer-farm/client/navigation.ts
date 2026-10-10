@@ -233,7 +233,8 @@ export class TouchNavigator {
       return stop;
     }
     if (!this.path.length || now - this.planned > 1500) {
-      this.path = findPath(t.area, me, near, CLIENT_MAPS) ?? [];
+      this.path =
+        findPath(t.area, me, near, CLIENT_MAPS, state.entities.values()) ?? [];
       this.planned = now;
       if (!this.path.length) {
         this.notice("갈 수 있는 길이 없어요. 다른 쪽을 터치해 주세요");

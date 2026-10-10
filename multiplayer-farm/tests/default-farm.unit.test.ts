@@ -5,7 +5,7 @@ import { cell, terrainAt, placementAllowed, waterTerrain } from "../shared/world
 import { collidesWithObstacle, isFarmable } from "../shared/applyMovement.js";
 import { findPath } from "../shared/pathfinding.js";
 import { insideWarp, safeSpawn } from "../shared/regions.js";
-import { newWorld, newMember, upgradeWorld, type Actor } from "../shared/world.js";
+import { entity, newWorld, newMember, upgradeWorld, type Actor } from "../shared/world.js";
 import { applyAction } from "../shared/actions.js";
 import { editorLayout, Journal } from "../client/editor/model.js";
 
@@ -43,6 +43,13 @@ test("sketched default farm: editable overgrown grass, four accessible lanes, sa
     assert(collidesWithObstacle(o.position.tileX * 32 + c.x + c.width / 2, o.position.tileY * 32 + c.y + c.height / 2, "farm", l.maps), id);
   }
   assert(collidesWithObstacle(10, 40 * 32, "farm", l.maps));
+  const dynamicRock = entity("collision-rock", "farm", "rock", 80 * 32, 60 * 32, "farm_stone_a");
+  const dynamicTwig = entity("collision-twig", "farm", "twig", 82 * 32, 60 * 32, "farm_twig_a");
+  const dynamicTree = entity("collision-tree", "farm", "tree", 84 * 32, 60 * 32, "tree_oak_mature");
+  const passableGrass = entity("collision-grass", "farm", "gather", 86 * 32, 60 * 32, "farm_tall_grass");
+  for (const obstacle of [dynamicRock, dynamicTwig, dynamicTree])
+    assert(collidesWithObstacle(obstacle.x, obstacle.y, "farm", l.maps, [obstacle]));
+  assert(!collidesWithObstacle(passableGrass.x, passableGrass.y, "farm", l.maps, [passableGrass]));
   assert.deepEqual(m.warps.map(w => [w.id, w.targetMapId, w.targetSpawnId]), legacyLayout().maps.farm!.warps.map(w => [w.id, w.targetMapId, w.targetSpawnId]));
   for (const s of m.spawns) assert(!insideWarp(m, ...[s.tileX * 32, s.tileY * 32] as [number, number]));
   const world = newWorld(9, l);

@@ -7,7 +7,7 @@ import type { FishingChallenge } from "./fishing.js";
 import { defaultLayout, legacyLayout, type WorldLayout } from "./layout.js";
 import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
-export const WORLD_VERSION = 6;
+export const WORLD_VERSION = 7;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
 export const ACTION_RANGE = 64;
@@ -175,6 +175,15 @@ export function random(seed: number): () => number {
   };
 }
 
+const DENSITY_REFERENCE_TILES = (128 - 4) * (88 - 4);
+const densityTarget = (base: number, width: number, height: number) => {
+  const ratio =
+    (Math.max(1, width - 4) * Math.max(1, height - 4)) /
+    DENSITY_REFERENCE_TILES;
+  const scale = ratio < 0.5 ? ratio * ratio * 2 : ratio;
+  return Math.max(1, Math.round(base * Math.min(1, scale)));
+};
+
 /** New farms should feel like natural land waiting to be cleared.
  * Farmable means "the hoe may till this tile"; it does not make untouched grass
  * a special empty surface. Sparse natural trees may therefore occupy farmable
@@ -185,16 +194,18 @@ export function seedFarmTrees(world: World, rng: () => number): void {
   const existing = Object.values(world.entities).filter(
     e => e.area === "farm" && e.id.startsWith("farmnature-tree-"),
   ).length;
-  if (existing >= NATURAL_TREE_FIRST) {
+  const target = densityTarget(NATURAL_TREE_FIRST, map.width, map.height);
+  if (existing >= target) {
     world.naturalTreesSeeded = true;
     return;
   }
 
   let count = existing;
-  for (let attempt = 0; count < NATURAL_TREE_FIRST && attempt < 4000; attempt++) {
+  for (let attempt = 0; count < target && attempt < 30000; attempt++) {
     const x = 2 + Math.floor(rng() * Math.max(1, map.width - 4));
     const y = 2 + Math.floor(rng() * Math.max(1, map.height - 4));
-    if (!naturalPlacement(world, "farm", x, y, "tree")) continue;
+    if (!naturalPlacement(world, "farm", x, y, "tree", new Set(), 2.15))
+      continue;
 
     const species = TREE_SPECIES[Math.floor(rng() * TREE_SPECIES.length)]!;
     const roll = rng();
@@ -224,13 +235,15 @@ export function seedFarmDebris(world: World, rng: () => number, bootstrap = fals
   if (!map?.world2 || world.debrisDay === world.day) return;
   world.debrisDay = world.day;
   const existing = Object.values(world.entities).filter(e => e.area === "farm" && e.id.startsWith("farmdebris-")).length;
+  const openingTarget = densityTarget(DEBRIS_FIRST, map.width, map.height);
+  const maxTarget = densityTarget(DEBRIS_MAX, map.width, map.height);
   const target = bootstrap || world.day === 1
-    ? DEBRIS_FIRST
-    : Math.min(DEBRIS_MAX, existing + 2 + Math.floor(rng() * 4));
+    ? openingTarget
+    : Math.min(maxTarget, existing + 8 + Math.floor(rng() * 9));
   const enclosed = fencedInterior(world,"farm");
   for(const [k,d] of Object.entries(world.natureCleared??{})) if(world.day-d>=7)delete world.natureCleared![k];
   let count=existing;
-  for(let attempt=0;count<target && attempt<4000;attempt++) {
+  for(let attempt=0;count<target && attempt<20000;attempt++) {
     const x=2+Math.floor(rng()*(map.width-4)), y=2+Math.floor(rng()*(map.height-4));
     if(!naturalPlacement(world,"farm",x,y,"debris",enclosed))continue;
     // Branches and stones dominate the first-cleanup experience; weeds/flowers
@@ -256,12 +269,14 @@ export function seedFarmGrass(world: World, rng: () => number, bootstrap = false
   const existing = Object.values(world.entities).filter(
     e => e.area === "farm" && e.id.startsWith("farmgrass-"),
   ).length;
+  const openingTarget = densityTarget(GRASS_FIRST, map.width, map.height);
+  const maxTarget = densityTarget(GRASS_MAX, map.width, map.height);
   const target = bootstrap || world.day === 1
-    ? GRASS_FIRST
-    : Math.min(GRASS_MAX, existing + 3 + Math.floor(rng() * 5));
+    ? openingTarget
+    : Math.min(maxTarget, existing + 12 + Math.floor(rng() * 13));
   const enclosed = fencedInterior(world, "farm");
   let count = existing;
-  for (let attempt = 0; count < target && attempt < 6000; attempt++) {
+  for (let attempt = 0; count < target && attempt < 30000; attempt++) {
     const x = 2 + Math.floor(rng() * Math.max(1, map.width - 4));
     const y = 2 + Math.floor(rng() * Math.max(1, map.height - 4));
     if (!naturalPlacement(world, "farm", x, y, "debris", enclosed)) continue;
@@ -481,7 +496,7 @@ export function upgradeWorld(w: World): void {
     if (m.fishing && !("seed" in m.fishing)) delete m.fishing;
   }
   const needsUpgrade = w.version < 2;
-  const natureDensityUpgrade = w.version < 6;
+  const natureDensityUpgrade = w.version < 7;
   const fixed = [
     ["animal-home", "farm", "barn", 41, 8, "chicken_coop"],
     ["feeding-trough", "farm", "trough", 40, 12, "feed_trough"],

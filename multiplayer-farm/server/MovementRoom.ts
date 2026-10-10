@@ -136,7 +136,13 @@ export class MovementRoom extends Room<{ state: FarmState; input: MoveInput }> {
         }
         continue;
       }
-      applyMovement(player, input, context.dt, this.movementMaps);
+      applyMovement(
+        player,
+        input,
+        context.dt,
+        this.movementMaps,
+        this.state.entities.values(),
+      );
       budget.lastInputTick = context.tick;
       // One normal step, plus at most one previously missed step. Credits are
       // spent, never minted while input is available: total integrated time is
@@ -149,7 +155,13 @@ export class MovementRoom extends Room<{ state: FarmState; input: MoveInput }> {
       ) {
         const catchup = channel.next();
         if (!catchup) break;
-        applyMovement(player, catchup, context.dt, this.movementMaps);
+        applyMovement(
+          player,
+          catchup,
+          context.dt,
+          this.movementMaps,
+          this.state.entities.values(),
+        );
         budget.credits -= 1;
       }
       // A TCP stall longer than the bounded catch-up window can leave a queue

@@ -433,7 +433,13 @@ export class ColyseusAdapter implements NetworkAdapter {
         "actionTicks",
       ],
       step: (ctx, state, command) =>
-        applyMovement(state, command, ctx.dt, CLIENT_MAPS),
+        applyMovement(
+          state,
+          command,
+          ctx.dt,
+          CLIENT_MAPS,
+          room.state.entities.values(),
+        ),
       smoothMs: CORRECTION_SMOOTH_MS,
       warnOnDivergence: RECONCILIATION_THRESHOLD,
     });
