@@ -7,7 +7,7 @@ import type { FishingChallenge } from "./fishing.js";
 import { defaultLayout, legacyLayout, type WorldLayout } from "./layout.js";
 import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
-export const WORLD_VERSION = 5;
+export const WORLD_VERSION = 6;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
 export const ACTION_RANGE = 64;
@@ -226,14 +226,24 @@ export function seedFarmDebris(world: World, rng: () => number, bootstrap = fals
   const existing = Object.values(world.entities).filter(e => e.area === "farm" && e.id.startsWith("farmdebris-")).length;
   const target = bootstrap || world.day === 1
     ? DEBRIS_FIRST
-    : Math.min(DEBRIS_MAX, existing + 4 + Math.floor(rng()*7));
+    : Math.min(DEBRIS_MAX, existing + 2 + Math.floor(rng() * 4));
   const enclosed = fencedInterior(world,"farm");
   for(const [k,d] of Object.entries(world.natureCleared??{})) if(world.day-d>=7)delete world.natureCleared![k];
   let count=existing;
   for(let attempt=0;count<target && attempt<4000;attempt++) {
     const x=2+Math.floor(rng()*(map.width-4)), y=2+Math.floor(rng()*(map.height-4));
     if(!naturalPlacement(world,"farm",x,y,"debris",enclosed))continue;
-    const d=DEBRIS[Math.floor(rng()*DEBRIS.length)]!;
+    // Branches and stones dominate the first-cleanup experience; weeds/flowers
+    // remain visible accents rather than consuming most of the field.
+    const roll = rng();
+    const pool = roll < .38
+      ? DEBRIS.slice(0, 6)
+      : roll < .72
+        ? DEBRIS.slice(6, 12)
+        : roll < .86
+          ? DEBRIS.slice(12, 15)
+          : DEBRIS.slice(15);
+    const d=pool[Math.floor(rng()*pool.length)]!;
     const id=`farmdebris-${world.day}-${++world.nextEntity}`;
     const e=entity(id,"farm",d.kind,(x+.5)*TILE,(y+.5)*TILE,d.id);
     e.hp=1; e.item=d.item; world.entities[id]=e; count++;
@@ -248,7 +258,7 @@ export function seedFarmGrass(world: World, rng: () => number, bootstrap = false
   ).length;
   const target = bootstrap || world.day === 1
     ? GRASS_FIRST
-    : Math.min(GRASS_MAX, existing + 6 + Math.floor(rng() * 7));
+    : Math.min(GRASS_MAX, existing + 3 + Math.floor(rng() * 5));
   const enclosed = fencedInterior(world, "farm");
   let count = existing;
   for (let attempt = 0; count < target && attempt < 6000; attempt++) {
@@ -471,7 +481,7 @@ export function upgradeWorld(w: World): void {
     if (m.fishing && !("seed" in m.fishing)) delete m.fishing;
   }
   const needsUpgrade = w.version < 2;
-  const natureDensityUpgrade = w.version < 5;
+  const natureDensityUpgrade = w.version < 6;
   const fixed = [
     ["animal-home", "farm", "barn", 41, 8, "chicken_coop"],
     ["feeding-trough", "farm", "trough", 40, 12, "feed_trough"],
