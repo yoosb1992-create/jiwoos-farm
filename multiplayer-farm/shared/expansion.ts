@@ -178,6 +178,20 @@ export const EXPANSION_CROPS: CropDef[] = [
     0,
     5,
   ),
+
+  // v2.7 content expansion: broader seasonal seed choices and flower crops.
+  crop("pinktulip", "분홍튤립", "spring", 5, 28, 82, 0xf39ab1, "flower", 0, 4),
+  crop("sweetpea", "향기완두", "spring", 5, 32, 58, 0xb997df, "berry", 3, 10),
+  crop("springonion", "봄햇양파", "spring", 4, 18, 52, 0xe8e2c6, "root"),
+  crop("coolcucumber", "초록오이", "summer", 6, 40, 58, 0x79b96d, "berry", 3, 12),
+  crop("watermelon", "여름수박", "summer", 10, 95, 280, 0x5daa62, "melon"),
+  crop("lavender", "보랏빛라벤더", "summer", 7, 42, 125, 0x9a7dc7, "flower", 4, 5),
+  crop("rubybeet", "루비비트", "autumn", 5, 30, 92, 0xb84f69, "root"),
+  crop("chrysanthemum", "황금국화", "autumn", 7, 45, 145, 0xe7b84b, "flower", 0, 5),
+  crop("scarletbean", "노을콩", "autumn", 7, 50, 72, 0xc86f5a, "berry", 3, 12),
+  crop("icelettuce", "얼음상추", "winter", 5, 28, 82, 0xa9c8b2, "leaf"),
+  crop("snowpea", "눈완두", "winter", 6, 36, 64, 0x9bc7b0, "berry", 3, 10),
+  crop("frostflower", "서리꽃", "winter", 7, 48, 155, 0xd3d8f4, "flower", 0, 5),
 ];
 export interface ForageDef {
   id: string;
