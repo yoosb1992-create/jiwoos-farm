@@ -145,6 +145,7 @@ export interface ObjectProperties {
   group?: string;
   bridge?: boolean;
   tree?: {
+    planted?: boolean;
     species: string;
     stage: number;
     chop: boolean;

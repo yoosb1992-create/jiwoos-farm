@@ -1,3 +1,4 @@
+import { TREE_SPECIES, DEBRIS, GARDEN_FLOWERS, treeSprite, inferSpecies, treeSeasonScale, treeRootSprite } from "../../shared/nature.js";
 import { ASSETS, type MapObject } from "../../shared/content.js";
 import { PAINTED_SPRITES, visualSize, foliageColor } from "../../shared/art-assets.js";
 import type { SeasonKey } from "../../shared/world2.js";
@@ -5,6 +6,7 @@ import type { Stamp } from "./model.js";
 import { terrainCode, ZONES, tileHash } from "../../shared/world2.js";
 export const uid = () => crypto.randomUUID().replaceAll("-", "").slice(0, 16);
 export const category = (id: string) =>
+  id.startsWith("tree") ? "Trees" : /flower|crop_.*_mature/.test(id) ? "Flowers" : id.startsWith("farm_") ? "Nature" :
   /bridge|reed|lily|water_rock/.test(id)
     ? "Water"
     : /house|store|shed|coop|cafe|workshop/.test(id)
@@ -14,6 +16,9 @@ export const category = (id: string) =>
         : /tree|bush|flower|grass|rock|mushroom|shrub|fern/.test(id)
           ? "Nature"
           : "Farm";
+export const inCategory = (id: string, requested: string) =>
+  requested === "전체" || category(id) === requested ||
+  (requested === "Nature" && DEBRIS.some(d => d.id === id));
 const labels: Record<string, string> = {
   tree: "큰 나무",
   tree_pine: "소나무",
@@ -48,8 +53,12 @@ const labels: Record<string, string> = {
   decor_board: "안내판",
   decor_scarecrow: "허수아비",
 };
-export const label = (id: string) => PAINTED_SPRITES[id]?.name ?? labels[id] ?? id.replaceAll("_", " ");
+export const label = (id: string) => TREE_SPECIES.find(t=>t.id===id)?.name ?? DEBRIS.find(d=>d.id===id)?.name ?? GARDEN_FLOWERS.find(f=>f.id===id)?.name ?? PAINTED_SPRITES[id]?.name ?? labels[id] ?? id.replaceAll("_", " ");
 export const CATALOG = [
+  ...TREE_SPECIES.map(t=>t.id),
+  ...DEBRIS.map(d=>d.id),
+  ...GARDEN_FLOWERS.map(f=>f.id),
+  ...["pinktulip","lavender","chrysanthemum","sunwheel","frostflower","dewflower","winterstar"].map(c=>`crop_${c}_mature`),
   ...Object.keys(PAINTED_SPRITES),
   ...Object.keys(ASSETS).filter(
     (id) =>
@@ -64,7 +73,7 @@ export const CATALOG = [
   "mushroom",
   "decor_board",
   "decor_scarecrow",
-].filter((v, i, a) => a.indexOf(v) === i);
+].filter((v, i, a) => a.indexOf(v) === i && !/^tree_.*_(seedling|young|mature|giant|guardian|summer|autumn|winter)$/.test(v));
 export function objectFor(assetId: string, x: number, y: number): MapObject {
   const c = category(assetId),
     o: MapObject = {
@@ -82,12 +91,13 @@ export function objectFor(assetId: string, x: number, y: number): MapObject {
   } else if (assetId.startsWith("tree")) {
     o.kind = "tree";
     o.tree = {
-      species: assetId,
+      species: inferSpecies(assetId),
+      planted: false,
       stage: 2,
       chop: true,
       stump: false,
       regrow: false,
-      drop: "wood",
+      drop: "",
     };
   } else if (c === "Buildings") {
     o.width = 7;
@@ -97,10 +107,26 @@ export function objectFor(assetId: string, x: number, y: number): MapObject {
   } else if (assetId === "storage_chest") o.kind = "chest";
   else if (assetId === "crafting_table") o.kind = "craft";
   else if (assetId === "stone_well") o.kind = "well";
+  const debris=DEBRIS.find(d=>d.id===assetId);
+  if(debris) o.kind=debris.kind;
   return o;
 }
 export const images = new Map<string, HTMLImageElement>();
 const seasonalImages = new Map<string, HTMLCanvasElement>();
+const rootImages = new Map<string, HTMLCanvasElement>();
+function rootImage(id: string, ready: () => void) {
+  const image=spriteImage(id,ready);
+  if(!image?.complete || !image.naturalWidth)return;
+  let canvas=rootImages.get(id);
+  if(canvas)return canvas;
+  canvas=document.createElement("canvas");canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+  const ctx=canvas.getContext("2d")!,fade=ctx.createLinearGradient(0,0,0,canvas.height);
+  ctx.drawImage(image,0,0);
+  fade.addColorStop(0,"transparent");fade.addColorStop(.78,"transparent");
+  fade.addColorStop(.9,"black");fade.addColorStop(1,"black");
+  ctx.globalCompositeOperation="destination-in";ctx.fillStyle=fade;ctx.fillRect(0,0,canvas.width,canvas.height);
+  rootImages.set(id,canvas);return canvas;
+}
 function seasonImage(id: string, image: HTMLImageElement, season: SeasonKey) {
   const color = foliageColor(id, season);
   if (color === 0xffffff) return image;
@@ -146,15 +172,15 @@ export function drawObject(
   alpha = 1,
   season: SeasonKey = "spring",
 ) {
-  const art = o.tree?.stump ? "stump" : o.assetId;
+  const art = o.tree?.stump ? "stump" : o.tree ? treeSprite(inferSpecies(o.tree.species),o.tree.stage,season) : o.assetId.startsWith("tree") ? treeSprite(inferSpecies(o.assetId),2,season) : o.assetId;
   const a = ASSETS[art],
     img = spriteImage(art, ready),
     fw = a?.source?.frameWidth ?? img?.naturalWidth ?? 64,
     fh = a?.source?.frameHeight ?? img?.naturalHeight ?? 96;
-  const stage = o.tree ? ([0.3, 0.55, 1, 1.3, 1.6][o.tree.stage] ?? 1) : 1;
+  const stage = o.tree && !o.tree.stump ? treeSeasonScale(inferSpecies(o.tree.species),o.tree.stage,season) : 1;
   const logical = visualSize(a, o.scale),
-    w = (o.width ?? (logical.width * stage) / 32) * zoom,
-    h = (o.height ?? (logical.height * stage) / 32) * zoom,
+    w = (o.tree ? logical.width * stage / 32 : o.width ?? logical.width / 32) * zoom,
+    h = (o.tree ? logical.height * stage / 32 : o.height ?? logical.height / 32) * zoom,
     origin = o.bridge ? { x: 0.5, y: 0.5 } : (a?.origin ?? { x: 0.5, y: 0.8 });
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -204,6 +230,14 @@ export function drawObject(
         ctx.lineTo(i * zoom * 0.25, -zoom * 1.3);
         ctx.stroke();
       }
+    }
+  }
+  const rootId=o.tree && !o.tree.stump ? treeRootSprite(inferSpecies(o.tree.species),o.tree.stage,season) : undefined;
+  if(rootId) {
+    const root=rootImage(rootId,ready), size=visualSize(ASSETS[rootId],o.scale);
+    if(root) {
+      const rw=size.width/32*zoom,rh=size.height/32*zoom;
+      ctx.drawImage(root,-rw*.5,-rh*.94,rw,rh);
     }
   }
   ctx.restore();

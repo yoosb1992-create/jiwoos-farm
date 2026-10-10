@@ -1,3 +1,5 @@
+import { DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, TREE_SPECIES, treeHp } from "./nature.js";
+import { initializeTree, naturalPlacement, fencedInterior } from "./nature-world.js";
 import { cell, hasZone, tileHash } from "./world2.js";
 import { TILE, mapFor } from "./content.js";
 import { calendar, FORAGE } from "./expansion.js";
@@ -5,7 +7,7 @@ import type { FishingChallenge } from "./fishing.js";
 import { defaultLayout, legacyLayout, type WorldLayout } from "./layout.js";
 import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
-export const WORLD_VERSION = 3;
+export const WORLD_VERSION = 4;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
 export const ACTION_RANGE = 64;
@@ -29,6 +31,14 @@ export interface Member {
   collections?: Record<string, number>;
 }
 export interface Entity {
+  species?: string;
+  treeBornDay?: number;
+  treeStageDay?: number;
+  treeLastGrowthDay?: number;
+  planted?: boolean;
+  chopEnabled?: boolean;
+  regrow?: boolean;
+  treeDrop?: string;
   id: string;
   area: string;
   kind: string;
@@ -45,6 +55,8 @@ export interface Entity {
   owner: string;
 }
 export interface World {
+  natureCleared?: Record<string, number>;
+  debrisDay?: number;
   initialWorldVersion?: number;
   blueprintId?: string;
   layout?: WorldLayout;
@@ -136,6 +148,8 @@ export function newMember(id: string, nickname: string, day = 1): Member {
         : calendar(day).season === "autumn"
           ? "morningcarrot_seed"
           : "snowradish_seed"]: 12,
+      pine_cone: 2,
+      acorn: 2,
       animal_feed: 8,
       decor_planter: 2,
       stamina_biscuit: 5,
@@ -159,61 +173,28 @@ export function random(seed: number): () => number {
   };
 }
 
-function seedFarmDebris(world: World, rng: () => number): void {
+export function seedFarmDebris(world: World, rng: () => number): void {
   const map = world.layout?.maps?.farm;
-  if (!map?.world2) return;
-
-  const existing = Object.values(world.entities).filter(
-    (e) => e.area === "farm" && e.id.startsWith("farmdebris-"),
-  );
-  const target = world.day === 1 ? 30 : Math.min(42, existing.length + 5);
-  if (existing.length >= target) return;
-
-  const occupied = (x: number, y: number) =>
-    Object.values(world.entities).some((e) => {
-      if (e.area !== "farm") return false;
-      const tx = Math.floor(e.x / TILE), ty = Math.floor(e.y / TILE);
-      return tx === x && ty === y;
-    });
-
-  let attempts = 0, serial = existing.length;
-  while (serial < target && attempts++ < 4000) {
-    const x = 2 + Math.floor(rng() * Math.max(1, map.width - 4));
-    const y = 2 + Math.floor(rng() * Math.max(1, map.height - 4));
-    if (
-      !hasZone(map, "farmable", x, y) ||
-      occupied(x, y) ||
-      collidesWithObstacle((x + 0.5) * TILE, (y + 0.5) * TILE, "farm", world.layout!.maps)
-    ) continue;
-
-    const roll = rng();
-    const id = "farmdebris-" + world.day + "-" + serial + "-" + x + "-" + y;
-    if (roll < 0.42) {
-      const e = entity(id, "farm", "twig", (x + 0.5) * TILE, (y + 0.5) * TILE,
-        rng() < 0.5 ? "farm_twig_a" : "farm_twig_b");
-      e.hp = 1;
-      e.item = "wood";
-      world.entities[id] = e;
-    } else if (roll < 0.78) {
-      const e = entity(id, "farm", "rock", (x + 0.5) * TILE, (y + 0.5) * TILE,
-        rng() < 0.5 ? "farm_stone_a" : "farm_stone_b");
-      e.hp = 1;
-      e.item = "stone";
-      world.entities[id] = e;
-    } else {
-      const e = entity(id, "farm", "gather", (x + 0.5) * TILE, (y + 0.5) * TILE,
-        roll < 0.9 ? "farm_weed" : "farm_wildflower");
-      e.item = roll < 0.9 ? "wild_herb" : "dawn_petals";
-      world.entities[id] = e;
-    }
-    serial++;
+  if (!map?.world2 || world.debrisDay === world.day) return;
+  world.debrisDay = world.day;
+  const existing = Object.values(world.entities).filter(e => e.area === "farm" && e.id.startsWith("farmdebris-")).length;
+  const target = world.day === 1 ? DEBRIS_FIRST : Math.min(DEBRIS_MAX, existing + 2 + Math.floor(rng()*5));
+  const enclosed = fencedInterior(world,"farm");
+  for(const [k,d] of Object.entries(world.natureCleared??{})) if(world.day-d>=7)delete world.natureCleared![k];
+  let count=existing;
+  for(let attempt=0;count<target && attempt<4000;attempt++) {
+    const x=2+Math.floor(rng()*(map.width-4)), y=2+Math.floor(rng()*(map.height-4));
+    if(!naturalPlacement(world,"farm",x,y,"debris",enclosed))continue;
+    const d=DEBRIS[Math.floor(rng()*DEBRIS.length)]!;
+    const id=`farmdebris-${world.day}-${++world.nextEntity}`;
+    const e=entity(id,"farm",d.kind,(x+.5)*TILE,(y+.5)*TILE,d.id);
+    e.hp=1; e.item=d.item; world.entities[id]=e; count++;
   }
 }
 export function generateDaily(world: World): void {
   for (const [id, e] of Object.entries(world.entities))
     if (
-      e.area === "forest" ||
-      e.area.startsWith("mine") ||
+      (!e.planted && ((e.area === "forest" && e.kind !== "tree" && e.kind !== "stump") || e.area.startsWith("mine"))) ||
       id.startsWith("zoneforage-")
     )
       delete world.entities[id];
@@ -222,8 +203,14 @@ export function generateDaily(world: World): void {
     f.seasons.includes(calendar(world.day).season),
   );
   seedFarmDebris(world, rng);
+  // Natural forest trees age too. Keep occupied resource slots across days;
+  // only a fully cleared slot receives a new natural tree the next morning.
+  const forestSlots = new Set(Object.values(world.entities)
+    .filter(e => e.area === "forest" && (e.kind === "tree" || e.kind === "stump"))
+    .map(e => /^forest-\d+-(\d+)$/.exec(e.id)?.[1]));
   for (let i = 0; i < 28; i++) {
     const kind = i < 12 ? "tree" : i < 20 ? "gather" : "rock";
+    if (kind === "tree" && forestSlots.has(String(i))) continue;
     const e = entity(
       `forest-${world.day}-${i}`,
       "forest",
@@ -242,6 +229,7 @@ export function generateDaily(world: World): void {
         ? forage[Math.floor(rng() * forage.length)]!.id
         : "stone";
     if (kind === "gather") e.asset = forage.find((f) => f.id === e.item)!.asset;
+    if (kind === "tree") { e.stage=2; e.species=TREE_SPECIES[i % TREE_SPECIES.length]!.id; e.regrow=true; initializeTree(world,e); }
     placeDaily(world, e);
   }
   for (let floor = 1; floor <= 5; floor++)
@@ -293,21 +281,7 @@ export function generateDaily(world: World): void {
         }
     }
   seedFixtures(world, true);
-  for (const map of Object.values(world.layout?.maps ?? {}))
-    for (const o of map.objects)
-      if (o.tree?.regrow && o.kind === "tree" && !world.entities[o.id]) {
-        const e = entity(
-          o.id,
-          map.id,
-          "tree",
-          o.position.tileX * TILE,
-          o.position.tileY * TILE,
-          o.assetId,
-        );
-        e.hp = 3;
-        e.stage = o.tree.stage;
-        world.entities[e.id] = e;
-      }
+
 }
 function placeDaily(w: World, e: Entity): void {
   const maps = w.layout?.maps ?? defaultLayout().maps,
@@ -340,6 +314,7 @@ export function newWorld(
 ): World {
   const w: World = {
     version: WORLD_VERSION,
+    debrisDay: 0,
     initialWorldVersion: layout.worldVersion ?? 0,
     ...(layout.blueprintId ? { blueprintId: layout.blueprintId } : {}),
     revision: 0,
@@ -373,13 +348,17 @@ function seedFixtures(w: World, daily: boolean): void {
           o.assetId,
         );
         if (e.kind === "tree") {
-          e.hp = 3;
           e.stage = o.tree?.stage ?? 2;
+          e.hp = treeHp(e.stage);
+          initializeTree(w,e,o);
           if (o.tree?.stump) {
             e.kind = "stump";
             e.asset = "stump";
+            e.hp = 3;
           }
         }
+        const debris = DEBRIS.find(d => d.id === o.assetId);
+        if(debris) { e.kind=debris.kind; e.hp=1; e.item=debris.item; }
         if (e.kind === "animal")
           e.crop = o.assetId.includes("cow")
             ? "cow"
@@ -439,5 +418,13 @@ export function upgradeWorld(w: World): void {
   }
   // Missing snapshots belong to legacy families, never opt them into new maps.
   w.layout ??= legacyLayout();
+  for(const e of Object.values(w.entities)) if(e.kind==="tree" || e.kind==="stump") {
+    const o=w.layout.maps[e.area]?.objects.find(o=>o.id===e.id);
+    // Old unannotated entities used stage=0 as an unrelated default, yet rendered mature.
+    if(!e.species && !o?.tree && w.version<4) e.stage=2;
+    if(e.stage===undefined)e.stage=2;
+    initializeTree(w,e,o);
+  }
+  w.debrisDay ??= w.day;
   w.version = WORLD_VERSION;
 }

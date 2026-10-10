@@ -177,11 +177,12 @@ test("17/18 parser ignores state injection and rejects malformed payloads", () =
   ])
     assert.throws(() => parseCommand(v));
 });
-test("19/20/21 all online votes advance shared day and reset deterministic forest", () => {
+test("19/20/21 all online votes advance shared day, preserve trees and refresh deterministic forage", () => {
   const { w, a } = setup();
   const votes = new Set<string>(),
     ctx = { now: 0, online: ["a", "b"], votes };
   const ids = Object.keys(w.entities).filter((id) => id.startsWith("forest"));
+  const trees = new Set(ids.filter(id => w.entities[id]!.kind === "tree"));
   applyAction(w, a, { actionId: "vote-a-01", type: "sleepVote" }, ctx);
   assert.equal(w.day, 1);
   applyAction(
@@ -191,7 +192,7 @@ test("19/20/21 all online votes advance shared day and reset deterministic fores
     ctx,
   );
   assert.equal(w.day, 2);
-  assert.ok(ids.every((id) => !w.entities[id]));
+  assert.ok(ids.every((id) => trees.has(id) ? w.entities[id]?.treeLastGrowthDay === 2 : !w.entities[id]));
   assert.ok(Object.keys(w.entities).some((id) => id.startsWith("forest-2")));
   assert.equal(votes.size, 0);
 });

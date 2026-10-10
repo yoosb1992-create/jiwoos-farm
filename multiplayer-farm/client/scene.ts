@@ -1,3 +1,4 @@
+import { treeSprite, inferSpecies, treeSeasonScale, treeRootSprite, TREE_STAGES } from "../shared/nature.js";
 import { SceneTerrain } from "./world/scene-terrain.js";
 import { TERRAIN_ART, visualSize, foliageColor } from "../shared/art-assets.js";
 import { installMaterial } from "./world/painted-materials.js";
@@ -33,6 +34,7 @@ interface View {
   label: Phaser.GameObjects.Text;
   /** Tilled-soil underlay kept beneath crops so planting never replaces the soil. */
   ground?: Phaser.GameObjects.Sprite;
+  roots?: Phaser.GameObjects.Sprite;
   x: number;
   y: number;
 }
@@ -144,6 +146,7 @@ export class FarmScene extends Phaser.Scene {
     this.chunkTerrain = undefined;
     for (const v of this.objects.values()) {
       v.ground?.destroy();
+      v.roots?.destroy();
       v.body.destroy();
       v.label.destroy();
     }
@@ -230,7 +233,9 @@ export class FarmScene extends Phaser.Scene {
       const id = `static-${o.id}`;
       ids.add(id);
       let v = this.objects.get(id);
-      if (!v) v = this.staticObject(id, o.assetId, x, y, o.label ?? "");
+      const art=o.assetId.startsWith("tree") ? treeSprite(inferSpecies(o.tree?.species||o.assetId),o.tree?.stage??2,this.season) : o.assetId;
+      if (!v) v = this.staticObject(id, art, x, y, o.label ?? "");
+      else if(v.body.texture.key!==art) {v.body.setTexture(this.textured(art));this.sizeObject(v.body,art,o.scale);}
       if (o.width && o.height)
         v.body.setDisplaySize(o.width * TILE, o.height * TILE);
       else if (o.scale) this.sizeObject(v.body, o.assetId, o.scale);
@@ -397,7 +402,8 @@ export class FarmScene extends Phaser.Scene {
       ids.add(id);
       let asset = e.asset,
         label = "";
-      if (e.kind === "crop") {
+      if(e.kind === "tree") { asset=treeSprite(e.species || inferSpecies(e.asset,e.id),e.stage,this.season); label=Math.hypot(e.x-me.x,e.y-me.y)<80 ? `${TREE_STAGES[e.stage]} · ${e.hp}타` : ""; }
+      else if (e.kind === "crop") {
         asset = `crop_${e.crop}_${e.stage === 0 ? "seed" : e.stage >= (CROPS[e.crop]?.growthDays ?? 3) ? "mature" : e.stage === 1 ? "sprout" : "growing"}`;
       } else if (e.kind === "withered") {
         asset = "crop_morningcarrot_growing";
@@ -426,13 +432,29 @@ export class FarmScene extends Phaser.Scene {
       v.body
         .setTexture(this.textured(asset))
         .setDepth(e.kind === "crop" || e.kind === "soil" ? e.y - 100 : e.y);
-      if (changedTexture) this.sizeObject(v.body, asset);
+      if (changedTexture) { this.sizeObject(v.body, asset); const origin=ASSETS[asset]?.origin; if(origin)v.body.setOrigin(origin.x,origin.y); }
+      if(e.kind === "tree") this.sizeObject(v.body,asset,(authored?.scale??1)*treeSeasonScale(e.species||inferSpecies(e.asset,e.id),e.stage,this.season));
+      const roots = e.kind === "tree" ? treeRootSprite(e.species||inferSpecies(e.asset,e.id),e.stage,this.season) : undefined;
+      if (roots) {
+        const key=`roots-${roots}`;
+        if(!this.textures.exists(key)) {
+          const source=this.textures.get(roots).getSourceImage() as HTMLImageElement;
+          const texture=this.textures.createCanvas(key,source.width,source.height)!;
+          const ctx=texture.context, fade=ctx.createLinearGradient(0,0,0,source.height);
+          ctx.drawImage(source,0,0);
+          fade.addColorStop(0,"transparent");fade.addColorStop(.78,"transparent");
+          fade.addColorStop(.9,"black");fade.addColorStop(1,"black");
+          ctx.globalCompositeOperation="destination-in";ctx.fillStyle=fade;
+          ctx.fillRect(0,0,source.width,source.height);texture.refresh();
+        }
+        v.roots ??= this.add.sprite(e.x,e.y,key);
+        v.roots.setTexture(key).setPosition(e.x,e.y)
+          .setOrigin(.5,.94).setAngle(authored?.rotation??0).setDepth(e.y+(authored?.depth??0)+.1);
+        this.sizeObject(v.roots,roots,authored?.scale??1);
+      } else if (v.roots) {v.roots.destroy();v.roots=undefined;}
       if (authored) {
-        if (authored.width && authored.height)
+        if (e.kind!=="tree" && e.kind!=="stump" && authored.width && authored.height)
           v.body.setDisplaySize(authored.width * TILE, authored.height * TILE);
-        else if (authored.tree)
-          this.sizeObject(v.body, asset, (authored.scale ?? ASSETS[asset]?.displayScale?.x ?? 1) *
-            ([0.3, 0.55, 1, 1.3, 1.6][authored.tree.stage] ?? 1));
         v.body
           .setAngle(authored.rotation ?? 0)
           .setDepth(e.y + (authored.depth ?? 0));
@@ -483,6 +505,8 @@ export class FarmScene extends Phaser.Scene {
         !id.startsWith("warp-") &&
         !ids.has(id)
       ) {
+        v.ground?.destroy();
+        v.roots?.destroy();
         v.body.destroy();
         v.label.destroy();
         this.objects.delete(id);

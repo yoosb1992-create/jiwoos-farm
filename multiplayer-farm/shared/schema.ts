@@ -48,6 +48,12 @@ export const WorldEntity = schema(
     quantity: t.uint16(),
     readyAt: t.float64(),
     owner: t.string(),
+    species: t.string().default(""),
+    planted: t.boolean().default(false),
+    chopEnabled: t.boolean().default(true),
+    regrow: t.boolean().default(false),
+    treeDrop: t.string().default(""),
+    treeStageDay: t.uint32().default(1),
   },
   "FarmEntity",
 );

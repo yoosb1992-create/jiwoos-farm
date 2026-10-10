@@ -1,3 +1,4 @@
+import { TREE_SPECIES, plantingTree } from "../shared/nature.js";
 import { inRect } from "../shared/world2.js";
 import { worldNpcSchedule } from "../shared/world2-runtime.js";
 import { CLIENT_MAPS as NPC_MAPS } from "./layout.js";
@@ -281,6 +282,8 @@ function renderPanel(): void {
           ),
         ],
       );
+    row("나무 씨앗과 묘목 · 빈 잔디에 심어요");
+    for(const t of TREE_SPECIES.filter(t=>t.seedPrice>0)) row(`${t.seedName} · ${t.seedPrice} G`,[button("구매",()=>send("buyItem",{itemId:t.seed}))]);
     for (const [id, price] of [
       ["stamina_biscuit", 10],
       ["animal_feed", 8],
@@ -423,6 +426,7 @@ function refreshTools(): void {
         c.seedItemId,
         `${c.name} 씨앗 ×${inventory[c.seedItemId]}`,
       ]);
+  for(const t of TREE_SPECIES) if(inventory[t.seed]) choices.push([t.seed, `${t.seedName} ×${inventory[t.seed]}`]);
   const select = el<HTMLSelectElement>("tool");
   select.replaceChildren();
   for (const [id, text] of choices) {
@@ -488,6 +492,7 @@ function act(): void {
   if (event && selected === "hand")
     return send("worldEvent", { targetId: event.id });
   if (selected === "hoe") return send("tillTile", tile);
+  if (plantingTree(selected)) return send("plantTree", {...tile,itemId:selected});
   if (selected.endsWith("_seed"))
     return send("plantSeed", { ...tile, itemId: selected });
   if (selected === "water") {
@@ -497,6 +502,8 @@ function act(): void {
       : send("waterCrop", tile);
   }
   if (selected === "axe") {
+    const twig=nearest("twig");
+    if(twig) return send("clearTwig",{targetId:twig.id});
     const e = nearest("tree") ?? nearest("stump");
     if (e) send("hitTree", { targetId: e.id });
     else notice("앞쪽 나무에 더 가까이 가세요");
@@ -558,6 +565,9 @@ function act(): void {
   notice("도구를 선택하거나 입구·주민·보관함 가까이에서 행동하세요");
 }
 function touchAct(t: TouchTarget): void {
+  if(t.kind === "ground" && t.signature && plantingTree(t.signature)) {
+    send("plantTree", {tileX:Math.floor(t.x/TILE),tileY:Math.floor(t.y/TILE),itemId:t.signature}); return;
+  }
   if (t.kind === "ground" && t.signature === "hoe") {
     selectTool("hoe");
     send("tillTile", {
@@ -950,7 +960,7 @@ el("arena").addEventListener(
           renderer.scene.pickWorld(e.clientX, e.clientY),
           me,
           network.state,
-          selected === "hoe" ? "hoe" : undefined,
+          selected === "hoe" ? "hoe" : plantingTree(selected) ? selected : undefined,
         );
     }
     pointers.delete(e.pointerId);

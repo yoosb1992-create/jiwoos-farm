@@ -1,3 +1,4 @@
+import { TREE_SPECIES, NATURE_MATERIALS } from "../../shared/nature.js";
 import "./style.css";
 import { html } from "./ui.js";
 import {
@@ -45,6 +46,7 @@ import {
 import {
   CATALOG,
   category,
+  inCategory,
   label,
   objectFor,
   drawObject,
@@ -1276,7 +1278,7 @@ function palette() {
     cat = val("category"),
     all = CATALOG.filter(
       (id) =>
-        (cat === "전체" || category(id) === cat) &&
+        inCategory(id, cat) &&
         label(id).toLowerCase().includes(q) &&
         (paletteTab === "all" ||
           (paletteTab === "favorite" ? favorites : recent).includes(id)),
@@ -1301,6 +1303,9 @@ function palette() {
         fh = a?.frameSize?.height ?? 96, fit = Math.min(78 / fw, 62 / fh);
       o.width = fw * fit / 16;
       o.height = fh * fit / 16;
+      // Stage-aware trees use their logical size instead of authored width/height.
+      // Fit that same sizing path to the thumbnail, including seasonal previews.
+      if (o.tree) o.scale = fit * 2;
       const origin = o.bridge ? { x: .5, y: .5 } : (a?.origin ?? { x: .5, y: .8 });
       drawObject(c2, o, (90 - fw * fit) / 2 + fw * fit * origin.x,
         (72 - fh * fit) / 2 + fh * fit * origin.y, 16, draw);
@@ -1432,7 +1437,7 @@ function inspector() {
             "species",
             "나무 종류",
             o.tree.species,
-            CATALOG.filter((s) => s.startsWith("tree")).map((s) => [
+            TREE_SPECIES.map(t=>t.id).map((s) => [
               s,
               label(s),
             ]),
@@ -1448,14 +1453,13 @@ function inspector() {
           ) +
           toggle("chop", "벌목 가능", o.tree.chop) +
           toggle("stump", "그루터기", o.tree.stump) +
-          toggle("regrow", "매일 재생", o.tree.regrow) +
+          toggle("regrow", "그루터기 7일 후 재성장", o.tree.regrow) +
+          toggle("planted", "플레이어가 심은 나무", o.tree.planted ?? false) +
           select(
             "drop",
             "드랍",
             o.tree.drop,
-            ["wood", "stone", "pine_cone", "pine_needles"]
-              .filter((s) => ITEMS[s])
-              .map((s) => [s, ITEMS[s]!.name]),
+            [["", "수종 기본 드랍"], ...["wood", "pine_needles", ...TREE_SPECIES.map(t=>t.seed), ...Object.keys(NATURE_MATERIALS)].map(s=>[s,ITEMS[s]!.name] as [string,string])],
           )
         : "") +
       (o.building
@@ -1612,6 +1616,7 @@ function applyProperties() {
           chop: check("prop-chop"),
           stump: check("prop-stump"),
           regrow: check("prop-regrow"),
+          planted: check("prop-planted"),
           drop: val("prop-drop"),
         };
       if (next.tree && ASSETS[next.tree.species])

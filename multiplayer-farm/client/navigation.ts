@@ -46,7 +46,7 @@ export class TouchNavigator {
     },
     me: RenderPlayer,
     state: FarmState,
-    groundAction?: "hoe",
+    groundAction?: string,
   ): void {
     this.cancel();
     const map = mapFor(me.area),
@@ -161,7 +161,7 @@ export class TouchNavigator {
       this.cancel();
       return stop;
     }
-    const groundAction = t.kind === "ground" && t.signature === "hoe";
+    const groundAction = t.kind === "ground" && !!t.signature;
     const tileTarget =
       groundAction ||
       (t.kind === "entity" &&

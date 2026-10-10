@@ -1,3 +1,5 @@
+import { TREES, plantingTree, natureRoll } from "./nature.js";
+import { initializeTree, growTrees, naturalPlacement, markCleared } from "./nature-world.js";
 import { placementAllowed, inRect } from "./world2.js";
 import { worldNpcSchedule } from "./world2-runtime.js";
 import {
@@ -48,6 +50,7 @@ const TYPES = new Set([
   "worldEvent",
   "tillTile",
   "plantSeed",
+  "plantTree",
   "waterCrop",
   "harvestCrop",
   "hitTree",
@@ -177,6 +180,7 @@ export function nextDay(w: World): void {
     m.water = 30;
     delete m.fishing;
   }
+  growTrees(w);
   generateDaily(w);
 }
 export function applyAction(
@@ -311,7 +315,9 @@ export function applyAction(
         !w.entities[t.id] || w.entities[t.id]!.kind === "withered",
         "이미 경작한 밭",
       );
+      requireThat(!Object.values(w.entities).some(e => e.area===a.area && e.id!==t.id && Math.floor(e.x/TILE)===Math.floor(t.x/TILE) && Math.floor(e.y/TILE)===Math.floor(t.y/TILE)), "먼저 자연물이나 설치물을 치우세요");
       spend(2);
+      markCleared(w,t);
       w.entities[t.id] = entity(
         t.id,
         t.area,
@@ -320,6 +326,19 @@ export function applyAction(
         t.y,
         "tile_farm_empty",
       );
+      break;
+    }
+    case "plantTree": {
+      requireThat(!a.running, "달리는 동안 나무를 심을 수 없습니다");
+      const t=frontTile(a), tree=plantingTree(c.itemId);
+      requireThat(tree, "나무 씨앗 또는 묘목을 선택하세요");
+      requireThat((c.tileX??t.tileX)===t.tileX && (c.tileY??t.tileY)===t.tileY, "앞칸에서만 사용할 수 있습니다");
+      requireThat(naturalPlacement(w,a.area,t.tileX,t.tileY,"tree"), "빈 자연 잔디에 심으세요. 길·밭·시설·출입구와 다른 나무에서는 떨어져야 합니다");
+      own(tree.seed); spend(1); change(m.inventory,tree.seed,-1);
+      const e=entity(`planted-tree-${++w.nextEntity}`,a.area,"tree",(t.tileX+.5)*TILE,(t.tileY+.5)*TILE,tree.id);
+      e.species=tree.id; e.stage=0; e.hp=1; e.owner=a.id;
+      initializeTree(w,e,undefined,true); w.entities[e.id]=e;
+      result.message=`${tree.name} 새싹을 심었어요`;
       break;
     }
     case "plantSeed": {
@@ -387,26 +406,25 @@ export function applyAction(
       own("axe");
       const e = target();
       requireThat(e.kind === "tree" || e.kind === "stump", "나무가 아닙니다");
+      initializeTree(w,e,authored);
+      requireThat(e.chopEnabled!==false,"이 나무는 벌목할 수 없습니다");
       front(e);
       spend(3);
-      e.hp -= m.toolLevel >= 2 ? 2 : 1;
+      e.hp -= e.kind==="stump" ? 1 : m.toolLevel >= 2 ? 2 : 1;
       if (e.hp <= 0) {
         if (e.kind === "tree") {
-          addDrop(
-            w,
-            e,
-            authored?.tree?.drop && ITEMS[authored.tree.drop]
-              ? authored.tree.drop
-              : "wood",
-            1,
-          );
-          addDrop(w, e, "pine_needles", 1);
-          addDrop(w, e, "pine_cone", 1);
+          const tree=TREES[e.species!]!;
+          const drops=e.stage<2 ? [{item:tree.seed,chance:1}] : tree.drops;
+          for(const d of drops) if(natureRoll(w.seed,w.day,e.id,`drop-${d.item}`)<d.chance)
+            addDrop(w,e,d.item === tree.drops[0]!.item && e.treeDrop && ITEMS[e.treeDrop] ? e.treeDrop : d.item,1);
           e.kind = "stump";
           e.asset = "stump";
           e.hp = 3;
+          e.treeStageDay=w.day;
+          e.treeLastGrowthDay=w.day;
         } else {
-          addDrop(w, e, "wood", 1);
+          addDrop(w, e, e.species === "tree_bamboo" ? "bamboo" : "wood", 1);
+          markCleared(w,e);
           delete w.entities[e.id];
         }
         m.xp += 5;
@@ -421,6 +439,7 @@ export function applyAction(
       e.hp -= m.toolLevel >= 2 ? 2 : 1;
       if (e.hp <= 0) {
         addDrop(w, e, e.item || "stone", 1);
+        markCleared(w,e);
         delete w.entities[e.id];
         m.xp += e.id.startsWith("farmdebris-") ? 1 : 5;
         if (!e.id.startsWith("farmdebris-"))
@@ -446,6 +465,7 @@ export function applyAction(
       front(e);
       spend(1);
       addDrop(w, e, e.item || "wood", 1);
+      markCleared(w,e);
       delete w.entities[e.id];
       m.xp += 1;
       break;
@@ -454,6 +474,7 @@ export function applyAction(
       const e = target("gather");
       spend(1);
       addDrop(w, e, e.item, 1);
+      markCleared(w,e);
       delete w.entities[e.id];
       break;
     }
@@ -635,6 +656,7 @@ export function applyAction(
         const decor = DECORATIONS[c.itemId as keyof typeof DECORATIONS];
         const costEach =
           crop?.seedPrice ??
+          (plantingTree(c.itemId)?.seedPrice || undefined) ??
           decor?.price ??
           (
             {

@@ -1,0 +1,93 @@
+[
+  {
+    "id": "cherry",
+    "prompt": "Use case: stylized-concept. Asset type: ONE eight-frame tree sprite atlas, original warm painted family farm RPG, 3/4 top-down, upper-left sunlight, lush gouache detail, clear silhouette. TRUE transparent background. Strict grid 4 columns x 2 rows, eight separated sprites. Each sprite must stay inside its own equal cell with at least 12% transparent padding on all sides, no touching neighbors. All full trees visible, no ground/island/text/labels/border. Top row left to right: seedling; young sapling (thin trunk and sparse branches); mature tree; giant old tree (extra boughs). Bottom row: guardian ancient tree (buttress roots, grand complex crown, few golden motes); SUMMER mature; AUTUMN mature; WINTER mature. Five growth silhouettes visibly distinct, never copies. CHERRY tree. Pink blossoms on stages 2,3,4. Delicate branching dark chestnut trunk, umbrella crown. Summer green leaves without pink flowers, autumn amber leaves, winter bare graceful branches.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "699a1b24f9c1bbc2e31b6b64af216d4deedbf83982e0a2c5601e270baba9c493"
+  },
+  {
+    "id": "pine",
+    "prompt": "Use case: stylized-concept. Asset type: ONE eight-frame tree sprite atlas, original warm painted family farm RPG, 3/4 top-down, upper-left sunlight, lush gouache detail, clear silhouette. TRUE transparent background. Strict grid 4 columns x 2 rows, eight separated sprites. Each sprite must stay inside its own equal cell with at least 12% transparent padding on all sides, no touching neighbors. All full trees visible, no ground/island/text/labels/border. Top row left to right: seedling; young sapling (thin trunk and sparse branches); mature tree; giant old tree (extra boughs). Bottom row: guardian ancient tree (buttress roots, grand complex crown, few golden motes); SUMMER mature; AUTUMN mature; WINTER mature. Five growth silhouettes visibly distinct, never copies. PINE evergreen red pine, asymmetrical needle tiers, five growth stages and summer/autumn/winter mature frames.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "d6ca2bb598f23a867a8ba2f64ab8aa69c3df256f8fec924b746a7265f8224ca2"
+  },
+  {
+    "id": "maple",
+    "prompt": "Use case: stylized-concept. Asset type: ONE eight-frame tree sprite atlas, original warm painted family farm RPG, 3/4 top-down, upper-left sunlight, lush gouache detail, clear silhouette. TRUE transparent background. Strict grid 4 columns x 2 rows, eight separated sprites. Each sprite must stay inside its own equal cell with at least 12% transparent padding on all sides, no touching neighbors. All full trees visible, no ground/island/text/labels/border. Top row left to right: seedling; young sapling (thin trunk and sparse branches); mature tree; giant old tree (extra boughs). Bottom row: guardian ancient tree (buttress roots, grand complex crown, few golden motes); SUMMER mature; AUTUMN mature; WINTER mature. Five growth silhouettes visibly distinct, never copies. MAPLE tree. Broad lobed leaves, rounded layered crown, russet trunk. Growth stages green foliage. Summer green, autumn rich scarlet/orange leaves, winter bare branches.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "4010c6df50e6494495f0c8aefe337c7bd848661f533f50e51d76a55bacc7eefd"
+  },
+  {
+    "id": "willow",
+    "prompt": "Use case: stylized-concept. Asset type: ONE eight-frame tree sprite atlas, original warm painted family farm RPG, 3/4 top-down, upper-left sunlight, lush gouache detail, clear silhouette. TRUE transparent background. Strict grid 4 columns x 2 rows, eight separated sprites. Each sprite must stay inside its own equal cell with at least 12% transparent padding on all sides, no touching neighbors. All full trees visible, no ground/island/text/labels/border. Top row left to right: seedling; young sapling (thin trunk and sparse branches); mature tree; giant old tree (extra boughs). Bottom row: guardian ancient tree (buttress roots, grand complex crown, few golden motes); SUMMER mature; AUTUMN mature; WINTER mature. Five growth silhouettes visibly distinct, never copies. WEEPING WILLOW tree. Drooping long curtain branches, light narrow foliage, gnarled trunk. Growth stages spring fresh green. Summer abundant trailing curtains, autumn yellow, winter very sparse leaves with fine hanging bare branches.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "2454d94e82c4d0b8f643aa16c60dee6f1cd3b8a7e33056f51db66eb912dbdc0f"
+  },
+  {
+    "id": "birch",
+    "prompt": "Use case: stylized-concept. Asset type: ONE eight-frame tree sprite atlas, original warm painted family farm RPG, 3/4 top-down, upper-left sunlight, lush gouache detail, clear silhouette. TRUE transparent background. Strict grid 4 columns x 2 rows, eight separated sprites. Each sprite must stay inside its own equal cell with at least 12% transparent padding on all sides, no touching neighbors. All full trees visible, no ground/island/text/labels/border. Top row left to right: seedling; young sapling (thin trunk and sparse branches); mature tree; giant old tree (extra boughs). Bottom row: guardian ancient tree (buttress roots, grand complex crown, few golden motes); SUMMER mature; AUTUMN mature; WINTER mature. Five growth silhouettes visibly distinct, never copies.  Absolutely NO colored fog, no gradient halo, no backdrop, no glow behind sprites. Only opaque tree pixels and fully transparent empty space; no environment. WHITE BIRCH tree: slender white bark with black marks, delicate small green leaves. Ancient form multiple thick white trunks. Summer green, autumn yellow, winter bare white branches. White bark always visible.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "1813df668be2553a667f2840fbe5497d377dc3bd99b637b4665d77f82fcc6b4f"
+  },
+  {
+    "id": "oak",
+    "prompt": "Use case: stylized-concept. Asset type: ONE eight-frame tree sprite atlas, original warm painted family farm RPG, 3/4 top-down, upper-left sunlight, lush gouache detail, clear silhouette. TRUE transparent background. Strict grid 4 columns x 2 rows, eight separated sprites. Each sprite must stay inside its own equal cell with at least 12% transparent padding on all sides, no touching neighbors. All full trees visible, no ground/island/text/labels/border. Top row left to right: seedling; young sapling (thin trunk and sparse branches); mature tree; giant old tree (extra boughs). Bottom row: guardian ancient tree (buttress roots, grand complex crown, few golden motes); SUMMER mature; AUTUMN mature; WINTER mature. Five growth silhouettes visibly distinct, never copies.  Absolutely NO colored fog, no gradient halo, no backdrop, no glow behind sprites. Only opaque tree pixels and fully transparent empty space; no environment. OAK tree: massive broad irregular rounded crown, thick golden brown gnarled trunk, lobed leaves, acorns. Summer deep green, autumn warm brown-orange, winter bare majestic branches.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "38095272ab390deb20d5036033c60e7c3c17b97de0aedb1938989b8e03a0067c"
+  },
+  {
+    "id": "bamboo",
+    "prompt": "Use case: stylized-concept. Asset type: ONE eight-frame tree sprite atlas, original warm painted family farm RPG, 3/4 top-down, upper-left sunlight, lush gouache detail, clear silhouette. TRUE transparent background. Strict grid 4 columns x 2 rows, eight separated sprites. Each sprite must stay inside its own equal cell with at least 12% transparent padding on all sides, no touching neighbors. All full trees visible, no ground/island/text/labels/border. Top row left to right: seedling; young sapling (thin trunk and sparse branches); mature tree; giant old tree (extra boughs). Bottom row: guardian ancient tree (buttress roots, grand complex crown, few golden motes); SUMMER mature; AUTUMN mature; WINTER mature. Five growth silhouettes visibly distinct, never copies.  Absolutely NO colored fog, no gradient halo, no backdrop, no glow behind sprites. Only opaque tree pixels and fully transparent empty space; no environment. BAMBOO grove: segmented green culms with narrow pointed leaves; seedling is a small pointed bamboo shoot; young is one leafy culm; mature several culms; giant tall thicker culms; guardian grand arched many culms with roots. Evergreen all seasons, autumn GREEN, winter GREEN with little snow.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "e48862911ae01a6a7e3d3d47575cb00954218da3d784cb0c5d726b6c3a035297"
+  },
+  {
+    "id": "metasequoia",
+    "prompt": "Use case: stylized-concept. Asset type: ONE eight-frame tree sprite atlas, original warm painted family farm RPG, 3/4 top-down, upper-left sunlight, lush gouache detail, clear silhouette. TRUE transparent background. Strict grid 4 columns x 2 rows, eight separated sprites. Each sprite must stay inside its own equal cell with at least 12% transparent padding on all sides, no touching neighbors. All full trees visible, no ground/island/text/labels/border. Top row left to right: seedling; young sapling (thin trunk and sparse branches); mature tree; giant old tree (extra boughs). Bottom row: guardian ancient tree (buttress roots, grand complex crown, few golden motes); SUMMER mature; AUTUMN mature; WINTER mature. Five growth silhouettes visibly distinct, never copies.  Absolutely NO colored fog, no gradient halo, no backdrop, no glow behind sprites. Only opaque tree pixels and fully transparent empty space; no environment. METASEQUOIA dawn redwood: tall conical feathery soft-needle deciduous conifer, straight strong reddish fluted trunk. Giant and guardian towering with huge buttress roots. Summer green, autumn copper-orange, winter bare branching conical silhouette.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "ee1db7aa2e21425efeb338ed2477aa0a5efc94d18964b772815cabc769bd4dd4"
+  },
+  {
+    "id": "twigs",
+    "prompt": "Use case: stylized-concept. One production sprite atlas for original warm painted family farm RPG, elevated 3/4 top-down, upper-left sunlight. True transparent alpha background, isolated complete sprites, no floor/ground islands, no halo/fog/gradient, no text. Strict regular grid, equal cells, 15% transparent gutters and margins, no overlap. Botanical shapes all distinct. Grid 3 columns by 2 rows. Six fallen branch sprites: slender straight dry twig; bent dry twig; curved twig; Y forked twig; leafy fallen branch; thick broken branch with visible cut wood. Warm natural bark.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "754b4c4ebec37601ac61c9c822d8c6e86f70c509093a055a0a2e32f7e95a0068"
+  },
+  {
+    "id": "stones",
+    "prompt": "Use case: stylized-concept. One production sprite atlas for original warm painted family farm RPG, elevated 3/4 top-down, upper-left sunlight. True transparent alpha background, isolated complete sprites, no floor/ground islands, no halo/fog/gradient, no text. Strict regular grid, equal cells, 15% transparent gutters and margins, no overlap. Botanical shapes all distinct. Grid 3 columns by 2 rows. Six ground debris rock sprites: small round tan pebble; rough grey stone; moss-covered green stone; flat pale shale; dark charcoal stone; cluster of three small pebbles.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "b9e7406e8a3d443028cf54b1c6cd7fcd83fa79a8e72ec99cf794e7178afb71e1"
+  },
+  {
+    "id": "weeds",
+    "prompt": "Use case: stylized-concept. One production sprite atlas for original warm painted family farm RPG, elevated 3/4 top-down, upper-left sunlight. True transparent alpha background, isolated complete sprites, no floor/ground islands, no halo/fog/gradient, no text. Strict regular grid, equal cells, 15% transparent gutters and margins, no overlap. Botanical shapes all distinct. Grid 3 columns by 2 rows. Six small plants: ragged broadleaf weed; spiky thistle without flower; dandelion leaf rosette; rounded three-leaf clover patch; tall arching grass blades; short fine grass tuft.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "5591c932798ad93ae72ea2a7bfd8fd0b218b64964ca99ae5c7e688d8f895c481"
+  },
+  {
+    "id": "flowers",
+    "prompt": "Use case: stylized-concept. One production sprite atlas for original warm painted family farm RPG, elevated 3/4 top-down, upper-left sunlight. True transparent alpha background, isolated complete sprites, no floor/ground islands, no halo/fog/gradient, no text. Strict regular grid, equal cells, 15% transparent gutters and margins, no overlap. Botanical shapes all distinct. Grid 3 columns by 3 rows. Nine garden/wild flower clumps left to right top to bottom: small WHITE wild daisy; YELLOW buttercups; PINK tiny wild flowers; PURPLE violet clump; broad WHITE DAISY bush; RED POPPY stems with cupped petals; hanging BLUEBELL stems; rounded BLUE HYDRANGEA clustered blooms; tall LAVENDER purple spikes. Clear distinct silhouettes, not color variants.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "c7d14695aca45de9273c0b17906dc95211f24231ac33e49ec20a44e2ec07b7ad"
+  },
+  {
+    "id": "crops",
+    "prompt": "Use case: stylized-concept. A single production atlas of TWELVE mature crop sprites for original warm painted family farm RPG. TRUE TRANSPARENT alpha background; elevated 3/4 top-down, upper-left warm sunlight. No ground/floor/islands, no text, no glow/gradient, whole plants with stems ending at base, clearly distinct botanical silhouettes. Strict four columns by three rows, one crop per equal cell, 15% transparent gutters. Row1: pink tulip plant; climbing sweet pea with purple flowers and pods; bulb spring onion plant with green shoots; cucumber vine bearing long green cucumbers. Row2: ground vine with a striped round watermelon; slender tall lavender flowering spikes; red beetroot with leaves; golden chrysanthemum multi-petal flowers. Row3: climbing scarlet bean vine and red pods; pale frost-resistant lettuce rosette; snow pea green flat pods with white blossoms; fantasy icy pale blue six-pointed frost flower. These will be cut into 12 images, keep neighboring plants separate.",
+    "tool": "built-in image_gen",
+    "transparent_background": true,
+    "source_sha256": "6303e145a40fa0c2f4f7132648862850286cb08ba4e18e11be11cfd2c4fa6c56"
+  }
+]

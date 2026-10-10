@@ -116,6 +116,7 @@ export function visualSize(a: Asset | undefined, scale?: number) {
   };
 }
 export function foliageColor(id: string, season: SeasonKey): number {
+  if(id.startsWith("tree_") || id==="tree" || id.startsWith("flower_") || id.startsWith("farm_")) return 0xffffff;
   if (id === "tree_cherry")
     return { spring: 0xffd1dc, summer: 0xd9f2c0, autumn: 0xf1b47e, winter: 0xe8edf2 }[season];
   if (id === "tree_maple")

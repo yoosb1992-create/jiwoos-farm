@@ -242,7 +242,8 @@ test("farming shares plant/water, all-online sleep advances crop and forest, con
       assert.ok(results.every((r) => r.ok));
       await until(() => f.B.state.day === day + 2);
     }
-    assert.ok(f.C.state.entities.has("forest-4-0"));
+    assert.ok(f.C.state.entities.has("forest-1-0")); // surviving trees keep their growth history
+    assert.ok(f.C.state.entities.has("forest-4-12")); // daily forage still refreshes
     await delay(230);
     const harvests = await Promise.all([
       action(f.A, "harvestCrop"),

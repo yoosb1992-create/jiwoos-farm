@@ -1,3 +1,5 @@
+import { TREE_SPECIES, NATURE_MATERIALS, DEBRIS } from "./nature.js";
+import { withNatureArt } from "./nature-assets.js";
 import type { World2Map, ObjectProperties } from "./world2.js";
 import snapshot from "./legacy-content.json" with { type: "json" };
 import { withPaintedArt } from "./art-assets.js";
@@ -61,7 +63,7 @@ export interface Asset {
   origin?: { x: number; y: number };
 }
 export const MAPS: Record<string, MapData> = snapshot.maps;
-export const ASSETS: Record<string, Asset> = withPaintedArt(snapshot.assets, EXPANSION_CROPS);
+export const ASSETS: Record<string, Asset> = withNatureArt(withPaintedArt(snapshot.assets, EXPANSION_CROPS));
 export const CROPS: Record<string, CropDef> = Object.fromEntries(
   EXPANSION_CROPS.map((c) => [c.id, c]),
 );
@@ -75,6 +77,9 @@ export interface ItemDefinition {
   description?: string;
 }
 export const ITEMS: Record<string, ItemDefinition> = { ...snapshot.items };
+for(const t of TREE_SPECIES) ITEMS[t.seed]={id:t.seed,name:t.seedName,kind:"tree_seed",assetId:`${t.id}_seedling`,sellPrice:5,description:`빈 자연 잔디에 ${t.name}를 심어요. 새싹 ${t.days[0]}일 + 어린나무 ${t.days[1]}일 성장. 나무 사이 3칸을 비워 주세요.`};
+for(const [id,name] of Object.entries(NATURE_MATERIALS)) ITEMS[id]={id,name,kind:"material",assetId:id==="bamboo"?"tree_bamboo_young":id==="cherry_petals"?"farm_pink_wildflower":"item_wood",sellPrice:id==="maple_sap"?40:10};
+for(const d of DEBRIS.filter(d=>d.item.startsWith("wildflower_"))) ITEMS[d.item]={id:d.item,name:d.name,kind:"forage",assetId:d.id,sellPrice:18,energy:3};
 for (const c of EXPANSION_CROPS) {
   ITEMS[c.id] = {
     id: c.id,

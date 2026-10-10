@@ -11,6 +11,9 @@ export type WorldLayout = {
 };
 export const FIXTURE_KINDS = [
   "tree",
+  "twig",
+  "rock",
+  "gather",
   "well",
   "chest",
   "craft",

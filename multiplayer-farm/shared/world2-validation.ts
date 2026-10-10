@@ -1,3 +1,4 @@
+import { inferSpecies } from "./nature.js";
 import {
   CELL_LAYERS,
   LAYERS,
@@ -73,12 +74,13 @@ export function validateProperties(v: unknown): ObjectProperties {
   if (o.tree) {
     const t = obj(o.tree);
     p.tree = {
-      species: text(t.species, 40),
-      stage: integer(t.stage, 0, 4),
+      species: inferSpecies(text(t.species ?? "tree_oak", 40)),
+      planted: t.planted === true,
+      stage: integer(t.stage ?? 2, 0, 4),
       chop: t.chop === true,
       stump: t.stump === true,
       regrow: t.regrow === true,
-      drop: text(t.drop, 64),
+      drop: text(t.drop ?? "", 64),
     };
   }
   if (o.building) {
