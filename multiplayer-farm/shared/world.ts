@@ -1,4 +1,4 @@
-import { DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, TREE_SPECIES, treeHp } from "./nature.js";
+import { DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, NATURAL_TREE_FIRST, TREE_SPECIES, treeHp } from "./nature.js";
 import { initializeTree, naturalPlacement, fencedInterior } from "./nature-world.js";
 import { cell, hasZone, tileHash } from "./world2.js";
 import { TILE, mapFor } from "./content.js";
@@ -173,6 +173,46 @@ export function random(seed: number): () => number {
   };
 }
 
+/** New farms should feel like natural land waiting to be cleared.
+ * Farmable means "the hoe may till this tile"; it does not make untouched grass
+ * a special empty surface. Sparse natural trees may therefore occupy farmable
+ * grass until the player clears/tills it. */
+export function seedFarmTrees(world: World, rng: () => number): void {
+  const map = world.layout?.maps?.farm;
+  if (!map?.world2 || world.day !== 1) return;
+  const existing = Object.values(world.entities).filter(
+    e => e.area === "farm" && e.id.startsWith("farmnature-tree-"),
+  ).length;
+  if (existing >= NATURAL_TREE_FIRST) return;
+
+  let count = existing;
+  for (let attempt = 0; count < NATURAL_TREE_FIRST && attempt < 4000; attempt++) {
+    const x = 2 + Math.floor(rng() * Math.max(1, map.width - 4));
+    const y = 2 + Math.floor(rng() * Math.max(1, map.height - 4));
+    if (!naturalPlacement(world, "farm", x, y, "tree")) continue;
+
+    const species = TREE_SPECIES[Math.floor(rng() * TREE_SPECIES.length)]!;
+    const roll = rng();
+    const stage = roll < 0.2 ? 0 : roll < 0.55 ? 1 : 2;
+    const e = entity(
+      `farmnature-tree-${count}`,
+      "farm",
+      "tree",
+      (x + 0.5) * TILE,
+      (y + 0.5) * TILE,
+      species.id,
+    );
+    e.species = species.id;
+    e.stage = stage;
+    e.hp = treeHp(stage);
+    e.planted = false;
+    e.regrow = false;
+    initializeTree(world, e, undefined, false);
+    world.entities[e.id] = e;
+    count++;
+  }
+}
+
 export function seedFarmDebris(world: World, rng: () => number): void {
   const map = world.layout?.maps?.farm;
   if (!map?.world2 || world.debrisDay === world.day) return;
@@ -202,6 +242,7 @@ export function generateDaily(world: World): void {
   const forage = FORAGE.filter((f) =>
     f.seasons.includes(calendar(world.day).season),
   );
+  seedFarmTrees(world, rng);
   seedFarmDebris(world, rng);
   // Natural forest trees age too. Keep occupied resource slots across days;
   // only a fully cleared slot receives a new natural tree the next morning.
