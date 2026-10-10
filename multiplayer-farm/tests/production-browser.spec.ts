@@ -1,3 +1,4 @@
+import { frontTile, isFarmable } from "../shared/applyMovement.js";
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { Client, type Room } from "@colyseus/sdk";
 import { FarmState } from "../shared/schema.js";
@@ -52,7 +53,10 @@ async function hold(page: Page, id: string, ms = 110) {
   );
   await page.locator(id).click({ delay: ms });
 }
-test("production mobile client: actual authority movement, remote canvas, planting, tree/drop/inventory and session refresh", async ({
+// Keep independent production scenarios inside the existing 60s budget.
+// CI trace 38039642779 passed gameplay assertions but exhausted the combined
+// budget during the final screenshot/session teardown. No timeout was raised.
+test("production mobile: authoritative movement, remote canvas, crop planting and watering", async ({
   browser,
   page,
   request,
@@ -108,7 +112,22 @@ test("production mobile client: actual authority movement, remote canvas, planti
     await page.keyboard.down("ArrowDown");
     await expect.poll(() => local().y, { intervals: [30] }).toBeGreaterThan(43.5 * 32);
     await page.keyboard.up("ArrowDown");
-    await delay(250);
+    await expect.poll(()=>local().moving).toBe(false);
+    // Inspect actual authority state: Postgres family seeds vary, so a fixed
+    // farming coordinate can contain a newly spawned branch or stone.
+    const maps=JSON.parse(sdk.state.layout).maps;
+    const freeFront=()=>{
+      const t=frontTile(local());
+      return isFarmable("farm",t.tileX,t.tileY,maps) && ![...sdk.state.entities.values()].some(e=>e.area==="farm" && Math.floor(e.x/32)===t.tileX && Math.floor(e.y/32)===t.tileY);
+    };
+    for(let attempt=0;!freeFront() && attempt<8;attempt++) {
+      const x=local().x;
+      await page.keyboard.down("ArrowRight");
+      try {await expect.poll(()=>local().x,{intervals:[30]}).toBeGreaterThan(x+32);}
+      finally {await page.keyboard.up("ArrowRight");}
+      await expect.poll(()=>local().moving).toBe(false);
+    }
+    expect(freeFront()).toBe(true);
     await page.locator("#tool").selectOption("hoe");
     await hold(page, "#action");
     await expect
@@ -143,6 +162,67 @@ test("production mobile client: actual authority movement, remote canvas, planti
       "새싹열매 씨앗 ×11",
     );
     await page.locator("#panel-close").click();
+    await page.reload();
+    await expect(page.locator("#connection")).toHaveAttribute("data-status","connected");
+    await expect.poll(()=>[...sdk.state.entities.values()].some(e=>e.kind==="crop" && e.watered)).toBe(true);
+    expect(errors).toEqual([]);
+  } catch (error) {
+    console.log("Production connection diagnostic", JSON.stringify({
+      observerOpen: sdk.connection.isOpen,
+      players: [...sdk.state.players.values()].map(p => ({ nickname: p.nickname, connected: p.connected })),
+      pageStatus: await page.locator("#connection").getAttribute("aria-label").catch(() => null),
+      peerStatus: await peer.locator("#connection").getAttribute("aria-label").catch(() => null),
+      pageUrl: page.url(),
+      errors,
+    }));
+    throw error;
+  } finally {
+    await sdk.leave();
+    await peerContext.close();
+  }
+});
+
+test("production mobile: tree drops, inventory and repeated session restoration", async ({
+  browser,
+  page,
+  request,
+}, info) => {
+  await transport(page.context());
+  const peerContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+  });
+  await transport(peerContext);
+  const peer = await peerContext.newPage();
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const session = await enter(page, "Farm A");
+  await enter(peer, "Farm B", session.farmId);
+  await expect(page.locator("#connection")).toHaveAttribute(
+    "aria-label",
+    /2명/,
+  );
+  const response = await request.post(`${api}/api/session`, {
+    data: {
+      create: false,
+      code: session.farmId,
+      nickname: "Observer",
+    },
+  });
+  const observer = (await response.json()) as Session;
+  const sdk = await new Client(socket).joinOrCreate<FarmState>(
+    ROOM_NAME,
+    { farmId: session.farmId, token: observer.token },
+    FarmState,
+  );
+  sdk.reconnection.enabled = false;
+  sdk.onMessage("personal", () => undefined);
+  await until(() => sdk.state?.players.size === 3);
+  const local = () =>
+    [...sdk.state.players.values()].find(
+      (p) => p.playerId === session.playerId,
+    )!;
+  try {
     await page.reload();
     await expect(page.locator("#login")).toBeHidden();
     await expect(page.locator("#connection")).toHaveAttribute(
