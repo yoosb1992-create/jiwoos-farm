@@ -9,7 +9,7 @@ import { newWorld, newMember, upgradeWorld, type Actor } from "../shared/world.j
 import { applyAction } from "../shared/actions.js";
 import { editorLayout, Journal } from "../client/editor/model.js";
 
-test("sketched default farm: editable clear grass, four accessible lanes, safe collision and till rules", () => {
+test("sketched default farm: editable overgrown grass, four accessible lanes, safe collision and till rules", () => {
   const l = validateLayout(JSON.parse(JSON.stringify(defaultLayout()))), m = l.maps.farm!;
   assert.deepEqual([m.width, m.height], [128, 88]);
   assert.deepEqual(editorLayout().maps.farm, defaultLayout().maps.farm);
@@ -48,10 +48,36 @@ test("sketched default farm: editable clear grass, four accessible lanes, safe c
   const world = newWorld(9, l);
   assert(!Object.values(world.entities).some(e => e.area === "farm" && ["crop", "soil", "barn", "animal"].includes(e.kind)));
   world.members.a = newMember("a", "농부");
-  const a: Actor = { id: "a", area: "farm", x: 36.5 * 32, y: 58.5 * 32, facing: "down", running: false, stamina: 100 };
+  const occupied = new Set(
+    Object.values(world.entities)
+      .filter(e => e.area === "farm")
+      .map(e => `${Math.floor(e.x / 32)},${Math.floor(e.y / 32)}`),
+  );
+  let open: { x: number; y: number } | undefined;
+  for (let y = 2; y < m.height - 1 && !open; y++)
+    for (let x = 1; x < m.width - 1; x++)
+      if (
+        isFarmable("farm", x, y, l.maps) &&
+        !occupied.has(`${x},${y}`) &&
+        !occupied.has(`${x},${y - 1}`) &&
+        !collidesWithObstacle((x + .5) * 32, (y - .5) * 32, "farm", l.maps)
+      ) {
+        open = { x, y };
+        break;
+      }
+  assert(open, "Dense opening must still leave a clearable farmable tile");
+  const a: Actor = {
+    id: "a",
+    area: "farm",
+    x: (open.x + .5) * 32,
+    y: (open.y - .5) * 32,
+    facing: "down",
+    running: false,
+    stamina: 100,
+  };
   const ctx = { now: 1, online: ["a"], votes: new Set<string>() };
   assert(applyAction(world, a, { actionId: "farm-till-1", type: "tillTile" }, ctx).ok);
-  assert.equal(world.entities["soil-farm-36-59"]!.kind, "soil");
+  assert.equal(world.entities[`soil-farm-${open.x}-${open.y}`]!.kind, "soil");
   assert.throws(() => applyAction(world, { ...a, x: 64.5 * 32, y: 76.5 * 32 }, { actionId: "road-till-1", type: "tillTile" }, ctx));
   const j = new Journal(l), before = cell(m, "terrain", 36, 59);
   j.begin("edit default"); j.tile("farm", "terrain", 36, 59, 3); j.commit(); j.undo();
