@@ -76,13 +76,20 @@ Farmable is still only permission to hoe. Untilled farmable grass now receives t
 same natural-content treatment as every other open grass tile. The default density
 is intentionally much higher so the 128×88 farm no longer looks empty:
 
-- up to **32** sparse natural trees on the initial/upgrade pass;
-- **80** branches/stones/weeds/wildflowers initially, growing by roughly 4–10 per
-  day to a cap of **120**;
-- **100** grass/clover patches initially, growing by roughly 6–12 per day to a cap
-  of **160**.
+- up to **48** sparse natural trees on the initial/upgrade pass;
+- **320** branches/stones/weeds/wildflowers initially, with branches and stones
+  weighted to about 72% of those obstacles; after the first cleanup only about 2–5
+  grow back per day, capped at **380**;
+- **420** grass/clover patches initially; after the first cleanup only about 3–7
+  grow back per day, capped at **500**.
 
-Existing v4 family saves get this additive density pass once on upgrade, but only on
+
+The intentionally heavy first-day population is the point: the player should need to
+clear a working area before deciding where the first field, paths and animal space go.
+The gentle daily regrowth avoids turning that opening chore into a permanent full-farm
+maintenance tax.
+
+Existing v5 family saves get this denser additive pass once on upgrade, but only on
 still-natural grass. Tilled soil, crops, paths, buildings, warps, spawn protection,
 collisions, placed objects and protected fenced interiors are not overwritten.
 
