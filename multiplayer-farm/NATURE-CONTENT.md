@@ -55,6 +55,21 @@ with oak as fallback and the existing starter pine preserved. Existing layouts,
 family members, inventories, crops, receipts and Postgres identities are retained.
 There is no SQL schema migration, reset or replacement database in this change.
 
+## Farmable ground semantics
+
+The farmable zone is now treated strictly as **permission to use the hoe**, not as a
+separate empty-ground biome. Untouched farmable grass behaves like any other natural
+grass: it can hold planted trees, first-day natural trees, debris and wild growth.
+Only the actual cultivated state (soil/crop/withered entities), protected paths,
+structures, warps, spawn buffers, collisions and no-placement zones block natural
+placement.
+
+A brand-new farm also seeds 14 sparse natural trees across valid open grass using
+all eight species and seedling/young/mature stages. Because natural placement ignores
+the farmable bit, some of these can appear in future field space; clearing them is
+part of opening the farm. Existing family saves are not retroactively filled with
+these first-day trees.
+
 ## Debris and flowers
 
 Natural debris has 22 separate sprites: six branches, six stones, six weeds/grass
