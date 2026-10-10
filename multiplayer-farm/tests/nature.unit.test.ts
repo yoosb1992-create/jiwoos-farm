@@ -153,8 +153,21 @@ test("old trees migrate additively; editor roundtrip, stage art, species and nat
     assert(ITEMS[t.seed]);assert(ASSETS[treeSprite(t.id,2,"winter")]);
   }
   for(const d of DEBRIS)assert(ASSETS[d.id]?.source);
+  for(const g of FARM_GRASS){assert(ASSETS[g.id]?.source);assert(CATALOG.includes(g.id));}
   const manifest=JSON.parse(readFileSync(new URL('../../public/assets/nature/manifest.json',import.meta.url),'utf8'));
   assert(manifest.assets.length>=103);
+});
+test("v4 farms receive denser nature only on untouched grass during additive upgrade",()=>{
+  const {w,m}=setup();
+  w.version=4;w.entities={};w.naturalTreesSeeded=undefined;w.debrisDay=undefined;w.grassDay=undefined;
+  w.entities["keep-soil"]=entity("keep-soil","farm","soil",10.5*32,10.5*32,"tile_farm_empty");
+  upgradeWorld(w);
+  assert.equal(w.version,5);
+  assert(Object.values(w.entities).filter(e=>e.id.startsWith("farmnature-tree-")).length>0);
+  assert(Object.values(w.entities).filter(e=>e.id.startsWith("farmdebris-")).length>0);
+  assert(Object.values(w.entities).filter(e=>e.id.startsWith("farmgrass-")).length>0);
+  assert.equal(w.entities["keep-soil"]?.kind,"soil");
+  assert(!Object.values(w.entities).some(e=>e.id!=="keep-soil" && Math.floor(e.x/32)===10 && Math.floor(e.y/32)===10));
 });
 test("expanded crops resolve original art and seasonal seed sales; seven tree items are sold and rare seed is drop-only",()=>{
   const {w,a}=setup();a.area="general_store";w.members.a!.money=100000;
