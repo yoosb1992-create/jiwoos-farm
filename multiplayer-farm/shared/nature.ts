@@ -70,8 +70,10 @@ export const GARDEN_FLOWERS = [
   {id:"flower_bluebell",name:"블루벨"},{id:"flower_hydrangea",name:"수국"},
   {id:"flower_lavender",name:"라벤더 군락"},
 ];
-export const DEBRIS_FIRST = 80, DEBRIS_MAX = 120;
-export const GRASS_FIRST = 100, GRASS_MAX = 160;
+// The opening farm should feel overgrown: clearing space is an early-game activity.
+// Daily regrowth is intentionally much gentler than this first dense pass.
+export const DEBRIS_FIRST = 320, DEBRIS_MAX = 380;
+export const GRASS_FIRST = 420, GRASS_MAX = 500;
 /** Natural trees are deliberately spread through the future field too. Farmable is
  * only permission to use the hoe; until a tile is actually tilled it is natural grass. */
-export const NATURAL_TREE_FIRST = 32;
+export const NATURAL_TREE_FIRST = 48;
