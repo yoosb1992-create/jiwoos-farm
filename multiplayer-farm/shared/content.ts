@@ -145,6 +145,18 @@ for (const [id, name, price, energy, asset] of [
       ? `기력 ${energy} 회복. 따뜻한 농장의 맛.`
       : "공방에서 쓸 수 있는 포근한 천연 재료.",
   };
+ITEMS.grass = {
+  id: "grass",
+  name: "목초",
+  kind: "resource",
+  assetId: "farm_short_grass",
+  sellPrice: 1,
+  description: "농장 잔디에서 모은 풀. 제작대에서 동물 먹이로 묶을 수 있어요.",
+};
+ITEMS.animal_feed = {
+  ...ITEMS.animal_feed!,
+  description: "목초 3개를 제작대에서 묶어 만들 수 있어요. 동물 한 마리의 하루 먹이입니다.",
+};
 ITEMS.egg = {
   ...ITEMS.egg!,
   sellPrice: 35,
@@ -172,6 +184,12 @@ for (const [id, d] of Object.entries(DECORATIONS))
     ingredients: [{ itemId: "wood", quantity: d.wood }],
     output: { itemId: id, quantity: 1 },
   };
+RECIPES.animal_feed = {
+  id: "animal_feed",
+  name: "동물 먹이",
+  ingredients: [{ itemId: "grass", quantity: 3 }],
+  output: { itemId: "animal_feed", quantity: 1 },
+};
 RECIPES.herb_tea = {
   id: "herb_tea",
   name: "산책 허브차",
