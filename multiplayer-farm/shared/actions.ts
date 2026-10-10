@@ -52,6 +52,7 @@ const TYPES = new Set([
   "harvestCrop",
   "hitTree",
   "hitRock",
+  "clearTwig",
   "pickupDrop",
   "gather",
   "depositChest",
@@ -416,13 +417,14 @@ export function applyAction(
       own("pickaxe");
       const e = target("rock");
       front(e);
-      spend(3);
+      spend(e.id.startsWith("farmdebris-") ? 1 : 3);
       e.hp -= m.toolLevel >= 2 ? 2 : 1;
       if (e.hp <= 0) {
         addDrop(w, e, e.item || "stone", 1);
         delete w.entities[e.id];
-        m.xp += 5;
-        m.quests.mine = (m.quests.mine ?? 0) + 1;
+        m.xp += e.id.startsWith("farmdebris-") ? 1 : 5;
+        if (!e.id.startsWith("farmdebris-"))
+          m.quests.mine = (m.quests.mine ?? 0) + 1;
         if (a.area.startsWith("mine")) {
           const id = `ladder-${a.area}`;
           if (!w.entities[id])
@@ -436,6 +438,16 @@ export function applyAction(
             );
         }
       }
+      break;
+    }
+    case "clearTwig": {
+      own("axe");
+      const e = target("twig");
+      front(e);
+      spend(1);
+      addDrop(w, e, e.item || "wood", 1);
+      delete w.entities[e.id];
+      m.xp += 1;
       break;
     }
     case "gather": {
