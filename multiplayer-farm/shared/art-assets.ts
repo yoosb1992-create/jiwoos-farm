@@ -121,7 +121,7 @@ export function foliageColor(id: string, season: SeasonKey): number {
   if (id === "tree_maple")
     return { spring: 0xe4f2c3, summer: 0xc8e8a4, autumn: 0xf28b52, winter: 0xe4ebef }[season];
   if (id === "tree_birch")
-    return { spring: 0xe8f4c9, summer: 0xd7edb3, autumn: 0xe4c679, winter: 0edf2f3 }[season];
+    return { spring: 0xe8f4c9, summer: 0xd7edb3, autumn: 0xe4c679, winter: 0xedf2f3 }[season];
   if (id === "tree_willow")
     return { spring: 0xd3efad, summer: 0xb7df91, autumn: 0xd0b46b, winter: 0xe3ecec }[season];
   if (id === "flower_daisy") return 0xfff4c7;
