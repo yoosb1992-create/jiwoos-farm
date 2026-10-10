@@ -57,15 +57,21 @@ export const NATURE_MATERIALS: Record<string, string> = {
 export const DEBRIS = [
   ...["twig_a","twig_b","twig_c","forked_twig","leafy_branch","thick_branch"].map((id,i)=>({id:`farm_${id}`,name:["마른 가지 A","마른 가지 B","굽은 가지","갈라진 가지","잎 달린 가지","굵은 가지"][i]!,kind:"twig",item:"wood"})),
   ...["stone_a","stone_b","moss_stone","flat_stone","dark_stone","small_stone_cluster"].map((id,i)=>({id:`farm_${id}`,name:["들돌 A","들돌 B","이끼돌","납작돌","검은돌","작은 돌무리"][i]!,kind:"rock",item:"stone"})),
-  ...["weed","weed_b","weed_c","clover","tall_grass","short_grass"].map((id,i)=>({id:`farm_${id}`,name:["잡초 A","잡초 B","잡초 C","토끼풀","긴 풀","짧은 풀"][i]!,kind:"gather",item:"wild_herb"})),
+  ...["weed","weed_b","weed_c"].map((id,i)=>({id:`farm_${id}`,name:["잡초 A","잡초 B","잡초 C"][i]!,kind:"gather",item:"wild_herb"})),
   ...["white","yellow","pink","purple"].map((color,i)=>({id:`farm_${color}_wildflower`,name:["흰 들꽃","노란 들꽃","분홍 들꽃","보라 들꽃"][i]!,kind:"gather",item:`wildflower_${color}`})),
 ];
+export const FARM_GRASS = [
+  {id:"farm_short_grass",name:"짧은 목초",kind:"gather",item:"grass"},
+  {id:"farm_tall_grass",name:"긴 목초",kind:"gather",item:"grass"},
+  {id:"farm_clover",name:"토끼풀 목초",kind:"gather",item:"grass"},
+] as const;
 export const GARDEN_FLOWERS = [
   {id:"flower_daisy",name:"데이지 덤불"},{id:"flower_poppy",name:"양귀비"},
   {id:"flower_bluebell",name:"블루벨"},{id:"flower_hydrangea",name:"수국"},
   {id:"flower_lavender",name:"라벤더 군락"},
 ];
-export const DEBRIS_FIRST = 30, DEBRIS_MAX = 50;
-/** Sparse natural trees placed on a brand-new farm. Farmable is only a hoe permission;
- * until a tile is actually tilled it remains ordinary natural grass. */
-export const NATURAL_TREE_FIRST = 14;
+export const DEBRIS_FIRST = 80, DEBRIS_MAX = 120;
+export const GRASS_FIRST = 100, GRASS_MAX = 160;
+/** Natural trees are deliberately spread through the future field too. Farmable is
+ * only permission to use the hoe; until a tile is actually tilled it is natural grass. */
+export const NATURAL_TREE_FIRST = 32;
