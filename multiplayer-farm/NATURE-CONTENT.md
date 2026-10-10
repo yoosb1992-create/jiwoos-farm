@@ -70,6 +70,28 @@ the farmable bit, some of these can appear in future field space; clearing them 
 part of opening the farm. Existing family saves are not retroactively filled with
 these first-day trees.
 
+## Denser farm wilderness and animal-feed grass
+
+Farmable is still only permission to hoe. Untilled farmable grass now receives the
+same natural-content treatment as every other open grass tile. The default density
+is intentionally much higher so the 128×88 farm no longer looks empty:
+
+- up to **32** sparse natural trees on the initial/upgrade pass;
+- **80** branches/stones/weeds/wildflowers initially, growing by roughly 4–10 per
+  day to a cap of **120**;
+- **100** grass/clover patches initially, growing by roughly 6–12 per day to a cap
+  of **160**.
+
+Existing v4 family saves get this additive density pass once on upgrade, but only on
+still-natural grass. Tilled soil, crops, paths, buildings, warps, spawn protection,
+collisions, placed objects and protected fenced interiors are not overwritten.
+
+Short grass, tall grass and clover are now real forage. Gathering them yields
+`grass` (목초). The crafting table recipe converts **3 목초 → 1 동물 먹이**.
+Purchased animal feed remains valid, so players can either buy feed or clear/harvest
+the farm to support their animals. The three grass variants are also available in
+the World Editor Nature palette.
+
 ## Debris and flowers
 
 Natural debris has 22 separate sprites: six branches, six stones, six weeds/grass
