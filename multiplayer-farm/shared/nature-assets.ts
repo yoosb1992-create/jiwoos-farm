@@ -1,5 +1,5 @@
 import type { Asset } from "./content.js";
-import { TREE_SPECIES, TREE_STAGE_IDS, DEBRIS, GARDEN_FLOWERS } from "./nature.js";
+import { TREE_SPECIES, TREE_STAGE_IDS, DEBRIS, FARM_GRASS, GARDEN_FLOWERS } from "./nature.js";
 const root="/assets/nature";
 export const NEW_CROP_ART=["pinktulip","sweetpea","springonion","coolcucumber","watermelon","lavender","rubybeet","chrysanthemum","scarletbean","icelettuce","snowpea","frostflower"];
 export function withNatureArt(assets: Record<string,Asset>): Record<string,Asset> {
@@ -11,7 +11,7 @@ export function withNatureArt(assets: Record<string,Asset>): Record<string,Asset
     assets[t.id]={...assets[`${t.id}_mature`]!,assetId:t.id,textureKey:t.id};
   }
   for(const [old,id] of [["tree","tree_oak"],["tree_variant_b","tree_pine"]])assets[old!]={...assets[id!]!,assetId:old!,textureKey:old!};
-  for(const d of DEBRIS)add(d.id,`debris/${d.id}`,d.kind==="twig"?40:34,d.kind==="twig"?26:34);
+  for(const d of [...DEBRIS, ...FARM_GRASS])add(d.id,`debris/${d.id}`,d.kind==="twig"?40:34,d.kind==="twig"?26:34);
   assets.farm_wildflower={...assets.farm_white_wildflower!,assetId:"farm_wildflower",textureKey:"farm_wildflower"};
   for(const f of GARDEN_FLOWERS)add(f.id,`flowers/${f.id}`,56,52);
   for(const id of NEW_CROP_ART)add(`crop_${id}_mature`,`crops/${id}`,40,52,.8);
