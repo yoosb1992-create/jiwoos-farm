@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { newWorld, newMember, entity, upgradeWorld, seedFarmDebris, random, type Actor, type World } from "../shared/world.js";
+import { newWorld, newMember, entity, upgradeWorld, seedFarmDebris, seedFarmTrees, random, type Actor, type World } from "../shared/world.js";
 import { applyAction, nextDay, parseCommand } from "../shared/actions.js";
 import { defaultLayout, validateLayout } from "../shared/layout.js";
-import { TREE_SPECIES, TREES, TREE_STAGES, TREE_STAGE_IDS, DEBRIS, treeHp, natureRoll, treeSprite } from "../shared/nature.js";
+import { TREE_SPECIES, TREES, TREE_STAGES, TREE_STAGE_IDS, DEBRIS, NATURAL_TREE_FIRST, treeHp, natureRoll, treeSprite } from "../shared/nature.js";
 import { initializeTree, growTrees, naturalPlacement, fencedInterior } from "../shared/nature-world.js";
-import { newWorld2, setCell, terrainCode, ZONES } from "../shared/world2.js";
+import { newWorld2, setCell, terrainCode, ZONES, hasZone } from "../shared/world2.js";
 import { ASSETS, ITEMS, CROPS } from "../shared/content.js";
 import { NEW_CROP_ART } from "../shared/nature-assets.js";
 import { SEASONS, SEASON_DAYS } from "../shared/expansion.js";
@@ -77,10 +77,32 @@ test("natural forest trees persist across days and retained stumps regrow after 
   nextDay(w);assert.equal(tree.kind,"tree");assert.equal(tree.stage,0);
   assert.equal(Object.values(w.entities).filter(e=>e.area==="forest" && e.kind==="tree").length,12);
 });
+test("untouched farmable grass behaves as natural ground until it is actually tilled",()=>{
+  const {w,m}=setup();
+  for(let y=1;y<m.height-1;y++)for(let x=1;x<m.width-1;x++)
+    setCell(m,"zones",x,y,ZONES.farmable|ZONES.building|ZONES.decoration|ZONES.animal);
+  seedFarmTrees(w,random(404));
+  const trees=Object.values(w.entities).filter(e=>e.id.startsWith("farmnature-tree-"));
+  assert.equal(trees.length,NATURAL_TREE_FIRST);
+  assert(trees.every(e=>hasZone(m,"farmable",Math.floor(e.x/32),Math.floor(e.y/32))));
+  const e=trees[0]!,x=Math.floor(e.x/32),y=Math.floor(e.y/32);
+  delete w.entities[e.id];
+  assert(naturalPlacement(w,"farm",x,y,"tree"));
+  w.entities[`soil-farm-${x}-${y}`]=entity(`soil-farm-${x}-${y}`,"farm","soil",(x+.5)*32,(y+.5)*32,"tile_farm_empty");
+  assert(!naturalPlacement(w,"farm",x,y,"tree"));
+  assert(!naturalPlacement(w,"farm",x,y,"debris"));
+});
 test("natural placement protects paths/water/soil/crops/warps/spawns/collision/facilities/trees and enclosed gardens",()=>{
   for(const terrain of ["dirt_path","stone_path","water","tilled_soil"]){const {w,m}=setup();setCell(m,"terrain",20,20,terrainCode(terrain));assert(!naturalPlacement(w,"farm",20,20,"tree"));assert(!naturalPlacement(w,"farm",20,20,"debris"));}
   for(const kind of ["soil","crop","withered","decoration","machine","tree","stump","twig"]){const {w,a}=setup();w.entities.x=entity("x","farm",kind,a.x,a.y+32,"");w.entities.x.watered=true;assert(!naturalPlacement(w,"farm",20,20,"tree"));assert(!naturalPlacement(w,"farm",20,20,"debris"));}
-  const {w,m}=setup();assert(naturalPlacement(w,"farm",20,20,"tree"));setCell(m,"zones",20,20,ZONES["no-placement"]);assert(!naturalPlacement(w,"farm",20,20,"tree"));setCell(m,"zones",20,20,0);
+  const {w,m}=setup();
+  assert(naturalPlacement(w,"farm",20,20,"tree"));
+  setCell(m,"zones",20,20,ZONES.farmable|ZONES.building|ZONES.decoration|ZONES.animal);
+  assert(naturalPlacement(w,"farm",20,20,"tree"));
+  assert(naturalPlacement(w,"farm",20,20,"debris"));
+  setCell(m,"zones",20,20,ZONES["no-placement"]);
+  assert(!naturalPlacement(w,"farm",20,20,"tree"));
+  setCell(m,"zones",20,20,0);
   setCell(m,"collision",20,20,1);assert(!naturalPlacement(w,"farm",20,20,"tree"));setCell(m,"collision",20,20,0);
   assert(!naturalPlacement(w,"farm",2,2,"tree"));
   m.warps.push({id:"exit",area:{startX:20,endX:20,startY:20,endY:20},targetMapId:"road",targetSpawnId:"farm_entrance"});assert(!naturalPlacement(w,"farm",20,20,"tree"));m.warps=[];
