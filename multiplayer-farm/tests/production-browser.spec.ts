@@ -44,6 +44,19 @@ async function enter(page: Page, name: string, code?: string) {
     () => JSON.parse(localStorage.getItem("farm-v26-session")!) as Session,
   );
 }
+async function restore(page: Page, navigate: () => Promise<unknown>) {
+  // DOM load is earlier than Phaser preload and the asynchronous saved-session
+  // join. Observe that real protocol milestone before asserting the UI state.
+  // This works on the shipped production client, with no debug/test hooks.
+  const joined = page.waitForResponse(response =>
+    response.request().method() === "POST" &&
+    new URL(response.url()).pathname === `/matchmake/joinOrCreate/${ROOM_NAME}`,
+  );
+  const [response] = await Promise.all([joined, navigate()]);
+  expect(response.ok()).toBe(true);
+  await expect(page.locator("#login")).toBeHidden();
+  await expect(page.locator("#connection")).toHaveAttribute("data-status", "connected");
+}
 async function hold(page: Page, id: string, ms = 110) {
   // A reconnect retains the player count while controls are unavailable. Wait
   // for connection readiness and normal button actionability, not raw pixels.
@@ -162,8 +175,7 @@ test("production mobile: authoritative movement, remote canvas, crop planting an
       "새싹열매 씨앗 ×11",
     );
     await page.locator("#panel-close").click();
-    await page.reload();
-    await expect(page.locator("#connection")).toHaveAttribute("data-status","connected");
+    await restore(page, () => page.reload());
     await expect.poll(()=>[...sdk.state.entities.values()].some(e=>e.kind==="crop" && e.watered)).toBe(true);
     expect(errors).toEqual([]);
   } catch (error) {
@@ -223,13 +235,12 @@ test("production mobile: tree drops, inventory and repeated session restoration"
       (p) => p.playerId === session.playerId,
     )!;
   try {
-    await page.reload();
-    await expect(page.locator("#login")).toBeHidden();
     await expect(page.locator("#connection")).toHaveAttribute(
       "aria-label",
       "연결됨 · 3명",
     );
-    // Reload restores the safe spawn. All tree interactions below use actual UI inputs.
+    // This independent scenario already starts at the safe spawn. Reload is
+    // exercised after crops above; history restoration follows tree pickup below.
     const tree = sdk.state.entities.get("starter-pine")!;
     await page.keyboard.down("ArrowLeft");
     await expect.poll(() => local().x, { intervals: [20] }).toBeLessThan(tree.x + 4);
@@ -263,8 +274,7 @@ test("production mobile: tree drops, inventory and repeated session restoration"
     ).toBe(false);
     expect(errors).toEqual([]);
     await page.goto("about:blank");
-    await page.goBack();
-    await expect(page.locator("#login")).toBeHidden();
+    await restore(page, () => page.goBack());
     await expect(page.locator("#connection")).toHaveAttribute(
       "aria-label",
       "연결됨 · 3명",

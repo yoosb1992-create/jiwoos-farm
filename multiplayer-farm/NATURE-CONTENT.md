@@ -122,6 +122,15 @@ crop/water, tree/drop, inventory and reconnect assertions. The farming test chec
 the actual authoritative front tile and moves to clear land when daily debris
 occupies it. No test was deleted or disabled and no timeout was increased.
 
+Run `38052071972` subsequently exposed a separate startup-order race: DOM reload
+completed before Phaser preload and the saved-session join. The UI assertion
+started before that join and exhausted its default five-second assertion window;
+the server was healthy and the connection completed immediately afterward.
+Reload/history checks now observe the actual successful matchmaking HTTP response
+before checking login dismissal and the connected UI. The extra initial reload
+introduced by splitting the tree scenario was removed; crop reload and post-drop
+history restoration remain asserted. All timeout values are unchanged.
+
 Nature unit tests cover all species, progression, deterministic rare promotions,
 minimum stage ages, drops/hits/stumps, terrain exclusions, debris counts, legacy
 saves and Editor roundtrips. Integration tests use three real SDK/WebSocket clients
