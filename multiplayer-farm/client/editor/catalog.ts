@@ -1,4 +1,4 @@
-import { TREE_SPECIES, DEBRIS, GARDEN_FLOWERS, treeSprite, inferSpecies, treeSeasonScale, treeRootSprite } from "../../shared/nature.js";
+import { TREE_SPECIES, DEBRIS, FARM_GRASS, GARDEN_FLOWERS, treeSprite, inferSpecies, treeSeasonScale, treeRootSprite } from "../../shared/nature.js";
 import { ASSETS, type MapObject } from "../../shared/content.js";
 import { PAINTED_SPRITES, visualSize, foliageColor } from "../../shared/art-assets.js";
 import type { SeasonKey } from "../../shared/world2.js";
@@ -18,7 +18,7 @@ export const category = (id: string) =>
           : "Farm";
 export const inCategory = (id: string, requested: string) =>
   requested === "전체" || category(id) === requested ||
-  (requested === "Nature" && DEBRIS.some(d => d.id === id));
+  (requested === "Nature" && [...DEBRIS, ...FARM_GRASS].some(d => d.id === id));
 const labels: Record<string, string> = {
   tree: "큰 나무",
   tree_pine: "소나무",
@@ -53,10 +53,11 @@ const labels: Record<string, string> = {
   decor_board: "안내판",
   decor_scarecrow: "허수아비",
 };
-export const label = (id: string) => TREE_SPECIES.find(t=>t.id===id)?.name ?? DEBRIS.find(d=>d.id===id)?.name ?? GARDEN_FLOWERS.find(f=>f.id===id)?.name ?? PAINTED_SPRITES[id]?.name ?? labels[id] ?? id.replaceAll("_", " ");
+export const label = (id: string) => TREE_SPECIES.find(t=>t.id===id)?.name ?? [...DEBRIS, ...FARM_GRASS].find(d=>d.id===id)?.name ?? GARDEN_FLOWERS.find(f=>f.id===id)?.name ?? PAINTED_SPRITES[id]?.name ?? labels[id] ?? id.replaceAll("_", " ");
 export const CATALOG = [
   ...TREE_SPECIES.map(t=>t.id),
   ...DEBRIS.map(d=>d.id),
+  ...FARM_GRASS.map(g=>g.id),
   ...GARDEN_FLOWERS.map(f=>f.id),
   ...["pinktulip","lavender","chrysanthemum","sunwheel","frostflower","dewflower","winterstar"].map(c=>`crop_${c}_mature`),
   ...Object.keys(PAINTED_SPRITES),
@@ -107,7 +108,7 @@ export function objectFor(assetId: string, x: number, y: number): MapObject {
   } else if (assetId === "storage_chest") o.kind = "chest";
   else if (assetId === "crafting_table") o.kind = "craft";
   else if (assetId === "stone_well") o.kind = "well";
-  const debris=DEBRIS.find(d=>d.id===assetId);
+  const debris=[...DEBRIS, ...FARM_GRASS].find(d=>d.id===assetId);
   if(debris) o.kind=debris.kind;
   return o;
 }
