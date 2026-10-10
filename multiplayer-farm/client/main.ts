@@ -588,6 +588,10 @@ function touchAct(t: TouchTarget): void {
       selectTool("axe");
       send("hitTree", { targetId: e.id });
       break;
+    case "twig":
+      selectTool("axe");
+      send("clearTwig", { targetId: e.id });
+      break;
     case "rock":
       selectTool("pickaxe");
       send("hitRock", { targetId: e.id });
