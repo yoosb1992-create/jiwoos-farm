@@ -47,7 +47,11 @@ export const CROP_FAMILIES: Record<string, string> = {
   pinktulip: "berry", lavender: "berry", chrysanthemum: "berry", frostflower: "berry",
 };
 const stripMature: Record<string, string> = {
-  morningcarrot: "carrot", ribboncabbage: "cabbage", rubytomato: "tomato", heartberry: "berry", sproutberry: "berry",
+  morningcarrot: "carrot", ribboncabbage: "cabbage", rubytomato: "tomato",
+  heartberry: "berry", sproutberry: "berry",
+  pinktulip: "dewflower", lavender: "dewflower",
+  chrysanthemum: "sunwheel", frostflower: "winterstar",
+  watermelon: "ambermelon",
 };
 const bespokeMature = new Set([
   "ambermelon", "bluepearl", "cloudturnip", "dewflower", "duskgrape",
