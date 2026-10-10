@@ -131,6 +131,14 @@ before checking login dismissal and the connected UI. The extra initial reload
 introduced by splitting the tree scenario was removed; crop reload and post-drop
 history restoration remain asserted. All timeout values are unchanged.
 
+Railway's original watch paths excluded tests and CI configuration. Consequently
+the recovery commit was immediately skipped even though it was fixing the gate
+that had blocked the nature release. Both existing production services now also
+watch farm tests, Playwright configs, the farm workflow and the audited watch-path
+manifest in `deployment/auto-deploy-watch.json`. Existing source paths are retained
+and Wait for CI stays enabled. This is a scoped watch-path update, with no service,
+database, environment variable, domain or replica changes.
+
 Nature unit tests cover all species, progression, deterministic rare promotions,
 minimum stage ages, drops/hits/stumps, terrain exclusions, debris counts, legacy
 saves and Editor roundtrips. Integration tests use three real SDK/WebSocket clients

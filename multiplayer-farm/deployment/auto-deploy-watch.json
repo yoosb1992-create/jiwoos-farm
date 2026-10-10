@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "purpose": "Applied Railway watch-path configuration. CI-only fixes must be eligible for autodeploy; Wait for CI remains enabled.",
+  "projectId": "60e07bfd-eb89-4879-b082-f57a565fff1a",
+  "environmentId": "7a8eb991-df6f-4f08-bca3-3c57cf42d43c",
+  "repo": "yoosb1992-create/jiwoos-farm",
+  "branch": "feature/v2.7-world-editor-2",
+  "waitForCI": true,
+  "services": [
+    {
+      "id": "3ba7c9b3-c4fb-4834-a064-1834332fdcdd",
+      "name": "Backend",
+      "watchPatterns": [
+        "/multiplayer-farm/server/**",
+        "/multiplayer-farm/shared/**",
+        "/multiplayer-farm/persistence/**",
+        "/multiplayer-farm/package*.json",
+        "/multiplayer-farm/tsconfig*.json",
+        "/multiplayer-farm/Dockerfile",
+        "/multiplayer-farm/tests/**",
+        "/multiplayer-farm/playwright*.config.ts",
+        "/.github/workflows/multiplayer-farm.yml",
+        "/multiplayer-farm/deployment/auto-deploy-watch.json"
+      ]
+    },
+    {
+      "id": "fb649095-e189-468d-95d1-f9417fe0d25e",
+      "name": "Frontend",
+      "watchPatterns": [
+        "/multiplayer-farm/client/**",
+        "/multiplayer-farm/shared/**",
+        "/multiplayer-farm/build/**",
+        "/multiplayer-farm/package*.json",
+        "/multiplayer-farm/tsconfig*.json",
+        "/multiplayer-farm/vite.config.ts",
+        "/multiplayer-farm/index.html",
+        "/multiplayer-farm/deployment/static-server.mjs",
+        "/multiplayer-farm/Dockerfile.client",
+        "/public/assets/**",
+        "/multiplayer-farm/tests/**",
+        "/multiplayer-farm/playwright*.config.ts",
+        "/.github/workflows/multiplayer-farm.yml",
+        "/multiplayer-farm/deployment/auto-deploy-watch.json"
+      ]
+    }
+  ]
+}
