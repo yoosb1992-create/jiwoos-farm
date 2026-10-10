@@ -121,7 +121,7 @@ test("dense debris remains bounded, idempotent and respects cleared-tile respite
   for(let day=2;day<40 && previous<DEBRIS_MAX;day++){
     w.day=day;seedFarmDebris(w,random(day));
     const n=Object.values(w.entities).filter(e=>e.id.startsWith("farmdebris-")).length;
-    assert(n<=DEBRIS_MAX);assert(n>=Math.min(DEBRIS_MAX,previous+4)&&n<=Math.min(DEBRIS_MAX,previous+10));previous=n;
+    assert(n<=DEBRIS_MAX);assert(n>=Math.min(DEBRIS_MAX,previous+2)&&n<=Math.min(DEBRIS_MAX,previous+5));previous=n;
   }
   assert.equal(previous,DEBRIS_MAX);assert.equal(DEBRIS.length,19);
 });
@@ -138,7 +138,7 @@ test("farm grass fills untouched farmable land and crafts into animal feed",()=>
   assert(hasZone(m,"farmable",tx,ty));
   w.day=2;seedFarmGrass(w,random(992));
   const next=Object.values(w.entities).filter(e=>e.id.startsWith("farmgrass-")).length;
-  assert(next>=GRASS_FIRST+6 && next<=GRASS_FIRST+12 && next<=GRASS_MAX);
+  assert(next>=GRASS_FIRST+3 && next<=GRASS_FIRST+7 && next<=GRASS_MAX);
   assert(ITEMS.grass?.name==="목초");
   assert.equal(RECIPES.animal_feed!.ingredients[0]!.itemId,"grass");
   assert.equal(RECIPES.animal_feed!.ingredients[0]!.quantity,3);
@@ -157,12 +157,12 @@ test("old trees migrate additively; editor roundtrip, stage art, species and nat
   const manifest=JSON.parse(readFileSync(new URL('../../public/assets/nature/manifest.json',import.meta.url),'utf8'));
   assert(manifest.assets.length>=103);
 });
-test("v4 farms receive denser nature only on untouched grass during additive upgrade",()=>{
+test("v5 farms receive the very-dense opening pass only on untouched grass during additive upgrade",()=>{
   const {w,m}=setup();
-  w.version=4;w.entities={};w.naturalTreesSeeded=undefined;w.debrisDay=undefined;w.grassDay=undefined;
+  w.version=5;w.entities={};w.naturalTreesSeeded=undefined;w.debrisDay=undefined;w.grassDay=undefined;
   w.entities["keep-soil"]=entity("keep-soil","farm","soil",10.5*32,10.5*32,"tile_farm_empty");
   upgradeWorld(w);
-  assert.equal(w.version,5);
+  assert.equal(w.version,6);
   assert(Object.values(w.entities).filter(e=>e.id.startsWith("farmnature-tree-")).length>0);
   assert(Object.values(w.entities).filter(e=>e.id.startsWith("farmdebris-")).length>0);
   assert(Object.values(w.entities).filter(e=>e.id.startsWith("farmgrass-")).length>0);
