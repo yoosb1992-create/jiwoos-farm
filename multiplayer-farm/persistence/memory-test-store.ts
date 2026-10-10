@@ -16,6 +16,7 @@ export class MemoryTestStore implements Store {
     Blueprint & { editToken: string; applied?: WorldLayout }
   >();
   sessions = new Map<string, Identity>();
+  farmMeta = new Map<string, { name: string; ownerId: string }>();
   locks = new Set<string>();
   receipts = new Map<string, { hash: string; result: ActionResult }>();
   async migrate(): Promise<void> {}
@@ -45,8 +46,18 @@ export class MemoryTestStore implements Store {
       )
     )
       throw new Error("Nickname in use");
-    const identity = { farmId, playerId: randomUUID(), nickname },
-      token = randomUUID();
+    const playerId = randomUUID();
+    if (create)
+      this.farmMeta.set(farmId, { name: `${nickname.trim()}의 농장`, ownerId: playerId });
+    const meta = this.farmMeta.get(farmId) ?? { name: "지우네 농장", ownerId: "" };
+    const identity: Identity = {
+      farmId,
+      playerId,
+      nickname,
+      farmName: meta.name,
+      isOwner: meta.ownerId === playerId,
+    };
+    const token = randomUUID();
     this.sessions.set(token, identity);
     return { ...identity, token };
   }
@@ -99,6 +110,33 @@ export class MemoryTestStore implements Store {
     const id = this.sessions.get(token);
     if (!id) throw new Error("Invalid token");
     return id;
+  }
+  async renameFarm(token: string, name: string): Promise<Identity> {
+    const identity = await this.authenticate(token);
+    const clean = name.trim();
+    if (!identity.isOwner) throw new Error("농장 주인만 이름을 바꿀 수 있습니다");
+    if (!clean || [...clean].length > 30 || /\p{Cc}/u.test(clean))
+      throw new Error("농장 이름은 1~30글자로 입력하세요");
+    const meta = this.farmMeta.get(identity.farmId);
+    if (!meta) throw new Error("농장 없음");
+    meta.name = clean;
+    for (const saved of this.sessions.values())
+      if (saved.farmId === identity.farmId) saved.farmName = clean;
+    return { ...identity, farmName: clean };
+  }
+  async deleteFarm(token: string, confirmFarmId: string): Promise<void> {
+    const identity = await this.authenticate(token);
+    if (!identity.isOwner) throw new Error("농장 주인만 저장 농장을 삭제할 수 있습니다");
+    if (confirmFarmId.trim().toUpperCase() !== identity.farmId)
+      throw new Error("삭제 확인용 가족 코드가 일치하지 않습니다");
+    if (this.locks.has(identity.farmId))
+      throw new Error("농장이 열려 있습니다. 모든 가족이 나간 뒤 다시 삭제하세요");
+    this.worlds.delete(identity.farmId);
+    this.farmMeta.delete(identity.farmId);
+    for (const [savedToken, saved] of this.sessions)
+      if (saved.farmId === identity.farmId) this.sessions.delete(savedToken);
+    for (const key of [...this.receipts.keys()])
+      if (key.startsWith(`${identity.farmId}/`)) this.receipts.delete(key);
   }
   async lease(id: string, _onLost: () => void): Promise<FarmLease> {
     if (this.locks.has(id)) throw new Error("Farm already open");

@@ -35,4 +35,19 @@ CREATE TABLE IF NOT EXISTS world_blueprints (
  revision integer NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT now()
 );`,
   },
+  {
+    version: 3,
+    sql: `
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT '지우네 농장';
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS owner_member_id uuid;
+UPDATE farms f
+SET owner_member_id = (
+  SELECT m.id FROM members m
+  WHERE m.farm_id=f.id
+  ORDER BY m.created_at ASC, m.id ASC
+  LIMIT 1
+)
+WHERE f.owner_member_id IS NULL;
+`,
+  },
 ];

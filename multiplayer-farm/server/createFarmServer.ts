@@ -107,7 +107,7 @@ export function createFarmServer(options: FarmServerOptions) {
         );
         response.setHeader(
           "Access-Control-Allow-Methods",
-          "GET, POST, OPTIONS",
+          "GET, POST, PATCH, DELETE, OPTIONS",
         );
         if (request.method === "OPTIONS") {
           response.status(204).end();
@@ -166,6 +166,33 @@ export function createFarmServer(options: FarmServerOptions) {
           response.json(await options.store.authenticate(token));
         } catch {
           response.status(401).json({ error: "세션이 만료됐습니다" });
+        }
+      });
+      app.patch("/api/farm", async (request, response) => {
+        try {
+          const token =
+            request.headers.authorization?.replace(/^Bearer /, "") || "";
+          const body = request.body as Record<string, unknown>;
+          if (!body || typeof body.name !== "string")
+            throw new Error("농장 이름을 입력하세요");
+          response.setHeader("Cache-Control", "no-store");
+          response.json(await options.store.renameFarm(token, body.name));
+        } catch (error) {
+          response.status(400).json({ error: error instanceof Error ? error.message : "농장 이름 변경 실패" });
+        }
+      });
+      app.delete("/api/farm", async (request, response) => {
+        try {
+          const token =
+            request.headers.authorization?.replace(/^Bearer /, "") || "";
+          const body = request.body as Record<string, unknown>;
+          if (!body || typeof body.confirmFarmId !== "string")
+            throw new Error("삭제 확인용 가족 코드를 입력하세요");
+          await options.store.deleteFarm(token, body.confirmFarmId);
+          response.setHeader("Cache-Control", "no-store");
+          response.status(204).end();
+        } catch (error) {
+          response.status(400).json({ error: error instanceof Error ? error.message : "농장 삭제 실패" });
         }
       });
       app.get("/healthz", async (_request, response) => {

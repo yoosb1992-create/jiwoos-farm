@@ -38,7 +38,12 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
       ["id", "legacy_marker"],
     );
     const s = await db.login(true, "", "DB-" + randomUUID().slice(0, 6));
-    assert.equal((await db.authenticate(s.token)).playerId, s.playerId);
+    const owner = await db.authenticate(s.token);
+    assert.equal(owner.playerId, s.playerId);
+    assert.equal(owner.isOwner, true);
+    assert.match(owner.farmName, /의 농장$/);
+    const renamed = await db.renameFarm(s.token, "테스트 가족 농장");
+    assert.equal(renamed.farmName, "테스트 가족 농장");
     const secrets = await db.pool.query(
       "SELECT password_hash FROM farms WHERE id=$1",
       [s.farmId],
@@ -113,6 +118,11 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
     } finally {
       await restored.close();
     }
+    const disposable = await db.login(true, "", "Delete-" + randomUUID().slice(0, 6));
+    await assert.rejects(() => db.deleteFarm(disposable.token, "WRONGCODE"));
+    await db.deleteFarm(disposable.token, disposable.farmId);
+    await assert.rejects(() => db.authenticate(disposable.token));
+    await assert.rejects(() => db.login(false, disposable.farmId, "gone"));
   } finally {
     await db.close();
   }

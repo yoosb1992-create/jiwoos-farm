@@ -10,6 +10,8 @@ export interface Identity {
   farmId: string;
   playerId: string;
   nickname: string;
+  farmName: string;
+  isOwner: boolean;
 }
 export interface Session extends Identity {
   token: string;
@@ -43,6 +45,8 @@ export interface Store extends BlueprintStore {
     templateId?: string,
   ): Promise<Session>;
   authenticate(token: string): Promise<Identity>;
+  renameFarm(token: string, name: string): Promise<Identity>;
+  deleteFarm(token: string, confirmFarmId: string): Promise<void>;
   lease(farmId: string, onLost: () => void): Promise<FarmLease>;
   close(): Promise<void>;
 }
@@ -125,6 +129,7 @@ export class PostgresStore implements Store {
     const farmId = create
       ? randomBytes(5).toString("hex").toUpperCase()
       : code.trim().toUpperCase();
+    const defaultFarmName = `${nickname.trim()}의 농장`;
     if (!/^[A-F0-9]{10}$/.test(farmId))
       throw new Error("가족 코드가 올바르지 않습니다");
     if (!create) {
@@ -145,20 +150,36 @@ export class PostgresStore implements Store {
       if (create) {
         const w = newWorld(randomBytes(4).readUInt32LE(), layout);
         await db.query(
-          "INSERT INTO farms(id,password_hash,world)VALUES($1,$2,$3)",
-          [farmId, "disabled:code-only", JSON.stringify(w)],
+          "INSERT INTO farms(id,password_hash,world,name)VALUES($1,$2,$3,$4)",
+          [farmId, "disabled:code-only", JSON.stringify(w), defaultFarmName],
         );
       }
       await db.query(
         "INSERT INTO members(id,farm_id,nickname)VALUES($1,$2,$3)",
         [playerId, farmId, nickname.trim()],
       );
+      if (create)
+        await db.query("UPDATE farms SET owner_member_id=$2 WHERE id=$1", [
+          farmId,
+          playerId,
+        ]);
       await db.query(
         "INSERT INTO sessions(token_hash,member_id,expires_at)VALUES($1,$2,now()+interval '90 days')",
         [tokenHash(token), playerId],
       );
+      const meta = await db.query<{ name: string; owner_member_id: string | null }>(
+        "SELECT name,owner_member_id::text FROM farms WHERE id=$1",
+        [farmId],
+      );
       await db.query("COMMIT");
-      return { farmId, playerId, nickname: nickname.trim(), token };
+      return {
+        farmId,
+        playerId,
+        nickname: nickname.trim(),
+        token,
+        farmName: meta.rows[0]?.name ?? defaultFarmName,
+        isOwner: meta.rows[0]?.owner_member_id === playerId,
+      };
     } catch (e) {
       await db.query("ROLLBACK");
       if ((e as { code?: string }).code === "23505")
@@ -237,13 +258,60 @@ export class PostgresStore implements Store {
       farm_id: string;
       id: string;
       nickname: string;
+      farm_name: string;
+      owner_member_id: string | null;
     }>(
-      "SELECT m.farm_id,m.id,m.nickname FROM sessions s JOIN members m ON s.member_id=m.id WHERE s.token_hash=$1 AND s.expires_at>now()",
+      "SELECT m.farm_id,m.id,m.nickname,f.name AS farm_name,f.owner_member_id::text FROM sessions s JOIN members m ON s.member_id=m.id JOIN farms f ON f.id=m.farm_id WHERE s.token_hash=$1 AND s.expires_at>now()",
       [tokenHash(token)],
     );
     const row = r.rows[0];
     if (!row) throw new Error("세션이 만료됐습니다");
-    return { farmId: row.farm_id, playerId: row.id, nickname: row.nickname };
+    return {
+      farmId: row.farm_id,
+      playerId: row.id,
+      nickname: row.nickname,
+      farmName: row.farm_name,
+      isOwner: row.owner_member_id === row.id,
+    };
+  }
+  async renameFarm(token: string, name: string): Promise<Identity> {
+    const identity = await this.authenticate(token);
+    const clean = typeof name === "string" ? name.trim() : "";
+    if (!identity.isOwner) throw new Error("농장 주인만 이름을 바꿀 수 있습니다");
+    if (!clean || [...clean].length > 30 || /\p{Cc}/u.test(clean))
+      throw new Error("농장 이름은 1~30글자로 입력하세요");
+    await this.pool.query(
+      "UPDATE farms SET name=$2,updated_at=now() WHERE id=$1 AND owner_member_id=$3",
+      [identity.farmId, clean, identity.playerId],
+    );
+    return { ...identity, farmName: clean };
+  }
+  async deleteFarm(token: string, confirmFarmId: string): Promise<void> {
+    const identity = await this.authenticate(token);
+    if (!identity.isOwner) throw new Error("농장 주인만 저장 농장을 삭제할 수 있습니다");
+    if (confirmFarmId.trim().toUpperCase() !== identity.farmId)
+      throw new Error("삭제 확인용 가족 코드가 일치하지 않습니다");
+    const db = await this.pool.connect();
+    try {
+      await db.query("BEGIN");
+      const lock = await db.query<{ locked: boolean }>(
+        "SELECT pg_try_advisory_xact_lock(hashtextextended($1,2526)) AS locked",
+        [identity.farmId],
+      );
+      if (!lock.rows[0]?.locked)
+        throw new Error("농장이 열려 있습니다. 모든 가족이 나간 뒤 다시 삭제하세요");
+      await db.query("DELETE FROM sessions WHERE member_id IN (SELECT id FROM members WHERE farm_id=$1)", [identity.farmId]);
+      await db.query("DELETE FROM action_receipts WHERE farm_id=$1", [identity.farmId]);
+      await db.query("DELETE FROM world_checkpoints WHERE farm_id=$1", [identity.farmId]);
+      await db.query("DELETE FROM members WHERE farm_id=$1", [identity.farmId]);
+      await db.query("DELETE FROM farms WHERE id=$1", [identity.farmId]);
+      await db.query("COMMIT");
+    } catch (e) {
+      await db.query("ROLLBACK").catch(() => undefined);
+      throw e;
+    } finally {
+      db.release();
+    }
   }
   async lease(farmId: string, onLost: () => void): Promise<FarmLease> {
     const db = await this.pool.connect();

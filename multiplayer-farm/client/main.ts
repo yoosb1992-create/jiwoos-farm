@@ -42,7 +42,7 @@ app.innerHTML = `<div id="arena" aria-label="가족 농장 게임 화면"></div>
 <div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><label for="tool">선택</label><select id="tool"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="fishing_rod">낚싯대</option></select></div>
 <div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action" aria-label="행동">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
 <pre id="hud" hidden></pre><dialog id="panel"><div id="panel-top"><h2 id="panel-title"></h2><button id="panel-close">닫기</button></div><div id="panel-body"></div></dialog>
-<section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><p id="login-error" role="alert"></p><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>가족 코드만 공유하면 함께할 수 있어요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
+<section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><div id="saved-farms"></div><p id="login-error" role="alert"></p><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>가족 코드만 공유하면 함께할 수 있어요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
 function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
@@ -331,6 +331,9 @@ function renderPanel(): void {
       button("월드 편집기", () => {
         window.location.href = "/editor.html";
       }),
+      button("저장 농장 관리", () => {
+        window.location.href = "/?newFarm=1";
+      }),
     );
     panelBody.append(menuGrid);
     if (["general_store", "cafe"].includes(local?.area ?? ""))
@@ -383,7 +386,7 @@ function renderPanel(): void {
     row("이 기기의 세션 보관", [
       button("로그아웃", () => {
         void network.leave();
-        localStorage.removeItem("farm-v26-session");
+        localStorage.removeItem(SESSION_KEY);
         session = undefined;
         closePanel();
         el("login").hidden = false;
@@ -980,19 +983,90 @@ el("arena").addEventListener(
   opts,
 );
 const http = serverUrl().replace(/^ws/, "http");
+const SESSION_KEY = "farm-v26-session";
+const SESSION_LIST_KEY = "farm-v26-sessions";
+function savedSessions(): Session[] {
+  try { return JSON.parse(localStorage.getItem(SESSION_LIST_KEY) ?? "[]") as Session[]; }
+  catch { return []; }
+}
+function writeSavedSessions(values: Session[]): void {
+  localStorage.setItem(SESSION_LIST_KEY, JSON.stringify(values.slice(0, 20)));
+}
 function archiveSession(value: Session | undefined): void {
   if (!value) return;
-  try {
-    const saved = JSON.parse(
-      localStorage.getItem("farm-v26-sessions") ?? "[]",
-    ) as Session[];
-    const list = [value, ...saved.filter((s) => s.token !== value.token)].slice(
-      0,
-      20,
-    );
-    localStorage.setItem("farm-v26-sessions", JSON.stringify(list));
-  } catch {
-    /* Current session remains available when device storage is full. */
+  try { writeSavedSessions([value, ...savedSessions().filter((s) => s.token !== value.token)]); }
+  catch {}
+}
+function updateSavedFarm(farmId: string, patch: Partial<Session>): void {
+  writeSavedSessions(savedSessions().map((s) => s.farmId === farmId ? { ...s, ...patch } : s));
+  if (session?.farmId === farmId) {
+    session = { ...session, ...patch };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  }
+}
+function removeSavedFarm(farmId: string): void {
+  writeSavedSessions(savedSessions().filter((s) => s.farmId !== farmId));
+  if (session?.farmId === farmId) {
+    session = undefined;
+    localStorage.removeItem(SESSION_KEY);
+  }
+}
+async function renameSavedFarm(value: Session): Promise<void> {
+  const name = prompt("새 농장 이름을 입력하세요.", value.farmName ?? `${value.nickname}의 농장`);
+  if (name === null) return;
+  const r = await fetch(`${http}/api/farm`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${value.token}` },
+    body: JSON.stringify({ name }),
+  });
+  const result = (await r.json()) as { farmName?: string; error?: string };
+  if (!r.ok || !result.farmName) { notice(result.error ?? "농장 이름 변경 실패"); return; }
+  updateSavedFarm(value.farmId, { farmName: result.farmName, isOwner: true });
+  renderSavedFarms();
+  notice("농장 이름을 바꿨어요.");
+}
+async function deleteSavedFarm(value: Session): Promise<void> {
+  if (!confirm(`${value.farmName ?? value.farmId} 농장을 영구 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return;
+  const code = prompt("삭제 확인을 위해 가족 코드를 입력하세요.", "");
+  if (code === null) return;
+  if (session?.farmId === value.farmId) {
+    await network.leave().catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  const r = await fetch(`${http}/api/farm`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${value.token}` },
+    body: JSON.stringify({ confirmFarmId: code }),
+  });
+  if (!r.ok) {
+    const result = (await r.json().catch(() => ({}))) as { error?: string };
+    notice(result.error ?? "농장 삭제 실패");
+    return;
+  }
+  removeSavedFarm(value.farmId);
+  renderSavedFarms();
+  notice("저장 농장을 삭제했습니다.");
+}
+function renderSavedFarms(): void {
+  const holder = el("saved-farms");
+  holder.replaceChildren();
+  const seen = new Set<string>();
+  for (const value of savedSessions()) {
+    if (seen.has(value.farmId)) continue;
+    seen.add(value.farmId);
+    const line = document.createElement("div");
+    line.className = "item-row";
+    const label = document.createElement("span");
+    label.textContent = `${value.farmName ?? `${value.nickname}의 농장`} · ${value.farmId}`;
+    line.append(label,
+      button("이어하기", () => {
+        session = value;
+        localStorage.setItem(SESSION_KEY, JSON.stringify(value));
+        void connectSaved();
+      }),
+      button("이름 수정", () => void renameSavedFarm(value)),
+      button("삭제", () => void deleteSavedFarm(value)));
+    holder.append(line);
   }
 }
 async function connectSaved(): Promise<void> {
@@ -1032,7 +1106,7 @@ async function login(create: boolean): Promise<void> {
     archiveSession(session);
     session = result;
     archiveSession(session);
-    localStorage.setItem("farm-v26-session", JSON.stringify(session));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 
     await connectSaved();
   } catch (e) {
@@ -1063,7 +1137,7 @@ el("resume").addEventListener(
   opts,
 );
 try {
-  const saved = localStorage.getItem("farm-v26-session");
+  const saved = localStorage.getItem(SESSION_KEY);
   if (saved) {
     const value = JSON.parse(saved) as Session;
     if (value.token && value.farmId) {
@@ -1074,21 +1148,13 @@ try {
     }
   }
 } catch {
-  localStorage.removeItem("farm-v26-session");
+  localStorage.removeItem(SESSION_KEY);
 }
 try {
   archiveSession(session);
-  const saved = JSON.parse(
-    localStorage.getItem("farm-v26-sessions") ?? "[]",
-  ) as Session[];
-  for (const value of saved.filter((s) => s.token !== session?.token)) {
-    const b = button(`${value.nickname} · ${value.farmId} 이어하기`, () => {
-      session = value;
-      localStorage.setItem("farm-v26-session", JSON.stringify(value));
-      void connectSaved();
-    });
-    el("resume").after(b);
-  }
+  if (session)
+    el("resume").textContent = `${session.farmName ?? `${session.nickname}의 농장`} 이어하기`;
+  renderSavedFarms();
   const template = localStorage.getItem("farm-active-blueprint");
   if (template) {
     const hint = document.createElement("p");
