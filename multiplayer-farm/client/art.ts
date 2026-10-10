@@ -291,6 +291,77 @@ export function createContentTextures(scene: Phaser.Scene): void {
         }
       },
     );
+  for (const [key, variant] of [
+    ["farm_twig_a", 0],
+    ["farm_twig_b", 1],
+  ] as const)
+    texture(scene, key, 72, 44, (c) => {
+      c.strokeStyle = variant ? "#7b5738" : "#8b6543";
+      c.lineWidth = variant ? 6 : 5;
+      c.lineCap = "round";
+      c.beginPath();
+      c.moveTo(10, 31);
+      c.quadraticCurveTo(35, 15 + variant * 4, 62, 25);
+      c.stroke();
+      c.lineWidth = 4;
+      c.beginPath();
+      c.moveTo(34, 22);
+      c.lineTo(27, 10 + variant * 3);
+      c.moveTo(46, 21);
+      c.lineTo(54, 9 + variant * 4);
+      c.stroke();
+      ellipse(c, 35, 34, 26, 5, "#2d3f3028");
+    });
+  for (const [key, variant] of [
+    ["farm_stone_a", 0],
+    ["farm_stone_b", 1],
+  ] as const)
+    texture(scene, key, 64, 50, (c) => {
+      ellipse(c, 32, 42, 24, 5, "#2d3f3028");
+      c.fillStyle = variant ? "#87928b" : "#9a9d91";
+      c.beginPath();
+      c.moveTo(12, 37);
+      c.lineTo(18, 19);
+      c.lineTo(36, 10 + variant * 4);
+      c.lineTo(53, 23);
+      c.lineTo(50, 38);
+      c.closePath();
+      c.fill();
+      c.fillStyle = "#c7c8b7aa";
+      c.beginPath();
+      c.moveTo(19, 21);
+      c.lineTo(35, 13 + variant * 4);
+      c.lineTo(31, 26);
+      c.closePath();
+      c.fill();
+      ellipse(c, 19 + variant * 6, 31, 7, 4, "#6f8068");
+    });
+  texture(scene, "farm_weed", 56, 52, (c) => {
+    c.strokeStyle = "#668255";
+    c.lineWidth = 3;
+    for (let i = 0; i < 6; i++) {
+      c.beginPath();
+      c.moveTo(28, 46);
+      c.quadraticCurveTo(18 + i * 4, 30 - (i % 2) * 8, 12 + i * 7, 14 + (i % 3) * 6);
+      c.stroke();
+    }
+    ellipse(c, 28, 47, 18, 4, "#2d3f3022");
+  });
+  texture(scene, "farm_wildflower", 64, 56, (c) => {
+    c.strokeStyle = "#668255";
+    c.lineWidth = 2.5;
+    for (let i = 0; i < 5; i++) {
+      const x = 14 + i * 9, y = 18 + (i % 2) * 7;
+      c.beginPath();
+      c.moveTo(32, 49);
+      c.lineTo(x, y + 8);
+      c.stroke();
+      for (let p = 0; p < 5; p++)
+        ellipse(c, x + Math.cos(p * 1.256) * 4, y + Math.sin(p * 1.256) * 4, 3, 2.2, i % 2 ? "#f4d0d7" : "#f5edc8");
+      ellipse(c, x, y, 1.5, 1.5, "#d9b85f");
+    }
+    ellipse(c, 32, 50, 18, 4, "#2d3f3022");
+  });
   for (const [key, color] of [
     ["milk", "#e8eee2"],
     ["wool", "#efe6d2"],
