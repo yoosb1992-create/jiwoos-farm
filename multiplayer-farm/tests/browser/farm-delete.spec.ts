@@ -23,7 +23,7 @@ test("farm deletion uses one confirmation dialog, no family-code prompt, and inv
   await expect.poll(() => page.evaluate(id =>
     !(JSON.parse(localStorage.getItem("farm-v26-sessions") ?? "[]") as {farmId:string}[]).some(v=>v.farmId===id),
     farm.farmId
-  ), {timeout:15000}).toBe(true);
+  ), {timeout:50000}).toBe(true);
   expect(dialogs).toEqual(["confirm"]);
   const revoked = await page.evaluate(async ({http,token}) => {
     const r = await fetch(http+"/api/session",{headers:{Authorization:`Bearer ${token}`}});

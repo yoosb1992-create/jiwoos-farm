@@ -1031,16 +1031,26 @@ async function deleteSavedFarm(value: Session): Promise<void> {
     await network.leave().catch(() => undefined);
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
-  const r = await fetch(`${http}/api/farm`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${value.token}` },
-    body: JSON.stringify({ confirm: true }),
-  });
-  if (!r.ok) {
+  let removed = false;
+  // An old tab may close before its WebSocket room releases the server lease.
+  // The owner confirms only once; transparently retry ONLY the temporary
+  // "farm is still open" lock. Other failures never retry or erase anything.
+  for (let attempt = 0; attempt < 22; attempt++) {
+    const r = await fetch(`${http}/api/farm`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${value.token}` },
+      body: JSON.stringify({ confirm: true }),
+    });
+    if (r.ok) { removed = true; break; }
     const result = (await r.json().catch(() => ({}))) as { error?: string };
-    notice(result.error ?? "농장 삭제 실패");
-    return;
+    if (!result.error?.includes("농장이 열려") || attempt === 21) {
+      notice(result.error ?? "농장 삭제 실패");
+      return;
+    }
+    notice("농장의 이전 연결이 종료되기를 확인하고 있어요…");
+    await new Promise(resolve => setTimeout(resolve, 1500));
   }
+  if (!removed) return;
   removeSavedFarm(value.farmId);
   renderSavedFarms();
   notice("저장 농장을 삭제했습니다.");
