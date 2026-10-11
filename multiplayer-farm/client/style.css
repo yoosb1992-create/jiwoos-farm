@@ -667,11 +667,15 @@ h2 {
     radial-gradient(ellipse at 18% 16%, #fff9dbb3, transparent 48%),
     linear-gradient(145deg, #aec6a4f5, #e8e7c8f5 45%, #f5dfbef5);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 22px;
+  justify-content: flex-start;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
   z-index: 5;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }
 #login:before,
@@ -699,6 +703,8 @@ h2 {
 }
 .login-card {
   position: relative;
+  flex: 0 0 auto;
+  margin: auto;
   width: 420px;
   max-width: 100%;
   padding: 28px;
@@ -784,6 +790,32 @@ h1 {
 #resume {
   margin-top: 10px;
   width: 100%;
+}
+#saved-farms {
+  max-height: min(35dvh, 340px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  margin-top: 12px;
+  scrollbar-width: thin;
+}
+#saved-farms .item-row {
+  background: #f6f4e8;
+  border: 1px solid #e1e2d0;
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 6px;
+}
+#saved-farms .item-row span {
+  flex: 1 0 100%;
+  overflow-wrap: anywhere;
+}
+#saved-farms .item-row button {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 5px;
+  white-space: nowrap;
+  font-size: 12px;
 }
 .login-card > small {
   font-size: 10px;

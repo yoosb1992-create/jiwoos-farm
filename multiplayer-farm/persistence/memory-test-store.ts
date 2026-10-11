@@ -4,6 +4,7 @@ import type { WorldLayout } from "../shared/layout.js";
 import type { Blueprint } from "../shared/blueprint.js";
 import { newWorld, type World, type ActionResult } from "../shared/world.js";
 import {
+  validatedFarmName,
   type Store,
   type Session,
   type Identity,
@@ -29,7 +30,11 @@ export class MemoryTestStore implements Store {
     code: string,
     nickname: string,
     templateId?: string,
+    farmName?: string,
   ): Promise<Session> {
+    const initialFarmName = create
+      ? validatedFarmName(farmName === undefined || farmName === "" ? `${nickname.trim()}의 농장` : farmName)
+      : "";
     const farmId = create ? randomBytes(5).toString("hex").toUpperCase() : code;
     if (create)
       this.worlds.set(
@@ -48,7 +53,7 @@ export class MemoryTestStore implements Store {
       throw new Error("Nickname in use");
     const playerId = randomUUID();
     if (create)
-      this.farmMeta.set(farmId, { name: `${nickname.trim()}의 농장`, ownerId: playerId });
+      this.farmMeta.set(farmId, { name: initialFarmName, ownerId: playerId });
     const meta = this.farmMeta.get(farmId) ?? { name: "지우네 농장", ownerId: "" };
     const identity: Identity = {
       farmId,
@@ -113,10 +118,8 @@ export class MemoryTestStore implements Store {
   }
   async renameFarm(token: string, name: string): Promise<Identity> {
     const identity = await this.authenticate(token);
-    const clean = name.trim();
     if (!identity.isOwner) throw new Error("농장 주인만 이름을 바꿀 수 있습니다");
-    if (!clean || [...clean].length > 30 || /\p{Cc}/u.test(clean))
-      throw new Error("농장 이름은 1~30글자로 입력하세요");
+    const clean = validatedFarmName(name);
     const meta = this.farmMeta.get(identity.farmId);
     if (!meta) throw new Error("농장 없음");
     meta.name = clean;

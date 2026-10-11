@@ -6,6 +6,12 @@ import { MIGRATIONS } from "./migrations.js";
 import { newWorld, type World, type ActionResult } from "../shared/world.js";
 export const tokenHash = (s: string) =>
   createHash("sha256").update(s).digest("hex");
+export function validatedFarmName(name: string): string {
+  const clean = name.trim();
+  if (!clean || [...clean].length > 30 || /\p{Cc}/u.test(clean))
+    throw new Error("농장 이름은 1~30글자로 입력하세요");
+  return clean;
+}
 export interface Identity {
   farmId: string;
   playerId: string;
@@ -43,6 +49,7 @@ export interface Store extends BlueprintStore {
     code: string,
     nickname: string,
     templateId?: string,
+    farmName?: string,
   ): Promise<Session>;
   authenticate(token: string): Promise<Identity>;
   renameFarm(token: string, name: string): Promise<Identity>;
@@ -119,6 +126,7 @@ export class PostgresStore implements Store {
     code: string,
     nickname: string,
     templateId?: string,
+    farmName?: string,
   ): Promise<Session> {
     if (
       !nickname.trim() ||
@@ -130,6 +138,9 @@ export class PostgresStore implements Store {
       ? randomBytes(5).toString("hex").toUpperCase()
       : code.trim().toUpperCase();
     const defaultFarmName = `${nickname.trim()}의 농장`;
+    const initialFarmName = create
+      ? validatedFarmName(farmName === undefined || farmName === "" ? defaultFarmName : farmName)
+      : defaultFarmName;
     if (!/^[A-F0-9]{10}$/.test(farmId))
       throw new Error("가족 코드가 올바르지 않습니다");
     if (!create) {
@@ -151,7 +162,7 @@ export class PostgresStore implements Store {
         const w = newWorld(randomBytes(4).readUInt32LE(), layout);
         await db.query(
           "INSERT INTO farms(id,password_hash,world,name)VALUES($1,$2,$3,$4)",
-          [farmId, "disabled:code-only", JSON.stringify(w), defaultFarmName],
+          [farmId, "disabled:code-only", JSON.stringify(w), initialFarmName],
         );
       }
       await db.query(
@@ -177,7 +188,7 @@ export class PostgresStore implements Store {
         playerId,
         nickname: nickname.trim(),
         token,
-        farmName: meta.rows[0]?.name ?? defaultFarmName,
+        farmName: meta.rows[0]?.name ?? initialFarmName,
         isOwner: meta.rows[0]?.owner_member_id === playerId,
       };
     } catch (e) {
@@ -276,10 +287,8 @@ export class PostgresStore implements Store {
   }
   async renameFarm(token: string, name: string): Promise<Identity> {
     const identity = await this.authenticate(token);
-    const clean = typeof name === "string" ? name.trim() : "";
     if (!identity.isOwner) throw new Error("농장 주인만 이름을 바꿀 수 있습니다");
-    if (!clean || [...clean].length > 30 || /\p{Cc}/u.test(clean))
-      throw new Error("농장 이름은 1~30글자로 입력하세요");
+    const clean = validatedFarmName(name);
     await this.pool.query(
       "UPDATE farms SET name=$2,updated_at=now() WHERE id=$1 AND owner_member_id=$3",
       [identity.farmId, clean, identity.playerId],

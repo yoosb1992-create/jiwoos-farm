@@ -42,6 +42,9 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
     assert.equal(owner.playerId, s.playerId);
     assert.equal(owner.isOwner, true);
     assert.match(owner.farmName, /의 농장$/);
+    const named = await db.login(true, "", "DB-Named", undefined, "  우리 가족 텃밭  ");
+    assert.equal(named.farmName, "우리 가족 텃밭");
+    assert.equal((await db.authenticate(named.token)).farmName, "우리 가족 텃밭");
     const renamed = await db.renameFarm(s.token, "테스트 가족 농장");
     assert.equal(renamed.farmName, "테스트 가족 농장");
     const secrets = await db.pool.query(

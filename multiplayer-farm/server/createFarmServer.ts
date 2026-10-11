@@ -149,6 +149,7 @@ export function createFarmServer(options: FarmServerOptions) {
             typeof body.code === "string" ? body.code : "",
             body.nickname,
             typeof body.templateId === "string" ? body.templateId : undefined,
+            typeof body.farmName === "string" ? body.farmName : undefined,
           );
           response.setHeader("Cache-Control", "no-store");
           response.json(result);
