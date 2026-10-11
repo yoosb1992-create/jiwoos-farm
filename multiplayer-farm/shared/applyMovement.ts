@@ -61,23 +61,21 @@ interface DynamicObstacleBox {
 }
 export interface DynamicObstacleIndex {
   readonly buckets: Map<string, readonly DynamicObstacle[]>;
+  /** Whole 32px cells occupied by currently present natural obstacles. */
+  readonly solidTiles: ReadonlySet<string>;
 }
 export type DynamicObstacleSource =
   | Iterable<DynamicObstacle>
   | DynamicObstacleIndex;
 
+/** Tree, stump, rock, branch, and thick weed cells are impassable until cleared. */
+const solidNatureEntity = (e: DynamicObstacle): boolean =>
+  ["tree", "stump", "rock", "twig"].includes(e.kind) ||
+  (e.kind === "gather" && /^farm_weed/.test(e.asset ?? ""));
 const dynamicObstacleBox = (e: DynamicObstacle): DynamicObstacleBox | undefined => {
-  if (e.kind === "tree") {
-    const mature = (e.stage ?? 2) >= 2;
-    return { halfW: mature ? 15 : 11, halfH: mature ? 11 : 9, offsetY: -7 };
-  }
-  if (e.kind === "stump") return { halfW: 14, halfH: 10, offsetY: -4 };
-  if (e.kind === "rock") return { halfW: 14, halfH: 12, offsetY: -2 };
-  if (e.kind === "twig") return { halfW: 15, halfH: 9, offsetY: -1 };
+  // Machines/decorations retain their authored footprint collision.
   if (["machine", "decoration", "barn", "trough"].includes(e.kind))
     return { halfW: 14, halfH: 14, offsetY: 0 };
-  if (e.kind === "gather" && /weed/.test(e.asset ?? ""))
-    return { halfW: 10, halfH: 10, offsetY: 0 };
   return undefined;
 };
 const obstacleKey = (area: string, tx: number, ty: number) =>
@@ -89,18 +87,23 @@ export function prepareDynamicObstacles(
   if (!source) return undefined;
   if ("buckets" in source) return source;
   const buckets = new Map<string, DynamicObstacle[]>();
+  const solidTiles = new Set<string>();
   for (const e of source) {
-    if (!dynamicObstacleBox(e)) continue;
     const key = obstacleKey(
       e.area,
       Math.floor(e.x / TILE),
       Math.floor(e.y / TILE),
     );
+    if (solidNatureEntity(e)) {
+      solidTiles.add(key);
+      continue;
+    }
+    if (!dynamicObstacleBox(e)) continue;
     const list = buckets.get(key);
     if (list) list.push(e);
     else buckets.set(key, [e]);
   }
-  return { buckets };
+  return { buckets, solidTiles };
 }
 // Scenery without a WorldEntity also needs a physical footprint. Art crowns
 // may overlap players; only roots, trunks, stones and dense shrubs are solid.
@@ -145,6 +148,22 @@ export const sceneryCollision = (
     width: rect.width * scale,
     height: rect.height * scale,
   };
+};
+
+/** Static natural scenery also occupies its entire placement tile. */
+const solidNatureScenery = (o: MapObject): boolean => {
+  const asset = o.assetId;
+  const debris = staticDebrisKinds.get(asset);
+  return asset === "tree" ||
+    asset.startsWith("tree_") ||
+    asset === "pond_rock_large" ||
+    asset === "small_rock" ||
+    asset === "forest_rock" ||
+    asset === "green_shrub" ||
+    asset === "flowering_bush" ||
+    debris === "rock" ||
+    debris === "twig" ||
+    (debris === "gather" && /^farm_weed/.test(asset));
 };
 
 export function collidesWithObstacle(
@@ -193,6 +212,20 @@ export function collidesWithObstacle(
     return true;
   const obstacleIndex = prepareDynamicObstacles(dynamic);
   if (obstacleIndex) {
+    // A blocked tile is an entire solid cell, including its four corners.
+    // Expand by player radius so sprint/diagonal approaches cannot clip edges.
+    for (
+      let ty = Math.floor((y - PLAYER_RADIUS + 0.001) / TILE);
+      ty <= Math.floor((y + PLAYER_RADIUS - 0.001) / TILE);
+      ty++
+    )
+      for (
+        let tx = Math.floor((x - PLAYER_RADIUS + 0.001) / TILE);
+        tx <= Math.floor((x + PLAYER_RADIUS - 0.001) / TILE);
+        tx++
+      )
+        if (obstacleIndex.solidTiles.has(obstacleKey(area, tx, ty)))
+          return true;
     const cx = Math.floor(x / TILE), cy = Math.floor(y / TILE);
     for (let ty = cy - 1; ty <= cy + 1; ty++)
       for (let tx = cx - 1; tx <= cx + 1; tx++)
@@ -218,6 +251,13 @@ export function collidesWithObstacle(
     // Its collision belongs to current server-authoritative live entities.
     if (["tree", "stump", "rock", "twig", "gather"].includes(o.kind ?? ""))
       return false;
+    if (solidNatureScenery(o))
+      return hit(
+        Math.floor(o.position.tileX) * TILE,
+        Math.floor(o.position.tileY) * TILE,
+        TILE,
+        TILE,
+      );
     const box = o.collision ?? sceneryCollision(o);
     return !!box && hit(
       o.position.tileX * TILE + box.x,

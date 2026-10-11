@@ -166,3 +166,78 @@ test("solid natural scenery and editor debris share correct persistent/living co
   assert(!collidesWithObstacle(at + 100, at, "farm", maps, [live]),
     "Nearby paths must remain traversable");
 });
+
+
+test("nature occupancy blocks the whole tile: all four corners, stages and live clearing", () => {
+  const base = defaultLayout().maps.farm!;
+  const map = { ...base, world2: undefined, collisionRegions: [], objects: [] };
+  const maps = { farm: map };
+  const centerX = 20.5 * 32, centerY = 20.5 * 32;
+  for (const [kind, asset, stage] of [
+    ["tree", "tree_pine_seedling", 0], ["tree", "tree_oak_guardian", 4],
+    ["stump", "stump", 0], ["rock", "farm_stone_b", 0],
+    ["twig", "farm_thick_branch", 0], ["gather", "farm_weed_b", 0],
+  ] as const) {
+    const obstacle = entity("test-obstacle", "farm", kind, centerX, centerY, asset);
+    obstacle.stage = stage;
+    for (const px of [20 * 32 + 1, 21 * 32 - 1])
+      for (const py of [20 * 32 + 1, 21 * 32 - 1])
+        assert(collidesWithObstacle(px, py, "farm", maps, [obstacle]),
+          `${kind} / ${asset} must block every tile corner`);
+    for (const [px, py] of [
+      [19.5 * 32, centerY], [21.5 * 32, centerY],
+      [centerX, 19.5 * 32], [centerX, 21.5 * 32],
+    ])
+      assert(!collidesWithObstacle(px, py, "farm", maps, [obstacle]),
+        `Neighboring tile center should stay walkable around ${kind}`);
+    assert(!collidesWithObstacle(centerX, centerY, "farm", maps, []),
+      "Clearing an entity must immediately remove its tile collision");
+  }
+  const grass = entity("grass", "farm", "gather", centerX, centerY, "farm_tall_grass");
+  assert(!collidesWithObstacle(centerX, centerY, "farm", maps, [grass]),
+    "Soft grass stays walkable in an extremely dense opening");
+});
+
+test("occupied cells withstand joystick sprint, diagonal movement, pathfinding and static editor rocks", () => {
+  const base = defaultLayout().maps.farm!;
+  const map = { ...base, world2: undefined, collisionRegions: [], objects: [] as typeof base.objects };
+  const maps = { farm: map };
+  const rock = entity("test-rock", "farm", "rock", 20.5 * 32, 20.5 * 32, "farm_stone_a");
+  for (const run of [false, true]) {
+    const p = {
+      x: 19.5 * 32, y: rock.y, area: "farm", stamina: 100,
+      facing: "right", moving: false, running: false, actionTicks: 0,
+    };
+    for (let i = 0; i < 30; i++) {
+      applyMovement(p, { moveX: 1, moveY: 0, run }, 1 / 30, maps, [rock].values());
+      assert.equal(Math.floor(p.x / 32), 19, "The obstructed tile cannot be entered");
+    }
+  }
+  const diagonal = {
+    x: 19.5 * 32, y: 19.5 * 32, area: "farm", stamina: 100,
+    facing: "down", moving: false, running: false, actionTicks: 0,
+  };
+  for (let i = 0; i < 35; i++) {
+    applyMovement(diagonal, { moveX: 1, moveY: 1, run: true }, 1 / 30, maps, [rock].values());
+    assert(!collidesWithObstacle(diagonal.x, diagonal.y, "farm", maps, [rock]),
+      "Diagonally moving into an obstructed cell must never be possible");
+  }
+  const path = findPath("farm", { x: 19.5 * 32, y: rock.y },
+    p => Math.floor(p.x / 32) === 21 && Math.floor(p.y / 32) === 20, maps, [rock]);
+  assert(path?.length, "Touch-navigation must route around a blocked cell");
+  assert(path.every(p => !(Math.floor(p.x / 32) === 20 && Math.floor(p.y / 32) === 20)));
+  const authored = {
+    id: "static-natural-rock", assetId: "pond_rock_large",
+    position: { tileX: 20.5, tileY: 20.5 },
+    collision: { x: -6, y: -5, width: 12, height: 10 },
+  };
+  map.objects = [authored];
+  for (const px of [20 * 32 + 1, 21 * 32 - 1])
+    for (const py of [20 * 32 + 1, 21 * 32 - 1])
+      assert(collidesWithObstacle(px, py, "farm", maps, []),
+        "Editor scenery must block its full grid cell regardless of its small custom box");
+  assert(!collidesWithObstacle(19.5 * 32, rock.y, "farm", maps, []));
+  map.objects = [{ ...authored, kind: "rock" }];
+  assert(!collidesWithObstacle(rock.x, rock.y, "farm", maps, []),
+    "Cleared interactive authored rock must leave no phantom collision");
+});
