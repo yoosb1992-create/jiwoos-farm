@@ -8,7 +8,28 @@ import type { Entity, World } from "../../shared/world.js";
 test("mobile nature: decode shipped art, touch plant a seed and reload the saved tree", async ({ page }, info) => {
   const errors: string[] = [];
   page.on("pageerror", e => errors.push(e.message));
-  await page.addInitScript(() => localStorage.setItem("farm-zoom", "0.7"));
+  // Harvesting through an overgrown first-day map is covered by the real
+  // multiplayer integration suite. This browser scenario isolates touch
+  // tree-planting using an editable, deliberately cleared custom world.
+  // It still goes through the actual blueprint publication, farm creation,
+  // server action and reload persistence endpoints.
+  const backend = "http://127.0.0.1:2575";
+  const defaults = await page.request.get(`${backend}/api/blueprints/defaults`);
+  expect(defaults.ok()).toBe(true);
+  const layout = await defaults.json();
+  delete layout.maps.farm.world2;
+  const draftResponse = await page.request.post(`${backend}/api/blueprints`, {data:layout});
+  expect(draftResponse.ok(), await draftResponse.text()).toBe(true);
+  const draft = await draftResponse.json();
+  const published = await page.request.post(`${backend}/api/blueprints/${draft.id}`, {
+    headers:{ Authorization:`Bearer ${draft.editToken}` },
+    data:{layout,revision:draft.revision,publish:true},
+  });
+  expect(published.ok(), await published.text()).toBe(true);
+  await page.addInitScript((id:string) => {
+    localStorage.setItem("farm-zoom", "0.7");
+    localStorage.setItem("farm-active-blueprint", id);
+  }, draft.id);
   await page.goto("/");
   await page.locator("#nickname").fill("나무 농부");
   await page.locator("#create-farm").click();

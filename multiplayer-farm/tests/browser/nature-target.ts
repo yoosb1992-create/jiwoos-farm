@@ -32,7 +32,7 @@ export async function reachableNatureTarget(page: Page, mode: "till" | "tree"): 
     for (let x = Math.max(2,cx-18); x < Math.min(farm.width-1,cx+18); x++) {
       const dist = Math.abs(x - cx) + Math.abs(y - cy);
       if (dist < 4 || dist > 34 || occupied.has(`${x},${y}`) ||
-          !isFarmable("farm",x,y,maps) ||
+          (mode === "till" && !isFarmable("farm",x,y,maps)) ||
           collidesWithObstacle((x+.5)*TILE,(y+.5)*TILE,"farm",maps,obstacles)) continue;
       if (mode === "tree" && !naturalPlacement(world,"farm",x,y,"tree")) continue;
       points.push({x,y,distance:dist});
