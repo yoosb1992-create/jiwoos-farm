@@ -43,6 +43,7 @@ import { FISH_STEP_MS, FISH_MAX_STEPS, replayFishing } from "./fishing.js";
 import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 import { isTool, cuttableGrass, pickupRadius, PICKUP_RANGE_EPSILON, type Tool, type ActionFx } from "./interaction.js";
+import { naturalFlower, normalizeRock, rockMaxHp, rockClass } from "./resources.js";
 export class ActionError extends Error {}
 function requireThat(condition: unknown, message: string): asserts condition {
   if (!condition) throw new ActionError(message);
@@ -50,6 +51,7 @@ function requireThat(condition: unknown, message: string): asserts condition {
 const TYPES = new Set([
   "useTool",
   "cutGrass",
+  "destroyFlower",
   "worldEvent",
   "tillTile",
   "plantSeed",
@@ -202,6 +204,8 @@ export function applyAction(
     tillTile: "hoe", waterCrop: "water", refill: "water",
   };
   const tool = command.toolId ?? legacyTools[command.type];
+  if(["gather","harvestCrop"].includes(command.type))
+    requireThat(!command.toolId,"손 채집에는 도구를 사용할 수 없습니다");
   if (legacyTools[command.type])
     requireThat(tool === legacyTools[command.type], "이 행동에 맞지 않는 도구입니다");
   let c = command;
@@ -215,9 +219,10 @@ export function applyAction(
         requireThat(a.facing === "left" ? dx <= 16 : a.facing === "right" ? dx >= -16 : a.facing === "up" ? dy <= 16 : dy >= -16, "앞쪽 대상을 바라보세요");
     }
     const type = tool === "axe" && before?.kind === "twig" ? "clearTwig"
+      : before && naturalFlower(before) && (tool === "axe" || tool === "pickaxe") ? "destroyFlower"
       : tool === "axe" && ["tree","stump"].includes(before?.kind ?? "") ? "hitTree"
       : tool === "pickaxe" && before?.kind === "rock" ? "hitRock"
-      : tool === "scythe" && before && cuttableGrass(before) ? "cutGrass"
+      : tool === "scythe" && before && (cuttableGrass(before) || naturalFlower(before)) ? "cutGrass"
       : tool === "hoe" && (!before || ["soil","withered"].includes(before.kind)) ? "tillTile"
       : tool === "water" && (!before || ["soil","crop"].includes(before.kind)) ? "waterCrop"
       : tool === "water" && before?.kind === "well" ? "refill" : undefined;
@@ -229,6 +234,7 @@ export function applyAction(
     stage: before.stage, species: before.species, item: before.item, quantity: before.quantity,
   } : undefined;
   const nextEntity = w.nextEntity;
+  const hpBefore=before?.kind==="rock" ? before.hp : undefined;
   const result: ActionResult = failed ? {
     actionId: c.actionId, ok: false, message: before ? "이 도구로는 처리할 수 없어요" : "닿는 대상이 없어요",
     revision: ++w.revision, serverNow: ctx.now,
@@ -244,6 +250,11 @@ export function applyAction(
       id: c.actionId, actorId: a.id, area: a.area, x:a.x, y:a.y, facing:a.facing as ActionFx["facing"],
       tool: tool ?? "hand", outcome: failed ? "fail" : c.type === "pickupDrop" ? "pickup"
         : target && (!after || after.kind !== target.kind) ? "break" : "hit", target, drops,
+      action:c.type,
+      point:target ? {x:target.x,y:target.y} : (()=>{const t=frontTile(a);return {x:((c.tileX??t.tileX)+.5)*TILE,y:((c.tileY??t.tileY)+.5)*TILE};})(),
+      hpAfter:target?.kind==="rock" ? after?.hp??0 : undefined,
+      hpBefore,
+      maxHp:target?.kind==="rock" ? rockMaxHp(target) : undefined,
     };
   }
   return result;
@@ -501,7 +512,8 @@ function applyActionCore(
       own("pickaxe");
       const e = target("rock");
       front(e);
-      spend(e.id.startsWith("farmdebris-") ? 1 : 3);
+      spend(rockClass(e)==="stone" ? 1 : 3);
+      normalizeRock(e);
       e.hp -= m.toolLevel >= 2 ? 2 : 1;
       if (e.hp <= 0) {
         addDrop(w, e, e.item || "stone", 1);
@@ -541,13 +553,23 @@ function applyActionCore(
       const e = target("gather");
       if (c.type === "cutGrass") {
         own("scythe");
-        requireThat(cuttableGrass(e), "꽃과 작물은 손으로 수확하세요");
+        requireThat(cuttableGrass(e) || naturalFlower(e), "낫으로 채집할 수 없는 대상입니다");
         front(e);
       } else requireThat(!cuttableGrass(e), "목초와 잡초에는 낫을 사용하세요");
       spend(1);
       addDrop(w, e, e.item, 1);
       markCleared(w,e);
       delete w.entities[e.id];
+      break;
+    }
+    case "destroyFlower": {
+      requireThat(c.toolId==="axe" || c.toolId==="pickaxe", "꽃을 제거할 도구가 없습니다");
+      own(c.toolId);
+      const e=target("gather");
+      requireThat(naturalFlower(e), "자연 채집 꽃이 아닙니다");
+      front(e);spend(1);markCleared(w,e);delete w.entities[e.id];
+      // Destruction is deliberately not gather: no drop, XP or quest reward.
+      result.message="꽃을 제거했어요";
       break;
     }
     case "pickupDrop": {

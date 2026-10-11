@@ -2,29 +2,37 @@ import { test, expect } from "@playwright/test";
 import { waitForFarmInput } from "./nature-target.js";
 
 test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drops, magnet and scythe",async({page},info)=>{
-  test.setTimeout(90000);
+  test.setTimeout(150000);
   await page.setViewportSize({width:800,height:960});
   const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
   const backend="http://127.0.0.1:2575";
   const layout=await(await page.request.get(`${backend}/api/blueprints/defaults`)).json();
   const map=layout.maps.farm;
   delete map.world2;map.objects=[];map.collisionRegions=[];map.terrainRegions=[];map.warps=[];
-  map.baseTileType="grass";map.farmAreas=[];
+  map.baseTileType="grass";map.farmAreas=[{startX:35,endX:45,startY:38,endY:46}];
   Object.assign(map.spawns.find((s:{id:string})=>s.id==="farm_entry"),{tileX:40.5,tileY:40.5,facing:"right"});
   map.objects.push(
     {id:"fx-tree",assetId:"tree_oak",position:{tileX:42.5,tileY:40.5},kind:"tree",tree:{species:"tree_oak",stage:2,chop:true,regrow:true}},
     {id:"fx-rock",assetId:"farm_stone_a",position:{tileX:38.5,tileY:40.5},kind:"rock"},
     {id:"fx-grass",assetId:"farm_tall_grass",position:{tileX:40.5,tileY:42.5},kind:"gather"},
     {id:"fx-flower",assetId:"farm_white_wildflower",position:{tileX:42.5,tileY:42.5},kind:"gather"},
+    {id:"fx-twig",assetId:"farm_thick_branch",position:{tileX:38.5,tileY:39.5},kind:"twig"},
+    {id:"fx-ore",assetId:"mine_copper",position:{tileX:38.5,tileY:42.5},kind:"rock"},
+    ...["hand","axe","pickaxe"].map((tool,i)=>({id:`flower-${tool}`,assetId:"farm_pink_wildflower",position:{tileX:36.5+i*2,tileY:44.5},kind:"gather"})),
   );
   const response=await page.request.post(`${backend}/api/blueprints`,{data:layout});expect(response.ok()).toBe(true);
   const draft=await response.json();
   expect((await page.request.post(`${backend}/api/blueprints/${draft.id}`,{headers:{Authorization:`Bearer ${draft.editToken}`},data:{layout,revision:draft.revision,publish:true}})).ok()).toBe(true);
   await page.addInitScript(id=>{localStorage.setItem("farm-active-blueprint",id);localStorage.setItem("farm-zoom","1.4");},draft.id);
   await page.goto("/");await page.locator("#nickname").fill("도구 농부");await page.locator("#create-farm").click();
-  await expect(page.locator("#connection")).toHaveAttribute("data-status","connected");
+  await expect(page.locator("#connection")).toHaveAttribute("data-status","connected",{timeout:20000});
   // Scene startup loads real art; never tap a placeholder before world picking is ready.
   await page.waitForFunction(()=>(window.__FARM_DEBUG__ as any).scene().objects.has("fx-tree"));
+  await page.evaluate(()=>{
+    const s=(window.__FARM_DEBUG__ as any).scene(),original=s.actionFeedback.bind(s);
+    (window as any).__committedFx=[];
+    s.actionFeedback=(e:any)=>{(window as any).__committedFx.push(e);original(e);};
+  });
   await waitForFarmInput(page);
   const tap=async(id:string,tool:string)=>{
     await waitForFarmInput(page);
@@ -75,10 +83,35 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
   await expect.poll(()=>page.evaluate(()=>{
     const state=window.__FARM_DEBUG__.state();return state?Object.values(state.entities).filter((e:any)=>e.kind==="drop").length:-1;
   })).toBe(0);
-  await tap("fx-flower","scythe");await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");await expect.poll(()=>kind("fx-flower")).toBe("gather");
+  await tap("fx-flower","scythe");await expect.poll(()=>kind("fx-flower")).toBeUndefined();
   await page.waitForTimeout(430);await tap("fx-grass","scythe");await expect.poll(()=>kind("fx-grass")).toBeUndefined();
   await tap("fx-rock","axe");await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");expect(await kind("fx-rock")).toBe("rock");
   await page.waitForTimeout(430);await tap("fx-rock","pickaxe");await expect.poll(()=>kind("fx-rock")).toBeUndefined();
+  await tap("fx-twig","axe");await expect.poll(()=>kind("fx-twig")).toBeUndefined();
+  for(const health of [2,1,0]) {
+    await tap("fx-ore","pickaxe");
+    if(health)await expect.poll(()=>hp("fx-ore")).toBe(health);
+    else await expect.poll(()=>kind("fx-ore")).toBeUndefined();
+    if(health===1){await page.waitForTimeout(400);await page.screenshot({path:info.outputPath("ore-second-hit.png")});}
+  }
+  for(const tool of ["hand","axe","pickaxe"]) {
+    const id=`flower-${tool}`;await tap(id,tool);await expect.poll(()=>kind(id)).toBeUndefined();
+    const result=await page.evaluate(id=>(window as any).__committedFx.find((e:any)=>e.target?.id===id),id);
+    expect(result.outcome).toBe("break");expect(result.drops).toHaveLength(tool==="hand"?1:0);
+    await expect(page.locator("#tool")).toHaveValue(tool);
+  }
+  await waitForFarmInput(page);await page.locator("#tool").selectOption("hoe");
+  const plot={x:35.5*32,y:43.5*32},soil="soil-farm-35-43";
+  const point=await page.evaluate(p=>window.__FARM_DEBUG__.screenPoint(p.x,p.y),plot);
+  await page.touchscreen.tap(point.x,point.y);await expect.poll(()=>kind(soil)).toBe("soil");
+  await tap(soil,"sproutberry_seed");await expect.poll(()=>kind(soil)).toBe("crop");
+  await tap(soil,"water");
+  await expect.poll(()=>page.evaluate(id=>(window.__FARM_DEBUG__.state().entities[id] as any)?.watered,soil)).toBe(true);
+  await page.waitForFunction(()=>{
+    const s=(window.__FARM_DEBUG__ as any).scene();
+    return [...s.feedback.swings.values()].some((a:any)=>a.event.tool==="water" && s.time.now-a.start>290 && s.time.now-a.start<600);
+  });
+  await page.screenshot({path:info.outputPath("watering-from-spout.png")});
   await page.setViewportSize({width:390,height:844});
   await expect(page.locator('[data-tool="scythe"]')).toBeVisible();
   await expect(page.locator("#quickslots button")).toHaveCount(7);

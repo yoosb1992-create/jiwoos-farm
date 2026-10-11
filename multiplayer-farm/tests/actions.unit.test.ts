@@ -206,6 +206,7 @@ test("22/23 mining drops once and validates ladder before unlocking floor", () =
   a.y = rock.y - 32;
   act(w, a, "hitRock", { targetId: rock.id });
   act(w, { ...a, id: "b" }, "hitRock", { targetId: rock.id });
+  act(w, a, "hitRock", { targetId: rock.id });
   assert.throws(() => act(w, a, "hitRock", { targetId: rock.id }));
   assert.equal(
     Object.values(w.entities).filter(

@@ -35,3 +35,30 @@ test("committed failed swings reach peers once; nearby automatic pickup has one 
     finally {await reconnect.leave();}
   } finally {await f.close();}
 });
+
+test("concurrent flower tools commit one result; destruction never creates hidden client-only rewards",async()=>{
+  const f=await fixture();
+  try {
+    const room=matchMaker.getLocalRoomById(f.A.roomId) as FarmRoom;
+    const access=room as unknown as {world:World;sync():void};
+    for(const tool of ["axe","pickaxe","scythe","hand"] as const) {
+      const flower=entity(`flower-${tool}`,"farm","gather",304,304,"farm_pink_wildflower");flower.item="wildflower_pink";
+      access.world.entities[flower.id]=flower;
+      for(const r of [f.A,f.B])Object.assign(room.state.players.get(r.sessionId)!,{x:304,y:272,area:"farm",facing:"down",stamina:100,actionTicks:0});
+      access.sync();await delay(240);
+      const before=Object.values(access.world.members).reduce((sum,m)=>sum+m.xp,0),id=crypto.randomUUID();
+      const type=tool==="hand"?"gather":"useTool",extra={targetId:flower.id,...(tool==="hand"?{}:{toolId:tool})};
+      const results=await Promise.all([action(f.A,type,{actionId:id,...extra}),action(f.B,type,extra)]);
+      assert.equal(results.filter(r=>r.ok).length,1);const success=results.find(r=>r.ok)!;
+      const harvest=tool==="hand"||tool==="scythe";
+      assert.equal(success.fx?.drops.length,harvest?1:0);
+      assert.equal(Object.values(access.world.members).reduce((sum,m)=>sum+m.xp,0),before);
+      assert(!access.world.entities[flower.id]);
+      if(results[0]!.ok)assert.equal((await action(f.A,type,{actionId:id,...extra})).revision,success.revision);
+      await delay(1500);
+      // Both stand on the exact 32px boundary. Only one member can own the drop.
+      const total=Object.values(access.world.members).reduce((sum,m)=>sum+(m.inventory.wildflower_pink??0),0);
+      assert.equal(total,tool==="hand"?2:tool==="scythe"?1:0);
+    }
+  }finally{await f.close();}
+});

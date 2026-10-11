@@ -49,6 +49,8 @@ export interface MapData {
   }>;
 }
 export interface Asset {
+  rockClass?: "stone" | "ore";
+  rockDrop?: string;
   assetId: string;
   textureKey: string;
   source: {
@@ -68,6 +70,7 @@ export const CROPS: Record<string, CropDef> = Object.fromEntries(
   EXPANSION_CROPS.map((c) => [c.id, c]),
 );
 export interface ItemDefinition {
+  naturalHarvest?: "flower";
   id: string;
   name: string;
   kind: string;
@@ -77,11 +80,16 @@ export interface ItemDefinition {
   description?: string;
 }
 export const ITEMS: Record<string, ItemDefinition> = { ...snapshot.items };
-ITEMS.scythe = { id: "scythe", name: "낫", kind: "tool", assetId: "item_scythe", description: "목초와 잡초를 베어요. 꽃과 작물은 손으로 수확해요." };
+ITEMS.scythe = { id: "scythe", name: "낫", kind: "tool", assetId: "item_scythe", description: "목초·잡초와 야생 꽃을 베어 채집해요. 재배 작물은 손으로 수확해요." };
 ASSETS.item_scythe = { assetId: "item_scythe", textureKey: "item_scythe", source: null, frameSize: { width: 32, height: 32 }, origin: { x: .5, y: .5 } };
 for(const t of TREE_SPECIES) ITEMS[t.seed]={id:t.seed,name:t.seedName,kind:"tree_seed",assetId:`${t.id}_seedling`,sellPrice:5,description:`빈 자연 잔디에 ${t.name}를 심어요. 새싹 ${t.days[0]}일 + 어린나무 ${t.days[1]}일 성장. 나무 사이 3칸을 비워 주세요.`};
 for(const [id,name] of Object.entries(NATURE_MATERIALS)) ITEMS[id]={id,name,kind:"material",assetId:id==="bamboo"?"tree_bamboo_young":id==="cherry_petals"?"farm_pink_wildflower":"item_wood",sellPrice:id==="maple_sap"?40:10};
-for(const d of DEBRIS.filter(d=>d.item.startsWith("wildflower_"))) ITEMS[d.item]={id:d.item,name:d.name,kind:"forage",assetId:d.id,sellPrice:18,energy:3};
+for(const d of DEBRIS.filter(d=>"category" in d && d.category==="flower")) ITEMS[d.item]={id:d.item,name:d.name,kind:"forage",naturalHarvest:"flower",assetId:d.id,sellPrice:18,energy:3};
+// Ordinary surface stones and mining nodes are different resources, even when
+// a mining node drops stone. This metadata also classifies existing saved rocks.
+for (const [id, asset] of Object.entries(ASSETS)) if (id === "forest_rock" || DEBRIS.some(d=>d.kind==="rock" && d.id===id)) asset.rockClass="stone";
+for (const id of ["forest_ore","mine_copper","mine_stone"]) if (ASSETS[id]) ASSETS[id]!.rockClass="ore";
+ASSETS.mine_copper!.rockDrop="copper_ore";
 for (const c of EXPANSION_CROPS) {
   ITEMS[c.id] = {
     id: c.id,
@@ -105,6 +113,7 @@ for (const f of FORAGE)
     id: f.id,
     name: f.name,
     kind: "forage",
+    naturalHarvest: f.category,
     assetId: f.asset,
     sellPrice: f.price,
     energy: f.energy,

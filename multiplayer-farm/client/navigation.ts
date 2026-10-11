@@ -33,6 +33,7 @@ export class TouchNavigator {
   constructor(
     private notice: (s: string) => void,
     private act: (t: TouchTarget) => void,
+    private busy: () => boolean = () => false,
   ) {}
   cancel(): void {
     this.target = undefined;
@@ -229,6 +230,9 @@ export class TouchNavigator {
           // the source of intermittent overshoot before touch interactions.
           return faceOnly(face);
       }
+      // Preserve a tap made during recovery; execute it once when the hands are
+      // free, instead of losing the target or changing the selected tool.
+      if(this.busy())return stop;
       this.cancel();
       this.act(t);
       return stop;

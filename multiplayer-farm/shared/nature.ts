@@ -58,7 +58,7 @@ export const DEBRIS = [
   ...["twig_a","twig_b","twig_c","forked_twig","leafy_branch","thick_branch"].map((id,i)=>({id:`farm_${id}`,name:["마른 가지 A","마른 가지 B","굽은 가지","갈라진 가지","잎 달린 가지","굵은 가지"][i]!,kind:"twig",item:"wood"})),
   ...["stone_a","stone_b","moss_stone","flat_stone","dark_stone","small_stone_cluster"].map((id,i)=>({id:`farm_${id}`,name:["들돌 A","들돌 B","이끼돌","납작돌","검은돌","작은 돌무리"][i]!,kind:"rock",item:"stone"})),
   ...["weed","weed_b","weed_c"].map((id,i)=>({id:`farm_${id}`,name:["잡초 A","잡초 B","잡초 C"][i]!,kind:"gather",item:"wild_herb"})),
-  ...["white","yellow","pink","purple"].map((color,i)=>({id:`farm_${color}_wildflower`,name:["흰 들꽃","노란 들꽃","분홍 들꽃","보라 들꽃"][i]!,kind:"gather",item:`wildflower_${color}`})),
+  ...["white","yellow","pink","purple"].map((color,i)=>({id:`farm_${color}_wildflower`,name:["흰 들꽃","노란 들꽃","분홍 들꽃","보라 들꽃"][i]!,kind:"gather",item:`wildflower_${color}`,category:"flower" as const})),
 ];
 export const FARM_GRASS = [
   {id:"farm_short_grass",name:"짧은 목초",kind:"gather",item:"grass"},

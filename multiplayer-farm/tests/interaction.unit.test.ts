@@ -13,7 +13,7 @@ function fixture() {
   const act=(type:string,extra:Partial<Command>={})=>applyAction(w,a,{actionId:crypto.randomUUID(),type,...extra},{now:Date.now(),online:["a"],votes:new Set()});
   return {w,a,act};
 }
-test("starter scythe is additive for saved members; only grass/weeds can be cut",()=>{
+test("starter scythe is additive for saved members; grass/weeds use the scythe and crops stay protected",()=>{
   const {w,act}=fixture();delete w.members.a!.inventory.scythe;w.members.a!.inventory.wood=19;
   upgradeWorld(w);assert.equal(w.members.a!.inventory.scythe,1);assert.equal(w.members.a!.inventory.wood,19);
   for(const def of [...FARM_GRASS,...DEBRIS.filter(d=>d.id.startsWith("farm_weed"))]) {
@@ -22,12 +22,12 @@ test("starter scythe is additive for saved members; only grass/weeds can be cut"
     const r=act("useTool",{toolId:"scythe",targetId:e.id});
     assert(r.ok);assert.equal(r.fx?.outcome,"break");assert.equal(r.fx?.drops[0]?.item,def.item);assert(!w.entities[e.id]);
   }
-  for(const kind of ["crop","gather"]) {
+  for(const kind of ["crop","decoration"]) {
     const e=entity("protected","farm",kind,304,304,"farm_white_wildflower");e.item="wildflower_white";w.entities[e.id]=e;
     const before=structuredClone(e),count=w.nextEntity;
     const r=act("useTool",{toolId:"scythe",targetId:e.id});assert(!r.ok);assert.equal(r.fx?.outcome,"fail");
     assert.deepEqual(w.entities[e.id],before);assert.equal(w.nextEntity,count);assert(!cuttableGrass(e));
-    if(kind==="gather")assert(act("gather",{targetId:e.id}).ok);
+
   }
 });
 test("wrong tools animate a server-confirmed attempt without HP, inventory or drop mutations",()=>{

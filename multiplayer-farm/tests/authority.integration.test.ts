@@ -222,7 +222,7 @@ test("three-client mining contention and crafting idempotency validate inventory
     const hits = await Promise.all(
       [f.A, f.B, f.C].map((r) => action(r, "hitRock", { targetId: rock.id })),
     );
-    assert.equal(hits.filter((x) => x.ok).length, 2);
+    assert.equal(hits.filter((x) => x.ok).length, 3);
     await until(() => !f.C.state.entities.has(rock.id));
     assert.equal(
       [...f.C.state.entities.values()].filter(

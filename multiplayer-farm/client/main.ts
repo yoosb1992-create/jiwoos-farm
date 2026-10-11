@@ -94,7 +94,12 @@ const notice = (message: string) => {
   el("notice").textContent = message;
   el("notice").classList.remove("quiet");
 };
+let bufferedToolAction: {type:string;extra:Partial<Command>;expires:number}|undefined;
 const send = (type: string, extra: Partial<Command> = {}) => {
+  const actor=latest.players.find(p=>p.local);
+  if(actor && ["useTool","gather","harvestCrop","tillTile","waterCrop","refill"].includes(type) && renderer.scene.actionBusy(actor.id)) {
+    bufferedToolAction={type,extra,expires:performance.now()+1200};return;
+  }
   const actionId = crypto.randomUUID();
   actionKinds.set(actionId, type);
   if (actionKinds.size > 100)
@@ -407,6 +412,7 @@ function renderPanel(): void {
   }
 }
 function selectTool(id: string): void {
+  if(selected!==id)bufferedToolAction=undefined;
   selected = id;
   el<HTMLSelectElement>("tool").value = id;
   for (const b of el("quickslots").querySelectorAll<HTMLButtonElement>(
@@ -567,10 +573,11 @@ function act(): void {
 }
 function touchAct(t: TouchTarget): void {
   if(t.kind === "ground" && t.signature && plantingTree(t.signature)) {
+    if(selected!==t.signature)return;
     send("plantTree", {tileX:Math.floor(t.x/TILE),tileY:Math.floor(t.y/TILE),itemId:t.signature}); return;
   }
   if (t.kind === "ground" && t.signature === "hoe") {
-    selectTool("hoe");
+    if(selected!=="hoe")return;
     send("tillTile", {
       tileX: Math.floor(t.x / TILE),
       tileY: Math.floor(t.y / TILE),
@@ -664,7 +671,9 @@ function touchAct(t: TouchTarget): void {
       break;
   }
 }
-const touchNavigation = new TouchNavigator(notice, touchAct);
+const touchNavigation = new TouchNavigator(notice, touchAct,()=>{
+  const me=latest.players.find(p=>p.local);return !!me && renderer.scene.actionBusy(me.id);
+});
 const controls = new ControlLayout(notice, () => {
   input.reset();
   actionHeld = false;
@@ -844,7 +853,22 @@ const renderer = createRenderer((now, delta) => {
       command,
     );
   else touchNavigation.cancel();
+  // Keep the existing server input lock and 30Hz prediction contract. The
+  // longer visual recovery sends neutral movement, then held walk/run resumes;
+  // it must not turn an animation duration into extra server input debt.
+  const interrupted=!!(command.moveX || command.moveY);
+  if(me && renderer.scene.actionBusy(me.id))command={moveX:0,moveY:0,run:false};
   latest = network.frame(now, command);
+  if(bufferedToolAction) {
+    if(interrupted || panel.open || latest.status!=="connected" || now>bufferedToolAction.expires) bufferedToolAction=undefined;
+    else {
+      const actor=latest.players.find(p=>p.local);
+      if(actor && !renderer.scene.actionBusy(actor.id)) {
+        const queued=bufferedToolAction;bufferedToolAction=undefined;
+        if(!queued.extra.targetId || network.state?.entities.has(queued.extra.targetId))send(queued.type,queued.extra);
+      }
+    }
+  }
   el<HTMLButtonElement>("action").disabled =
     latest.status !== "connected" || panel.open;
   if (actionHeld && now > nextAction) {

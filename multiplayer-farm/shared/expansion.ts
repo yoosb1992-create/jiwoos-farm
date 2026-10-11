@@ -194,6 +194,8 @@ export const EXPANSION_CROPS: CropDef[] = [
   crop("frostflower", "서리꽃", "winter", 7, 48, 155, 0xd3d8f4, "flower", 0, 5),
 ];
 export interface ForageDef {
+  /** Gameplay category, independent of shared artwork (berries reuse flower art). */
+  category?: "flower";
   id: string;
   name: string;
   seasons: Season[];
@@ -216,6 +218,7 @@ export const FORAGE: ForageDef[] = [
   },
   {
     id: "fairy_bloom",
+    category: "flower",
     name: "요정꽃",
     seasons: ["spring", "summer"],
     price: 48,
@@ -236,6 +239,7 @@ export const FORAGE: ForageDef[] = [
   },
   {
     id: "dawn_petals",
+    category: "flower",
     name: "새벽꽃잎",
     seasons: ["spring"],
     price: 24,
@@ -296,6 +300,7 @@ export const FORAGE: ForageDef[] = [
   },
   {
     id: "snow_bloom",
+    category: "flower",
     name: "설화풀",
     seasons: ["winter"],
     price: 38,

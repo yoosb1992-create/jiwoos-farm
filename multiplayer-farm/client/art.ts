@@ -391,6 +391,15 @@ export function createItemTextures(scene: Phaser.Scene): void {
     texture(scene, `held-${tool}`, 64, 64, c => {
       c.clearRect(0,0,64,64);
       c.lineCap="round";c.lineJoin="round";
+      if(tool==="water") {
+        c.strokeStyle="#3c594e";c.lineWidth=4;c.beginPath();c.arc(24,26,10,Math.PI,Math.PI*2);c.stroke();
+        c.strokeStyle="#a5c7a6";c.lineWidth=2;c.stroke();
+        c.fillStyle="#719d85";c.strokeStyle="#3c594e";c.lineWidth=2;
+        c.beginPath();c.roundRect(12,28,30,24,5);c.moveTo(39,34);c.lineTo(58,25);c.lineTo(61,32);c.lineTo(40,46);c.closePath();c.fill();c.stroke();
+        c.fillStyle="#c9dfb3";c.fillRect(16,31,3,15);c.fillStyle="#547a6d";c.fillRect(21,49,14,2);
+        c.strokeStyle="#c6dcc2";c.lineWidth=4;c.beginPath();c.moveTo(56,24);c.lineTo(61,32);c.stroke();
+        return;
+      }
       c.strokeStyle="#563c29";c.lineWidth=8;c.beginPath();c.moveTo(25,55);c.lineTo(33,13);c.stroke();
       c.strokeStyle="#b58b50";c.lineWidth=5;c.stroke();
       const metal=c.createLinearGradient(24,5,46,30);metal.addColorStop(0,"#e6f0df");metal.addColorStop(.5,"#a9c3b6");metal.addColorStop(1,"#57796d");
@@ -400,9 +409,7 @@ export function createItemTextures(scene: Phaser.Scene): void {
       else if(tool==="axe") {c.moveTo(30,9);c.lineTo(51,5);c.quadraticCurveTo(56,18,48,28);c.lineTo(30,21);}
       else if(tool==="pickaxe") {c.moveTo(10,25);c.quadraticCurveTo(31,-1,57,22);c.quadraticCurveTo(36,13,10,25);}
       else if(tool==="hoe") {c.moveTo(30,9);c.lineTo(51,12);c.lineTo(48,30);c.lineTo(37,27);c.lineTo(38,19);c.lineTo(30,18);}
-      else {c.roundRect(15,24,31,26,6);c.moveTo(43,34);c.lineTo(60,22);c.lineTo(58,32);c.lineTo(44,43);}
       c.closePath();c.fill();c.stroke();
-      if(tool==="water") {c.strokeStyle="#7fae9a";c.lineWidth=5;c.beginPath();c.arc(20,27,12,2.8,5.2);c.stroke();}
       c.strokeStyle="#efd5a0";c.lineWidth=1;c.beginPath();c.moveTo(24,52);c.lineTo(30,27);c.stroke();
     });
   }

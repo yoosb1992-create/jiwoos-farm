@@ -25,13 +25,42 @@ export interface ActionFx {
   facing: Facing;
   tool: Tool | "hand";
   outcome: "hit" | "break" | "fail" | "pickup";
+  action?: string;
+  /** Surface contact and result are a single committed event, not frame data. */
+  point?: { x: number; y: number };
+  hpAfter?: number;
+  hpBefore?: number;
+  maxHp?: number;
   target?: Pick<Entity, "id" | "kind" | "asset" | "x" | "y" | "stage" | "species" | "item" | "quantity">;
   drops: Array<Pick<Entity, "id" | "x" | "y" | "item" | "quantity">>;
 }
-export const impactDelay = (tool: ActionFx["tool"]) => tool === "hand" ? 0 : 140;
+export type ToolMotion = "horizontal_chop" | "overhead_chop" | "overhead_mine" | "horizontal_cut" | "watering" | "tilling" | "hand_gather" | "refill";
+export interface ToolTiming { windup: number; impact: number; hold: number; follow: number; duration: number }
+/** Shared presentation clock: tool contact, sound, object reaction and drop
+ * readiness all derive from the same definition. Authority still commits now. */
+export const TOOL_TIMINGS: Record<ToolMotion,ToolTiming> = {
+  horizontal_chop:{windup:175,impact:265,hold:42,follow:395,duration:600},
+  overhead_chop:{windup:185,impact:280,hold:40,follow:380,duration:580},
+  overhead_mine:{windup:215,impact:315,hold:48,follow:440,duration:660},
+  horizontal_cut:{windup:105,impact:175,hold:12,follow:275,duration:430},
+  watering:{windup:180,impact:290,hold:0,follow:600,duration:820},
+  tilling:{windup:195,impact:295,hold:35,follow:430,duration:640},
+  hand_gather:{windup:120,impact:235,hold:15,follow:320,duration:480},
+  refill:{windup:140,impact:240,hold:0,follow:440,duration:640},
+};
+export function toolMotion(fx: Pick<ActionFx,"tool"|"target"|"action">): ToolMotion {
+  if(fx.tool==="axe") return fx.target?.kind==="tree" ? "horizontal_chop" : "overhead_chop";
+  if(fx.tool==="pickaxe") return "overhead_mine";
+  if(fx.tool==="scythe") return "horizontal_cut";
+  if(fx.tool==="hoe") return "tilling";
+  if(fx.tool==="water") return fx.action==="refill" ? "refill" : "watering";
+  return "hand_gather";
+}
+export const actionTiming = (fx: Pick<ActionFx,"tool"|"target"|"action">) => TOOL_TIMINGS[toolMotion(fx)];
+export const impactDelay = (fx: Pick<ActionFx,"tool"|"target"|"action">) => actionTiming(fx).impact;
 export const breakDuration = (target?: ActionFx["target"]) =>
   target?.kind === "tree" ? 460 + target.stage * 130 : target?.kind === "rock" ? 260 : 200;
-export const dropAppearDelay = (fx: ActionFx) => impactDelay(fx.tool) +
+export const dropAppearDelay = (fx: ActionFx) => impactDelay(fx) +
   (fx.outcome === "break" ? breakDuration(fx.target) * .8 : 0);
 
 /** Rebuilt only on a committed world change. The 30Hz loop checks nearby buckets. */

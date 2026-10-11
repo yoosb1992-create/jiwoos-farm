@@ -8,6 +8,7 @@ import { defaultLayout, legacyLayout, type WorldLayout } from "./layout.js";
 import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 import type { ActionFx, Tool } from "./interaction.js";
+import { normalizeRock } from "./resources.js";
 export const WORLD_VERSION = 7;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
@@ -32,6 +33,8 @@ export interface Member {
   collections?: Record<string, number>;
 }
 export interface Entity {
+  /** JSON-only compatibility marker; no database/schema migration. */
+  rockRule?: number;
   species?: string;
   treeBornDay?: number;
   treeStageDay?: number;
@@ -267,7 +270,7 @@ export function seedFarmDebris(world: World, rng: () => number, bootstrap = fals
     const d=pool[Math.floor(rng()*pool.length)]!;
     const id=`farmdebris-${world.day}-${++world.nextEntity}`;
     const e=entity(id,"farm",d.kind,(x+.5)*TILE,(y+.5)*TILE,d.id);
-    e.hp=1; e.item=d.item; world.entities[id]=e; recordNaturePlacement(spatial,e); count++;
+    e.hp=1; e.item=d.item; normalizeRock(e); world.entities[id]=e; recordNaturePlacement(spatial,e); count++;
   }
 }
 export function seedFarmGrass(world: World, rng: () => number, bootstrap = false): void {
@@ -333,7 +336,8 @@ export function generateDaily(world: World): void {
           ? "forest_herb"
           : "forest_rock",
     );
-    e.hp = kind === "tree" ? 3 : 2;
+    e.hp = kind === "tree" ? 3 : kind === "rock" ? 1 : 2;
+    if(kind === "rock") e.rockRule=1;
     e.item =
       kind === "gather"
         ? forage[Math.floor(rng() * forage.length)]!.id
@@ -352,7 +356,8 @@ export function generateDaily(world: World): void {
         (5 + Math.floor(i / 4) * 3) * TILE,
         rng() < 0.4 ? "mine_copper" : "mine_stone",
       );
-      e.hp = 2;
+      e.hp = 3;
+      e.rockRule = 1;
       e.item = e.asset === "mine_copper" ? "copper_ore" : "stone";
       placeDaily(world, e);
     }
@@ -471,6 +476,7 @@ function seedFixtures(w: World, daily: boolean): void {
         }
         const debris = [...DEBRIS, ...FARM_GRASS].find(d => d.id === o.assetId);
         if(debris) { e.kind=debris.kind; e.hp=1; e.item=debris.item; }
+        normalizeRock(e);
         if (e.kind === "animal")
           e.crop = o.assetId.includes("cow")
             ? "cow"
@@ -533,6 +539,7 @@ export function upgradeWorld(w: World): void {
   }
   // Missing snapshots belong to legacy families, never opt them into new maps.
   w.layout ??= legacyLayout();
+  for(const e of Object.values(w.entities)) normalizeRock(e);
   for(const e of Object.values(w.entities)) if(e.kind==="tree" || e.kind==="stump") {
     const o=w.layout.maps[e.area]?.objects.find(o=>o.id===e.id);
     // Old unannotated entities used stage=0 as an unrelated default, yet rendered mature.

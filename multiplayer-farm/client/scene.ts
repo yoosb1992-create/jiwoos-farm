@@ -32,6 +32,8 @@ import { mapFor, layoutRevision } from "./layout.js";
 import { FarmFeedback } from "./feedback.js";
 import type { ActionFx } from "../shared/interaction.js";
 import type { Sound } from "./audio.js";
+import { createFarmerParts } from "./tool-animation-art.js";
+import { rockMaxHp } from "../shared/resources.js";
 interface View {
   body: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
@@ -59,6 +61,7 @@ export class FarmScene extends Phaser.Scene {
   private feedback?: FarmFeedback;
   onSound?: (sound: Sound) => void;
   actionFeedback(event: ActionFx): void { this.feedback?.event(event,this.area,this.season); }
+  actionBusy(id:string):boolean { return this.feedback?.busy(id)??false; }
   constructor(
     private readonly onFrame: (
       now: number,
@@ -107,6 +110,7 @@ export class FarmScene extends Phaser.Scene {
       if (this.textures.exists(id)) this.textures.get(id).setFilter(Phaser.Textures.FilterMode.NEAREST);
     createContentTextures(this);
     createItemTextures(this);
+    createFarmerParts(this);
     this.feedback = new FarmFeedback(this, sound=>this.onSound?.(sound), id=>this.objects.get(id));
     const directions = ["down", "up", "left", "right"];
     for (const [state, offset] of [
@@ -374,10 +378,11 @@ export class FarmScene extends Phaser.Scene {
       v.body
         .setPosition(p.x, p.y)
         .setDepth(p.y)
-        .setAngle(action?.lean??0);
-      const animation=`${action || p.actionTicks > 0 ? "tool" : moved ? "walk" : "idle"}_${facing}`;
+        .setAngle(0)
+        .setAlpha((p.connected?1:.4)*(1-(action?.blend??0)));
+      const animation=`${action || p.actionTicks > 0 ? "idle" : moved ? "walk" : "idle"}_${facing}`;
       if(v.body.anims.currentAnim?.key!==animation)v.body.play(animation);
-      if(action?.hold)v.body.anims.pause();else v.body.anims.resume();
+      if(action)v.body.anims.pause();else v.body.anims.resume();
       v.label.setPosition(p.x, p.y - 54).setDepth(p.y + 1);
       v.x = p.x;
       v.y = p.y;
@@ -487,7 +492,7 @@ export class FarmScene extends Phaser.Scene {
           .setPosition(e.x, e.y)
           .setTexture(this.textured("tile_farm_empty"))
           .setDepth(e.y - 110)
-          .setTint(e.watered ? 0xa07a62 : 0xffffff);
+          .setTint(this.feedback?.watered(id,e.watered,now) ? 0xa07a62 : 0xffffff);
       } else if (v.ground) {
         v.ground.destroy();
         v.ground = undefined;
@@ -499,7 +504,7 @@ export class FarmScene extends Phaser.Scene {
       if (forage && (e.kind === "gather" || e.kind === "drop"))
         v.body.setTint(forage.color);
       if (e.kind === "soil")
-        v.body.setOrigin(0.5).setTint(e.watered ? 0xa07a62 : 0xffffff);
+        v.body.setOrigin(0.5).setTint(this.feedback?.watered(id,e.watered,now) ? 0xa07a62 : 0xffffff);
       if (e.kind === "crop")
         // Water is shown on the tilled soil beneath the plant, not by tinting the crop.
         v.body.setOrigin(0.5, 0.8).setTint(0xffffff);
@@ -521,6 +526,7 @@ export class FarmScene extends Phaser.Scene {
         v.label.setStyle({backgroundColor:"",color:"#fff7dc",stroke:"#425437",strokeThickness:3});
       v.label.setText(label).setVisible(Boolean(label) && !this.feedback?.hiddenObject(id,now));
       if(e.kind==="drop")this.feedback?.drop(id,v,e.x,e.y,now);
+      if(e.kind==="rock")this.feedback?.rockDamage(id,v,e.hp,rockMaxHp(e));
     });
     for (const [id, v] of this.objects)
       if (
@@ -531,6 +537,7 @@ export class FarmScene extends Phaser.Scene {
         v.ground?.destroy();
         v.roots?.destroy();
         this.feedback?.forgetDrop(id);
+        this.feedback?.forgetObject(id);
         v.body.destroy();
         v.label.destroy();
         this.objects.delete(id);
