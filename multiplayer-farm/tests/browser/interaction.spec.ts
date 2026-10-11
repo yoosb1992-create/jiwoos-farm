@@ -37,15 +37,25 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
   const tap=async(id:string,tool:string)=>{
     await waitForFarmInput(page);
     await page.locator("#tool").selectOption(tool);
-    const p=await page.evaluate(id=>{const e=(window.__FARM_DEBUG__.state().entities as any)[id];return window.__FARM_DEBUG__.screenPoint(e.x,e.y-5);},id);
-    await page.touchscreen.tap(p.x,p.y);
+    const p=await page.evaluate(id=>{
+      const view=(window.__FARM_DEBUG__ as any).scene().objects.get(id);
+      return view && window.__FARM_DEBUG__.snapshot().status==="connected"
+        ? window.__FARM_DEBUG__.screenPoint(view.x,view.y-5) : undefined;
+    },id);
+    expect(p,"A connected, visible target must exist before a tap").toBeDefined();
+    await page.touchscreen.tap(p!.x,p!.y);
   };
   const kind=(id:string)=>page.evaluate(id=>{
     const state=window.__FARM_DEBUG__.state();return state?state.entities[id]?.kind:"offline";
   },id);
   const hp=(id:string)=>page.evaluate(id=>window.__FARM_DEBUG__.state()?.entities[id]?.hp,id);
-  await tap("fx-tree","pickaxe");
-  await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");
+  // Cold software-rendered startup can reconnect after input becomes ready.
+  // Follow the UI's re-tap instruction only for this harmless failed attempt.
+  // Every damaging action below remains single-shot, preserving HP/drop checks.
+  await expect(async()=>{
+    await tap("fx-tree","pickaxe");
+    await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");
+  }).toPass({timeout:40000,intervals:[250]});
   await expect(page.locator("#tool")).toHaveValue("pickaxe");expect(await hp("fx-tree")).toBe(3);
   for(const health of [2,1]){await tap("fx-tree","axe");await expect.poll(()=>hp("fx-tree")).toBe(health);await page.waitForTimeout(430);}
   await tap("fx-tree","axe");await expect.poll(()=>kind("fx-tree")).toBe("stump");
