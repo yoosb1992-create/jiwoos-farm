@@ -537,7 +537,7 @@ export class ColyseusAdapter implements NetworkAdapter {
       const rx = this.renderCoordinate(player, "x", local);
       const ry = this.renderCoordinate(player, "y", local);
       // Prediction smoothing must not render the actor inside a blocked tile.
-      const unsafeVisual = local && collidesWithObstacle(rx, ry, player.area, CLIENT_MAPS, obstacles);
+      const unsafeVisual = collidesWithObstacle(rx, ry, player.area, CLIENT_MAPS, obstacles);
       players.push({
         id,
         nickname: player.nickname,
