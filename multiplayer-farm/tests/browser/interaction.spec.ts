@@ -52,9 +52,22 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
   await page.waitForTimeout(800);await page.screenshot({path:info.outputPath("transparent-drops.png")});
   // Walking alone must collect the wood, even while axe stays selected.
   const joystick=await page.locator("#joystick").boundingBox();expect(joystick).toBeTruthy();
-  await page.mouse.move(joystick!.x+joystick!.width/2,joystick!.y+joystick!.height/2);
-  await page.mouse.down();await page.mouse.move(joystick!.x+joystick!.width-8,joystick!.y+joystick!.height/2);
-  await page.waitForTimeout(700);await page.mouse.up();
+  const center={x:joystick!.x+joystick!.width/2,y:joystick!.y+joystick!.height/2};
+  await page.mouse.move(center.x,center.y);await page.mouse.down();
+  try {
+    // Drive the real joystick until authority confirms proximity. A fixed 700ms
+    // drag depends on CI frame rate and may stop outside the narrow pickup range.
+    await expect.poll(async()=>{
+      const delta=await page.evaluate(()=>{
+        const drop=Object.values(window.__FARM_DEBUG__.state().entities).find((e:any)=>e.kind==="drop") as any;
+        const actor=window.__FARM_DEBUG__.snapshot().local!.authoritative;
+        return drop?{x:drop.x-actor.x,y:drop.y-actor.y}:{x:0,y:0};
+      });
+      const distance=Math.hypot(delta.x,delta.y);
+      if(distance>32.001) await page.mouse.move(center.x+40*delta.x/distance,center.y+40*delta.y/distance);
+      return distance;
+    },{timeout:10000,intervals:[100]}).toBeLessThanOrEqual(32.001);
+  } finally { await page.mouse.up(); }
   await expect.poll(()=>page.evaluate(()=>Object.values(window.__FARM_DEBUG__.state().entities).filter((e:any)=>e.kind==="drop").length)).toBe(0);
   await tap("fx-flower","scythe");await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");expect(await kind("fx-flower")).toBe("gather");
   await page.waitForTimeout(430);await tap("fx-grass","scythe");await expect.poll(()=>kind("fx-grass")).toBeUndefined();

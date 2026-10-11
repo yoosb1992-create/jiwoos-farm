@@ -5,6 +5,9 @@ export type Tool = (typeof TOOLS)[number];
 export const isTool = (value?: string): value is Tool => TOOLS.includes(value as Tool);
 /** One 32px tile, only 20px beyond the player's 12px collision radius. */
 export const BASE_PICKUP_RADIUS = 32;
+// Movement can stop at 32.00000000000045px beside a solid stump. Preserve the
+// one-tile radius while accepting subpixel floating-point drift at its boundary.
+export const PICKUP_RANGE_EPSILON = .001;
 export const PICKUP_SCAN_MS = 120;
 export const DROP_SETTLE_MS = 800;
 /** Future equipment must supply this bonus from server-owned member data. */
@@ -43,6 +46,7 @@ export class DropIndex {
     }
   }
   nearby(area: string,x: number,y: number,r = pickupRadius()): Entity[] {
+    r += PICKUP_RANGE_EPSILON;
     const out: Entity[] = [];
     for (let cy=Math.floor((y-r)/64);cy<=Math.floor((y+r)/64);cy++)
       for (let cx=Math.floor((x-r)/64);cx<=Math.floor((x+r)/64);cx++)

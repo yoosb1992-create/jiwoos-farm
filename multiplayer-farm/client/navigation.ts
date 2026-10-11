@@ -8,7 +8,7 @@ import { FISHING_SPOTS, fishingSpot } from "../shared/expansion.js";
 import type { FarmState } from "../shared/schema.js";
 import type { RenderPlayer } from "./network.js";
 import { CLIENT_MAPS, mapFor } from "./layout.js";
-import { BASE_PICKUP_RADIUS } from "../shared/interaction.js";
+import { BASE_PICKUP_RADIUS, PICKUP_RANGE_EPSILON } from "../shared/interaction.js";
 export type TouchTarget = {
   area: string;
   kind: "ground" | "entity" | "npc" | "warp" | "fish" | "shop";
@@ -191,7 +191,7 @@ export class TouchNavigator {
               ? Math.abs(Math.floor(p.x / TILE) - Math.floor(t.x / TILE)) +
                   Math.abs(Math.floor(p.y / TILE) - Math.floor(t.y / TILE)) ===
                 1
-              : Math.hypot(p.x - t.x, p.y - t.y) <= (t.signature === "drop" ? BASE_PICKUP_RADIUS : 48);
+              : Math.hypot(p.x - t.x, p.y - t.y) <= (t.signature === "drop" ? BASE_PICKUP_RADIUS + PICKUP_RANGE_EPSILON : 48);
     const authoritative = { x: me.authoritativeX, y: me.authoritativeY };
     if (t.kind !== "warp" && near(authoritative) && (!tileTarget || near(me))) {
       if (t.kind === "ground" && !groundAction) {

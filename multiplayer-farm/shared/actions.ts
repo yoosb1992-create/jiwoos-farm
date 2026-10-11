@@ -42,7 +42,7 @@ import {
 import { FISH_STEP_MS, FISH_MAX_STEPS, replayFishing } from "./fishing.js";
 import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
-import { isTool, cuttableGrass, pickupRadius, type Tool, type ActionFx } from "./interaction.js";
+import { isTool, cuttableGrass, pickupRadius, PICKUP_RANGE_EPSILON, type Tool, type ActionFx } from "./interaction.js";
 export class ActionError extends Error {}
 function requireThat(condition: unknown, message: string): asserts condition {
   if (!condition) throw new ActionError(message);
@@ -552,7 +552,7 @@ function applyActionCore(
     }
     case "pickupDrop": {
       const e = target("drop");
-      near(e, pickupRadius());
+      near(e, pickupRadius() + PICKUP_RANGE_EPSILON);
       change(m.inventory, e.item, e.quantity);
       m.collections ??= {};
       m.collections[e.item] = (m.collections[e.item] ?? 0) + e.quantity;
