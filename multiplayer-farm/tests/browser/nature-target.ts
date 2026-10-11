@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { collidesWithObstacle, isFarmable, prepareDynamicObstacles } from "../../shared/applyMovement.js";
 import { findPath } from "../../shared/pathfinding.js";
 import { naturalPlacement } from "../../shared/nature-world.js";
@@ -6,6 +6,19 @@ import { TILE } from "../../shared/content.js";
 import type { World, Entity } from "../../shared/world.js";
 
 type Target = { x: number; y: number; screenX: number; screenY: number };
+
+/** Cold software rendering can trigger the existing backlog reconnect. Wait
+ * for live server acknowledgements before a test sends its first touch. */
+export async function waitForFarmInput(page: Page): Promise<void> {
+  let settledAt=0,connection=-1;
+  await expect.poll(async()=>{
+    const s=await page.evaluate(()=>window.__FARM_DEBUG__.snapshot());
+    if(s.status!=="connected"||!s.local||s.sentInputs-s.acknowledgedInputs>12||s.reconnectCount!==connection){
+      connection=s.reconnectCount;settledAt=s.acknowledgedInputs;return false;
+    }
+    return s.acknowledgedInputs-settledAt>=60;
+  },{timeout:25000,intervals:[150]}).toBe(true);
+}
 
 /** The extremely dense first-day meadow is dynamic; tests cannot assume a
  * particular pixel is clear or reachable. Select a real accessible target,

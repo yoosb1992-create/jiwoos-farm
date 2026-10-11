@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { waitForFarmInput } from "./nature-target.js";
 
 test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drops, magnet and scythe",async({page},info)=>{
-  test.setTimeout(60000);
+  test.setTimeout(90000);
   await page.setViewportSize({width:800,height:960});
   const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
   const backend="http://127.0.0.1:2575";
@@ -24,15 +25,17 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
   await expect(page.locator("#connection")).toHaveAttribute("data-status","connected");
   // Scene startup loads real art; never tap a placeholder before world picking is ready.
   await page.waitForFunction(()=>(window.__FARM_DEBUG__ as any).scene().objects.has("fx-tree"));
-  await page.waitForTimeout(2200);
-  await expect(page.locator("#connection")).toHaveAttribute("data-status","connected");
+  await waitForFarmInput(page);
   const tap=async(id:string,tool:string)=>{
+    await waitForFarmInput(page);
     await page.locator("#tool").selectOption(tool);
     const p=await page.evaluate(id=>{const e=(window.__FARM_DEBUG__.state().entities as any)[id];return window.__FARM_DEBUG__.screenPoint(e.x,e.y-5);},id);
     await page.touchscreen.tap(p.x,p.y);
   };
-  const kind=(id:string)=>page.evaluate(id=>window.__FARM_DEBUG__.state().entities[id]?.kind,id);
-  const hp=(id:string)=>page.evaluate(id=>window.__FARM_DEBUG__.state().entities[id]?.hp,id);
+  const kind=(id:string)=>page.evaluate(id=>{
+    const state=window.__FARM_DEBUG__.state();return state?state.entities[id]?.kind:"offline";
+  },id);
+  const hp=(id:string)=>page.evaluate(id=>window.__FARM_DEBUG__.state()?.entities[id]?.hp,id);
   await tap("fx-tree","pickaxe");
   await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");
   await expect(page.locator("#tool")).toHaveValue("pickaxe");expect(await hp("fx-tree")).toBe(3);
@@ -51,6 +54,7 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
   })).toBe(true);
   await page.waitForTimeout(800);await page.screenshot({path:info.outputPath("transparent-drops.png")});
   // Walking alone must collect the wood, even while axe stays selected.
+  await waitForFarmInput(page);
   const joystick=await page.locator("#joystick").boundingBox();expect(joystick).toBeTruthy();
   const center={x:joystick!.x+joystick!.width/2,y:joystick!.y+joystick!.height/2};
   await page.mouse.move(center.x,center.y);await page.mouse.down();
@@ -68,8 +72,10 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
       return distance;
     },{timeout:10000,intervals:[100]}).toBeLessThanOrEqual(32.001);
   } finally { await page.mouse.up(); }
-  await expect.poll(()=>page.evaluate(()=>Object.values(window.__FARM_DEBUG__.state().entities).filter((e:any)=>e.kind==="drop").length)).toBe(0);
-  await tap("fx-flower","scythe");await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");expect(await kind("fx-flower")).toBe("gather");
+  await expect.poll(()=>page.evaluate(()=>{
+    const state=window.__FARM_DEBUG__.state();return state?Object.values(state.entities).filter((e:any)=>e.kind==="drop").length:-1;
+  })).toBe(0);
+  await tap("fx-flower","scythe");await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");await expect.poll(()=>kind("fx-flower")).toBe("gather");
   await page.waitForTimeout(430);await tap("fx-grass","scythe");await expect.poll(()=>kind("fx-grass")).toBeUndefined();
   await tap("fx-rock","axe");await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");expect(await kind("fx-rock")).toBe("rock");
   await page.waitForTimeout(430);await tap("fx-rock","pickaxe");await expect.poll(()=>kind("fx-rock")).toBeUndefined();

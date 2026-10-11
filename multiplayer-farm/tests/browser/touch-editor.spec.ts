@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { NetworkSnapshot } from "../../client/network.js";
-import { clearWorldBlueprint } from "./nature-target.js";
+import { clearWorldBlueprint, waitForFarmInput } from "./nature-target.js";
 type Debug = {
   snapshot: () => NetworkSnapshot;
   state: () => {
@@ -40,9 +40,9 @@ test("mobile touch action, saved control layout and new-world editor isolation",
     () =>
       JSON.parse(localStorage.getItem("farm-v26-session")!).farmId as string,
   );
-  // Wait for the first camera follow frame before translating world to screen.
-  await page.waitForTimeout(350);
-  // Tap the tree artwork, walk into range and automatically send one hitTree action.
+  await waitForFarmInput(page);
+  // Touch keeps the selected tool; explicitly equip the axe before chopping.
+  await page.locator("#tool").selectOption("axe");
   const target = await page.evaluate(() =>
     (() => {
       const farm = JSON.parse(window.__FARM_DEBUG__.state()!.layout).maps.farm;

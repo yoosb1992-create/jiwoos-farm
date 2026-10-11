@@ -5,6 +5,7 @@ import { newWorld, newMember, entity, addDrop, upgradeWorld, type Actor, type Co
 import { legacyLayout } from "../shared/layout.js";
 import { FARM_GRASS, DEBRIS } from "../shared/nature.js";
 import { DropIndex, pickupRadius, cuttableGrass } from "../shared/interaction.js";
+import { applyMovement, collidesWithObstacle } from "../shared/applyMovement.js";
 
 function fixture() {
   const w=newWorld(42,legacyLayout());w.entities={};w.members.a=newMember("a","A");
@@ -53,4 +54,18 @@ test("pickup authority is one tile, area-bound, capacity-safe and idempotent",()
   assert.equal(w.members.a!.inventory.wood,1);
   const blocked=addDrop(w,a,"stone",1);for(let i=0;Object.keys(w.members.a!.inventory).length<48;i++)w.members.a!.inventory[`test-${i}`]=1;
   assert.throws(()=>act("pickupDrop",{targetId:blocked.id}),/가방/);assert(w.entities[blocked.id]);
+});
+test("walking and running reach wood beside a solid stump without entering its tile",()=>{
+  const base=legacyLayout().maps.farm!;
+  const maps={farm:{...base,width:128,height:128,world2:undefined,collisionRegions:[],objects:[]}};
+  const stump=entity("stump","farm","stump",1360,1296,"stump");
+  for(const run of [false,true]) for(const offset of [0,.4074,1.1,2.8,4.9]) {
+    const p={area:"farm",x:stump.x-48-offset,y:stump.y,stamina:100};
+    for(let i=0;i<30;i++) {
+      applyMovement(p,{moveX:1,moveY:0,run},1/30,maps,[stump]);
+      assert(!collidesWithObstacle(p.x,p.y,p.area,maps,[stump]),"The full natural tile must stay solid");
+    }
+    assert(stump.x-p.x<=pickupRadius(),"A full-strength approach must enter pickup range");
+    assert(stump.x-p.x>=28-.001,"The 12px player must remain outside the 32px tile");
+  }
 });

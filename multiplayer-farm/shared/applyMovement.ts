@@ -322,29 +322,30 @@ export function applyMovement(
     1,
     Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / MAX_MOVEMENT_SUBSTEP),
   );
+  const advance = (x: number, y: number) => {
+    if (!x && !y) return;
+    const clear = (fraction: number) =>
+      elevationPass(mapFor(p.area ?? "farm", maps), p.x, p.y, p.x + x * fraction, p.y + y * fraction) &&
+      !collidesWithObstacle(p.x + x * fraction, p.y + y * fraction, p.area, maps, obstacles);
+    let fraction = 1;
+    if (!clear(1)) {
+      // Reach the safe contact edge instead of discarding an entire 5px step.
+      // Otherwise wood at a stump's center can remain just outside 32px reach.
+      // Only blocked steps search; an actor already touching an edge exits early.
+      if (!clear(.02)) return;
+      let low = 0, high = 1;
+      for (let n = 0; n < 6; n++) {
+        const mid = (low + high) / 2;
+        if (clear(mid)) low = mid; else high = mid;
+      }
+      fraction = low;
+    }
+    p.x += x * fraction;
+    p.y += y * fraction;
+  };
   for (let s = 0; s < steps; s++) {
-    if (
-      elevationPass(
-        mapFor(p.area ?? "farm", maps),
-        p.x,
-        p.y,
-        p.x + dx / steps,
-        p.y,
-      ) &&
-      !collidesWithObstacle(p.x + dx / steps, p.y, p.area, maps, obstacles)
-    )
-      p.x += dx / steps;
-    if (
-      elevationPass(
-        mapFor(p.area ?? "farm", maps),
-        p.x,
-        p.y,
-        p.x,
-        p.y + dy / steps,
-      ) &&
-      !collidesWithObstacle(p.x, p.y + dy / steps, p.area, maps, obstacles)
-    )
-      p.y += dy / steps;
+    advance(dx / steps, 0);
+    advance(0, dy / steps);
   }
   if (p.running && p.stamina !== undefined)
     p.stamina = Math.max(0, p.stamina - dt * 2);
