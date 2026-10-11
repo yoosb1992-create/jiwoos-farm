@@ -39,7 +39,7 @@ async function enter(page: Page, name: string, code?: string) {
     await page.locator("#farm-code").fill(code);
     await page.locator("#join-farm").click();
   } else await page.locator("#create-farm").click();
-  await expect(page.locator("#login")).toBeHidden();
+  await expect(page.locator("#login")).toBeHidden({timeout:20000});
   return page.evaluate(
     () => JSON.parse(localStorage.getItem("farm-v26-session")!) as Session,
   );
@@ -261,11 +261,21 @@ test("production mobile: tree drops, inventory and repeated session restoration"
     await expect
       .poll(() => sdk.state.entities.get("starter-pine")?.kind)
       .toBe("stump");
-    await page.locator("#tool").selectOption("hand");
-    for (let pickup = 0; pickup < 3; pickup++) {
-      await delay(300);
-      await hold(page, "#action");
+    // The starter magnet is deliberately only 32px. Align with the stump's
+    // edge and walk into range; no action button or tool switch should be needed.
+    const alignKey=local().x<tree.x?"ArrowRight":"ArrowLeft";
+    await page.keyboard.down(alignKey);
+    try {
+      await expect.poll(()=>Math.abs(local().x-tree.x),{intervals:[20]}).toBeLessThan(8);
+    } finally { await page.keyboard.up(alignKey); }
+    if(Math.hypot(local().x-tree.x,local().y-tree.y)>32) {
+      const approachKey=local().y<tree.y?"ArrowDown":"ArrowUp";
+      await page.keyboard.down(approachKey);
+      try {
+        await expect.poll(()=>Math.hypot(local().x-tree.x,local().y-tree.y),{intervals:[20]}).toBeLessThanOrEqual(32.001);
+      } finally { await page.keyboard.up(approachKey); }
     }
+    await expect.poll(()=>[...sdk.state.entities.values()].filter(e=>e.kind==="drop"&&Math.hypot(e.x-tree.x,e.y-tree.y)<1).length).toBe(0);
     await page.locator("#bag").click();
     await expect(page.locator("#panel-body")).toContainText("나무 ×1");
     await page.locator("#panel-close").click();

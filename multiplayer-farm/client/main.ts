@@ -506,7 +506,9 @@ function act(): void {
     const targets = [...(network.state?.entities.values() ?? [])].filter(e => {
       const ex=e.x-me.authoritativeX, ey=e.y-me.authoritativeY;
       return e.area===me.area && ["tree","stump","rock","twig","gather","crop","soil","withered"].includes(e.kind) &&
-        Math.hypot(ex,ey)<=64 && ex*dx+ey*dy>=4 && Math.abs(ex*dy-ey*dx)<=24;
+        // Include the adjacent trunk corner while the player's collision body
+        // stays outside its full tile. All tools share the same aiming rule.
+        Math.hypot(ex,ey)<=64 && ex*dx+ey*dy>=4 && Math.abs(ex*dy-ey*dx)<=TILE;
     }).sort((a,b)=>Math.hypot(a.x-me.authoritativeX,a.y-me.authoritativeY)-Math.hypot(b.x-me.authoritativeX,b.y-me.authoritativeY));
     const target = selected === "water" ? nearest("well") ?? targets[0] : targets[0];
     return send("useTool", {toolId:selected,targetId:target?.id,...tile});
