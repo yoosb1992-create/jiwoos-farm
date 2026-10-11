@@ -59,7 +59,7 @@ export function toolMotion(fx: Pick<ActionFx,"tool"|"target"|"action">): ToolMot
 export const actionTiming = (fx: Pick<ActionFx,"tool"|"target"|"action">) => TOOL_TIMINGS[toolMotion(fx)];
 export const impactDelay = (fx: Pick<ActionFx,"tool"|"target"|"action">) => actionTiming(fx).impact;
 export const breakDuration = (target?: ActionFx["target"]) =>
-  target?.kind === "tree" ? 460 + target.stage * 130 : target?.kind === "rock" ? 260 : 200;
+  target?.kind === "tree" ? target.stage < 2 ? 200 + target.stage * 110 : 460 + target.stage * 130 : target?.kind === "rock" ? 260 : 200;
 export const dropAppearDelay = (fx: ActionFx) => impactDelay(fx) +
   (fx.outcome === "break" ? breakDuration(fx.target) * .8 : 0);
 

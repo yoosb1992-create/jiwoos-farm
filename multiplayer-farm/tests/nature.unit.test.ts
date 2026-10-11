@@ -4,7 +4,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { newWorld, newMember, entity, upgradeWorld, seedFarmDebris, seedFarmGrass, seedFarmTrees, random, type Actor, type World } from "../shared/world.js";
 import { applyAction, nextDay, parseCommand } from "../shared/actions.js";
 import { defaultLayout, validateLayout } from "../shared/layout.js";
-import { TREE_SPECIES, TREES, TREE_STAGES, TREE_STAGE_IDS, DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, FARM_GRASS, GRASS_FIRST, GRASS_MAX, NATURAL_TREE_FIRST, treeHp, natureRoll, treeSprite } from "../shared/nature.js";
+import { TREE_SPECIES, TREES, TREE_STAGES, TREE_STAGE_IDS, DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, FARM_GRASS, GRASS_FIRST, GRASS_MAX, NATURAL_TREE_FIRST, treeHp, natureRoll, treeSprite, stumpSprite } from "../shared/nature.js";
+import { collidesWithObstacle } from "../shared/applyMovement.js";
 import { initializeTree, growTrees, naturalPlacement, fencedInterior } from "../shared/nature-world.js";
 import { newWorld2, setCell, terrainCode, ZONES, hasZone } from "../shared/world2.js";
 import { ASSETS, ITEMS, CROPS, RECIPES, TILE } from "../shared/content.js";
@@ -70,20 +71,70 @@ test("every species has correct drops, mature/giant/guardian hits and three-hit 
     e.stage=stage;e.species=t.id;e.hp=treeHp(stage);initializeTree(w,e);w.entities[e.id]=e;w.members.a!.toolLevel=level;
     const hits=Math.ceil(treeHp(stage)/(level===2?2:1));
     for(let i=0;i<hits;i++){act(w,a,"hitTree",{targetId:e.id});assert.equal(e.kind,i===hits-1?"stump":"tree");}
+    assert.equal(e.asset,stumpSprite(t.id,stage));
+    assert(collidesWithObstacle(e.x,e.y,e.area,w.layout!.maps,Object.values(w.entities)));
+    const saved=JSON.parse(JSON.stringify(w)) as World;upgradeWorld(saved);
+    assert.equal(saved.entities[e.id]!.asset,e.asset);assert.equal(saved.entities[e.id]!.stage,stage);
     const drops=Object.values(w.entities).filter(e=>e.kind==="drop").map(e=>e.item).sort();
     assert.deepEqual(drops,t.drops.filter(d=>natureRoll(w.seed,w.day,e.id,`drop-${d.item}`)<d.chance).map(d=>d.item).sort());
     for(let i=0;i<2;i++){act(w,a,"hitTree",{targetId:e.id});assert(w.entities[e.id]);}
     act(w,a,"hitTree",{targetId:e.id});assert(!w.entities[e.id]);
+    assert(!collidesWithObstacle(e.x,e.y,e.area,w.layout!.maps,Object.values(w.entities)));
   }
+});
+test("juveniles leave no entity or collision, preserve seed drops and persist nonphysical regrowth",()=>{
+  for(const t of TREE_SPECIES)for(const stage of [0,1])for(const regrow of [false,true]) {
+    const {w,a}=setup(),e=entity("juvenile","farm","tree",a.x,a.y+32,t.id);
+    Object.assign(e,{species:t.id,stage,hp:treeHp(stage),regrow});initializeTree(w,e);w.entities[e.id]=e;
+    assert(collidesWithObstacle(e.x,e.y,e.area,w.layout!.maps,Object.values(w.entities)));
+    for(let i=0;i<treeHp(stage);i++)act(w,a,"hitTree",{targetId:e.id});
+    assert(!w.entities[e.id]);assert.equal(!!w.treeRegrowth?.[e.id],regrow);
+    assert(!collidesWithObstacle(e.x,e.y,e.area,w.layout!.maps,Object.values(w.entities)));
+    assert.deepEqual(Object.values(w.entities).filter(e=>e.kind==="drop").map(e=>e.item),[t.seed]);
+    const saved=JSON.parse(JSON.stringify(w)) as World;upgradeWorld(saved);
+    saved.day+=6;growTrees(saved);assert(!saved.entities[e.id]);
+    saved.day++;growTrees(saved);
+    assert.equal(!!saved.entities[e.id],regrow);
+    if(regrow){assert.equal(saved.entities[e.id]!.stage,0);assert.equal(saved.entities[e.id]!.species,t.id);assert(!saved.treeRegrowth?.[e.id]);}
+  }
+});
+test("regrowth defers to player fields; editor/legacy stumps survive with safe art and 24 unique variants",()=>{
+  const {w,a}=setup(),e=entity("young","farm","tree",a.x,a.y+32,"tree_birch");
+  Object.assign(e,{stage:0,hp:1,regrow:true});w.entities[e.id]=e;act(w,a,"hitTree",{targetId:e.id});
+  w.entities.field=entity("field","farm","soil",e.x,e.y,"tile_farm_empty");
+  w.day+=7;growTrees(w);assert(!w.entities.young);assert(w.treeRegrowth?.young);
+  delete w.entities.field;w.day++;growTrees(w);assert.equal(w.entities.young!.stage,0);
+  const legacy=entity("legacy-stump","farm","stump",128,128,"stump");w.entities[legacy.id]=legacy;
+  upgradeWorld(w);assert.equal(legacy.kind,"stump");assert.equal(legacy.asset,stumpSprite("tree_oak",2));assert.equal(legacy.hp,3);
+  const variants=new Set<string>(),atlasLayout=defaultLayout(),authoredStumps:Array<{id:string;asset:string;species:string;stage:number}>=[];
+  for(const t of TREE_SPECIES)for(const stage of [2,3,4]) {
+    const id=stumpSprite(t.id,stage),o=objectFor(id,25+stage*3,25+TREE_SPECIES.indexOf(t)*3);
+    o.tree!.stage=stage;atlasLayout.maps.farm!.objects.push(o);authoredStumps.push({id:o.id,asset:id,species:t.id,stage});
+    assert(existsSync(`../public${ASSETS[id]!.source!.path}`));
+    variants.add(readFileSync(`../public${ASSETS[id]!.source!.path}`).toString("base64"));
+  }
+  assert.equal(variants.size,24);
+  const atlasWorld=newWorld(725,validateLayout(atlasLayout));
+  for(const a of authoredStumps){const loaded=atlasWorld.entities[a.id]!;assert.equal(loaded.kind,"stump");assert.equal(loaded.asset,a.asset);assert.equal(loaded.stage,a.stage);assert.equal(loaded.species,a.species);assert.equal(loaded.hp,3);}
+  const authored=objectFor("tree_pine",28,28);authored.tree!.stage=0;authored.tree!.stump=true;
+  const layout=defaultLayout();layout.maps.farm!.objects.push(authored);
+  const explicit=newWorld(725,layout).entities[authored.id]!;
+  assert.equal(explicit.kind,"stump");assert.equal(explicit.asset,stumpSprite("tree_pine",2));
 });
 test("natural forest trees persist across days and retained stumps regrow after seven days",()=>{
   const w=newWorld(725), tree=w.entities["forest-1-0"]!;
   assert(tree.regrow);
+  // Authored forest trees retain the living state through the daily fixture pass.
+  w.layout!.maps.forest!.objects.push({id:tree.id,kind:"tree",assetId:tree.asset,position:{tileX:tree.x/32,tileY:tree.y/32},tree:{species:tree.species!,stage:2,chop:true,stump:false,regrow:true,drop:""}});
   tree.kind="stump";tree.asset="stump";tree.hp=3;
   for(let i=0;i<6;i++)nextDay(w);
   assert.equal(w.entities[tree.id],tree);assert.equal(tree.kind,"stump");
   nextDay(w);assert.equal(tree.kind,"tree");assert.equal(tree.stage,0);
   assert.equal(Object.values(w.entities).filter(e=>e.area==="forest" && e.kind==="tree").length,12);
+  w.members.foresttest=newMember("foresttest","F");
+  act(w,{id:"foresttest",area:"forest",x:tree.x,y:tree.y-32,facing:"down",running:false,stamina:100},"hitTree",{targetId:tree.id});
+  nextDay(w);assert(!w.entities[tree.id]);assert(w.treeRegrowth?.[tree.id]);
+  assert.equal(Object.values(w.entities).filter(e=>e.area==="forest"&&e.kind==="tree").length,11);
 });
 test("untouched farmable grass behaves as natural ground until it is actually tilled",()=>{
   const {w,m}=setup();

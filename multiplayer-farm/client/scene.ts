@@ -1,4 +1,4 @@
-import { treeSprite, inferSpecies, treeSeasonScale, treeRootSprite, TREE_STAGES } from "../shared/nature.js";
+import { treeSprite, inferSpecies, treeSeasonScale, treeRootSprite, TREE_STAGES, stumpSprite } from "../shared/nature.js";
 import { SceneTerrain } from "./world/scene-terrain.js";
 import { TERRAIN_ART, visualSize, foliageColor } from "../shared/art-assets.js";
 import { installMaterial } from "./world/painted-materials.js";
@@ -32,9 +32,10 @@ import { mapFor, layoutRevision } from "./layout.js";
 import { FarmFeedback } from "./feedback.js";
 import type { ActionFx } from "../shared/interaction.js";
 import type { Sound } from "./audio.js";
-import { createFarmerParts } from "./tool-animation-art.js";
+import { createFarmerFrames } from "./tool-animation-art.js";
 import { rockMaxHp } from "../shared/resources.js";
 interface View {
+  kind?: string;
   body: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
   /** Tilled-soil underlay kept beneath crops so planting never replaces the soil. */
@@ -110,7 +111,7 @@ export class FarmScene extends Phaser.Scene {
       if (this.textures.exists(id)) this.textures.get(id).setFilter(Phaser.Textures.FilterMode.NEAREST);
     createContentTextures(this);
     createItemTextures(this);
-    createFarmerParts(this);
+    createFarmerFrames(this);
     this.feedback = new FarmFeedback(this, sound=>this.onSound?.(sound), id=>this.objects.get(id));
     const directions = ["down", "up", "left", "right"];
     for (const [state, offset] of [
@@ -247,12 +248,12 @@ export class FarmScene extends Phaser.Scene {
       const id = `static-${o.id}`;
       ids.add(id);
       let v = this.objects.get(id);
-      const art=o.assetId.startsWith("tree") ? treeSprite(inferSpecies(o.tree?.species||o.assetId),o.tree?.stage??2,this.season) : o.assetId;
+      const art=o.tree?.stump ? stumpSprite(o.tree.species,o.tree.stage,o.assetId) : o.assetId.includes("_stump_") ? o.assetId : o.assetId.startsWith("tree") ? treeSprite(inferSpecies(o.tree?.species||o.assetId),o.tree?.stage??2,this.season) : o.assetId;
       if (!v) v = this.staticObject(id, art, x, y, o.label ?? "");
       else if(v.body.texture.key!==art) {v.body.setTexture(this.textured(art));this.sizeObject(v.body,art,o.scale);}
       if (o.width && o.height)
         v.body.setDisplaySize(o.width * TILE, o.height * TILE);
-      else if (o.scale) this.sizeObject(v.body, o.assetId, o.scale);
+      else if (o.scale) this.sizeObject(v.body, art, o.scale);
       v.body
         .setAngle(o.rotation ?? 0)
         .setDepth(
@@ -382,7 +383,7 @@ export class FarmScene extends Phaser.Scene {
         .setAlpha((p.connected?1:.4)*(1-(action?.blend??0)));
       const animation=`${action || p.actionTicks > 0 ? "idle" : moved ? "walk" : "idle"}_${facing}`;
       if(v.body.anims.currentAnim?.key!==animation)v.body.play(animation);
-      if(action)v.body.anims.pause();else v.body.anims.resume();
+      if(action){v.body.anims.pause();v.body.setFrame(["down","up","left","right"].indexOf(facing)*4);}else v.body.anims.resume();
       v.label.setPosition(p.x, p.y - 54).setDepth(p.y + 1);
       v.x = p.x;
       v.y = p.y;
@@ -419,6 +420,7 @@ export class FarmScene extends Phaser.Scene {
       let asset = e.asset,
         label = "";
       if(e.kind === "tree") { asset=treeSprite(e.species || inferSpecies(e.asset,e.id),e.stage,this.season); label=Math.hypot(e.x-me.x,e.y-me.y)<80 ? `${TREE_STAGES[e.stage]} · ${e.hp}타` : ""; }
+      else if(e.kind === "stump") { asset=stumpSprite(e.species,e.stage,e.asset); label=Math.hypot(e.x-me.x,e.y-me.y)<80 ? `${e.hp}타` : ""; }
       else if (e.kind === "crop") {
         asset = `crop_${e.crop}_${e.stage === 0 ? "seed" : e.stage >= (CROPS[e.crop]?.growthDays ?? 3) ? "mature" : e.stage === 1 ? "sprout" : "growing"}`;
       } else if (e.kind === "withered") {
@@ -444,6 +446,7 @@ export class FarmScene extends Phaser.Scene {
         label = Math.hypot(e.x - me.x, e.y - me.y) < 60 ? "정원 장식" : "";
       let v = this.objects.get(id);
       if (!v) v = this.staticObject(id, asset, e.x, e.y, label);
+      v.kind=e.kind;
       const changedTexture = v.body.texture.key !== asset;
       v.body
         .setPosition(e.x,e.y)
@@ -453,6 +456,7 @@ export class FarmScene extends Phaser.Scene {
         .setDepth(e.kind === "crop" || e.kind === "soil" ? e.y - 100 : e.y);
       if (changedTexture) { this.sizeObject(v.body, asset); const origin=ASSETS[asset]?.origin; if(origin)v.body.setOrigin(origin.x,origin.y); }
       if(e.kind === "tree") this.sizeObject(v.body,asset,(authored?.scale??1)*treeSeasonScale(e.species||inferSpecies(e.asset,e.id),e.stage,this.season));
+      if(e.kind === "stump") this.sizeObject(v.body,asset,authored?.scale??1);
       const roots = e.kind === "tree" ? treeRootSprite(e.species||inferSpecies(e.asset,e.id),e.stage,this.season) : undefined;
       if (roots) {
         const key=`roots-${roots}`;
@@ -668,9 +672,17 @@ export class FarmScene extends Phaser.Scene {
       .sort((a, b) => b[1].y - a[1].y)
       .find(([, v]) => v.body.getBounds().contains(p.x, p.y));
     if (npc) return { ...p, npcId: npc[0] };
+    // A giant crown can overlap a smaller tree's trunk. A precise tap on the
+    // occupied ground cell means that trunk/stump, even beneath another crown.
+    // Only pointer events scan this visible view set; authority/collision stay
+    // on the existing whole-tile rules.
+    for(const [id,v] of this.objects)
+      if(v.body.visible && ["tree","stump","rock","twig","gather"].includes(v.kind??"") &&
+        Math.abs(v.x-p.x)<=12 && Math.abs(v.y-p.y)<=8)
+        return {...p,entityId:id};
     const hit = [...this.objects.entries()]
       .sort((a, b) => b[1].y - a[1].y)
-      .find(([, v]) => v.body.getBounds().contains(p.x, p.y));
+      .find(([, v]) => v.body.visible && v.body.getBounds().contains(p.x, p.y));
     if (hit) {
       const [id, v] = hit;
       if (id.startsWith("warp-")) return { ...p, warpId: id.slice(5) };

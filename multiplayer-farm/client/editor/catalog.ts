@@ -1,4 +1,4 @@
-import { TREE_SPECIES, DEBRIS, FARM_GRASS, GARDEN_FLOWERS, treeSprite, inferSpecies, treeSeasonScale, treeRootSprite } from "../../shared/nature.js";
+import { TREE_SPECIES, DEBRIS, FARM_GRASS, GARDEN_FLOWERS, treeSprite, inferSpecies, treeSeasonScale, treeRootSprite, stumpSprite, TREE_STAGE_IDS, TREE_STAGES } from "../../shared/nature.js";
 import { ASSETS, type MapObject } from "../../shared/content.js";
 import { PAINTED_SPRITES, visualSize, foliageColor } from "../../shared/art-assets.js";
 import type { SeasonKey } from "../../shared/world2.js";
@@ -53,7 +53,7 @@ const labels: Record<string, string> = {
   decor_board: "안내판",
   decor_scarecrow: "허수아비",
 };
-export const label = (id: string) => TREE_SPECIES.find(t=>t.id===id)?.name ?? [...DEBRIS, ...FARM_GRASS].find(d=>d.id===id)?.name ?? GARDEN_FLOWERS.find(f=>f.id===id)?.name ?? PAINTED_SPRITES[id]?.name ?? labels[id] ?? id.replaceAll("_", " ");
+export const label = (id: string) => /_stump_/.test(id) ? `${TREE_SPECIES.find(t=>t.id===inferSpecies(id))?.name} ${TREE_STAGES[TREE_STAGE_IDS.indexOf(id.split("_stump_")[1] as typeof TREE_STAGE_IDS[number])]} 그루터기` : TREE_SPECIES.find(t=>t.id===id)?.name ?? [...DEBRIS, ...FARM_GRASS].find(d=>d.id===id)?.name ?? GARDEN_FLOWERS.find(f=>f.id===id)?.name ?? PAINTED_SPRITES[id]?.name ?? labels[id] ?? id.replaceAll("_", " ");
 export const CATALOG = [
   ...TREE_SPECIES.map(t=>t.id),
   ...DEBRIS.map(d=>d.id),
@@ -74,7 +74,7 @@ export const CATALOG = [
   "mushroom",
   "decor_board",
   "decor_scarecrow",
-].filter((v, i, a) => a.indexOf(v) === i && !/^tree_.*_(seedling|young|mature|giant|guardian|summer|autumn|winter)$/.test(v));
+].filter((v, i, a) => a.indexOf(v) === i && (v.includes("_stump_") || !/^tree_.*_(seedling|young|mature|giant|guardian|summer|autumn|winter)$/.test(v)));
 export function objectFor(assetId: string, x: number, y: number): MapObject {
   const c = category(assetId),
     o: MapObject = {
@@ -94,9 +94,9 @@ export function objectFor(assetId: string, x: number, y: number): MapObject {
     o.tree = {
       species: inferSpecies(assetId),
       planted: false,
-      stage: 2,
+      stage: assetId.includes("_stump_") ? Math.max(2,TREE_STAGE_IDS.indexOf(assetId.split("_stump_")[1] as typeof TREE_STAGE_IDS[number])) : 2,
       chop: true,
-      stump: false,
+      stump: assetId.includes("_stump_"),
       regrow: false,
       drop: "",
     };
@@ -173,7 +173,7 @@ export function drawObject(
   alpha = 1,
   season: SeasonKey = "spring",
 ) {
-  const art = o.tree?.stump ? "stump" : o.tree ? treeSprite(inferSpecies(o.tree.species),o.tree.stage,season) : o.assetId.startsWith("tree") ? treeSprite(inferSpecies(o.assetId),2,season) : o.assetId;
+  const art = o.tree?.stump || o.kind==="stump" ? stumpSprite(o.tree?.species,o.tree?.stage,o.assetId) : o.tree ? treeSprite(inferSpecies(o.tree.species),o.tree.stage,season) : o.assetId.includes("_stump_") ? o.assetId : o.assetId.startsWith("tree") ? treeSprite(inferSpecies(o.assetId),2,season) : o.assetId;
   const a = ASSETS[art],
     img = spriteImage(art, ready),
     fw = a?.source?.frameWidth ?? img?.naturalWidth ?? 64,

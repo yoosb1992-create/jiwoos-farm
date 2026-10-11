@@ -400,8 +400,11 @@ export function createItemTextures(scene: Phaser.Scene): void {
         c.strokeStyle="#c6dcc2";c.lineWidth=4;c.beginPath();c.moveTo(56,24);c.lineTo(61,32);c.stroke();
         return;
       }
-      c.strokeStyle="#563c29";c.lineWidth=8;c.beginPath();c.moveTo(25,55);c.lineTo(33,13);c.stroke();
-      c.strokeStyle="#b58b50";c.lineWidth=5;c.stroke();
+      c.strokeStyle="#563c29";c.lineWidth=5;c.beginPath();c.moveTo(25,55);c.lineTo(33,13);c.stroke();
+      c.strokeStyle="#b58b50";c.lineWidth=3;c.stroke();
+      // A compact blade and slim shaft fit the original farmer's small hands.
+      // Only blade geometry changes; grip and spout anchors remain authored.
+      c.save();c.translate(33,17);c.scale(.78,.78);c.translate(-33,-17);
       const metal=c.createLinearGradient(24,5,46,30);metal.addColorStop(0,"#e6f0df");metal.addColorStop(.5,"#a9c3b6");metal.addColorStop(1,"#57796d");
       c.fillStyle=metal;c.strokeStyle="#3c594e";c.lineWidth=2;
       c.beginPath();
@@ -410,6 +413,7 @@ export function createItemTextures(scene: Phaser.Scene): void {
       else if(tool==="pickaxe") {c.moveTo(10,25);c.quadraticCurveTo(31,-1,57,22);c.quadraticCurveTo(36,13,10,25);}
       else if(tool==="hoe") {c.moveTo(30,9);c.lineTo(51,12);c.lineTo(48,30);c.lineTo(37,27);c.lineTo(38,19);c.lineTo(30,18);}
       c.closePath();c.fill();c.stroke();
+      c.restore();
       c.strokeStyle="#efd5a0";c.lineWidth=1;c.beginPath();c.moveTo(24,52);c.lineTo(30,27);c.stroke();
     });
   }

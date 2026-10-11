@@ -1,5 +1,5 @@
 import type { Asset } from "./content.js";
-import { TREE_SPECIES, TREE_STAGE_IDS, DEBRIS, FARM_GRASS, GARDEN_FLOWERS } from "./nature.js";
+import { TREE_SPECIES, TREE_STAGE_IDS, DEBRIS, FARM_GRASS, GARDEN_FLOWERS, stumpSprite, STUMP_SIZES } from "./nature.js";
 const root="/assets/nature";
 export const NEW_CROP_ART=["pinktulip","sweetpea","springonion","coolcucumber","watermelon","lavender","rubybeet","chrysanthemum","scarletbean","icelettuce","snowpea","frostflower"];
 export function withNatureArt(assets: Record<string,Asset>): Record<string,Asset> {
@@ -7,6 +7,10 @@ export function withNatureArt(assets: Record<string,Asset>): Record<string,Asset
   for(const t of TREE_SPECIES){
     const sizes=[[28,36],[64,86],[128,160],[172,212],[216,270]];
     for(const [i,stage] of TREE_STAGE_IDS.entries())add(`${t.id}_${stage}`,`trees/${t.id}_${stage}`,sizes[i]![0]!,sizes[i]![1]!);
+    for(const [i,size] of STUMP_SIZES.entries()) {
+      const id=stumpSprite(t.id,i+2);
+      add(id,`stumps/${id}`,size[0],size[1],.92);
+    }
     for(const season of ["summer","autumn","winter"])add(`${t.id}_${season}`,`trees/${t.id}_${season}`,128,160);
     assets[t.id]={...assets[`${t.id}_mature`]!,assetId:t.id,textureKey:t.id};
   }

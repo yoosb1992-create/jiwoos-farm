@@ -3,7 +3,7 @@ import type { MapObject } from "./content.js";
 import { TILE, mapFor, tileIn } from "./content.js";
 import { terrainAt, hasZone } from "./world2.js";
 import { collidesWithObstacle } from "./applyMovement.js";
-import { TREES, inferSpecies, natureRoll, treeHp } from "./nature.js";
+import { TREES, inferSpecies, natureRoll, treeHp, stumpSprite } from "./nature.js";
 export interface NaturePlacementIndex { readonly cells: Map<string, Entity[]>; }
 const natureCellKey = (area: string, x: number, y: number) => `${area}:${x},${y}`;
 export function recordNaturePlacement(index: NaturePlacementIndex, e: Entity): void {
@@ -39,10 +39,25 @@ export function initializeTree(w: World, e: Entity, authored?: MapObject, plante
   e.regrow ??= p?.regrow ?? false;
   e.treeDrop ??= p?.drop ?? "";
   if (e.kind === "tree") e.asset = `${e.species}_${["seedling","young","mature","giant","guardian"][e.stage]}`;
+  else if (e.kind === "stump") {
+    e.asset = stumpSprite(e.species,e.stage,e.asset);
+    if (!Number.isFinite(e.hp) || e.hp <= 0) e.hp = 3;
+  }
 }
 
 /** One roll per elapsed world day, persisted before another checkpoint/reload. */
 export function growTrees(w: World): void {
+  // A juvenile has no physical stump. Retain its original ID/species and the
+  // seven-day regrowth clock without putting an invisible obstacle in entities.
+  for (const [id,e] of Object.entries(w.treeRegrowth ?? {})) {
+    if (w.day - (e.treeStageDay ?? w.day) < 7) continue;
+    const occupied = Object.values(w.entities).some(other => other.area === e.area && other.kind !== "drop" &&
+      Math.floor(other.x/TILE) === Math.floor(e.x/TILE) && Math.floor(other.y/TILE) === Math.floor(e.y/TILE));
+    // Player-built fields/objects always win; retry on a later day after removal.
+    if (occupied || w.entities[id]) continue;
+    e.kind="tree"; e.stage=0; e.hp=treeHp(0); e.treeStageDay=w.day; e.treeLastGrowthDay=w.day;
+    initializeTree(w,e); w.entities[id]=e; delete w.treeRegrowth![id];
+  }
   for (const e of Object.values(w.entities)) {
     if (e.kind !== "tree" && e.kind !== "stump") continue;
     initializeTree(w, e);
@@ -99,6 +114,7 @@ export function naturalPlacement(w: World, area: string, x: number, y: number,
   if (map.spawns.some(s=>Math.hypot(x+.5-s.tileX,y+.5-s.tileY)<3)) return false;
   if (map.warps.some(p=>tileIn({startX:p.area.startX-1,endX:p.area.endX+1,startY:p.area.startY-1,endY:p.area.endY+1},x,y))) return false;
   if (purpose==="debris" && (enclosed.has(`${x},${y}`) || w.day-(w.natureCleared?.[`${area}:${x},${y}`] ?? -100)<7)) return false;
+  if (purpose==="debris" && Object.values(w.treeRegrowth ?? {}).some(e=>e.area===area && Math.floor(e.x/TILE)===x && Math.floor(e.y/TILE)===y)) return false;
   for (const o of map.objects) {
     if(o.visible===false)continue;
     const dx=x+.5-o.position.tileX, dy=y+.5-o.position.tileY;

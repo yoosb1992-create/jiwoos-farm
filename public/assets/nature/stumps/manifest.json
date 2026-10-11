@@ -1,0 +1,156 @@
+{
+  "source": "Original imagegen stump atlas, generated for Jiwoo's Farm; no external game assets",
+  "sourceSha256": "00e6b4737c54a4addb550185c79e598960146d19562de809d4c2867fd71e8f32",
+  "style": "Existing warm painted 3/4 farm trees; upper-left light; true transparent alpha",
+  "prompt": "Eight rows: cherry lenticels, rough pine, red maple, fibrous willow, white scarred birch, rugged oak, hollow bamboo clusters, red ribbed metasequoia. Three columns: compact mature, broad rooted giant, gnarled guardian. Distinct silhouettes, bark, endgrain and roots. No scenery, labels or grid.",
+  "origin": {
+    "x": 0.5,
+    "y": 0.92
+  },
+  "assets": [
+    {
+      "file": "tree_cherry_stump_mature.webp",
+      "width": 80,
+      "height": 64,
+      "sha256": "a84516223a92320ecd66f30fb526cce92fb27478822b9ba0f4d6745d6451806d"
+    },
+    {
+      "file": "tree_pine_stump_mature.webp",
+      "width": 80,
+      "height": 64,
+      "sha256": "f3993cf4bbd8f75100520eddbd08588f0af8e5086d9903c1a8bf453214199dcd"
+    },
+    {
+      "file": "tree_maple_stump_mature.webp",
+      "width": 80,
+      "height": 64,
+      "sha256": "a34da6ddeae9a88a6c29005f5adbbd2598162495641909d23d2c488564e6dd4b"
+    },
+    {
+      "file": "tree_willow_stump_mature.webp",
+      "width": 80,
+      "height": 64,
+      "sha256": "f44e8e3e36ba43d295c5204e31935f3ffefb849dbeda31fbfa2f25d17db490b1"
+    },
+    {
+      "file": "tree_birch_stump_mature.webp",
+      "width": 80,
+      "height": 64,
+      "sha256": "1046036326fd07cea03dbf87caec55a06fa1792f6384633c12ba089dea2569c1"
+    },
+    {
+      "file": "tree_oak_stump_mature.webp",
+      "width": 80,
+      "height": 64,
+      "sha256": "40c752b3cdf7fbe3ff2fdf9b8413dfc87f322ab4b1bc5aeace22bad56de1b7bc"
+    },
+    {
+      "file": "tree_bamboo_stump_mature.webp",
+      "width": 80,
+      "height": 64,
+      "sha256": "97dfdd07bf30fa0f83f935f84c2d9faf24e3114094e646837b56b48cf897dd49"
+    },
+    {
+      "file": "tree_metasequoia_stump_mature.webp",
+      "width": 80,
+      "height": 64,
+      "sha256": "b943a7391fb80a1a95c0ca0cd3c867273d2325cdbe901aea9fdb9c583a62fc3e"
+    },
+    {
+      "file": "tree_cherry_stump_giant.webp",
+      "width": 108,
+      "height": 84,
+      "sha256": "5d9dd1f995f7a8460225cc30c7b6b3c68d353cb7e10ff05477469cc1370e5e73"
+    },
+    {
+      "file": "tree_pine_stump_giant.webp",
+      "width": 108,
+      "height": 84,
+      "sha256": "1889da8cebc3e3f50b665d528f1af6baa00b1088edd25e838bc5c3eecfc4b91f"
+    },
+    {
+      "file": "tree_maple_stump_giant.webp",
+      "width": 108,
+      "height": 84,
+      "sha256": "1fd85950d21ccf61b26c1ba2cb9eb07a009a8676bb7c50a9b22143f5152913c6"
+    },
+    {
+      "file": "tree_willow_stump_giant.webp",
+      "width": 108,
+      "height": 84,
+      "sha256": "3b763650581a15d6027bb151551af8f467ce6ae7a05d8eb94c2c4b2339066edb"
+    },
+    {
+      "file": "tree_birch_stump_giant.webp",
+      "width": 108,
+      "height": 84,
+      "sha256": "258497e5dbaa89552da00c98d11a6e4c880a7d87e7569d1b6b5d54238cb7244d"
+    },
+    {
+      "file": "tree_oak_stump_giant.webp",
+      "width": 108,
+      "height": 84,
+      "sha256": "e6dfc096f82237b43210a82b0fd4ef88b31e832410a32f910cc2309a32c65086"
+    },
+    {
+      "file": "tree_bamboo_stump_giant.webp",
+      "width": 108,
+      "height": 84,
+      "sha256": "e00ff7c9f51cc45d3c5f23bd0796c4acd2e2a6deb3897ea51701df3b3831d3fd"
+    },
+    {
+      "file": "tree_metasequoia_stump_giant.webp",
+      "width": 108,
+      "height": 84,
+      "sha256": "a4327481bfac6cdc16a4cd0728c6339f320c1e7fbb7d0772fc83baa4d635df6e"
+    },
+    {
+      "file": "tree_cherry_stump_guardian.webp",
+      "width": 136,
+      "height": 104,
+      "sha256": "d3c97c2978ee9b1a71ee47a2a1bb7ac764dab24f7c39c9fbbbfc4fdda7e0c0e1"
+    },
+    {
+      "file": "tree_pine_stump_guardian.webp",
+      "width": 136,
+      "height": 104,
+      "sha256": "dcfa4d13a3816c454ccc1a39ffcfc603c2f93cce63a422ab1ca72ec3096af82b"
+    },
+    {
+      "file": "tree_maple_stump_guardian.webp",
+      "width": 136,
+      "height": 104,
+      "sha256": "b4f5cb2905a0e22bc13e454cc24a8259d2650e27eac02f82327b84d0e683e8f4"
+    },
+    {
+      "file": "tree_willow_stump_guardian.webp",
+      "width": 136,
+      "height": 104,
+      "sha256": "8e4a362464f60e41360e20e2114c0d000739c1aaa4bed1328ed2923267d50e56"
+    },
+    {
+      "file": "tree_birch_stump_guardian.webp",
+      "width": 136,
+      "height": 104,
+      "sha256": "25e73c6398b54cc90287f8e80f7dab08a3efbab7b861de1671604990885f89ab"
+    },
+    {
+      "file": "tree_oak_stump_guardian.webp",
+      "width": 136,
+      "height": 104,
+      "sha256": "2bf82304dfcf67f00ae76e6d45a163bce3e86e89ab46b12de4ce2b30b78b73a2"
+    },
+    {
+      "file": "tree_bamboo_stump_guardian.webp",
+      "width": 136,
+      "height": 104,
+      "sha256": "04902932c002cad085eff9a2f788e3abd282738eac11afb432bf93c10f85042b"
+    },
+    {
+      "file": "tree_metasequoia_stump_guardian.webp",
+      "width": 136,
+      "height": 104,
+      "sha256": "97d389afb9a03b25a97ff16cb774d6634cb13f2a6a8f42d3d52d3dc8d02fa4fc"
+    }
+  ]
+}

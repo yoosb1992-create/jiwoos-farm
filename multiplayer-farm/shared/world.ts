@@ -59,6 +59,9 @@ export interface Entity {
   owner: string;
 }
 export interface World {
+  /** Felled juvenile regrowth, saved in the existing JSON snapshot only.
+   * These are not entities: no rendering, targeting or collision on any client. */
+  treeRegrowth?: Record<string, Entity>;
   natureCleared?: Record<string, number>;
   debrisDay?: number;
   grassDay?: number;
@@ -318,7 +321,7 @@ export function generateDaily(world: World): void {
   seedFarmGrass(world, rng);
   // Natural forest trees age too. Keep occupied resource slots across days;
   // only a fully cleared slot receives a new natural tree the next morning.
-  const forestSlots = new Set(Object.values(world.entities)
+  const forestSlots = new Set([...Object.values(world.entities), ...Object.values(world.treeRegrowth ?? {})]
     .filter(e => e.area === "forest" && (e.kind === "tree" || e.kind === "stump"))
     .map(e => /^forest-\d+-(\d+)$/.exec(e.id)?.[1]));
   for (let i = 0; i < 28; i++) {
@@ -456,6 +459,9 @@ function seedFixtures(w: World, daily: boolean): void {
     if ((map.id === "forest" || map.id.startsWith("mine")) !== daily) continue;
     for (const o of map.objects)
       if (o.kind && o.visible !== false) {
+        if (daily && (o.kind === "tree" || o.kind === "stump") &&
+          (w.entities[o.id] || w.treeRegrowth?.[o.id] ||
+            w.natureCleared?.[`${map.id}:${Math.floor(o.position.tileX)},${Math.floor(o.position.tileY)}`] !== undefined)) continue;
         const e = entity(
           o.id,
           map.id,
@@ -464,14 +470,14 @@ function seedFixtures(w: World, daily: boolean): void {
           o.position.tileY * TILE,
           o.assetId,
         );
-        if (e.kind === "tree") {
+        if (e.kind === "tree" || e.kind === "stump") {
           e.stage = o.tree?.stage ?? 2;
           e.hp = treeHp(e.stage);
           initializeTree(w,e,o);
-          if (o.tree?.stump) {
+          if (o.tree?.stump || e.kind === "stump") {
             e.kind = "stump";
-            e.asset = "stump";
             e.hp = 3;
+            initializeTree(w,e,o);
           }
         }
         const debris = [...DEBRIS, ...FARM_GRASS].find(d => d.id === o.assetId);

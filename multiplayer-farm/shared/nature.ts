@@ -30,6 +30,13 @@ export function inferSpecies(asset = "", id = ""): string {
   return TREE_SPECIES.find(t => asset === t.id || asset.startsWith(`${t.id}_`))?.id ?? "tree_oak";
 }
 export const treeHp = (stage: number) => [1, 2, 3, 5, 7][stage] ?? 3;
+/** Explicit/legacy stumps remain valid even when their old stage defaults to 0.
+ * Only the act of felling a living tree decides whether a stump is created. */
+export function stumpSprite(species?: string, stage = 2, asset = "stump"): string {
+  const id = TREES[species ?? ""] ? species! : inferSpecies(asset);
+  return `${id}_stump_${TREE_STAGE_IDS[Math.max(2, Math.min(4, Math.trunc(stage) || 2))]}`;
+}
+export const STUMP_SIZES = [[40, 32], [54, 42], [68, 52]] as const;
 /** Independent stable rolls: adding another entity never changes an old tree's luck. */
 export function natureRoll(seed: number, day: number, id: string, salt: string): number {
   let h = (seed ^ Math.imul(day, 0x9e3779b1)) >>> 0;

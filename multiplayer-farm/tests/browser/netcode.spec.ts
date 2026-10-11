@@ -18,7 +18,10 @@ async function enter(page: Page, name: string, farmId?: string) {
     await page.locator("#farm-code").fill(farmId);
     await page.locator("#join-farm").click();
   } else await page.locator("#create-farm").click();
-  await expect(page.locator("#login")).toBeHidden();
+  // Joining a second software-rendered browser can load the dense farm for
+  // longer than the default five seconds. Keep the actual input latency gate
+  // below unchanged; connection setup has the same budget as other farm tests.
+  await expect(page.locator("#login")).toBeHidden({timeout:20_000});
   await expect
     .poll(async () => (await snapshot(page)).local !== null)
     .toBe(true);

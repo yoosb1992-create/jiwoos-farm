@@ -494,11 +494,17 @@ function applyActionCore(
           const drops=e.stage<2 ? [{item:tree.seed,chance:1}] : tree.drops;
           for(const d of drops) if(natureRoll(w.seed,w.day,e.id,`drop-${d.item}`)<d.chance)
             addDrop(w,e,d.item === tree.drops[0]!.item && e.treeDrop && ITEMS[e.treeDrop] ? e.treeDrop : d.item,1);
-          e.kind = "stump";
-          e.asset = "stump";
-          e.hp = 3;
           e.treeStageDay=w.day;
           e.treeLastGrowthDay=w.day;
+          if (e.stage < 2) {
+            if (e.regrow) (w.treeRegrowth ??= {})[e.id] = {...e};
+            markCleared(w,e);
+            delete w.entities[e.id];
+          } else {
+            e.kind = "stump";
+            e.hp = 3;
+            initializeTree(w,e,authored);
+          }
         } else {
           addDrop(w, e, e.species === "tree_bamboo" ? "bamboo" : "wood", 1);
           markCleared(w,e);

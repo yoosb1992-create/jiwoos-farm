@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { ASSETS, TILE } from "../shared/content.js";
 import { visualSize } from "../shared/art-assets.js";
-import { treeSprite, inferSpecies, treeSeasonScale } from "../shared/nature.js";
+import { treeSprite, inferSpecies, treeSeasonScale, stumpSprite } from "../shared/nature.js";
 import { impactDelay, breakDuration, dropAppearDelay, DROP_SETTLE_MS, actionTiming, type ActionFx } from "../shared/interaction.js";
 import type { RenderPlayer } from "./network.js";
 import type { Season } from "../shared/expansion.js";
@@ -97,7 +97,7 @@ export class FarmFeedback {
       pending.sort((a,b)=>a.end-b.end);this.rockUntil.set(target.id,pending);
     }
     if(event.outcome==="break" && target && this.ghosts.length<16) {
-      const asset=target.kind==="tree" ? treeSprite(target.species||inferSpecies(target.asset,target.id),target.stage,season) : target.asset;
+      const asset=target.kind==="tree" ? treeSprite(target.species||inferSpecies(target.asset,target.id),target.stage,season) : target.kind==="stump" ? stumpSprite(target.species,target.stage,target.asset) : target.asset;
       if(!this.scene.textures.exists(asset))return;
       const v=this.view(target.id);
       const size=visualSize(ASSETS[asset],target.kind==="tree" ? treeSeasonScale(target.species||inferSpecies(target.asset,target.id),target.stage,season) : undefined);
@@ -149,7 +149,7 @@ export class FarmFeedback {
     const s=this.swings.get(id);if(!s)return;
     const duration=actionTiming(s.event).duration,elapsed=now-s.start;
     if(elapsed>duration)return;
-    return {facing:s.event.facing,blend:Math.min(1,elapsed/55,(duration-elapsed)/100)};
+    return {facing:s.event.facing,blend:1};
   }
   /** Only visible ore views invoke this, and geometry changes only with HP. */
   rockDamage(id:string,v:View,hp:number,max:number):void {
@@ -217,7 +217,10 @@ export class FarmFeedback {
       if(t>=1){for(const s of f.sprites)s.destroy();return false;}
       for(let i=0;i<f.sprites.length;i++) {
         const s=f.sprites[i]!;
-        if(target.kind==="tree") {
+        if(target.kind==="tree" && target.stage<2) {
+          s.setAngle(dir*t*(target.stage===0?25:55)).setAlpha(1-t*t)
+            .setPosition(target.x+dir*t*(target.stage===0?4:9),target.y-Math.sin(t*Math.PI)*(target.stage===0?2:4));
+        } else if(target.kind==="tree") {
           s.setAngle(dir*(t<.16?-Math.sin(t/.16*Math.PI)*3:Math.pow((t-.16)/.84,2)*83));
           s.setAlpha(t>.82?(1-t)/.18:1);
         } else if(target.kind==="rock") {
@@ -231,8 +234,9 @@ export class FarmFeedback {
       }
       if(t>.82&&!f.impact) {
         f.impact=true;
-        this.emit(target.x+(target.kind==="tree"?dir*25:0),target.y,target.kind==="tree"?0xa3bc72:target.kind==="rock"?0x95a39a:0x88ac55,10,now,dir);
-        if(target.kind==="tree"||target.kind==="rock")this.sound(target.kind==="tree"?(target.stage>=3?"heavyFall":"fall"):"breakStone");
+        const juvenile=target.kind==="tree"&&target.stage<2;
+        this.emit(target.x+(target.kind==="tree"?dir*(juvenile?6:25):0),target.y,target.kind==="tree"?0xa3bc72:target.kind==="rock"?0x95a39a:0x88ac55,juvenile?4:10,now,dir);
+        if((target.kind==="tree"&&target.stage>=2)||target.kind==="rock")this.sound(target.kind==="tree"?(target.stage>=3?"heavyFall":"fall"):"breakStone");
       }
       return true;
     });
