@@ -11,7 +11,8 @@ import {
   RUN_SPEED,
   WALK_SPEED,
 } from "./config.js";
-import { mapFor, TILE, tileIn, type MapData } from "./content.js";
+import { ASSETS, mapFor, TILE, tileIn, type MapData, type MapObject } from "./content.js";
+import { DEBRIS } from "./nature.js";
 export interface Position {
   x: number;
   y: number;
@@ -101,6 +102,51 @@ export function prepareDynamicObstacles(
   }
   return { buckets };
 }
+// Scenery without a WorldEntity also needs a physical footprint. Art crowns
+// may overlap players; only roots, trunks, stones and dense shrubs are solid.
+// Leave flowers, forage and soft grass walkable.
+const staticDebrisKinds = new Map<string, string>(DEBRIS.map(d => [d.id, d.kind] as const));
+const sceneryCollision = (
+  o: MapObject,
+): { x: number; y: number; width: number; height: number } | undefined => {
+  const asset = o.assetId;
+  const debris = staticDebrisKinds.get(asset);
+  let rect: { x: number; y: number; width: number; height: number } | undefined;
+  if (asset === "tree" || asset.startsWith("tree_"))
+    rect = { x: -12, y: -11, width: 24, height: 22 };
+  else if (asset === "pond_rock_large")
+    rect = { x: -36, y: -34, width: 72, height: 38 };
+  else if (asset === "small_rock" || asset === "forest_rock" || debris === "rock")
+    rect = { x: -16, y: -14, width: 32, height: 20 };
+  else if (debris === "twig")
+    rect = { x: -18, y: -9, width: 36, height: 16 };
+  else if (debris === "gather" && /weed/.test(asset))
+    rect = { x: -10, y: -12, width: 20, height: 20 };
+  else if (asset === "green_shrub")
+    rect = { x: -27, y: -17, width: 54, height: 20 };
+  else if (asset === "flowering_bush")
+    rect = { x: -31, y: -18, width: 62, height: 22 };
+  else if (asset === "fence_horizontal")
+    rect = { x: -60, y: -12, width: 120, height: 20 };
+  else if (asset === "fence_vertical")
+    rect = { x: -10, y: -48, width: 20, height: 56 };
+  else if (asset === "fence_corner")
+    rect = { x: -14, y: -14, width: 28, height: 28 };
+  if (!rect) return undefined;
+  // Width wins over scale in the renderer as well (including editor resizing).
+  const frameWidth = ASSETS[asset]?.frameSize?.width;
+  const scale =
+    o.width !== undefined && frameWidth
+      ? (o.width * TILE) / frameWidth
+      : (o.scale ?? 1);
+  return {
+    x: rect.x * scale,
+    y: rect.y * scale,
+    width: rect.width * scale,
+    height: rect.height * scale,
+  };
+};
+
 export function collidesWithObstacle(
   x: number,
   y: number,
@@ -166,21 +212,20 @@ export function collidesWithObstacle(
   }
   return (
     map.world2 ? nearbyObjects(map, x / TILE, y / TILE) : map.objects
-  ).some(
-    (o) =>
-      o.visible !== false &&
-      !o.bridge &&
-      o.collision &&
-      // Harvestable trees keep their existing dynamic behavior. Authored static
-      // trees must honor their small trunk box, just like other static objects.
-      !(o.assetId.startsWith("tree") && o.kind === "tree") &&
-      hit(
-        o.position.tileX * TILE + o.collision.x,
-        o.position.tileY * TILE + o.collision.y,
-        o.collision.width,
-        o.collision.height,
-      ),
-  );
+  ).some((o) => {
+    if (o.visible === false || o.bridge) return false;
+    // Interactable nature leaves no static ghost when harvested or destroyed.
+    // Its collision belongs to current server-authoritative live entities.
+    if (["tree", "stump", "rock", "twig", "gather"].includes(o.kind ?? ""))
+      return false;
+    const box = o.collision ?? sceneryCollision(o);
+    return !!box && hit(
+      o.position.tileX * TILE + box.x,
+      o.position.tileY * TILE + box.y,
+      box.width,
+      box.height,
+    );
+  });
 }
 export function applyMovement(
   p: Position,

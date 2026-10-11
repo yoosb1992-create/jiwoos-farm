@@ -125,3 +125,44 @@ test("new default never upgrades saved family layouts, crops or progress into th
   assert.equal(newWorld(43).layout!.maps.farm!.width, 128);
   assert.equal(old.layout!.maps.farm!.width, 52);
 });
+
+
+test("solid natural scenery and editor debris share correct persistent/living collision", () => {
+  const base = defaultLayout().maps.farm!;
+  const at = 20.5 * 32;
+  const make = (assetId: string, extra: Partial<(typeof base.objects)[number]> = {}) => {
+    const authored = {
+      id: "isolated-natural-object",
+      assetId,
+      position: { tileX: 20.5, tileY: 20.5 },
+      ...extra,
+    };
+    const map = { ...base, world2: undefined, collisionRegions: [], objects: [authored] };
+    return { maps: { farm: map } };
+  };
+  for (const assetId of [
+    "tree_variant_a", "pond_rock_large", "green_shrub", "flowering_bush",
+    "farm_twig_c", "farm_moss_stone", "farm_weed", "fence_horizontal",
+  ]) {
+    const { maps } = make(assetId);
+    assert(
+      collidesWithObstacle(at, at, "farm", maps),
+      `Non-interactable ${assetId} must be solid without an authored collision box`,
+    );
+  }
+  for (const assetId of ["flower_bed", "farm_short_grass", "farm_white_wildflower"]) {
+    const { maps } = make(assetId);
+    assert(!collidesWithObstacle(at, at, "farm", maps), `${assetId} remains walkable`);
+  }
+  const { maps } = make("farm_stone_a", {
+    kind: "rock",
+    collision: { x: -14, y: -10, width: 28, height: 20 },
+  });
+  assert(!collidesWithObstacle(at, at, "farm", maps, []),
+    "Cleared authored debris must not leave invisible static collision");
+  const live = entity("isolated-natural-object", "farm", "rock", at, at, "farm_stone_a");
+  assert(collidesWithObstacle(at, at, "farm", maps, [live]),
+    "Existing authored rock must still be solid");
+  assert(!collidesWithObstacle(at + 100, at, "farm", maps, [live]),
+    "Nearby paths must remain traversable");
+});
