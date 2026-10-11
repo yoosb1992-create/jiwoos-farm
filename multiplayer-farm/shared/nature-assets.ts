@@ -11,7 +11,11 @@ export function withNatureArt(assets: Record<string,Asset>): Record<string,Asset
     assets[t.id]={...assets[`${t.id}_mature`]!,assetId:t.id,textureKey:t.id};
   }
   for(const [old,id] of [["tree","tree_oak"],["tree_variant_b","tree_pine"]])assets[old!]={...assets[id!]!,assetId:old!,textureKey:old!};
-  for(const d of [...DEBRIS, ...FARM_GRASS])add(d.id,`debris/${d.id}`,d.kind==="twig"?40:34,d.kind==="twig"?26:34);
+  // Collisions use a 32px occupied tile. Keep the actual drawn stone, branch,
+  // weed, flower and forage art *inside* that tile so walking along neighboring
+  // clear cells never looks like passing through part of the sprite.
+  for(const d of [...DEBRIS, ...FARM_GRASS])
+    add(d.id,`debris/${d.id}`,d.kind==="twig"?32:30,d.kind==="twig"?24:30,.5);
   assets.farm_wildflower={...assets.farm_white_wildflower!,assetId:"farm_wildflower",textureKey:"farm_wildflower"};
   for(const f of GARDEN_FLOWERS)add(f.id,`flowers/${f.id}`,56,52);
   for(const id of NEW_CROP_ART)add(`crop_${id}_mature`,`crops/${id}`,40,52,.8);

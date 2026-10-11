@@ -7,7 +7,7 @@ import { defaultLayout, validateLayout } from "../shared/layout.js";
 import { TREE_SPECIES, TREES, TREE_STAGES, TREE_STAGE_IDS, DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, FARM_GRASS, GRASS_FIRST, GRASS_MAX, NATURAL_TREE_FIRST, treeHp, natureRoll, treeSprite } from "../shared/nature.js";
 import { initializeTree, growTrees, naturalPlacement, fencedInterior } from "../shared/nature-world.js";
 import { newWorld2, setCell, terrainCode, ZONES, hasZone } from "../shared/world2.js";
-import { ASSETS, ITEMS, CROPS, RECIPES } from "../shared/content.js";
+import { ASSETS, ITEMS, CROPS, RECIPES, TILE } from "../shared/content.js";
 import { NEW_CROP_ART } from "../shared/nature-assets.js";
 import { SEASONS, SEASON_DAYS } from "../shared/expansion.js";
 import { objectFor, CATALOG, category } from "../client/editor/catalog.js";
@@ -167,6 +167,11 @@ test("old trees migrate additively; editor roundtrip, stage art, species and nat
   }
   for(const d of DEBRIS)assert(ASSETS[d.id]?.source);
   for(const g of FARM_GRASS){assert(ASSETS[g.id]?.source);assert(CATALOG.includes(g.id));}
+  for (const d of [...DEBRIS,...FARM_GRASS]) {
+    const asset=ASSETS[d.id]!;
+    assert(asset.frameSize!.width <= TILE && asset.frameSize!.height <= TILE, `${d.id}: visual must fit its collision tile`);
+    assert.equal(asset.origin?.y, .5, `${d.id}: artwork must be centered in its collision cell`);
+  }
   const manifest=JSON.parse(readFileSync(new URL('../../public/assets/nature/manifest.json',import.meta.url),'utf8'));
   assert(manifest.assets.length>=103);
 });
