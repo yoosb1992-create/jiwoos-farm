@@ -161,7 +161,7 @@ export class FarmRoom extends MovementRoom {
         this.addPlayer(client, { nickname: auth.nickname });
         const p = this.state.players.get(client.sessionId)!;
         p.playerId = auth.playerId;
-        const spawn = safeSpawn("farm", "farm_entry", this.movementMaps!);
+        const spawn = safeSpawn("farm", "farm_entry", this.movementMaps!, true, this.state.entities.values());
         p.x = spawn.x;
         p.y = spawn.y;
         p.facing = spawn.facing;

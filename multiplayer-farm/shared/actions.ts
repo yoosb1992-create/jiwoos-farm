@@ -301,7 +301,7 @@ export function applyAction(
           e.destination && w.layout?.maps[e.destination],
           "이벤트 목적지 없음",
         );
-        const p = safeSpawn(e.destination, e.spawn, w.layout.maps);
+        const p = safeSpawn(e.destination, e.spawn, w.layout.maps, true, Object.values(w.entities));
         result.transition = { area: e.destination, x: p.x, y: p.y };
       }
       m.quests[key] = 1;
@@ -593,7 +593,7 @@ export function applyAction(
         "입구로 이동하세요",
       );
       const dest = mapFor(warp.targetMapId, w.layout?.maps);
-      const spawn = safeSpawn(dest.id, warp.targetSpawnId, w.layout!.maps);
+      const spawn = safeSpawn(dest.id, warp.targetSpawnId, w.layout!.maps, true, Object.values(w.entities));
       result.transition = {
         area: dest.id,
         x: spawn.x,
@@ -611,7 +611,7 @@ export function applyAction(
       w.deepest = Math.max(w.deepest, floor + 1);
       result.transition = {
         area: `mine${floor + 1}`,
-        ...safeSpawn(`mine${floor + 1}`, undefined, w.layout!.maps),
+        ...safeSpawn(`mine${floor + 1}`, undefined, w.layout!.maps, true, Object.values(w.entities)),
       };
       break;
     }

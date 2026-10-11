@@ -187,7 +187,7 @@ test("nature occupancy blocks the whole tile: all four corners, stages and live 
     for (const [px, py] of [
       [19.5 * 32, centerY], [21.5 * 32, centerY],
       [centerX, 19.5 * 32], [centerX, 21.5 * 32],
-    ])
+    ] as const)
       assert(!collidesWithObstacle(px, py, "farm", maps, [obstacle]),
         `Neighboring tile center should stay walkable around ${kind}`);
     assert(!collidesWithObstacle(centerX, centerY, "farm", maps, []),
@@ -240,4 +240,15 @@ test("occupied cells withstand joystick sprint, diagonal movement, pathfinding a
   map.objects = [{ ...authored, kind: "rock" }];
   assert(!collidesWithObstacle(rock.x, rock.y, "farm", maps, []),
     "Cleared interactive authored rock must leave no phantom collision");
+});
+
+
+test("safeSpawn avoids a live natural obstacle placed by a saved world editor layout", () => {
+  const l = defaultLayout();
+  const spawn = l.maps.farm!.spawns.find(p => p.id === "farm_entry")!;
+  const obstacle = entity("spawn-tree", "farm", "tree", spawn.tileX * 32, spawn.tileY * 32, "tree_pine_mature");
+  assert(collidesWithObstacle(obstacle.x, obstacle.y, "farm", l.maps, [obstacle]));
+  const safe = safeSpawn("farm", "farm_entry", l.maps, true, [obstacle].values());
+  assert(!collidesWithObstacle(safe.x, safe.y, "farm", l.maps, [obstacle]));
+  assert.notDeepEqual([safe.x, safe.y], [obstacle.x, obstacle.y]);
 });

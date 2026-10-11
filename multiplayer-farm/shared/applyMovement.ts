@@ -69,8 +69,9 @@ export type DynamicObstacleSource =
   | DynamicObstacleIndex;
 
 /** Tree, stump, rock, branch, and thick weed cells are impassable until cleared. */
+const SOLID_NATURE_KINDS = new Set(["tree", "stump", "rock", "twig"]);
 const solidNatureEntity = (e: DynamicObstacle): boolean =>
-  ["tree", "stump", "rock", "twig"].includes(e.kind) ||
+  SOLID_NATURE_KINDS.has(e.kind) ||
   (e.kind === "gather" && /^farm_weed/.test(e.asset ?? ""));
 const dynamicObstacleBox = (e: DynamicObstacle): DynamicObstacleBox | undefined => {
   // Machines/decorations retain their authored footprint collision.

@@ -1,5 +1,5 @@
 import { TILE, mapFor, tileIn, type MapData } from "./content.js";
-import { collidesWithObstacle } from "./applyMovement.js";
+import { collidesWithObstacle, type DynamicObstacleSource } from "./applyMovement.js";
 export const TRANSITION_COOLDOWN_MS = 1400;
 export function insideWarp(map: MapData, x: number, y: number) {
   return map.warps.find((w) =>
@@ -12,11 +12,12 @@ export function safeSpawn(
   spawnId: string | undefined,
   maps: Record<string, MapData>,
   avoidWarps = true,
+  dynamic?: DynamicObstacleSource,
 ) {
   const map = mapFor(area, maps),
     s = map.spawns.find((p) => p.id === spawnId) ?? map.spawns[0]!;
   const valid = (x: number, y: number) =>
-    !collidesWithObstacle(x, y, area, maps) &&
+    !collidesWithObstacle(x, y, area, maps, dynamic) &&
     (!avoidWarps || !insideWarp(map, x, y));
   if (valid(s.tileX * TILE, s.tileY * TILE))
     return { x: s.tileX * TILE, y: s.tileY * TILE, facing: s.facing };
