@@ -7,6 +7,7 @@ import {
 } from "@colyseus/core";
 import {
   applyMovement,
+  prepareDynamicObstacles,
   sanitizeMovementInput,
 } from "../shared/applyMovement.js";
 import {
@@ -111,6 +112,7 @@ export class MovementRoom extends Room<{ state: FarmState; input: MoveInput }> {
 
   private step(context: StepContext): void {
     this.state.tick = context.tick;
+    const obstacles = prepareDynamicObstacles(this.state.entities.values());
     for (const [sessionId, player] of this.state.players) {
       const client = this.clients.get(sessionId);
       if (!player.connected || client?.state !== ClientState.JOINED) continue;
@@ -141,7 +143,7 @@ export class MovementRoom extends Room<{ state: FarmState; input: MoveInput }> {
         input,
         context.dt,
         this.movementMaps,
-        this.state.entities.values(),
+        obstacles,
       );
       budget.lastInputTick = context.tick;
       // One normal step, plus at most one previously missed step. Credits are
@@ -160,7 +162,7 @@ export class MovementRoom extends Room<{ state: FarmState; input: MoveInput }> {
           catchup,
           context.dt,
           this.movementMaps,
-          this.state.entities.values(),
+          obstacles,
         );
         budget.credits -= 1;
       }

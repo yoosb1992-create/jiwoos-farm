@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { defaultLayout, legacyLayout, validateLayout } from "../shared/layout.js";
 import { cell, terrainAt, placementAllowed, waterTerrain } from "../shared/world2.js";
-import { collidesWithObstacle, isFarmable } from "../shared/applyMovement.js";
+import { applyMovement, collidesWithObstacle, isFarmable } from "../shared/applyMovement.js";
 import { findPath } from "../shared/pathfinding.js";
 import { insideWarp, safeSpawn } from "../shared/regions.js";
 import { entity, newWorld, newMember, upgradeWorld, type Actor } from "../shared/world.js";
@@ -50,6 +50,27 @@ test("sketched default farm: editable overgrown grass, four accessible lanes, sa
   for (const obstacle of [dynamicRock, dynamicTwig, dynamicTree])
     assert(collidesWithObstacle(obstacle.x, obstacle.y, "farm", l.maps, [obstacle]));
   assert(!collidesWithObstacle(passableGrass.x, passableGrass.y, "farm", l.maps, [passableGrass]));
+  const walker = {
+    x: dynamicRock.x,
+    y: dynamicRock.y - 31,
+    area: "farm",
+    stamina: 100,
+    facing: "down",
+    moving: false,
+    running: false,
+    actionTicks: 0,
+  };
+  applyMovement(
+    walker,
+    { moveX: 0, moveY: 1, run: false },
+    0.2,
+    l.maps,
+    [dynamicRock].values(),
+  );
+  assert(
+    walker.y < dynamicRock.y - 20,
+    "Vertical movement must not consume and bypass the dynamic obstacle iterator",
+  );
   assert.deepEqual(m.warps.map(w => [w.id, w.targetMapId, w.targetSpawnId]), legacyLayout().maps.farm!.warps.map(w => [w.id, w.targetMapId, w.targetSpawnId]));
   for (const s of m.spawns) assert(!insideWarp(m, ...[s.tileX * 32, s.tileY * 32] as [number, number]));
   const world = newWorld(9, l);

@@ -51,21 +51,62 @@ export interface DynamicObstacle {
   y: number;
   kind: string;
   asset?: string;
+  stage?: number;
 }
-const dynamicObstacleRadius = (e: DynamicObstacle): number => {
-  if (e.kind === "tree" || e.kind === "stump") return 13;
-  if (e.kind === "rock") return 12;
-  if (e.kind === "twig") return 10;
-  if (["machine", "decoration", "barn", "trough"].includes(e.kind)) return 13;
-  if (e.kind === "gather" && /weed/.test(e.asset ?? "")) return 8;
-  return 0;
+interface DynamicObstacleBox {
+  halfW: number;
+  halfH: number;
+  offsetY: number;
+}
+export interface DynamicObstacleIndex {
+  readonly buckets: Map<string, readonly DynamicObstacle[]>;
+}
+export type DynamicObstacleSource =
+  | Iterable<DynamicObstacle>
+  | DynamicObstacleIndex;
+
+const dynamicObstacleBox = (e: DynamicObstacle): DynamicObstacleBox | undefined => {
+  if (e.kind === "tree") {
+    const mature = (e.stage ?? 2) >= 2;
+    return { halfW: mature ? 15 : 11, halfH: mature ? 11 : 9, offsetY: -7 };
+  }
+  if (e.kind === "stump") return { halfW: 14, halfH: 10, offsetY: -4 };
+  if (e.kind === "rock") return { halfW: 14, halfH: 12, offsetY: -2 };
+  if (e.kind === "twig") return { halfW: 15, halfH: 9, offsetY: -1 };
+  if (["machine", "decoration", "barn", "trough"].includes(e.kind))
+    return { halfW: 14, halfH: 14, offsetY: 0 };
+  if (e.kind === "gather" && /weed/.test(e.asset ?? ""))
+    return { halfW: 10, halfH: 10, offsetY: 0 };
+  return undefined;
 };
+const obstacleKey = (area: string, tx: number, ty: number) =>
+  `${area}:${tx},${ty}`;
+
+export function prepareDynamicObstacles(
+  source?: DynamicObstacleSource,
+): DynamicObstacleIndex | undefined {
+  if (!source) return undefined;
+  if ("buckets" in source) return source;
+  const buckets = new Map<string, DynamicObstacle[]>();
+  for (const e of source) {
+    if (!dynamicObstacleBox(e)) continue;
+    const key = obstacleKey(
+      e.area,
+      Math.floor(e.x / TILE),
+      Math.floor(e.y / TILE),
+    );
+    const list = buckets.get(key);
+    if (list) list.push(e);
+    else buckets.set(key, [e]);
+  }
+  return { buckets };
+}
 export function collidesWithObstacle(
   x: number,
   y: number,
   area = "farm",
   maps?: Record<string, MapData>,
-  dynamic?: Iterable<DynamicObstacle>,
+  dynamic?: DynamicObstacleSource,
 ): boolean {
   const map = mapFor(area, maps);
   if (
@@ -104,13 +145,25 @@ export function collidesWithObstacle(
     )
   )
     return true;
-  if (dynamic)
-    for (const e of dynamic) {
-      if (e.area !== area) continue;
-      const radius = dynamicObstacleRadius(e);
-      if (radius && Math.hypot(e.x - x, e.y - y) < PLAYER_RADIUS + radius)
-        return true;
-    }
+  const obstacleIndex = prepareDynamicObstacles(dynamic);
+  if (obstacleIndex) {
+    const cx = Math.floor(x / TILE), cy = Math.floor(y / TILE);
+    for (let ty = cy - 1; ty <= cy + 1; ty++)
+      for (let tx = cx - 1; tx <= cx + 1; tx++)
+        for (const e of obstacleIndex.buckets.get(obstacleKey(area, tx, ty)) ?? []) {
+          const box = dynamicObstacleBox(e);
+          if (
+            box &&
+            hit(
+              e.x - box.halfW,
+              e.y + box.offsetY - box.halfH,
+              box.halfW * 2,
+              box.halfH * 2,
+            )
+          )
+            return true;
+        }
+  }
   return (
     map.world2 ? nearbyObjects(map, x / TILE, y / TILE) : map.objects
   ).some(
@@ -134,7 +187,7 @@ export function applyMovement(
   raw: unknown,
   dt: number,
   maps?: Record<string, MapData>,
-  dynamic?: Iterable<DynamicObstacle>,
+  dynamic?: DynamicObstacleSource,
 ): void {
   if (
     !Number.isFinite(dt) ||
@@ -145,6 +198,9 @@ export function applyMovement(
   )
     return;
   const i = sanitizeMovementInput(raw);
+  // MapSchema.values()/Array.values() is one-shot. Reuse one prepared snapshot
+  // for X, Y and every movement substep so vertical/diagonal motion cannot bypass it.
+  const obstacles = prepareDynamicObstacles(dynamic);
   const length = Math.hypot(i.moveX, i.moveY);
   const faceLength = Math.hypot(i.faceX ?? 0, i.faceY ?? 0);
   const active = length > 0.01;
@@ -190,7 +246,7 @@ export function applyMovement(
         p.x + dx / steps,
         p.y,
       ) &&
-      !collidesWithObstacle(p.x + dx / steps, p.y, p.area, maps, dynamic)
+      !collidesWithObstacle(p.x + dx / steps, p.y, p.area, maps, obstacles)
     )
       p.x += dx / steps;
     if (
@@ -201,7 +257,7 @@ export function applyMovement(
         p.x,
         p.y + dy / steps,
       ) &&
-      !collidesWithObstacle(p.x, p.y + dy / steps, p.area, maps, dynamic)
+      !collidesWithObstacle(p.x, p.y + dy / steps, p.area, maps, obstacles)
     )
       p.y += dy / steps;
   }

@@ -1,4 +1,9 @@
 import { insideWarp } from "../shared/regions.js";
+import {
+  collidesWithObstacle,
+  isFarmable,
+} from "../shared/applyMovement.js";
+import type { WorldLayout } from "../shared/layout.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { matchMaker } from "@colyseus/core";
@@ -32,6 +37,39 @@ const place = (
   const p = room.state.players.get(id)!;
   Object.assign(p, { x, y, area, facing, running: false });
 };
+const clearFarmSpot = (room: FarmRoom) => {
+  const layout = JSON.parse(room.state.layout) as WorldLayout,
+    map = layout.maps.farm!,
+    occupied = new Set(
+      [...room.state.entities.values()]
+        .filter((e) => e.area === "farm")
+        .map((e) => `${Math.floor(e.x / 32)},${Math.floor(e.y / 32)}`),
+    );
+  for (let y = 2; y < map.height - 1; y++)
+    for (let x = 1; x < map.width - 1; x++) {
+      const target = `${x},${y}`,
+        stand = `${x},${y - 1}`;
+      if (
+        isFarmable("farm", x, y, layout.maps) &&
+        !occupied.has(target) &&
+        !occupied.has(stand) &&
+        !collidesWithObstacle(
+          (x + 0.5) * 32,
+          (y - 0.5) * 32,
+          "farm",
+          layout.maps,
+          room.state.entities.values(),
+        )
+      )
+        return {
+          actorX: (x + 0.5) * 32,
+          actorY: (y - 0.5) * 32,
+          soilId: `soil-farm-${x}-${y}`,
+        };
+    }
+  throw new Error("No clear farmable tile remains in the dense opening");
+};
+
 test("three real WebSocket/SDK clients share one family authority; input-only movement and convergence", async () => {
   const f = await fixture();
   try {
@@ -222,18 +260,20 @@ test("three-client mining contention and crafting idempotency validate inventory
 test("farming shares plant/water, all-online sleep advances crop and forest, contested harvest succeeds once", async () => {
   const f = await fixture();
   try {
-    const room = roomServer(f.A.roomId);
-    for (const r of [f.A, f.B, f.C]) place(room, r.sessionId, 36.5 * 32, 58.5 * 32);
+    const room = roomServer(f.A.roomId),
+      spot = clearFarmSpot(room);
+    for (const r of [f.A, f.B, f.C])
+      place(room, r.sessionId, spot.actorX, spot.actorY);
     assert.equal((await action(f.A, "tillTile")).ok, true);
     await delay(230);
     assert.equal(
       (await action(f.A, "plantSeed", { itemId: "sproutberry_seed" })).ok,
       true,
     );
-    await until(() => f.B.state.entities.get("soil-farm-36-59")?.kind === "crop");
+    await until(() => f.B.state.entities.get(spot.soilId)?.kind === "crop");
     for (let day = 0; day < 3; day++) {
       await delay(230);
-      if (!room.state.entities.get("soil-farm-36-59")!.watered)
+      if (!room.state.entities.get(spot.soilId)!.watered)
         assert.equal((await action(f.A, "waterCrop")).ok, true);
       await delay(230);
       const results = await Promise.all(
@@ -289,8 +329,9 @@ test("single-family lease fences duplicate authorities and durable state survive
   const server = createFarmServer({ store, port: 0, host: "127.0.0.1" });
   const { url } = await server.listen();
   const A = await join(url, a);
-  const r = roomServer(A.roomId);
-  place(r, A.sessionId, 36.5 * 32, 58.5 * 32);
+  const r = roomServer(A.roomId),
+    spot = clearFarmSpot(r);
+  place(r, A.sessionId, spot.actorX, spot.actorY);
   assert.ok((await action(A, "tillTile")).ok);
   await assert.rejects(() => store.lease(a.farmId, () => undefined));
   await A.leave();
@@ -306,7 +347,7 @@ test("single-family lease fences duplicate authorities and durable state survive
   const second = await next.listen();
   const restored = await join(second.url, a);
   try {
-    assert.equal(restored.state.entities.get("soil-farm-36-59")?.kind, "soil");
+    assert.equal(restored.state.entities.get(spot.soilId)?.kind, "soil");
     assert.equal(restored.state.players.get(restored.sessionId)!.stamina, 98);
   } finally {
     await restored.leave();

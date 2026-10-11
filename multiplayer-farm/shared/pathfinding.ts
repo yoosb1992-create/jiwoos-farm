@@ -2,7 +2,8 @@ import { elevationPass } from "./world2.js";
 import { TILE, type MapData } from "./content.js";
 import {
   collidesWithObstacle,
-  type DynamicObstacle,
+  prepareDynamicObstacles,
+  type DynamicObstacleSource,
 } from "./applyMovement.js";
 export interface Point {
   x: number;
@@ -14,9 +15,10 @@ export function findPath(
   start: Point,
   goal: (p: Point) => boolean,
   maps: Record<string, MapData>,
-  dynamic?: Iterable<DynamicObstacle>,
+  dynamic?: DynamicObstacleSource,
 ): Point[] | undefined {
-  const m = maps[area];
+  const m = maps[area],
+    obstacles = prepareDynamicObstacles(dynamic);
   if (!m) return;
   const n = m.width * m.height,
     seen = new Int32Array(n).fill(-2),
@@ -32,7 +34,7 @@ export function findPath(
       x = i % m.width,
       y = Math.floor(i / m.width),
       p = { x: (x + 0.5) * TILE, y: (y + 0.5) * TILE };
-    if (!collidesWithObstacle(p.x, p.y, area, maps, dynamic) && goal(p)) {
+    if (!collidesWithObstacle(p.x, p.y, area, maps, obstacles) && goal(p)) {
       const result: Point[] = [];
       let k = i;
       while (k !== first && k >= 0) {
@@ -60,8 +62,8 @@ export function findPath(
         ny = (yy + 0.5) * TILE;
       if (
         !elevationPass(m, p.x, p.y, nx, ny) ||
-        collidesWithObstacle(nx, ny, area, maps, dynamic) ||
-        collidesWithObstacle((nx + p.x) / 2, (ny + p.y) / 2, area, maps, dynamic)
+        collidesWithObstacle(nx, ny, area, maps, obstacles) ||
+        collidesWithObstacle((nx + p.x) / 2, (ny + p.y) / 2, area, maps, obstacles)
       )
         continue;
       seen[j] = i;
