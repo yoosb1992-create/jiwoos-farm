@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { ASSETS } from "../../shared/content.js";
 import { TREE_SPECIES } from "../../shared/nature.js";
 import { naturalPlacement } from "../../shared/nature-world.js";
-import { reachableNatureTarget, clearWorldBlueprint } from "./nature-target.js";
+import { reachableNatureTarget, clearWorldBlueprint, waitForFarmInput } from "./nature-target.js";
 import type { Entity, World } from "../../shared/world.js";
 
 test("mobile nature: decode shipped art, touch plant a seed and reload the saved tree", async ({ page }, info) => {
@@ -26,6 +26,7 @@ test("mobile nature: decode shipped art, touch plant a seed and reload the saved
   }, paths)).toEqual([]);
   const state = await page.evaluate(() => window.__FARM_DEBUG__.state());
   const world = { ...state, layout: JSON.parse(state.layout) } as unknown as World;
+  await waitForFarmInput(page);
   const target = await reachableNatureTarget(page, "tree");
   expect(target, "A plantable tree tile must be reachable without crossing natural objects").toBeDefined();
   await page.locator("#tool").selectOption("pine_cone");
@@ -39,6 +40,7 @@ test("mobile nature: decode shipped art, touch plant a seed and reload the saved
   await page.screenshot({ path: info.outputPath("nature-planted-seedling.png") });
   await page.reload();
   await expect(page.locator("#connection")).toHaveAttribute("data-status", "connected");
+  await expect.poll(() => page.evaluate(() => !!window.__FARM_DEBUG__.snapshot().local)).toBe(true);
   await expect.poll(() => page.evaluate(id => (window.__FARM_DEBUG__.state().entities[id] as Entity | undefined)?.stage, tree.id)).toBe(0);
   expect(errors).toEqual([]);
 });

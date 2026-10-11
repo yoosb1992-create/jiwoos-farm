@@ -104,6 +104,7 @@ test("production mobile: authoritative movement, remote canvas, crop planting an
   );
   sdk.reconnection.enabled = false;
   sdk.onMessage("personal", () => undefined);
+  sdk.onMessage("actionFx", () => undefined);
   await until(() => sdk.state?.players.size === 3);
   const local = () =>
     [...sdk.state.players.values()].find(
@@ -229,6 +230,7 @@ test("production mobile: tree drops, inventory and repeated session restoration"
   );
   sdk.reconnection.enabled = false;
   sdk.onMessage("personal", () => undefined);
+  sdk.onMessage("actionFx", () => undefined);
   await until(() => sdk.state?.players.size === 3);
   const local = () =>
     [...sdk.state.players.values()].find(
@@ -242,9 +244,15 @@ test("production mobile: tree drops, inventory and repeated session restoration"
     // This independent scenario already starts at the safe spawn. Reload is
     // exercised after crops above; history restoration follows tree pickup below.
     const tree = sdk.state.entities.get("starter-pine")!;
-    await page.keyboard.down("ArrowLeft");
-    await expect.poll(() => local().x, { intervals: [20] }).toBeLessThan(tree.x + 4);
-    await page.keyboard.up("ArrowLeft");
+    // Short key presses keep queued input from carrying the actor past the
+    // trunk's entire collision tile while the software renderer catches up.
+    // Check both sides: x < tree.x + 4 also accepted being far to its left.
+    await expect(async () => {
+      const dx = tree.x - local().x;
+      if (Math.abs(dx) >= 12)
+        await page.keyboard.press(dx > 0 ? "ArrowRight" : "ArrowLeft", { delay: 80 });
+      expect(Math.abs(local().x - tree.x)).toBeLessThan(12);
+    }).toPass({ timeout: 12000, intervals: [200] });
     await page.keyboard.down("ArrowDown");
     await expect.poll(() => local().y, { intervals: [20] }).toBeGreaterThan(tree.y - 36);
     await page.keyboard.up("ArrowDown");
