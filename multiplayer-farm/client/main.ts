@@ -1191,6 +1191,7 @@ if (import.meta.env.DEV)
       snapshot: () => latest,
       state: () => network.state?.toJSON(),
       screenPoint: (x: number, y: number) => renderer.scene.screenPoint(x, y),
+      pickWorld: (x: number, y: number) => renderer.scene.pickWorld(x, y),
     },
   });
 

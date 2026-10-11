@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { ASSETS } from "../../shared/content.js";
 import { TERRAIN_ART } from "../../shared/art-assets.js";
+import { reachableNatureTarget } from "./nature-target.js";
 
 test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch layout", async ({ page }, info) => {
-  test.setTimeout(60000);
+  test.setTimeout(90000);
   const errors: string[] = [];
   page.on("pageerror", e => errors.push(e.message));
   await page.addInitScript(() => localStorage.setItem("farm-zoom", "0.7"));
@@ -36,10 +37,13 @@ test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch la
   await page.screenshot({ path: info.outputPath("farm-phone-spawn.png") });
   await page.locator("#tool").selectOption("hoe");
   // Nearby clear grass to the southeast, beyond the protected yard and lane.
-  const target = await page.evaluate(() => window.__FARM_DEBUG__.screenPoint(64.5 * 32, 44.5 * 32));
-  expect(await page.evaluate(p => document.elementFromPoint(p.x, p.y)?.tagName, target)).toBe("CANVAS");
-  await page.touchscreen.tap(target.x, target.y);
-  await expect.poll(() => page.evaluate(() => window.__FARM_DEBUG__.state().entities["soil-farm-64-44"]?.kind), { timeout: 15000 }).toBe("soil");
+  const target = await reachableNatureTarget(page, "till");
+  expect(target, "A dense overgrown farm must still expose reachable farmland near its road").toBeDefined();
+  await page.touchscreen.tap(target!.screenX, target!.screenY);
+  await expect.poll(
+    () => page.evaluate(({x,y}) => window.__FARM_DEBUG__.state().entities[`soil-farm-${x}-${y}`]?.kind, target!),
+    { timeout: 20000 },
+  ).toBe("soil");
   const stopped = await page.evaluate(() => window.__FARM_DEBUG__.snapshot().local!.authoritative);
   await page.waitForTimeout(500);
   const settled = await page.evaluate(() => window.__FARM_DEBUG__.snapshot().local!.authoritative);

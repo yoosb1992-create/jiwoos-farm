@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { ASSETS } from "../../shared/content.js";
 import { TREE_SPECIES } from "../../shared/nature.js";
 import { naturalPlacement } from "../../shared/nature-world.js";
+import { reachableNatureTarget } from "./nature-target.js";
 import type { Entity, World } from "../../shared/world.js";
 
 test("mobile nature: decode shipped art, touch plant a seed and reload the saved tree", async ({ page }, info) => {
@@ -22,15 +23,10 @@ test("mobile nature: decode shipped art, touch plant a seed and reload the saved
   }, paths)).toEqual([]);
   const state = await page.evaluate(() => window.__FARM_DEBUG__.state());
   const world = { ...state, layout: JSON.parse(state.layout) } as unknown as World;
-  let target: { x: number; y: number } | undefined;
-  for (let y = 44; y <= 47 && !target; y++) for (let x = 64; x <= 68 && !target; x++) {
-    if (!naturalPlacement(world, "farm", x, y, "tree")) continue;
-    const p = await page.evaluate(({ x, y }) => window.__FARM_DEBUG__.screenPoint((x + .5) * 32, (y + .5) * 32), { x, y });
-    if (await page.evaluate(p => document.elementFromPoint(p.x, p.y)?.tagName === "CANVAS", p)) target = p;
-  }
-  expect(target).toBeDefined();
+  const target = await reachableNatureTarget(page, "tree");
+  expect(target, "A plantable tree tile must be reachable without crossing natural objects").toBeDefined();
   await page.locator("#tool").selectOption("pine_cone");
-  await page.touchscreen.tap(target!.x, target!.y);
+  await page.touchscreen.tap(target!.screenX, target!.screenY);
   await expect.poll(() => page.evaluate(() => (Object.values(window.__FARM_DEBUG__.state().entities) as Entity[]).filter(e => e.planted && e.species === "tree_pine").length), { timeout: 15000 }).toBe(1);
   const tree = await page.evaluate(() => (Object.values(window.__FARM_DEBUG__.state().entities) as Entity[]).find(e => e.planted)!);
   expect(tree.stage).toBe(0);
