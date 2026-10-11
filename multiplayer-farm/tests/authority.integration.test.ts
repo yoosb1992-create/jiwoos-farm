@@ -170,7 +170,8 @@ test("concurrent real clients: tree felling, drop pickup, chest withdrawal and d
       false,
     );
     // Duplicate successful till command must return the committed receipt and spend stamina once.
-    place(room, f.C.sessionId, 36.5 * 32, 58.5 * 32);
+    const spot = clearFarmSpot(room);
+    place(room, f.C.sessionId, spot.actorX, spot.actorY);
     await delay(230);
     const id = randomUUID();
     const [one, two] = await Promise.all([
