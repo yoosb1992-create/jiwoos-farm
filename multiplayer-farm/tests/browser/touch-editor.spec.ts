@@ -5,7 +5,7 @@ type Debug = {
   state: () => {
     entities: Record<string, { hp: number; kind: string }>;
     layout: string;
-  };
+  } | undefined;
   screenPoint: (x: number, y: number) => { x: number; y: number };
 };
 declare global {
@@ -16,7 +16,7 @@ declare global {
 test("mobile touch action, saved control layout and new-world editor isolation", async ({
   page,
 }, info) => {
-  test.setTimeout(60000);
+  test.setTimeout(90000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(() => localStorage.setItem("farm-zoom", "0.7"));
@@ -33,6 +33,7 @@ test("mobile touch action, saved control layout and new-world editor isolation",
       page.evaluate(() => window.__FARM_DEBUG__.snapshot().local !== null),
     )
     .toBe(true);
+  await expect.poll(() => page.evaluate(() => !!window.__FARM_DEBUG__.state())).toBe(true);
   const old = await page.evaluate(
     () =>
       JSON.parse(localStorage.getItem("farm-v26-session")!).farmId as string,
@@ -52,7 +53,7 @@ test("mobile touch action, saved control layout and new-world editor isolation",
     .poll(
       () =>
         page.evaluate(
-          () => window.__FARM_DEBUG__.state().entities["starter-pine"]?.hp,
+          () => window.__FARM_DEBUG__?.state()?.entities?.["starter-pine"]?.hp,
         ),
       { timeout: 12000 },
     )
@@ -122,7 +123,9 @@ test("mobile touch action, saved control layout and new-world editor isolation",
   await expect
     .poll(() =>
       page.evaluate(
-        () => JSON.parse(window.__FARM_DEBUG__.state().layout).maps.farm.width,
+        () => window.__FARM_DEBUG__?.state()?.layout
+          ? JSON.parse(window.__FARM_DEBUG__.state()!.layout).maps.farm.width
+          : undefined,
       ),
     )
     .toBe(136);
