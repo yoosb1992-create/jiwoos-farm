@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { NetworkSnapshot } from "../../client/network.js";
+import { clearWorldBlueprint } from "./nature-target.js";
 type Debug = {
   snapshot: () => NetworkSnapshot;
   state: () => {
@@ -19,6 +20,7 @@ test("mobile touch action, saved control layout and new-world editor isolation",
   test.setTimeout(90000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  await clearWorldBlueprint(page, 52.5, 39.5);
   await page.addInitScript(() => localStorage.setItem("farm-zoom", "0.7"));
   await page.goto("/");
   await expect(page.locator("#password")).toHaveCount(0);

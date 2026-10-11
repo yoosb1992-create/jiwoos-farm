@@ -58,3 +58,30 @@ export async function reachableNatureTarget(page: Page, mode: "till" | "tree"): 
   }
   return undefined;
 }
+
+
+/** Browser test fixture: a real server-published editable blueprint, with
+ * no randomly generated meadow blockers, makes tool controls deterministic.
+ * Dense first-day nature and tile authority remain covered by integration
+ * and default farm tests against the actual production generator. */
+export async function clearWorldBlueprint(page: Page, spawnX: number, spawnY: number): Promise<string> {
+  const backend = "http://127.0.0.1:2575";
+  const defaults = await page.request.get(`${backend}/api/blueprints/defaults`);
+  if (!defaults.ok()) throw Error("Cannot fetch editable test layout: " + await defaults.text());
+  const layout = await defaults.json();
+  delete layout.maps.farm.world2;
+  const farmEntry = layout.maps.farm.spawns.find((s: {id:string}) => s.id === "farm_entry");
+  if (!farmEntry) throw Error("Missing default farm spawn");
+  farmEntry.tileX = spawnX;
+  farmEntry.tileY = spawnY;
+  const draftResponse = await page.request.post(`${backend}/api/blueprints`, {data: layout});
+  if (!draftResponse.ok()) throw Error("Cannot create test blueprint: " + await draftResponse.text());
+  const draft = await draftResponse.json();
+  const published = await page.request.post(`${backend}/api/blueprints/${draft.id}`, {
+    headers: { Authorization: `Bearer ${draft.editToken}` },
+    data: { layout, revision: draft.revision, publish: true },
+  });
+  if (!published.ok()) throw Error("Cannot publish test blueprint: " + await published.text());
+  await page.addInitScript((id: string) => localStorage.setItem("farm-active-blueprint", id), draft.id);
+  return draft.id;
+}
