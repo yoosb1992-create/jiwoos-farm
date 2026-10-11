@@ -5,7 +5,7 @@ type Debug = {
   state: () => {
     entities: Record<string, { hp: number; kind: string }>;
     layout: string;
-  } | undefined;
+  };
   screenPoint: (x: number, y: number) => { x: number; y: number };
 };
 declare global {
