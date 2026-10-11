@@ -124,11 +124,9 @@ export class MemoryTestStore implements Store {
       if (saved.farmId === identity.farmId) saved.farmName = clean;
     return { ...identity, farmName: clean };
   }
-  async deleteFarm(token: string, confirmFarmId: string): Promise<void> {
+  async deleteFarm(token: string): Promise<void> {
     const identity = await this.authenticate(token);
     if (!identity.isOwner) throw new Error("농장 주인만 저장 농장을 삭제할 수 있습니다");
-    if (confirmFarmId.trim().toUpperCase() !== identity.farmId)
-      throw new Error("삭제 확인용 가족 코드가 일치하지 않습니다");
     if (this.locks.has(identity.farmId))
       throw new Error("농장이 열려 있습니다. 모든 가족이 나간 뒤 다시 삭제하세요");
     this.worlds.delete(identity.farmId);

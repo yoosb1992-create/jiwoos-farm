@@ -37,7 +37,7 @@ const audio = new FarmAudio();
 const actionKinds = new Map<string, string>();
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `<div id="arena" aria-label="가족 농장 게임 화면"></div>
-<header id="top"><div class="day-block"><span class="brand">JIWOO’S FARM · v2.6</span><strong id="calendar">우리 가족의 작은 세계</strong><span id="place">사계절을 함께 가꾸어요</span></div><div class="top-actions"><span id="wallet">0 G</span><button id="bag" aria-label="가방">가방 <small id="bag-space">0/48</small></button><button id="menu" aria-label="메뉴">☰</button></div><div id="stamina"><i></i><span>기력</span></div></header><button hidden id="today" aria-label="오늘 할 일">✦ 오늘의 작은 한 걸음</button>
+<header id="top"><div class="day-block"><span class="brand">JIWOO’S FARM · v2.7 · 타일 충돌</span><strong id="calendar">우리 가족의 작은 세계</strong><span id="place">사계절을 함께 가꾸어요</span></div><div class="top-actions"><span id="wallet">0 G</span><button id="bag" aria-label="가방">가방 <small id="bag-space">0/48</small></button><button id="menu" aria-label="메뉴">☰</button></div><div id="stamina"><i></i><span>기력</span></div></header><button hidden id="today" aria-label="오늘 할 일">✦ 오늘의 작은 한 걸음</button>
 <div id="notice" role="status">가족 농장에 오신 것을 환영합니다.</div><div id="connection"></div>
 <div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><label for="tool">선택</label><select id="tool"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="fishing_rod">낚싯대</option></select></div>
 <div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action" aria-label="행동">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
@@ -1026,9 +1026,7 @@ async function renameSavedFarm(value: Session): Promise<void> {
   notice("농장 이름을 바꿨어요.");
 }
 async function deleteSavedFarm(value: Session): Promise<void> {
-  if (!confirm(`${value.farmName ?? value.farmId} 농장을 영구 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return;
-  const code = prompt("삭제 확인을 위해 가족 코드를 입력하세요.", "");
-  if (code === null) return;
+  if (!confirm(`"${value.farmName ?? value.farmId}" 농장을 정말 삭제하시겠습니까?\n삭제한 농장은 복구할 수 없습니다.`)) return;
   if (session?.farmId === value.farmId) {
     await network.leave().catch(() => undefined);
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -1036,7 +1034,7 @@ async function deleteSavedFarm(value: Session): Promise<void> {
   const r = await fetch(`${http}/api/farm`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${value.token}` },
-    body: JSON.stringify({ confirmFarmId: code }),
+    body: JSON.stringify({ confirm: true }),
   });
   if (!r.ok) {
     const result = (await r.json().catch(() => ({}))) as { error?: string };

@@ -119,9 +119,17 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
       await restored.close();
     }
     const disposable = await db.login(true, "", "Delete-" + randomUUID().slice(0, 6));
-    await assert.rejects(() => db.deleteFarm(disposable.token, "WRONGCODE"));
-    await db.deleteFarm(disposable.token, disposable.farmId);
+    const guest = await db.login(false, disposable.farmId, "Delete guest");
+    await assert.rejects(() => db.deleteFarm(guest.token), /농장 주인/);
+    const occupied = await db.lease(disposable.farmId, () => undefined);
+    try {
+      await assert.rejects(() => db.deleteFarm(disposable.token), /농장이 열려/);
+    } finally {
+      await occupied.close();
+    }
+    await db.deleteFarm(disposable.token);
     await assert.rejects(() => db.authenticate(disposable.token));
+    await assert.rejects(() => db.authenticate(guest.token));
     await assert.rejects(() => db.login(false, disposable.farmId, "gone"));
   } finally {
     await db.close();

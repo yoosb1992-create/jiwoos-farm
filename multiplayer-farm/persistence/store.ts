@@ -46,7 +46,7 @@ export interface Store extends BlueprintStore {
   ): Promise<Session>;
   authenticate(token: string): Promise<Identity>;
   renameFarm(token: string, name: string): Promise<Identity>;
-  deleteFarm(token: string, confirmFarmId: string): Promise<void>;
+  deleteFarm(token: string): Promise<void>;
   lease(farmId: string, onLost: () => void): Promise<FarmLease>;
   close(): Promise<void>;
 }
@@ -286,11 +286,9 @@ export class PostgresStore implements Store {
     );
     return { ...identity, farmName: clean };
   }
-  async deleteFarm(token: string, confirmFarmId: string): Promise<void> {
+  async deleteFarm(token: string): Promise<void> {
     const identity = await this.authenticate(token);
     if (!identity.isOwner) throw new Error("농장 주인만 저장 농장을 삭제할 수 있습니다");
-    if (confirmFarmId.trim().toUpperCase() !== identity.farmId)
-      throw new Error("삭제 확인용 가족 코드가 일치하지 않습니다");
     const db = await this.pool.connect();
     try {
       await db.query("BEGIN");

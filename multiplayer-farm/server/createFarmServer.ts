@@ -185,10 +185,10 @@ export function createFarmServer(options: FarmServerOptions) {
         try {
           const token =
             request.headers.authorization?.replace(/^Bearer /, "") || "";
-          const body = request.body as Record<string, unknown>;
-          if (!body || typeof body.confirmFarmId !== "string")
-            throw new Error("삭제 확인용 가족 코드를 입력하세요");
-          await options.store.deleteFarm(token, body.confirmFarmId);
+          const body = request.body as Record<string, unknown> | undefined;
+          if (body?.confirm !== true)
+            throw new Error("농장 삭제 확인이 필요합니다");
+          await options.store.deleteFarm(token);
           response.setHeader("Cache-Control", "no-store");
           response.status(204).end();
         } catch (error) {
