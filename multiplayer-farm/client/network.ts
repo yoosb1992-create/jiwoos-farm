@@ -1,6 +1,7 @@
 import { CLIENT_MAPS, receiveLayout } from "./layout.js";
 import type { Session } from "../persistence/store.js";
 import type { Member, Command, ActionResult } from "../shared/world.js";
+import type { ActionFx } from "../shared/interaction.js";
 import {
   Client,
   CloseCode,
@@ -140,6 +141,7 @@ export class ColyseusAdapter implements NetworkAdapter {
   };
   lastAction?: ActionResult;
   onAction?: (result: ActionResult) => void;
+  onActionFx?: (event: ActionFx) => void;
   profile: keyof typeof INTERPOLATION_PROFILES = "Stable";
   delay: number = INTERPOLATION_DELAY;
   private lastFrame = 0;
@@ -218,6 +220,7 @@ export class ColyseusAdapter implements NetworkAdapter {
       this.lastAction = value;
       this.onAction?.(value);
     });
+    room.onMessage("actionFx", (value: ActionFx) => this.onActionFx?.(value));
     this.lastRoomId = room.roomId;
     this.lastSessionId = room.sessionId;
     // SDK 0.18.5 auto retry timers cannot be cancelled. Use its documented

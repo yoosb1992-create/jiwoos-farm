@@ -77,6 +77,8 @@ export interface ItemDefinition {
   description?: string;
 }
 export const ITEMS: Record<string, ItemDefinition> = { ...snapshot.items };
+ITEMS.scythe = { id: "scythe", name: "낫", kind: "tool", assetId: "item_scythe", description: "목초와 잡초를 베어요. 꽃과 작물은 손으로 수확해요." };
+ASSETS.item_scythe = { assetId: "item_scythe", textureKey: "item_scythe", source: null, frameSize: { width: 32, height: 32 }, origin: { x: .5, y: .5 } };
 for(const t of TREE_SPECIES) ITEMS[t.seed]={id:t.seed,name:t.seedName,kind:"tree_seed",assetId:`${t.id}_seedling`,sellPrice:5,description:`빈 자연 잔디에 ${t.name}를 심어요. 새싹 ${t.days[0]}일 + 어린나무 ${t.days[1]}일 성장. 나무 사이 3칸을 비워 주세요.`};
 for(const [id,name] of Object.entries(NATURE_MATERIALS)) ITEMS[id]={id,name,kind:"material",assetId:id==="bamboo"?"tree_bamboo_young":id==="cherry_petals"?"farm_pink_wildflower":"item_wood",sellPrice:id==="maple_sap"?40:10};
 for(const d of DEBRIS.filter(d=>d.item.startsWith("wildflower_"))) ITEMS[d.item]={id:d.item,name:d.name,kind:"forage",assetId:d.id,sellPrice:18,energy:3};

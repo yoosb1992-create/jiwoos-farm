@@ -10,6 +10,7 @@ import { newWorld2, setCell, terrainCode, ZONES, hasZone } from "../shared/world
 import { ASSETS, ITEMS, CROPS, RECIPES, TILE } from "../shared/content.js";
 import { NEW_CROP_ART } from "../shared/nature-assets.js";
 import { SEASONS, SEASON_DAYS } from "../shared/expansion.js";
+import { cuttableGrass } from "../shared/interaction.js";
 import { objectFor, CATALOG, category } from "../client/editor/catalog.js";
 function setup() {
   const l=defaultLayout(),m=l.maps.farm!;
@@ -126,7 +127,7 @@ test("dense debris remains bounded, idempotent and respects cleared-tile respite
   seedFarmDebris(w,random(12));assert.equal(Object.keys(w.entities).length,opening);
   const debris=Object.values(w.entities)[0]!;const x=Math.floor(debris.x/32),y=Math.floor(debris.y/32);
   w.members.a!.stamina=100;const a={id:"a",area:"farm",x:debris.x,y:debris.y-32,facing:"down",running:false,stamina:100};
-  act(w,a,debris.kind==="twig"?"clearTwig":debris.kind==="rock"?"hitRock":"gather",{targetId:debris.id});
+  act(w,a,debris.kind==="twig"?"clearTwig":debris.kind==="rock"?"hitRock":cuttableGrass(debris)?"cutGrass":"gather",{targetId:debris.id});
   for(const [id,e] of Object.entries(w.entities))if(e.kind==="drop")delete w.entities[id];
   assert(!naturalPlacement(w,"farm",x,y,"debris"));
   let previous=opening-1;

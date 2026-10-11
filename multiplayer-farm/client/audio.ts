@@ -1,5 +1,7 @@
 import type { Season } from "../shared/expansion.js";
-type Sound =
+export type Sound =
+  | "swing" | "cut" | "soil" | "clunk" | "fall" | "breakStone" | "pickup"
+  | "heavyWood" | "heavyFall"
   | "click"
   | "step"
   | "wood"
@@ -165,6 +167,15 @@ export class FarmAudio {
       Sound,
       [number, number, number, OscillatorType, number]
     > = {
+      swing: [360, .09, .055, "triangle", .4],
+      cut: [1050, .11, .07, "triangle", .23],
+      soil: [110, .12, .12, "triangle", .5],
+      clunk: [125, .085, .095, "triangle", .6],
+      fall: [70, .38, .16, "triangle", .45],
+      breakStone: [380, .18, .085, "triangle", .18],
+      pickup: [940, .13, .07, "sine", 1.65],
+      heavyWood: [100, .19, .15, "triangle", .4],
+      heavyFall: [58, .48, .18, "triangle", .52],
       click: [660, 0.06, 0.075, "sine", 1.2],
       step: [85, 0.065, 0.05, "triangle", 0.5],
       wood: [150, 0.14, 0.13, "triangle", 0.45],

@@ -29,6 +29,7 @@ import {
   TRANSITION_COOLDOWN_MS,
 } from "../shared/regions.js";
 import { TILE, mapFor } from "../shared/content.js";
+import { DropIndex, PICKUP_SCAN_MS, DROP_SETTLE_MS, dropAppearDelay, pickupRadius } from "../shared/interaction.js";
 
 /** One logical authority per family. PostgreSQL session advisory lease fences overlapping deploys. */
 export function configuredFarmRoom(store: Store): typeof FarmRoom {
@@ -56,6 +57,11 @@ export class FarmRoom extends MovementRoom {
   private clockMinute = 360;
   private clockDay = 1;
   private dueCheckpoint = false;
+  private readonly drops = new DropIndex();
+  private readonly pickupPending = new Set<string>();
+  private readonly dropReady = new Map<string, number>();
+  private readonly pickupCooldown = new Map<string, number>();
+  private lastPickupScan = 0;
   private enqueue<T>(job: () => Promise<T>): Promise<T> {
     const next = this.queue.then(job);
     this.queue = next.catch(() => undefined);
@@ -199,7 +205,7 @@ export class FarmRoom extends MovementRoom {
       stamina: p.stamina,
     };
   }
-  private async command(client: Client, value: unknown): Promise<void> {
+  private async command(client: Client, value: unknown, automaticPickup = false): Promise<void> {
     let actionId = "";
     try {
       if (this.closing) throw new Error("서버를 저장하고 있습니다");
@@ -223,12 +229,16 @@ export class FarmRoom extends MovementRoom {
       )
         throw new Error("지역 이동 준비 중입니다");
       const now = Date.now();
+      const picking = command.type === "pickupDrop";
+      const cooldown = picking ? this.pickupCooldown : this.cooldown;
       if (
-        now - (this.cooldown.get(identity.playerId) ?? 0) <
-        ACTION_COOLDOWN_MS
+        now - (cooldown.get(identity.playerId) ?? 0) <
+        (picking ? PICKUP_SCAN_MS : ACTION_COOLDOWN_MS)
       )
         throw new Error("행동 준비 중입니다");
-      this.cooldown.set(identity.playerId, now);
+      if (picking && now < (this.dropReady.get(command.targetId ?? "") ?? 0))
+        throw new Error("아이템이 내려오는 중이에요");
+      cooldown.set(identity.playerId, now);
       const proposed = this.proposal(),
         votes = new Set(this.votes);
       const beforeDay = proposed.day;
@@ -240,8 +250,9 @@ export class FarmRoom extends MovementRoom {
           .map((x) => x.playerId),
         votes,
       });
+      if (result.fx) result.fx.actorId = client.sessionId;
       // Reserve actor while a durable action is committing. Movement packets cannot alter action range during storage.
-      const freeze = command.type !== "plantSeed";
+      const freeze = command.type !== "plantSeed" && !picking;
       if (freeze) p.actionTicks = 30;
       try {
         await this.lease.save(proposed, this.world.revision, {
@@ -264,7 +275,7 @@ export class FarmRoom extends MovementRoom {
         proposed.members[p.playerId]!.stamina -
           Math.max(0, actor.stamina - p.stamina),
       );
-      p.actionTicks = freeze ? 6 : 0;
+      if (freeze) p.actionTicks = result.fx?.tool === "scythe" ? 10 : 12;
       if (result.transition) {
         this.transitionUntil.set(
           client.sessionId,
@@ -286,11 +297,18 @@ export class FarmRoom extends MovementRoom {
         for (const member of this.state.players.values()) member.stamina = 100;
       }
       this.state.storage = "ready";
+      if (result.fx) {
+        for (const drop of result.fx.drops)
+          this.dropReady.set(drop.id, Date.now() + dropAppearDelay(result.fx) + DROP_SETTLE_MS);
+        // Broadcast after the durable inventory/entity transaction commits.
+        // Duplicate action IDs return their receipt above and never replay FX.
+        this.broadcast("actionFx", result.fx);
+      }
       this.sync();
       for (const peer of this.clients) this.privateState(peer);
-      client.send("actionResult", result);
+      if (!automaticPickup) client.send("actionResult", result);
     } catch (error) {
-      client.send("actionResult", {
+      if (!automaticPickup) client.send("actionResult", {
         actionId,
         ok: false,
         message:
@@ -302,6 +320,23 @@ export class FarmRoom extends MovementRoom {
   protected override afterMovement(_context: StepContext): void {
     if (this.closing || this.pending >= 32) return;
     const now = Date.now();
+    if (now - this.lastPickupScan >= PICKUP_SCAN_MS) {
+      this.lastPickupScan = now;
+      for (const [sid,p] of this.state.players) {
+        if (!p.connected || this.pending >= 24 || now-(this.pickupCooldown.get(p.playerId)??0)<PICKUP_SCAN_MS) continue;
+        const inventory = this.world.members[p.playerId]?.inventory;
+        const client = this.clients.get(sid);
+        if (!inventory || !client) continue;
+        const e = this.drops.nearby(p.area,p.x,p.y,pickupRadius()).find(e =>
+          !this.pickupPending.has(e.id) && now >= (this.dropReady.get(e.id)??0) &&
+          (inventory[e.item] || Object.keys(inventory).length < 48) && (inventory[e.item]??0)+e.quantity<=999999);
+        if (!e) continue;
+        this.pickupPending.add(e.id); this.pending++;
+        void this.enqueue(() => this.command(client,{
+          actionId: crypto.randomUUID(), type:"pickupDrop", targetId:e.id,
+        },true)).finally(()=>{ this.pickupPending.delete(e.id);this.pending--; });
+      }
+    }
     for (const [sid, p] of this.state.players) {
       if (
         !p.connected ||
@@ -360,6 +395,8 @@ export class FarmRoom extends MovementRoom {
     this.state.deepest = this.world.deepest;
     this.state.votes = this.votes.size;
     const entities = this.world.entities;
+    this.drops.rebuild(Object.values(entities));
+    for (const id of this.dropReady.keys()) if (!entities[id]) this.dropReady.delete(id);
     for (const id of this.state.entities.keys())
       if (!entities[id]) this.state.entities.delete(id);
     for (const [id, data] of Object.entries(entities)) {
@@ -407,6 +444,7 @@ export class FarmRoom extends MovementRoom {
         this.activeMembers.delete(id);
         this.votes.delete(id);
         this.cooldown.delete(id);
+        this.pickupCooldown.delete(id);
       }
       this.identities.delete(client.sessionId);
       this.transitionUntil.delete(client.sessionId);

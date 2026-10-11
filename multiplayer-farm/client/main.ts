@@ -31,6 +31,7 @@ import {
   festivalOn,
 } from "../shared/expansion.js";
 import { FarmAudio } from "./audio.js";
+import { isTool } from "../shared/interaction.js";
 import { FishingUI } from "./fishing-ui.js";
 import { renderLifePanel } from "./life-panels.js";
 const audio = new FarmAudio();
@@ -39,7 +40,7 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `<div id="arena" aria-label="가족 농장 게임 화면"></div>
 <header id="top"><div class="day-block"><span class="brand">JIWOO’S FARM · v2.7 · 타일 충돌</span><strong id="calendar">우리 가족의 작은 세계</strong><span id="place">사계절을 함께 가꾸어요</span></div><div class="top-actions"><span id="wallet">0 G</span><button id="bag" aria-label="가방">가방 <small id="bag-space">0/48</small></button><button id="menu" aria-label="메뉴">☰</button></div><div id="stamina"><i></i><span>기력</span></div></header><button hidden id="today" aria-label="오늘 할 일">✦ 오늘의 작은 한 걸음</button>
 <div id="notice" role="status">가족 농장에 오신 것을 환영합니다.</div><div id="connection"></div>
-<div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><label for="tool">선택</label><select id="tool"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="fishing_rod">낚싯대</option></select></div>
+<div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><label for="tool">선택</label><select id="tool"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="scythe">낫</option><option value="fishing_rod">낚싯대</option></select></div>
 <div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action" aria-label="행동">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
 <pre id="hud" hidden></pre><dialog id="panel"><div id="panel-top"><h2 id="panel-title"></h2><button id="panel-close">닫기</button></div><div id="panel-body"></div></dialog>
 <section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>새 농장 이름 <small>(선택 · 만들 때만 적용)</small><input id="farm-name" maxlength="30" autocomplete="off" placeholder="예: 지우네 가족 농장"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><div id="saved-farms"></div><p id="login-error" role="alert"></p><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>가족 코드만 공유하면 함께할 수 있어요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
@@ -420,6 +421,7 @@ function refreshTools(): void {
     ["water", "물뿌리개"],
     ["axe", "도끼"],
     ["pickaxe", "곡괭이"],
+    ["scythe", "낫"],
     ["fishing_rod", "낚싯대"],
   ];
   const inventory = network.personal?.member.inventory ?? {};
@@ -448,6 +450,7 @@ function refreshTools(): void {
     ["water", "水"],
     ["axe", "斧"],
     ["pickaxe", "石"],
+    ["scythe", "낫"],
     ["fishing_rod", "魚"],
   ]) {
     const b = button(
@@ -458,6 +461,7 @@ function refreshTools(): void {
           water: "물",
           axe: "도끼",
           pickaxe: "곡괭이",
+          scythe: "낫",
           fishing_rod: "낚시",
         } as Record<string, string>
       )[id!] ?? label!,
@@ -494,30 +498,22 @@ function act(): void {
   );
   if (event && selected === "hand")
     return send("worldEvent", { targetId: event.id });
-  if (selected === "hoe") return send("tillTile", tile);
+  if (isTool(selected)) {
+    // Aim at the actual front object, irrespective of which tool can damage it.
+    // This prevents a wrong-tool swing silently snapping to a different resource.
+    const dx = me.facing === "left" ? -1 : me.facing === "right" ? 1 : 0;
+    const dy = me.facing === "up" ? -1 : me.facing === "down" ? 1 : 0;
+    const targets = [...(network.state?.entities.values() ?? [])].filter(e => {
+      const ex=e.x-me.authoritativeX, ey=e.y-me.authoritativeY;
+      return e.area===me.area && ["tree","stump","rock","twig","gather","crop","soil","withered"].includes(e.kind) &&
+        Math.hypot(ex,ey)<=64 && ex*dx+ey*dy>=4 && Math.abs(ex*dy-ey*dx)<=24;
+    }).sort((a,b)=>Math.hypot(a.x-me.authoritativeX,a.y-me.authoritativeY)-Math.hypot(b.x-me.authoritativeX,b.y-me.authoritativeY));
+    const target = selected === "water" ? nearest("well") ?? targets[0] : targets[0];
+    return send("useTool", {toolId:selected,targetId:target?.id,...tile});
+  }
   if (plantingTree(selected)) return send("plantTree", {...tile,itemId:selected});
   if (selected.endsWith("_seed"))
     return send("plantSeed", { ...tile, itemId: selected });
-  if (selected === "water") {
-    const well = nearest("well");
-    return well
-      ? send("refill", { targetId: well.id })
-      : send("waterCrop", tile);
-  }
-  if (selected === "axe") {
-    const twig=nearest("twig");
-    if(twig) return send("clearTwig",{targetId:twig.id});
-    const e = nearest("tree") ?? nearest("stump");
-    if (e) send("hitTree", { targetId: e.id });
-    else notice("앞쪽 나무에 더 가까이 가세요");
-    return;
-  }
-  if (selected === "pickaxe") {
-    const e = nearest("rock");
-    if (e) send("hitRock", { targetId: e.id });
-    else notice("바위에 더 가까이 가세요");
-    return;
-  }
   if (selected === "fishing_rod") return send("castFishing");
   const drop = nearest("drop");
   if (drop) return send("pickupDrop", { targetId: drop.id });
@@ -595,19 +591,16 @@ function touchAct(t: TouchTarget): void {
   }
   if (!e || e.kind !== t.signature) return;
   const tile = { tileX: Math.floor(e.x / TILE), tileY: Math.floor(e.y / TILE) };
+  if (isTool(selected) && ["tree","stump","twig","rock","gather","crop","soil","withered"].includes(e.kind)) {
+    send("useTool",{toolId:selected,targetId:e.id,...tile});
+    return;
+  }
   switch (e.kind) {
     case "tree":
     case "stump":
-      selectTool("axe");
-      send("hitTree", { targetId: e.id });
-      break;
     case "twig":
-      selectTool("axe");
-      send("clearTwig", { targetId: e.id });
-      break;
     case "rock":
-      selectTool("pickaxe");
-      send("hitRock", { targetId: e.id });
+      notice("도구를 선택한 뒤 사용하세요");
       break;
     case "drop":
       send("pickupDrop", { targetId: e.id });
@@ -709,10 +702,10 @@ network.onConnection = (status) => {
   controlStatus = status;
 };
 network.onAction = (result) => {
-  notice(result.message);
+  if (result.message !== "완료") notice(result.message);
   const kind = actionKinds.get(result.actionId);
   actionKinds.delete(result.actionId);
-  if (result.ok) {
+  if (result.ok && !result.fx) {
     const effect = (
       {
         hitTree: "wood",
@@ -752,6 +745,7 @@ network.onAction = (result) => {
     renderer.scene.transition(result.transition.effect);
   }
 };
+network.onActionFx = event => renderer.scene.actionFeedback(event);
 el("tool").addEventListener(
   "change",
   () => {
@@ -913,6 +907,7 @@ const renderer = createRenderer((now, delta) => {
   }
   return { snapshot: latest, state: network.state };
 });
+renderer.scene.onSound = sound => audio.play(sound);
 const pointers = new Map<number, { x: number; y: number }>();
 const pointerStarts = new Map<number, { x: number; y: number }>();
 let pinch = 0,
@@ -1203,6 +1198,7 @@ if (import.meta.env.DEV)
       state: () => network.state?.toJSON(),
       screenPoint: (x: number, y: number) => renderer.scene.screenPoint(x, y),
       pickWorld: (x: number, y: number) => renderer.scene.pickWorld(x, y),
+      scene: () => renderer.scene,
     },
   });
 

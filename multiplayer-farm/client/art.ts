@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import { CROPS, type MapData, TILE } from "../shared/content.js";
+import { CROPS, ITEMS, type MapData, TILE } from "../shared/content.js";
 import { SEASON_INFO, FISH_CATALOG, type Season } from "../shared/expansion.js";
 import { paintMaterial } from "./world/painted-materials.js";
 
@@ -380,6 +380,70 @@ export function createContentTextures(scene: Phaser.Scene): void {
       c.fillStyle = "#fff7dfaa";
       c.fillRect(10, 13, 12, 8);
     });
+}
+
+/** Dedicated transparent textures: never return Phaser's opaque __WHITE for an
+ * item whose art is generated, absent or failed to load. Do not key out colors
+ * from source art (white flowers and environmental textures must stay intact).
+ * CanvasPool can reuse a context; resetting its state is essential before copy. */
+export function createItemTextures(scene: Phaser.Scene): void {
+  for (const tool of ["axe","pickaxe","hoe","scythe","water"] as const) {
+    texture(scene, `held-${tool}`, 64, 64, c => {
+      c.clearRect(0,0,64,64);
+      c.lineCap="round";c.lineJoin="round";
+      c.strokeStyle="#563c29";c.lineWidth=8;c.beginPath();c.moveTo(25,55);c.lineTo(33,13);c.stroke();
+      c.strokeStyle="#b58b50";c.lineWidth=5;c.stroke();
+      const metal=c.createLinearGradient(24,5,46,30);metal.addColorStop(0,"#e6f0df");metal.addColorStop(.5,"#a9c3b6");metal.addColorStop(1,"#57796d");
+      c.fillStyle=metal;c.strokeStyle="#3c594e";c.lineWidth=2;
+      c.beginPath();
+      if(tool==="scythe") {c.moveTo(30,12);c.bezierCurveTo(47,0,62,14,53,37);c.bezierCurveTo(54,18,43,15,30,22);}
+      else if(tool==="axe") {c.moveTo(30,9);c.lineTo(51,5);c.quadraticCurveTo(56,18,48,28);c.lineTo(30,21);}
+      else if(tool==="pickaxe") {c.moveTo(10,25);c.quadraticCurveTo(31,-1,57,22);c.quadraticCurveTo(36,13,10,25);}
+      else if(tool==="hoe") {c.moveTo(30,9);c.lineTo(51,12);c.lineTo(48,30);c.lineTo(37,27);c.lineTo(38,19);c.lineTo(30,18);}
+      else {c.roundRect(15,24,31,26,6);c.moveTo(43,34);c.lineTo(60,22);c.lineTo(58,32);c.lineTo(44,43);}
+      c.closePath();c.fill();c.stroke();
+      if(tool==="water") {c.strokeStyle="#7fae9a";c.lineWidth=5;c.beginPath();c.arc(20,27,12,2.8,5.2);c.stroke();}
+      c.strokeStyle="#efd5a0";c.lineWidth=1;c.beginPath();c.moveTo(24,52);c.lineTo(30,27);c.stroke();
+    });
+  }
+  texture(scene,"item_scythe",32,32,c=>c.drawImage(scene.textures.get("held-scythe").getSourceImage() as HTMLCanvasElement,0,0,32,32));
+  texture(scene,"item-missing",32,32,c=>{
+    ellipse(c,16,18,11,7,"#997449");ellipse(c,14,15,9,5,"#dac18b");
+  });
+  for (const item of Object.values(ITEMS)) {
+    const key=`drop-icon-${item.id}`;
+    texture(scene,key,40,40,c=>{
+      c.setTransform(1,0,0,1,0,0);c.globalAlpha=1;c.globalCompositeOperation="source-over";c.clearRect(0,0,40,40);
+      if (scene.textures.exists(item.assetId)) {
+        const image=scene.textures.get(item.assetId).getSourceImage() as HTMLImageElement;
+        // Inspect alpha once on a separate canvas, then trim transparent padding.
+        const scratch=document.createElement("canvas");scratch.width=image.width;scratch.height=image.height;
+        const ctx=scratch.getContext("2d",{willReadFrequently:true})!;ctx.drawImage(image,0,0);
+        const pixels=ctx.getImageData(0,0,scratch.width,scratch.height).data;
+        let x0=image.width,y0=image.height,x1=-1,y1=-1;
+        for(let y=0;y<image.height;y++)for(let x=0;x<image.width;x++)if(pixels[(y*image.width+x)*4+3]!>8) {
+          x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);
+        }
+        if(x1>=x0) {
+          const w=x1-x0+1,h=y1-y0+1,scale=32/Math.max(w,h);
+          c.drawImage(image,x0,y0,w,h,(40-w*scale)/2,(40-h*scale)/2,w*scale,h*scale);
+          return;
+        }
+      }
+      // Missing source content still gets a recognizable silhouette, with alpha.
+      if (/grass|herb|needles/.test(item.id)) {
+        for(let i=0;i<6;i++){c.strokeStyle=i%2?"#8aac54":"#4c753d";c.lineWidth=3;c.beginPath();c.moveTo(20,33);c.quadraticCurveTo(8+i*4,20,7+i*5,8+i%3*3);c.stroke();}
+      } else if (/stone|ore|block/.test(item.id)) {
+        c.fillStyle="#78918b";c.beginPath();c.moveTo(5,27);c.lineTo(11,12);c.lineTo(28,8);c.lineTo(36,24);c.lineTo(27,32);c.closePath();c.fill();ellipse(c,19,17,9,4,"#b8c6ba");
+      } else if (/wood|branch|bark|bamboo/.test(item.id)) {
+        c.fillStyle="#89623e";c.fillRect(7,13,24,16);ellipse(c,30,21,5,8,"#d2b277");ellipse(c,30,21,2,5,"#8d683f");
+      } else if (/biscuit/.test(item.id)) {
+        ellipse(c,20,20,14,12,"#d8b170");for(const [x,y] of [[14,15],[26,18],[19,26]])ellipse(c,x!,y!,2,2,"#8e693c");
+      } else {
+        c.drawImage(scene.textures.get("item-missing").getSourceImage() as HTMLCanvasElement,4,4,32,32);
+      }
+    });
+  }
 }
 
 export function createGround(

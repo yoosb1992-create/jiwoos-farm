@@ -27,8 +27,11 @@ import {
   festivalOn,
   type Season,
 } from "../shared/expansion.js";
-import { createContentTextures, createGround } from "./art.js";
+import { createContentTextures, createItemTextures, createGround } from "./art.js";
 import { mapFor, layoutRevision } from "./layout.js";
+import { FarmFeedback } from "./feedback.js";
+import type { ActionFx } from "../shared/interaction.js";
+import type { Sound } from "./audio.js";
 interface View {
   body: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
@@ -53,6 +56,9 @@ export class FarmScene extends Phaser.Scene {
   private npcs = new Map<string, View>();
   private target?: Phaser.GameObjects.Rectangle;
   private me?: RenderPlayer;
+  private feedback?: FarmFeedback;
+  onSound?: (sound: Sound) => void;
+  actionFeedback(event: ActionFx): void { this.feedback?.event(event,this.area,this.season); }
   constructor(
     private readonly onFrame: (
       now: number,
@@ -100,6 +106,8 @@ export class FarmScene extends Phaser.Scene {
     for (const id of ["player", ...NPCS.map(n => `npc-${n.id}`)])
       if (this.textures.exists(id)) this.textures.get(id).setFilter(Phaser.Textures.FilterMode.NEAREST);
     createContentTextures(this);
+    createItemTextures(this);
+    this.feedback = new FarmFeedback(this, sound=>this.onSound?.(sound), id=>this.objects.get(id));
     const directions = ["down", "up", "left", "right"];
     for (const [state, offset] of [
       ["idle", 0],
@@ -134,12 +142,14 @@ export class FarmScene extends Phaser.Scene {
     this.resolveReady?.();
     this.resolveReady = undefined;
     this.events.once("shutdown", () => {
+      this.feedback?.destroy();
       this.players.clear();
       this.objects.clear();
       this.npcs.clear();
     });
   }
   private changeArea(id: string): void {
+    this.feedback?.clear();
     this.area = id;
     this.terrain?.destroy(true);
     this.chunkTerrain?.destroy();
@@ -258,7 +268,7 @@ export class FarmScene extends Phaser.Scene {
       }
   }
   private textured(id: string): string {
-    return this.textures.exists(id) ? id : "__WHITE";
+    return this.textures.exists(id) ? id : "item-missing";
   }
   private sizeObject(body: Phaser.GameObjects.Sprite, id: string, scale?: number) {
     const a = ASSETS[id];
@@ -349,9 +359,10 @@ export class FarmScene extends Phaser.Scene {
       v.label.setVisible(visible);
       if (!visible) continue;
       const moved = Math.hypot(p.x - v.x, p.y - v.y) > 0.05;
+      const action = this.feedback?.acting(p.id,now);
       const dx = p.x - v.x,
         dy = p.y - v.y;
-      const facing = moved
+      const facing = action?.facing ?? (moved
         ? Math.abs(dx) > Math.abs(dy)
           ? dx > 0
             ? "right"
@@ -359,14 +370,14 @@ export class FarmScene extends Phaser.Scene {
           : dy > 0
             ? "down"
             : "up"
-        : p.facing;
+        : p.facing);
       v.body
         .setPosition(p.x, p.y)
         .setDepth(p.y)
-        .play(
-          `${p.actionTicks > 0 ? "tool" : moved ? "walk" : "idle"}_${facing}`,
-          true,
-        );
+        .setAngle(action?.lean??0);
+      const animation=`${action || p.actionTicks > 0 ? "tool" : moved ? "walk" : "idle"}_${facing}`;
+      if(v.body.anims.currentAnim?.key!==animation)v.body.play(animation);
+      if(action?.hold)v.body.anims.pause();else v.body.anims.resume();
       v.label.setPosition(p.x, p.y - 54).setDepth(p.y + 1);
       v.x = p.x;
       v.y = p.y;
@@ -409,7 +420,7 @@ export class FarmScene extends Phaser.Scene {
         asset = "crop_morningcarrot_growing";
         label = "마른 작물 · 괭이";
       } else if (e.kind === "drop") {
-        asset = ITEMS[e.item]?.assetId ?? "item_wood";
+        asset = `drop-icon-${e.item}`;
         label = `×${e.quantity}`;
       } else if (e.kind === "soil") asset = "tile_farm_empty";
       else if (e.kind === "tree" || e.kind === "rock" || e.kind === "stump")
@@ -430,6 +441,9 @@ export class FarmScene extends Phaser.Scene {
       if (!v) v = this.staticObject(id, asset, e.x, e.y, label);
       const changedTexture = v.body.texture.key !== asset;
       v.body
+        .setPosition(e.x,e.y)
+        .setAngle(authored?.rotation??0)
+        .setVisible(!this.feedback?.hiddenObject(id,now))
         .setTexture(this.textured(asset))
         .setDepth(e.kind === "crop" || e.kind === "soil" ? e.y - 100 : e.y);
       if (changedTexture) { this.sizeObject(v.body, asset); const origin=ASSETS[asset]?.origin; if(origin)v.body.setOrigin(origin.x,origin.y); }
@@ -449,6 +463,7 @@ export class FarmScene extends Phaser.Scene {
         }
         v.roots ??= this.add.sprite(e.x,e.y,key);
         v.roots.setTexture(key).setPosition(e.x,e.y)
+          .setVisible(!this.feedback?.hiddenObject(id,now))
           .setOrigin(.5,.94).setAngle(authored?.rotation??0).setDepth(e.y+(authored?.depth??0)+.1);
         this.sizeObject(v.roots,roots,authored?.scale??1);
       } else if (v.roots) {v.roots.destroy();v.roots=undefined;}
@@ -496,8 +511,16 @@ export class FarmScene extends Phaser.Scene {
         v.body.setFlipX(Math.cos(now / 3000 + e.x) < 0);
       }
       v.label.setPosition(e.x, e.y + 12).setDepth(e.y + 2);
-      if (e.kind === "drop") v.body.setDisplaySize(22, 22).setOrigin(0.5);
-      v.label.setText(label).setVisible(Boolean(label));
+      if (e.kind === "drop") {
+        v.body.setDisplaySize(28, 28).setOrigin(0.5).setBlendMode(Phaser.BlendModes.NORMAL);
+        // Quantity text is separate from the alpha icon; no opaque label panel.
+        if(changedTexture || v.label.style.backgroundColor)
+          v.label.setStyle({backgroundColor:"",color:"#fff7dc",stroke:"#425437",strokeThickness:3,fontSize:"11px",padding:{x:0,y:0}});
+      }
+      if (["tree","stump","rock"].includes(e.kind) && v.label.style.backgroundColor)
+        v.label.setStyle({backgroundColor:"",color:"#fff7dc",stroke:"#425437",strokeThickness:3});
+      v.label.setText(label).setVisible(Boolean(label) && !this.feedback?.hiddenObject(id,now));
+      if(e.kind==="drop")this.feedback?.drop(id,v,e.x,e.y,now);
     });
     for (const [id, v] of this.objects)
       if (
@@ -507,10 +530,12 @@ export class FarmScene extends Phaser.Scene {
       ) {
         v.ground?.destroy();
         v.roots?.destroy();
+        this.feedback?.forgetDrop(id);
         v.body.destroy();
         v.label.destroy();
         this.objects.delete(id);
       }
+    this.feedback?.update(now,snapshot.players,me.area);
     for (const npc of NPCS) {
       const s = worldNpcSchedule(npc, state.day, state.minute, CLIENT_MAPS);
       let v = this.npcs.get(npc.id);

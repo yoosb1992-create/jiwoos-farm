@@ -42,11 +42,14 @@ import {
 import { FISH_STEP_MS, FISH_MAX_STEPS, replayFishing } from "./fishing.js";
 import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
+import { isTool, cuttableGrass, pickupRadius, type Tool, type ActionFx } from "./interaction.js";
 export class ActionError extends Error {}
 function requireThat(condition: unknown, message: string): asserts condition {
   if (!condition) throw new ActionError(message);
 }
 const TYPES = new Set([
+  "useTool",
+  "cutGrass",
   "worldEvent",
   "tillTile",
   "plantSeed",
@@ -104,6 +107,10 @@ export function parseCommand(value: unknown): Command {
     "지원하지 않는 행동",
   );
   const out: Command = { actionId: c.actionId, type: c.type };
+  if (c.toolId !== undefined) {
+    requireThat(typeof c.toolId === "string" && isTool(c.toolId), "도구 오류");
+    out.toolId = c.toolId;
+  }
   for (const key of ["targetId", "itemId", "area"] as const) {
     if (c[key] !== undefined) {
       requireThat(
@@ -184,6 +191,65 @@ export function nextDay(w: World): void {
   generateDaily(w);
 }
 export function applyAction(
+  w: World,
+  a: Actor,
+  command: Command,
+  ctx: ActionContext,
+): ActionResult {
+  const before = command.targetId ? w.entities[command.targetId] : undefined;
+  const legacyTools: Record<string, Tool> = {
+    hitTree: "axe", clearTwig: "axe", hitRock: "pickaxe", cutGrass: "scythe",
+    tillTile: "hoe", waterCrop: "water", refill: "water",
+  };
+  const tool = command.toolId ?? legacyTools[command.type];
+  if (legacyTools[command.type])
+    requireThat(tool === legacyTools[command.type], "이 행동에 맞지 않는 도구입니다");
+  let c = command;
+  let failed = false;
+  if (c.type === "useTool") {
+    requireThat(isTool(tool) && (w.members[a.id]?.inventory[tool] ?? 0) > 0, "도구가 없습니다");
+    if (c.targetId) {
+      requireThat(before && before.area === a.area && Math.hypot(before.x-a.x,before.y-a.y) <= ACTION_RANGE, "대상에 더 가까이 가세요");
+      const dx = before.x-a.x, dy = before.y-a.y;
+      if (before.kind !== "well")
+        requireThat(a.facing === "left" ? dx <= 16 : a.facing === "right" ? dx >= -16 : a.facing === "up" ? dy <= 16 : dy >= -16, "앞쪽 대상을 바라보세요");
+    }
+    const type = tool === "axe" && before?.kind === "twig" ? "clearTwig"
+      : tool === "axe" && ["tree","stump"].includes(before?.kind ?? "") ? "hitTree"
+      : tool === "pickaxe" && before?.kind === "rock" ? "hitRock"
+      : tool === "scythe" && before && cuttableGrass(before) ? "cutGrass"
+      : tool === "hoe" && (!before || ["soil","withered"].includes(before.kind)) ? "tillTile"
+      : tool === "water" && (!before || ["soil","crop"].includes(before.kind)) ? "waterCrop"
+      : tool === "water" && before?.kind === "well" ? "refill" : undefined;
+    failed = !type;
+    if (type) c = { ...c, type };
+  }
+  const target = before ? {
+    id: before.id, kind: before.kind, asset: before.asset, x: before.x, y: before.y,
+    stage: before.stage, species: before.species, item: before.item, quantity: before.quantity,
+  } : undefined;
+  const nextEntity = w.nextEntity;
+  const result: ActionResult = failed ? {
+    actionId: c.actionId, ok: false, message: before ? "이 도구로는 처리할 수 없어요" : "닿는 대상이 없어요",
+    revision: ++w.revision, serverNow: ctx.now,
+  } : applyActionCore(w,a,c,ctx);
+  if (tool || ["pickupDrop","gather","harvestCrop"].includes(c.type)) {
+    const after = target && w.entities[target.id];
+    const drops: ActionFx["drops"] = [];
+    for (let n = nextEntity+1; n <= w.nextEntity; n++) {
+      const e = w.entities[`drop-${n}`];
+      if (e) drops.push({id:e.id,x:e.x,y:e.y,item:e.item,quantity:e.quantity});
+    }
+    result.fx = {
+      id: c.actionId, actorId: a.id, area: a.area, x:a.x, y:a.y, facing:a.facing as ActionFx["facing"],
+      tool: tool ?? "hand", outcome: failed ? "fail" : c.type === "pickupDrop" ? "pickup"
+        : target && (!after || after.kind !== target.kind) ? "break" : "hit", target, drops,
+    };
+  }
+  return result;
+}
+
+function applyActionCore(
   w: World,
   a: Actor,
   c: Command,
@@ -470,8 +536,14 @@ export function applyAction(
       m.xp += 1;
       break;
     }
+    case "cutGrass":
     case "gather": {
       const e = target("gather");
+      if (c.type === "cutGrass") {
+        own("scythe");
+        requireThat(cuttableGrass(e), "꽃과 작물은 손으로 수확하세요");
+        front(e);
+      } else requireThat(!cuttableGrass(e), "목초와 잡초에는 낫을 사용하세요");
       spend(1);
       addDrop(w, e, e.item, 1);
       markCleared(w,e);
@@ -480,6 +552,7 @@ export function applyAction(
     }
     case "pickupDrop": {
       const e = target("drop");
+      near(e, pickupRadius());
       change(m.inventory, e.item, e.quantity);
       m.collections ??= {};
       m.collections[e.item] = (m.collections[e.item] ?? 0) + e.quantity;
@@ -1101,6 +1174,7 @@ export function applyAction(
       plantSeed: "plant",
       waterCrop: "water",
       gather: "gather",
+      cutGrass: "gather",
     } as Record<string, string>
   )[c.type];
   if (stat) m.quests[stat] = (m.quests[stat] ?? 0) + 1;

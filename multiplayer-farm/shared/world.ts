@@ -7,6 +7,7 @@ import type { FishingChallenge } from "./fishing.js";
 import { defaultLayout, legacyLayout, type WorldLayout } from "./layout.js";
 import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
+import type { ActionFx, Tool } from "./interaction.js";
 export const WORLD_VERSION = 7;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
@@ -87,6 +88,7 @@ export interface Actor {
 export interface Command {
   actionId: string;
   type: string;
+  toolId?: Tool;
   targetId?: string;
   tileX?: number;
   tileY?: number;
@@ -101,6 +103,7 @@ export interface ActionResult {
   ok: boolean;
   message: string;
   revision: number;
+  fx?: ActionFx;
   transition?: {
     area: string;
     x: number;
@@ -144,6 +147,7 @@ export function newMember(id: string, nickname: string, day = 1): Member {
       water: 1,
       axe: 1,
       pickaxe: 1,
+      scythe: 1,
       fishing_rod: 1,
       [calendar(day).season === "spring" || calendar(day).season === "summer"
         ? "sproutberry_seed"
@@ -496,6 +500,8 @@ export function upgradeWorld(w: World): void {
   if (w.version > WORLD_VERSION)
     throw new Error("This farm needs a newer server");
   for (const m of Object.values(w.members)) {
+    // Add the new starter tool without replacing any saved inventory or world.
+    m.inventory.scythe ??= 1;
     m.fishBook ??= {};
     m.friendship ??= {};
     m.collections ??= {};

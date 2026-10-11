@@ -130,16 +130,14 @@ test("concurrent real clients: tree felling, drop pickup, chest withdrawal and d
       ).length,
       1,
     );
-    await delay(230);
     const drop = [...f.C.state.entities.values()].find(
       (e) => e.kind === "drop" && e.item === "wood",
     )!;
-    const picks = await Promise.all([
-      action(f.A, "pickupDrop", { targetId: drop.id }),
-      action(f.B, "pickupDrop", { targetId: drop.id }),
-    ]);
-    assert.equal(picks.filter((r) => r.ok).length, 1);
-    const winner = picks[0]!.ok ? f.A : f.B;
+    await until(()=>!f.C.state.entities.has(drop.id));
+    const saved=(room as unknown as {world:World}).world;
+    const members=[f.a,f.b,f.c];
+    assert.equal(members.reduce((n,m)=>n+(saved.members[m.playerId]!.inventory.wood??0),0),1);
+    const winner=[f.A,f.B,f.C][members.findIndex(m=>saved.members[m.playerId]!.inventory.wood===1)]!;
     const chest = room.state.entities.get("family-chest")!;
     for (const r of [f.A, f.B, f.C]) place(room, r.sessionId, chest.x, chest.y);
     await delay(230);
@@ -382,7 +380,7 @@ test("live 30 Hz movement cannot penetrate a farm grass tile, and harvest unbloc
       "Authoritative player must stop before entering the occupied 32px cell",
     );
     await until(() => f.B.state.players.get(f.A.sessionId)?.x === stopped.x);
-    assert.equal((await action(f.A, "gather", { targetId: obstacle.id })).ok, true);
+    assert.equal((await action(f.A, "cutGrass", { targetId: obstacle.id })).ok, true);
     await until(() => !room.state.entities.has(obstacle.id));
     await delay(400);
     await move(f.A, 1, 0, 12);
