@@ -13,7 +13,10 @@ export async function waitForFarmInput(page: Page): Promise<void> {
   let settledAt=0,connection=-1;
   await expect.poll(async()=>{
     const s=await page.evaluate(()=>window.__FARM_DEBUG__.snapshot());
-    if(s.status!=="connected"||!s.local||s.sentInputs-s.acknowledgedInputs>12||s.reconnectCount!==connection){
+    // In-flight inputs include normal RTT and slow software-rendered frames;
+    // their count is not the server's backlog. Observe committed progress on
+    // one uninterrupted connection instead of imposing a fixed queue budget.
+    if(s.status!=="connected"||!s.local||s.reconnectCount!==connection){
       connection=s.reconnectCount;settledAt=s.acknowledgedInputs;return false;
     }
     return s.acknowledgedInputs-settledAt>=60;
