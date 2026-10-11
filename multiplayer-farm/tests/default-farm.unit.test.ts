@@ -252,3 +252,19 @@ test("safeSpawn avoids a live natural obstacle placed by a saved world editor la
   assert(!collidesWithObstacle(safe.x, safe.y, "farm", l.maps, [obstacle]));
   assert.notDeepEqual([safe.x, safe.y], [obstacle.x, obstacle.y]);
 });
+
+
+test("safeSpawn reuses a one-shot obstacle iterator across multiple blocked fallback cells", () => {
+  const base = defaultLayout().maps.farm!;
+  const map = {
+    ...base, world2: undefined, collisionRegions: [], objects: [],
+    spawns: [{ id: "farm_entry", tileX: 20.5, tileY: 20.5, facing: "down" }],
+  };
+  const maps = { farm: map };
+  const occupied = [
+    [20.5, 20.5], [19.5, 19.5], [19.5, 20.5], [19.5, 21.5],
+  ].map(([x, y], i) => entity(`block-${i}`, "farm", "rock", x! * 32, y! * 32, "farm_stone_a"));
+  const spot = safeSpawn("farm", "farm_entry", maps, true, occupied.values());
+  assert(!collidesWithObstacle(spot.x, spot.y, "farm", maps, occupied),
+    "Every candidate must honor the full initial obstacle snapshot");
+});

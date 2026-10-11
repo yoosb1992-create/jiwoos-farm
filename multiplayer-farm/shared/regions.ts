@@ -1,5 +1,5 @@
 import { TILE, mapFor, tileIn, type MapData } from "./content.js";
-import { collidesWithObstacle, type DynamicObstacleSource } from "./applyMovement.js";
+import { collidesWithObstacle, prepareDynamicObstacles, type DynamicObstacleSource } from "./applyMovement.js";
 export const TRANSITION_COOLDOWN_MS = 1400;
 export function insideWarp(map: MapData, x: number, y: number) {
   return map.warps.find((w) =>
@@ -15,9 +15,12 @@ export function safeSpawn(
   dynamic?: DynamicObstacleSource,
 ) {
   const map = mapFor(area, maps),
-    s = map.spawns.find((p) => p.id === spawnId) ?? map.spawns[0]!;
+    s = map.spawns.find((p) => p.id === spawnId) ?? map.spawns[0]!,
+    // Generators and MapSchema.values() are one-shot iterators. A blocked
+    // spawn forces multiple valid() probes, which must share the same snapshot.
+    obstacles = prepareDynamicObstacles(dynamic);
   const valid = (x: number, y: number) =>
-    !collidesWithObstacle(x, y, area, maps, dynamic) &&
+    !collidesWithObstacle(x, y, area, maps, obstacles) &&
     (!avoidWarps || !insideWarp(map, x, y));
   if (valid(s.tileX * TILE, s.tileY * TILE))
     return { x: s.tileX * TILE, y: s.tileY * TILE, facing: s.facing };
