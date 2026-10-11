@@ -1,4 +1,5 @@
 import { ASSETS, TILE, type MapData, type MapObject } from "./content.js";
+import { sceneryCollision } from "./applyMovement.js";
 import { newWorld2, setCell, terrainCode, tileHash, ZONES } from "./world2.js";
 
 /** Authored content, evaluated only when making a default layout. No renderer
@@ -176,8 +177,12 @@ export function createDefaultFarm(previous: MapData): MapData {
       if (wellPad || (py > 32 && py < 35 && Math.abs(px - 60) < 2.2)) terrain = "stone_path";
       if (terrain !== "grass") setCell(farm, "terrain", x, y, terrainCode(terrain));
       const blockedObject = farm.objects.some(o => {
-        if (!o.collision && !o.kind) return false;
-        const c = o.collision ?? { x: -18, y: -18, width: 36, height: 36 };
+        // Farmable zone permissions must agree with runtime obstacles: a
+        // non-interactive rock/shrub without an explicit editor hitbox still
+        // reserves its solid footprint instead of creating an unusable plot.
+        const c = o.collision ?? sceneryCollision(o) ??
+          (o.kind ? { x: -18, y: -18, width: 36, height: 36 } : undefined);
+        if (!c || o.visible === false || o.bridge) return false;
         const ox = o.position.tileX * TILE + c.x, oy = o.position.tileY * TILE + c.y;
         return x * TILE < ox + c.width + 12 && (x + 1) * TILE > ox - 12 &&
           y * TILE < oy + c.height + 12 && (y + 1) * TILE > oy - 12;
