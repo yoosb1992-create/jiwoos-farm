@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { ASSETS } from "../../shared/content.js";
 import { TERRAIN_ART } from "../../shared/art-assets.js";
-import { reachableNatureTarget } from "./nature-target.js";
+import { reachableNatureTarget, waitForFarmInput } from "./nature-target.js";
 
 test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch layout", async ({ page }, info) => {
   test.setTimeout(90000);
@@ -35,11 +35,15 @@ test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch la
   expect(state.actor.y).toBe(37.5 * 32);
   expect(Object.values(state.entities).some(e => e.kind === "soil" || e.kind === "crop")).toBe(false);
   await page.screenshot({ path: info.outputPath("farm-phone-spawn.png") });
+  await waitForFarmInput(page);
   await page.locator("#tool").selectOption("hoe");
   // Nearby clear grass to the southeast, beyond the protected yard and lane.
   const target = await reachableNatureTarget(page, "till");
   expect(target, "A dense overgrown farm must still expose reachable farmland near its road").toBeDefined();
-  await page.touchscreen.tap(target!.screenX, target!.screenY);
+  // Path search can outlive camera settling after the first screenshot. Resolve
+  // the selected world tile to its current screen point immediately before tap.
+  const point=await page.evaluate(({x,y})=>window.__FARM_DEBUG__.screenPoint((x+.5)*32,(y+.5)*32),target!);
+  await page.touchscreen.tap(point.x, point.y);
   await expect.poll(
     () => page.evaluate(({x,y}) => window.__FARM_DEBUG__.state().entities[`soil-farm-${x}-${y}`]?.kind, target!),
     { timeout: 20000 },
