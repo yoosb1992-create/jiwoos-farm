@@ -43,7 +43,7 @@ test("mobile touch action, saved control layout and new-world editor isolation",
   // Tap the tree artwork, walk into range and automatically send one hitTree action.
   const target = await page.evaluate(() =>
     (() => {
-      const farm = JSON.parse(window.__FARM_DEBUG__.state().layout).maps.farm;
+      const farm = JSON.parse(window.__FARM_DEBUG__.state()!.layout).maps.farm;
       const tree = farm.objects.find((o: { id: string }) => o.id === "starter-pine");
       return window.__FARM_DEBUG__.screenPoint(tree.position.tileX * 32, tree.position.tileY * 32 - 42);
     })(),
