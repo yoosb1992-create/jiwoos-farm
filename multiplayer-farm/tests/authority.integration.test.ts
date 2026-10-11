@@ -2,6 +2,7 @@ import { insideWarp } from "../shared/regions.js";
 import {
   collidesWithObstacle,
   isFarmable,
+  prepareDynamicObstacles,
 } from "../shared/applyMovement.js";
 import type { WorldLayout } from "../shared/layout.js";
 import test from "node:test";
@@ -353,5 +354,43 @@ test("single-family lease fences duplicate authorities and durable state survive
   } finally {
     await restored.leave();
     await next.close();
+  }
+});
+
+
+test("live 30 Hz movement cannot penetrate a farm grass tile, and harvest unblocks it", async () => {
+  const f = await fixture();
+  try {
+    const room = roomServer(f.A.roomId);
+    const layout = JSON.parse(room.state.layout) as WorldLayout;
+    const blockers = prepareDynamicObstacles(room.state.entities.values());
+    const obstacle = [...room.state.entities.values()].find(e =>
+      e.area === "farm" && e.id.startsWith("farmgrass-") &&
+      e.kind === "gather" &&
+      !collidesWithObstacle(e.x - 32, e.y, "farm", layout.maps, blockers),
+    );
+    assert(obstacle, "Dense opening must have grass with a clear approach cell");
+    const startX = obstacle.x - 32;
+    place(room, f.A.sessionId, startX, obstacle.y);
+    assert(!collidesWithObstacle(startX, obstacle.y, "farm", layout.maps, blockers));
+    // Real SDK inputs, not a direct call into the shared collision function.
+    await move(f.A, 1, 0, 16, true);
+    const stopped = room.state.players.get(f.A.sessionId)!;
+    assert(
+      stopped.x <= obstacle.x - 24 &&
+      Math.floor(stopped.x / 32) !== Math.floor(obstacle.x / 32),
+      "Authoritative player must stop before entering the occupied 32px cell",
+    );
+    await until(() => f.B.state.players.get(f.A.sessionId)?.x === stopped.x);
+    assert.equal((await action(f.A, "gather", { targetId: obstacle.id })).ok, true);
+    await until(() => !room.state.entities.has(obstacle.id));
+    await delay(400);
+    await move(f.A, 1, 0, 12);
+    const cleared = room.state.players.get(f.A.sessionId)!;
+    assert(Math.floor(cleared.x / 32) === Math.floor(obstacle.x / 32) ||
+      cleared.x > obstacle.x - 24,
+      "Removing the natural object must permit movement into its cleared cell");
+  } finally {
+    await f.close();
   }
 });
