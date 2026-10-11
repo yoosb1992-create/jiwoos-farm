@@ -62,7 +62,10 @@ test("juvenile removal and species/age stumps survive a room reload, with one fe
     assert.equal(f.C.state.entities.get(old.id)!.asset,stumpSprite("tree_birch",4));
     assert(collidesWithObstacle(old.x,old.y,"farm",access.world.layout!.maps,Object.values(access.world.entities)));
     const roomId=room.roomId;
-    await Promise.all([f.A.leave(),f.B.leave(),f.C.leave()]);
+    // The matcher removes its room listing before asynchronous onDispose has
+    // checkpointed PostgreSQL and released the advisory lease. The public
+    // disconnect promise waits for that lifecycle to finish, unlike leave().
+    await room.disconnect();
     await until(()=>!matchMaker.getLocalRoomById(roomId));
     const again=await join(f.url,f.a);
     try {
