@@ -87,9 +87,9 @@ export class FarmFeedback {
       this.born.set(d.id,{start:now+dropAppearDelay(event),dx:Math.cos(angle)*(12+i%3*4),dy:Math.sin(angle)*8});
     });
     if(!this.visible(target?.x??event.x,target?.y??event.y,300))return;
-    if(event.action==="tillTile" && event.point)
+    if(event.outcome!=="fail" && event.action==="tillTile" && event.point)
       this.hidden.set(`soil-${event.area}-${Math.floor(event.point.x/TILE)}-${Math.floor(event.point.y/TILE)}`,now+impactDelay(event));
-    if(event.action==="waterCrop" && event.point)
+    if(event.outcome!=="fail" && event.action==="waterCrop" && event.point)
       this.waterUntil.set(`soil-${event.area}-${Math.floor(event.point.x/TILE)}-${Math.floor(event.point.y/TILE)}`,now+impactDelay(event));
     if(target?.kind==="rock" && event.outcome!=="fail") {
       const pending=this.rockUntil.get(target.id)??[];
@@ -186,10 +186,10 @@ export class FarmFeedback {
         const target=e.target,tx=s.rig.contact.x,ty=s.rig.contact.y;
         const dx=e.facing==="left"?-1:e.facing==="right"?1:0,dy=e.facing==="up"?-1:e.facing==="down"?1:0;
         const failed=e.outcome==="fail",tree=target?.kind==="tree",rock=target?.kind==="rock",flower=target&&naturalFlower(target);
-        if(target || !failed) {
-          this.sound(failed?"clunk":e.tool==="water"?"water":e.tool==="scythe"?"cut":rock?(e.maxHp===3?"ore":"stone"):e.tool==="hoe"?"soil":e.tool==="hand"?"harvest":flower?"soil":tree&&target.stage>=3?"heavyWood":"wood");
+        if(target || !failed || e.tool==="water") {
+          this.sound(e.tool==="water"?"water":failed?"clunk":e.tool==="scythe"?"cut":rock?(e.maxHp===3?"ore":"stone"):e.tool==="hoe"?"soil":e.tool==="hand"?"harvest":flower?"soil":tree&&target.stage>=3?"heavyWood":"wood");
           if(e.tool!=="water")this.emit(tx,ty,failed?0xc3b398:flower?0xefb4d2:rock?0xc4cec1:e.tool==="scythe"?0x8caf58:0xd1a674,failed?3:rock?5+(e.maxHp??1)-(e.hpAfter??0):tree?7:6,now,dx||dy);
-          if(target&&e.outcome!=="break")this.shakes.set(target.id,{start:now,duration:tree?430+target.stage*35:210,dir:dx||1,tree,failed,stage:target.stage});
+          if(target&&e.outcome!=="break"&&e.tool!=="water")this.shakes.set(target.id,{start:now,duration:tree?430+target.stage*35:210,dir:dx||1,tree,failed,stage:target.stage});
         } else this.sound("swing");
       }
       if(e.tool==="hoe" && e.outcome!=="fail" && elapsed>=timing.impact && elapsed<timing.follow) {

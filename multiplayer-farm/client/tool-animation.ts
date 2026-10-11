@@ -129,7 +129,7 @@ export class ToolAnimationRig {
         g.lineStyle(this.fx.tool==="scythe"?2.5:1.3,0xf7eac1,.32*i/this.tips.length).lineBetween(u.x,u.y,v.x,v.y);
       }
     }
-    if(this.fx.tool==="water"&&this.fx.outcome!=="fail"&&this.motion==="watering"&&elapsed>t.impact-70&&elapsed<t.follow) {
+    if(this.fx.tool==="water"&&this.motion==="watering"&&elapsed>t.impact-70&&elapsed<t.follow) {
       const end=this.fx.point??this.contact;
       for(let i=0;i<12;i++) {
         const age=elapsed-(t.impact-70)-i*8;if(age<0)continue;

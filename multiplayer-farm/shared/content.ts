@@ -69,6 +69,12 @@ export const ASSETS: Record<string, Asset> = withNatureArt(withPaintedArt(snapsh
 export const CROPS: Record<string, CropDef> = Object.fromEntries(
   EXPANSION_CROPS.map((c) => [c.id, c]),
 );
+// Early stages are small original pixel textures, baked by client/crop-art.
+// Keep each existing mature crop painting and every saved asset ID intact.
+for (const crop of EXPANSION_CROPS) for (const stage of ["seed", "sprout", "growing"]) {
+  const asset = ASSETS[`crop_${crop.id}_${stage}`];
+  if (asset) asset.source = null;
+}
 export interface ItemDefinition {
   naturalHarvest?: "flower";
   id: string;
@@ -80,6 +86,7 @@ export interface ItemDefinition {
   description?: string;
 }
 export const ITEMS: Record<string, ItemDefinition> = { ...snapshot.items };
+ITEMS.water = { ...ITEMS.water!, description: "어디서든 앞칸에 물을 뿌려요. 사용할 때마다 기력 1이 들며, 물 보충은 손을 선택하고 우물에서 행동하세요." };
 ITEMS.scythe = { id: "scythe", name: "낫", kind: "tool", assetId: "item_scythe", description: "목초·잡초와 야생 꽃을 베어 채집해요. 재배 작물은 손으로 수확해요." };
 ASSETS.item_scythe = { assetId: "item_scythe", textureKey: "item_scythe", source: null, frameSize: { width: 32, height: 32 }, origin: { x: .5, y: .5 } };
 for(const t of TREE_SPECIES) ITEMS[t.seed]={id:t.seed,name:t.seedName,kind:"tree_seed",assetId:`${t.id}_seedling`,sellPrice:5,description:`빈 자연 잔디에 ${t.name}를 심어요. 새싹 ${t.days[0]}일 + 어린나무 ${t.days[1]}일 성장. 나무 사이 3칸을 비워 주세요.`};

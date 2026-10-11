@@ -60,7 +60,13 @@ export class TouchNavigator {
       ...point,
       signature: groundAction,
     };
-    if (entity)
+    if (groundAction === "water") {
+      // A water tap addresses a ground cell even when a resource, NPC, pond,
+      // doorway or shop is drawn over it. The same adjacent-tile approach is
+      // used for mouse and touch; never switch tools or enter a context panel.
+      t.x = (Math.floor((entity ? entity.x : point.x) / TILE) + .5) * TILE;
+      t.y = (Math.floor((entity ? entity.y : point.y) / TILE) + .5) * TILE;
+    } else if (entity)
       t = {
         ...t,
         kind: "entity",

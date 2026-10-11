@@ -497,6 +497,9 @@ function act(): void {
     y: me.authoritativeY,
     facing: me.facing,
   });
+  // Pouring has priority over wells, harvesting, doors, shops and object use.
+  // Refilling remains an explicit hand interaction with a well.
+  if (selected === "water") return send("useTool", { toolId: "water", ...tile });
   const event = mapFor(me.area).world2?.events.find(
     (e) =>
       e.trigger === "interact" &&
@@ -516,7 +519,7 @@ function act(): void {
         // stays outside its full tile. All tools share the same aiming rule.
         Math.hypot(ex,ey)<=64 && ex*dx+ey*dy>=4 && Math.abs(ex*dy-ey*dx)<=TILE;
     }).sort((a,b)=>Math.hypot(a.x-me.authoritativeX,a.y-me.authoritativeY)-Math.hypot(b.x-me.authoritativeX,b.y-me.authoritativeY));
-    const target = selected === "water" ? nearest("well") ?? targets[0] : targets[0];
+    const target = targets[0];
     return send("useTool", {toolId:selected,targetId:target?.id,...tile});
   }
   if (plantingTree(selected)) return send("plantTree", {...tile,itemId:selected});
@@ -572,13 +575,19 @@ function act(): void {
   notice("도구를 선택하거나 입구·주민·보관함 가까이에서 행동하세요");
 }
 function touchAct(t: TouchTarget): void {
+  if (t.kind === "ground" && t.signature === "water") {
+    if (selected !== "water") return;
+    send("useTool", { toolId: "water", tileX: Math.floor(t.x / TILE), tileY: Math.floor(t.y / TILE) });
+    return;
+  }
   if(t.kind === "ground" && t.signature && plantingTree(t.signature)) {
     if(selected!==t.signature)return;
     send("plantTree", {tileX:Math.floor(t.x/TILE),tileY:Math.floor(t.y/TILE),itemId:t.signature}); return;
   }
   if (t.kind === "ground" && t.signature === "hoe") {
     if(selected!=="hoe")return;
-    send("tillTile", {
+    send("useTool", {
+      toolId: "hoe",
       tileX: Math.floor(t.x / TILE),
       tileY: Math.floor(t.y / TILE),
     });
@@ -984,7 +993,7 @@ el("arena").addEventListener(
           renderer.scene.pickWorld(e.clientX, e.clientY),
           me,
           network.state,
-          selected === "hoe" ? "hoe" : plantingTree(selected) ? selected : undefined,
+          selected === "hoe" || selected === "water" ? selected : plantingTree(selected) ? selected : undefined,
         );
     }
     pointers.delete(e.pointerId);

@@ -15,10 +15,13 @@ test("committed failed swings reach peers once; nearby automatic pickup has one 
     access.world.entities[rock.id]=rock;
     for(const r of [f.A,f.B])Object.assign(room.state.players.get(r.sessionId)!,{x:304,y:272,area:"farm",facing:"down",running:false});
     access.sync();const events:ActionFx[]=[];f.B.onMessage("actionFx",(e:ActionFx)=>events.push(e));
+    const stamina=room.state.players.get(f.A.sessionId)!.stamina;
     const id=crypto.randomUUID();const hit=await action(f.A,"useTool",{actionId:id,toolId:"axe",targetId:rock.id});
     assert(!hit.ok);assert.equal(hit.fx?.outcome,"fail");
     assert.equal((await action(f.A,"useTool",{actionId:id,toolId:"axe",targetId:rock.id})).revision,hit.revision);
     await until(()=>events.some(e=>e.id===id));assert.equal(events.filter(e=>e.id===id).length,1);
+    assert.equal(access.world.members[f.a.playerId]!.stamina,stamina-3,"failed swing is durably charged once even when replayed");
+    await until(()=>f.B.state.players.get(f.A.sessionId)?.stamina===stamina-3);
     assert.equal(access.world.entities[rock.id]!.hp,2);assert.equal(access.world.members[f.a.playerId]!.inventory.stone,undefined);
     const drop=addDrop(access.world,{area:"farm",x:304,y:305},"stone",1);access.sync();
     await delay(250);assert(access.world.entities[drop.id],"33px must not attract");
@@ -33,6 +36,30 @@ test("committed failed swings reach peers once; nearby automatic pickup has one 
     const reconnect=await join(f.url,winner);
     try {await delay(150);assert(!reconnect.state.entities.has(drop.id));assert.equal(access.world.members[winner.playerId]!.inventory.stone,1);}
     finally {await reconnect.leave();}
+  } finally {await f.close();}
+});
+
+test("empty watering commits cost/animation once, syncs to peers and survives reconnection",async()=>{
+  const f=await fixture();
+  try {
+    const room=matchMaker.getLocalRoomById(f.A.roomId) as FarmRoom;
+    const access=room as unknown as {world:World;sync():void};
+    const p=room.state.players.get(f.A.sessionId)!;
+    Object.assign(p,{x:16,y:16,area:"farm",facing:"left",stamina:100,running:false});
+    access.sync();const events:ActionFx[]=[];f.B.onMessage("actionFx",(e:ActionFx)=>events.push(e));
+    const actionId=crypto.randomUUID(),water=access.world.members[f.a.playerId]!.water;
+    const result=await action(f.A,"useTool",{actionId,toolId:"water"});
+    assert(!result.ok);assert.equal(result.fx?.tool,"water");assert.equal(result.fx?.action,"waterCrop");
+    assert.equal(access.world.members[f.a.playerId]!.stamina,99);assert.equal(access.world.members[f.a.playerId]!.water,water);
+    const replay=await action(f.A,"useTool",{actionId,toolId:"water"});assert.equal(replay.revision,result.revision);
+    await until(()=>f.B.state.players.get(f.A.sessionId)?.stamina===99 && events.some(e=>e.id===actionId));
+    assert.equal(events.filter(e=>e.id===actionId).length,1);
+    await f.A.leave();const reconnected=await join(f.url,f.a);
+    try {
+      assert.equal(room.state.players.get(reconnected.sessionId)!.stamina,99);
+      assert.equal((await action(reconnected,"useTool",{actionId,toolId:"water"})).revision,result.revision);
+      assert.equal(access.world.members[f.a.playerId]!.stamina,99);
+    } finally {await reconnected.leave();}
   } finally {await f.close();}
 });
 

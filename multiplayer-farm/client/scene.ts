@@ -34,12 +34,14 @@ import type { ActionFx } from "../shared/interaction.js";
 import type { Sound } from "./audio.js";
 import { createFarmerFrames } from "./tool-animation-art.js";
 import { rockMaxHp } from "../shared/resources.js";
+import { currentLightLevel, seedGlowVisibility } from "../shared/sunlight.js";
 interface View {
   kind?: string;
   body: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
   /** Tilled-soil underlay kept beneath crops so planting never replaces the soil. */
   ground?: Phaser.GameObjects.Sprite;
+  seedGlow?: Phaser.GameObjects.Sprite;
   roots?: Phaser.GameObjects.Sprite;
   x: number;
   y: number;
@@ -161,6 +163,7 @@ export class FarmScene extends Phaser.Scene {
     this.chunkTerrain = undefined;
     for (const v of this.objects.values()) {
       v.ground?.destroy();
+      v.seedGlow?.destroy();
       v.roots?.destroy();
       v.body.destroy();
       v.label.destroy();
@@ -321,6 +324,7 @@ export class FarmScene extends Phaser.Scene {
     this.me = me;
     if (!me || !state) return;
     const season = calendar(state.day).season;
+    const seedLight = seedGlowVisibility(currentLightLevel({ minute: state.minute, season }));
     if (
       this.area !== me.area ||
       this.season !== season ||
@@ -512,6 +516,14 @@ export class FarmScene extends Phaser.Scene {
       if (e.kind === "crop")
         // Water is shown on the tilled soil beneath the plant, not by tinting the crop.
         v.body.setOrigin(0.5, 0.8).setTint(0xffffff);
+      if (e.kind === "crop" && e.stage === 0) {
+        v.seedGlow ??= this.add.sprite(e.x, e.y, `crop_${e.crop}_glow`);
+        v.seedGlow.setTexture(`crop_${e.crop}_glow`).setPosition(e.x, e.y)
+          .setOrigin(.5, .8).setDisplaySize(v.body.displayWidth, v.body.displayHeight)
+          .setDepth(v.body.depth + .1)
+          .setAlpha(seedLight * (.9 + .1 * Math.sin(now / 650 + e.x * .17 + e.y * .11)))
+          .setVisible(seedLight > 0 && v.body.visible);
+      } else if (v.seedGlow) { v.seedGlow.destroy(); v.seedGlow = undefined; }
       if (e.kind === "animal") {
         v.body.setPosition(
           e.x + Math.sin(now / 1200 + e.x) * 5,
@@ -539,6 +551,7 @@ export class FarmScene extends Phaser.Scene {
         !ids.has(id)
       ) {
         v.ground?.destroy();
+        v.seedGlow?.destroy();
         v.roots?.destroy();
         this.feedback?.forgetDrop(id);
         this.feedback?.forgetObject(id);
