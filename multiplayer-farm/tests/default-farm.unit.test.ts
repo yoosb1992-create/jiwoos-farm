@@ -8,6 +8,7 @@ import { insideWarp, safeSpawn } from "../shared/regions.js";
 import { entity, newWorld, newMember, upgradeWorld, type Actor } from "../shared/world.js";
 import { applyAction } from "../shared/actions.js";
 import { editorLayout, Journal } from "../client/editor/model.js";
+import { DEBRIS, FARM_GRASS } from "../shared/nature.js";
 
 test("sketched default farm: editable overgrown grass, four accessible lanes, safe collision and till rules", () => {
   const l = validateLayout(JSON.parse(JSON.stringify(defaultLayout()))), m = l.maps.farm!;
@@ -49,7 +50,7 @@ test("sketched default farm: editable overgrown grass, four accessible lanes, sa
   const passableGrass = entity("collision-grass", "farm", "gather", 86 * 32, 60 * 32, "farm_tall_grass");
   for (const obstacle of [dynamicRock, dynamicTwig, dynamicTree])
     assert(collidesWithObstacle(obstacle.x, obstacle.y, "farm", l.maps, [obstacle]));
-  assert(!collidesWithObstacle(passableGrass.x, passableGrass.y, "farm", l.maps, [passableGrass]));
+  assert(collidesWithObstacle(passableGrass.x, passableGrass.y, "farm", l.maps, [passableGrass]));
   const walker = {
     x: dynamicRock.x,
     y: dynamicRock.y - 31,
@@ -150,9 +151,13 @@ test("solid natural scenery and editor debris share correct persistent/living co
       `Non-interactable ${assetId} must be solid without an authored collision box`,
     );
   }
-  for (const assetId of ["flower_bed", "farm_short_grass", "farm_white_wildflower"]) {
+  for (const assetId of ["farm_short_grass", "farm_white_wildflower"]) {
     const { maps } = make(assetId);
-    assert(!collidesWithObstacle(at, at, "farm", maps), `${assetId} remains walkable`);
+    assert(collidesWithObstacle(at, at, "farm", maps), `${assetId} is a solid tile`);
+  }
+  for (const assetId of ["flower_bed"]) {
+    const { maps } = make(assetId);
+    assert(!collidesWithObstacle(at, at, "farm", maps), `${assetId} remains decorative`);
   }
   const { maps } = make("farm_stone_a", {
     kind: "rock",
@@ -194,8 +199,8 @@ test("nature occupancy blocks the whole tile: all four corners, stages and live 
       "Clearing an entity must immediately remove its tile collision");
   }
   const grass = entity("grass", "farm", "gather", centerX, centerY, "farm_tall_grass");
-  assert(!collidesWithObstacle(centerX, centerY, "farm", maps, [grass]),
-    "Soft grass stays walkable in an extremely dense opening");
+  assert(collidesWithObstacle(centerX, centerY, "farm", maps, [grass]),
+    "Collectible grass cannot be walked through until gathered");
 });
 
 test("occupied cells withstand joystick sprint, diagonal movement, pathfinding and static editor rocks", () => {
@@ -267,4 +272,18 @@ test("safeSpawn reuses a one-shot obstacle iterator across multiple blocked fall
   const spot = safeSpawn("farm", "farm_entry", maps, true, occupied.values());
   assert(!collidesWithObstacle(spot.x, spot.y, "farm", maps, occupied),
     "Every candidate must honor the full initial obstacle snapshot");
+});
+
+
+test("every collectible natural resource has a solid tile until cleared", () => {
+  const base = defaultLayout().maps.farm!;
+  const map = { ...base, world2: undefined, collisionRegions: [], objects: [] };
+  const maps = { farm: map };
+  for (const asset of [...DEBRIS, ...FARM_GRASS]) {
+    const obstacle = entity(`entity-${asset.id}`, "farm", asset.kind, 20.5 * 32, 20.5 * 32, asset.id);
+    assert(collidesWithObstacle(20 * 32 + 1, 20 * 32 + 1, "farm", maps, [obstacle]), `${asset.id} is solid even at its corner`);
+    assert(!collidesWithObstacle(obstacle.x, obstacle.y, "farm", maps, []), `${asset.id} becomes walkable after clearance`);
+  }
+  const drop = entity("drop", "farm", "drop", 20.5 * 32, 20.5 * 32, "item_wood");
+  assert(!collidesWithObstacle(drop.x, drop.y, "farm", maps, [drop]), "Dropped loot remains passable");
 });

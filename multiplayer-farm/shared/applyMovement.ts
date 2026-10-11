@@ -12,7 +12,7 @@ import {
   WALK_SPEED,
 } from "./config.js";
 import { ASSETS, mapFor, TILE, tileIn, type MapData, type MapObject } from "./content.js";
-import { DEBRIS } from "./nature.js";
+import { DEBRIS, FARM_GRASS } from "./nature.js";
 export interface Position {
   x: number;
   y: number;
@@ -68,11 +68,10 @@ export type DynamicObstacleSource =
   | Iterable<DynamicObstacle>
   | DynamicObstacleIndex;
 
-/** Tree, stump, rock, branch, and thick weed cells are impassable until cleared. */
+/** Trees, stones, branches, weeds, grass and flowers block their whole tile until gathered. */
 const SOLID_NATURE_KINDS = new Set(["tree", "stump", "rock", "twig"]);
 const solidNatureEntity = (e: DynamicObstacle): boolean =>
-  SOLID_NATURE_KINDS.has(e.kind) ||
-  (e.kind === "gather" && /^farm_weed/.test(e.asset ?? ""));
+  SOLID_NATURE_KINDS.has(e.kind) || e.kind === "gather";
 const dynamicObstacleBox = (e: DynamicObstacle): DynamicObstacleBox | undefined => {
   // Machines/decorations retain their authored footprint collision.
   if (["machine", "decoration", "barn", "trough"].includes(e.kind))
@@ -109,7 +108,7 @@ export function prepareDynamicObstacles(
 // Scenery without a WorldEntity also needs a physical footprint. Art crowns
 // may overlap players; only roots, trunks, stones and dense shrubs are solid.
 // Leave flowers, forage and soft grass walkable.
-const staticDebrisKinds = new Map<string, string>(DEBRIS.map(d => [d.id, d.kind] as const));
+const staticDebrisKinds = new Map<string, string>([...DEBRIS, ...FARM_GRASS].map(d => [d.id, d.kind] as const));
 export const sceneryCollision = (
   o: MapObject,
 ): { x: number; y: number; width: number; height: number } | undefined => {
@@ -164,7 +163,7 @@ const solidNatureScenery = (o: MapObject): boolean => {
     asset === "flowering_bush" ||
     debris === "rock" ||
     debris === "twig" ||
-    (debris === "gather" && /^farm_weed/.test(asset));
+    debris === "gather";
 };
 
 export function collidesWithObstacle(

@@ -11,6 +11,9 @@ import {
 } from "@colyseus/sdk";
 import {
   applyMovement,
+  collidesWithObstacle,
+  prepareDynamicObstacles,
+  type DynamicObstacleIndex,
   type MovementInput,
   type Position,
 } from "../shared/applyMovement.js";
@@ -92,6 +95,21 @@ export class ColyseusAdapter implements NetworkAdapter {
   private input?: InputHandle<MoveInput>;
   private me?: Reconciler<Player, MovementInput>;
   private self?: Player;
+  private obstacleIndex?: DynamicObstacleIndex;
+  private obstacleRoom?: FarmClientRoom;
+  private obstacleRevision = -1;
+  private obstacleCount = -1;
+  private collisionIndex(room: FarmClientRoom): DynamicObstacleIndex | undefined {
+    if (!this.obstacleIndex || this.obstacleRoom !== room ||
+        this.obstacleRevision !== room.state.revision ||
+        this.obstacleCount !== room.state.entities.size) {
+      this.obstacleIndex = prepareDynamicObstacles(room.state.entities.values());
+      this.obstacleRoom = room;
+      this.obstacleRevision = room.state.revision;
+      this.obstacleCount = room.state.entities.size;
+    }
+    return this.obstacleIndex;
+  }
   private connectionStatus: ConnectionStatus = "disconnected";
   onConnection?: (status: ConnectionStatus) => void;
   private get status(): ConnectionStatus {
@@ -438,7 +456,7 @@ export class ColyseusAdapter implements NetworkAdapter {
           command,
           ctx.dt,
           CLIENT_MAPS,
-          room.state.entities.values(),
+          this.collisionIndex(room),
         ),
       smoothMs: CORRECTION_SMOOTH_MS,
       warnOnDivergence: RECONCILIATION_THRESHOLD,
@@ -513,15 +531,21 @@ export class ColyseusAdapter implements NetworkAdapter {
     const players: RenderPlayer[] = room
       ? []
       : this.frozenPlayers.map((player) => ({ ...player }));
+    const obstacles = room?.state ? this.collisionIndex(room) : undefined;
     room?.state?.players?.forEach((player, id) => {
+      const local = id === room.sessionId;
+      const rx = this.renderCoordinate(player, "x", local);
+      const ry = this.renderCoordinate(player, "y", local);
+      // Prediction smoothing must not render the actor inside a blocked tile.
+      const unsafeVisual = local && collidesWithObstacle(rx, ry, player.area, CLIENT_MAPS, obstacles);
       players.push({
         id,
         nickname: player.nickname,
         color: player.color,
         connected: player.connected,
-        local: id === room.sessionId,
-        x: this.renderCoordinate(player, "x", id === room.sessionId),
-        y: this.renderCoordinate(player, "y", id === room.sessionId),
+        local,
+        x: unsafeVisual ? player.x : rx,
+        y: unsafeVisual ? player.y : ry,
         authoritativeX: player.x,
         authoritativeY: player.y,
         area: player.area,
@@ -577,6 +601,10 @@ export class ColyseusAdapter implements NetworkAdapter {
     this.predict = undefined;
     this.me = undefined;
     this.self = undefined;
+    this.obstacleIndex = undefined;
+    this.obstacleRoom = undefined;
+    this.obstacleRevision = -1;
+    this.obstacleCount = -1;
   }
 
   async leave(): Promise<void> {

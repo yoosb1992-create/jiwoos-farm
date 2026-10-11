@@ -9,6 +9,7 @@ import {
   applyMovement,
   prepareDynamicObstacles,
   sanitizeMovementInput,
+  type DynamicObstacleIndex,
 } from "../shared/applyMovement.js";
 import {
   CATCHUP_CREDIT_EXPIRY_MS,
@@ -42,6 +43,9 @@ export class MovementRoom extends Room<{ state: FarmState; input: MoveInput }> {
   protected movementMaps?: Record<string, MapData>;
   protected afterMovement(_context: StepContext): void {}
   protected reconnectionSeconds = RECONNECTION_SECONDS;
+  private obstacleRevision = -1;
+  private obstacleCount = -1;
+  private obstacleIndex?: DynamicObstacleIndex;
   private readonly catchupBudgets = new Map<
     string,
     {
@@ -112,7 +116,14 @@ export class MovementRoom extends Room<{ state: FarmState; input: MoveInput }> {
 
   private step(context: StepContext): void {
     this.state.tick = context.tick;
-    const obstacles = prepareDynamicObstacles(this.state.entities.values());
+    // Rebuild only when natural entities change, not on every 30 Hz tick.
+    if (!this.obstacleIndex || this.obstacleRevision !== this.state.revision ||
+        this.obstacleCount !== this.state.entities.size) {
+      this.obstacleIndex = prepareDynamicObstacles(this.state.entities.values());
+      this.obstacleRevision = this.state.revision;
+      this.obstacleCount = this.state.entities.size;
+    }
+    const obstacles = this.obstacleIndex;
     for (const [sessionId, player] of this.state.players) {
       const client = this.clients.get(sessionId);
       if (!player.connected || client?.state !== ClientState.JOINED) continue;
