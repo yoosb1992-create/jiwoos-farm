@@ -30,8 +30,8 @@ async function openClearFarm(page: Page) {
 const stamina = (page: Page) => page.evaluate(() => window.__FARM_DEBUG__.snapshot().players.find(p => p.local)?.stamina);
 async function idle(page: Page) {
   await page.waitForFunction(() => {
-    const d = window.__FARM_DEBUG__ as any, p = d.snapshot().players.find((p: any) => p.local);
-    return p && !d.scene().actionBusy(p.id) && !p.moving;
+    const d = window.__FARM_DEBUG__ as any, s = d.snapshot(), p = s.players.find((p: any) => p.local);
+    return s.status === "connected" && p && !d.scene().actionBusy(p.id) && !p.moving;
   });
 }
 async function point(page: Page, x: number, y: number) {
@@ -62,19 +62,43 @@ for (const mobile of [false, true]) test(`${mobile ? "phone touch" : "PC mouse/k
   await idle(page);
   // A real planted tile still waters; the same pointer handler is used on PC and phone.
   const plot = { x: 37.5 * 32, y: 40.5 * 32 }, id = "soil-farm-37-40";
-  const tapPlot = async (tool: string) => {
-    await idle(page); await page.locator("#tool").selectOption(tool);
-    const p = await point(page, plot.x, plot.y);
-    if (mobile) await page.touchscreen.tap(p.x, p.y); else await page.mouse.click(p.x, p.y);
+  const tapPlot = async (tool: string, done: () => Promise<boolean>) => {
+    await idle(page);
+    const read = () => page.evaluate(id => {
+      const s = window.__FARM_DEBUG__.snapshot();
+      return { connection: s.reconnectCount, entity: window.__FARM_DEBUG__.state()?.entities[id],
+        stamina: s.players.find(p => p.local)?.stamina, fx: (window as any).__sunFx.length,
+        seeds: document.querySelector('#tool option[value="sproutberry_seed"]')?.textContent };
+    }, id);
+    let before = await read();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await idle(page); await page.locator("#tool").selectOption(tool);
+      const p = await point(page, plot.x, plot.y);
+      if (mobile) await page.touchscreen.tap(p.x, p.y); else await page.mouse.click(p.x, p.y);
+      await expect.poll(async () => (await done()) || (await read()).connection !== before.connection,
+        { timeout: 15000 }).toBe(true);
+      if (await done()) return;
+      // Reconnect intentionally cancels walk-and-use. Re-tap only after live
+      // acknowledgements prove the old command changed no tile, seed, energy
+      // or committed effect. A failed/duplicate tool use must still fail here.
+      await waitForFarmInput(page);
+      if (await done()) return;
+      const after = await read();
+      expect(after.connection).toBeGreaterThan(before.connection);
+      expect({ ...after, connection: before.connection }).toEqual(before);
+      before = after;
+    }
+    throw Error(`Repeated reconnects prevented ${tool} on the test plot`);
   };
-  await tapPlot("hoe");
+  const kindIs = (kind: string) => page.evaluate(({ id, kind }) => window.__FARM_DEBUG__.state()?.entities[id]?.kind === kind, { id, kind });
+  await tapPlot("hoe", () => kindIs("soil"));
   await expect.poll(() => page.evaluate(id => window.__FARM_DEBUG__.state()?.entities[id]?.kind, id)).toBe("soil");
-  await tapPlot("sproutberry_seed");
+  await tapPlot("sproutberry_seed", () => kindIs("crop"));
   await expect.poll(() => page.evaluate(id => window.__FARM_DEBUG__.state()?.entities[id]?.kind, id)).toBe("crop");
-  const preWater = (await stamina(page))!; await tapPlot("water");
+  const preWater = (await stamina(page))!; await tapPlot("water", async () => (await stamina(page)) === preWater - 1);
   await expect.poll(() => page.evaluate(id => (window.__FARM_DEBUG__.state()?.entities[id] as any)?.watered, id)).toBe(true);
   await expect.poll(() => stamina(page)).toBe(preWater - 1); await idle(page);
-  await tapPlot("water"); await expect.poll(() => stamina(page)).toBe(preWater - 2); await idle(page);
+  await tapPlot("water", async () => (await stamina(page)) === preWater - 2); await expect.poll(() => stamina(page)).toBe(preWater - 2); await idle(page);
   expect(errors).toEqual([]);
 });
 

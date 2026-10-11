@@ -69,12 +69,26 @@ test("five tree ages: juvenile cutting, species stumps, three-hit clearing and r
       // Walk directly through the cleared cell. A neighboring giant canopy can
       // cover it visually, so use movement input rather than selecting a crown.
       await page.locator("#tool").selectOption("hand");
-      for(let step=0;step<20;step++) {
+      await page.locator("#tool").evaluate(e=>(e as HTMLElement).blur());
+      await page.waitForFunction(()=>{
+        const d=window.__FARM_DEBUG__ as any,s=d.snapshot(),p=s.players.find((p:any)=>p.local);
+        return s.status==="connected"&&p&&!d.scene().actionBusy(p.id);
+      });
+      await expect.poll(async()=>{
         const delta=await page.evaluate(p=>{const me=window.__FARM_DEBUG__.snapshot().players.find(p=>p.local)!;return {x:p[0]*32-me.authoritativeX,y:p[1]*32-me.authoritativeY};},points[stage]!);
-        if(Math.hypot(delta.x,delta.y)<10)break;
+        const distance=Math.hypot(delta.x,delta.y);if(distance<10)return distance;
         const key=Math.abs(delta.x)>Math.abs(delta.y)?delta.x>0?"ArrowRight":"ArrowLeft":delta.y>0?"ArrowDown":"ArrowUp";
-        await page.keyboard.down(key);await page.waitForTimeout(100);await page.keyboard.up(key);await page.waitForTimeout(160);
-      }
+        await page.keyboard.down(key);await page.waitForTimeout(100);await page.keyboard.up(key);
+        const released=await page.evaluate(()=>{const s=window.__FARM_DEBUG__.snapshot();return {connection:s.reconnectCount,input:s.sentInputs+1};});
+        // Measure the next correction only after the server consumes the stop
+        // input. Fixed sleeps can repeatedly steer from a stale position in CI.
+        await page.waitForFunction(r=>{
+          const s=window.__FARM_DEBUG__.snapshot(),p=s.players.find(p=>p.local);
+          return s.reconnectCount!==r.connection||(s.status==="connected"&&p&&!p.moving&&s.acknowledgedInputs>=r.input);
+        },released,{timeout:10000});
+        if(await page.evaluate(r=>window.__FARM_DEBUG__.snapshot().reconnectCount!==r.connection,released))await waitForFarmInput(page);
+        return distance;
+      },{timeout:25000,intervals:[50]}).toBeLessThan(10);
       await expect.poll(()=>page.evaluate(p=>{const me=window.__FARM_DEBUG__.snapshot().players.find(p=>p.local)!;return Math.hypot(me.authoritativeX-p[0]*32,me.authoritativeY-p[1]*32);},points[stage]!),{timeout:15000}).toBeLessThan(12);
       await page.screenshot({path:info.outputPath("cleared-stump-walkthrough.png")});
       await page.locator("#tool").selectOption("axe");
