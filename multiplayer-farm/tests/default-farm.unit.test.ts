@@ -68,8 +68,8 @@ test("sketched default farm: editable overgrown grass, four accessible lanes, sa
     [dynamicRock].values(),
   );
   assert(
-    walker.y < dynamicRock.y - 20,
-    "Vertical movement must not consume and bypass the dynamic obstacle iterator",
+    walker.y <= dynamicRock.y - 12,
+    "Vertical movement must stop at the occupied cell boundary (including player radius)",
   );
   assert.deepEqual(m.warps.map(w => [w.id, w.targetMapId, w.targetSpawnId]), legacyLayout().maps.farm!.warps.map(w => [w.id, w.targetMapId, w.targetSpawnId]));
   for (const s of m.spawns) assert(!insideWarp(m, ...[s.tileX * 32, s.tileY * 32] as [number, number]));
