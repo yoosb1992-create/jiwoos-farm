@@ -1,5 +1,5 @@
 import { DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, FARM_GRASS, GRASS_FIRST, GRASS_MAX, NATURAL_TREE_FIRST, TREE_SPECIES, treeHp } from "./nature.js";
-import { initializeTree, naturalPlacement, fencedInterior } from "./nature-world.js";
+import { initializeTree, naturalPlacement, fencedInterior, buildNaturePlacementIndex, recordNaturePlacement } from "./nature-world.js";
 import { cell, hasZone, tileHash } from "./world2.js";
 import { TILE, mapFor } from "./content.js";
 import { calendar, FORAGE } from "./expansion.js";
@@ -200,11 +200,13 @@ export function seedFarmTrees(world: World, rng: () => number): void {
     return;
   }
 
+  const spatial = buildNaturePlacementIndex(world);
+  const emptyFence = new Set<string>();
   let count = existing;
   for (let attempt = 0; count < target && attempt < 30000; attempt++) {
     const x = 2 + Math.floor(rng() * Math.max(1, map.width - 4));
     const y = 2 + Math.floor(rng() * Math.max(1, map.height - 4));
-    if (!naturalPlacement(world, "farm", x, y, "tree", new Set(), 2.15))
+    if (!naturalPlacement(world, "farm", x, y, "tree", emptyFence, 2.15, spatial))
       continue;
 
     const species = TREE_SPECIES[Math.floor(rng() * TREE_SPECIES.length)]!;
@@ -225,6 +227,7 @@ export function seedFarmTrees(world: World, rng: () => number): void {
     e.regrow = false;
     initializeTree(world, e, undefined, false);
     world.entities[e.id] = e;
+    recordNaturePlacement(spatial, e);
     count++;
   }
   world.naturalTreesSeeded = true;
@@ -241,11 +244,12 @@ export function seedFarmDebris(world: World, rng: () => number, bootstrap = fals
     ? openingTarget
     : Math.min(maxTarget, existing + 8 + Math.floor(rng() * 9));
   const enclosed = fencedInterior(world,"farm");
+  const spatial = buildNaturePlacementIndex(world);
   for(const [k,d] of Object.entries(world.natureCleared??{})) if(world.day-d>=7)delete world.natureCleared![k];
   let count=existing;
   for(let attempt=0;count<target && attempt<20000;attempt++) {
     const x=2+Math.floor(rng()*(map.width-4)), y=2+Math.floor(rng()*(map.height-4));
-    if(!naturalPlacement(world,"farm",x,y,"debris",enclosed))continue;
+    if(!naturalPlacement(world,"farm",x,y,"debris",enclosed,3,spatial))continue;
     // Branches and stones dominate the first-cleanup experience; weeds/flowers
     // remain visible accents rather than consuming most of the field.
     const roll = rng();
@@ -259,7 +263,7 @@ export function seedFarmDebris(world: World, rng: () => number, bootstrap = fals
     const d=pool[Math.floor(rng()*pool.length)]!;
     const id=`farmdebris-${world.day}-${++world.nextEntity}`;
     const e=entity(id,"farm",d.kind,(x+.5)*TILE,(y+.5)*TILE,d.id);
-    e.hp=1; e.item=d.item; world.entities[id]=e; count++;
+    e.hp=1; e.item=d.item; world.entities[id]=e; recordNaturePlacement(spatial,e); count++;
   }
 }
 export function seedFarmGrass(world: World, rng: () => number, bootstrap = false): void {
@@ -275,16 +279,18 @@ export function seedFarmGrass(world: World, rng: () => number, bootstrap = false
     ? openingTarget
     : Math.min(maxTarget, existing + 12 + Math.floor(rng() * 13));
   const enclosed = fencedInterior(world, "farm");
+  const spatial = buildNaturePlacementIndex(world);
   let count = existing;
   for (let attempt = 0; count < target && attempt < 30000; attempt++) {
     const x = 2 + Math.floor(rng() * Math.max(1, map.width - 4));
     const y = 2 + Math.floor(rng() * Math.max(1, map.height - 4));
-    if (!naturalPlacement(world, "farm", x, y, "debris", enclosed)) continue;
+    if (!naturalPlacement(world, "farm", x, y, "debris", enclosed,3,spatial)) continue;
     const g = FARM_GRASS[Math.floor(rng() * FARM_GRASS.length)]!;
     const id = `farmgrass-${world.day}-${++world.nextEntity}`;
     const e = entity(id, "farm", g.kind, (x + .5) * TILE, (y + .5) * TILE, g.id);
     e.item = g.item;
     world.entities[id] = e;
+    recordNaturePlacement(spatial, e);
     count++;
   }
 }

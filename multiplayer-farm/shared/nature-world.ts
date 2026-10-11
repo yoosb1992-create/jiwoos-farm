@@ -4,6 +4,28 @@ import { TILE, mapFor, tileIn } from "./content.js";
 import { terrainAt, hasZone } from "./world2.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 import { TREES, inferSpecies, natureRoll, treeHp } from "./nature.js";
+export interface NaturePlacementIndex { readonly cells: Map<string, Entity[]>; }
+const natureCellKey = (area: string, x: number, y: number) => `${area}:${x},${y}`;
+export function recordNaturePlacement(index: NaturePlacementIndex, e: Entity): void {
+  const key = natureCellKey(e.area, Math.floor(e.x / TILE), Math.floor(e.y / TILE));
+  const cell = index.cells.get(key);
+  if (cell) cell.push(e);
+  else index.cells.set(key, [e]);
+}
+/** Generation passes use their own index; actions always read current world entities. */
+export function buildNaturePlacementIndex(w: World): NaturePlacementIndex {
+  const index: NaturePlacementIndex = { cells: new Map() };
+  for (const e of Object.values(w.entities)) recordNaturePlacement(index, e);
+  return index;
+}
+function nearbyIndexedNature(index: NaturePlacementIndex, area: string, x: number, y: number, radius: number): Entity[] {
+  const found: Entity[] = [];
+  for (let yy = y - radius; yy <= y + radius; yy++)
+    for (let xx = x - radius; xx <= x + radius; xx++)
+      for (const e of index.cells.get(natureCellKey(area, xx, yy)) ?? []) found.push(e);
+  return found;
+}
+
 
 export function initializeTree(w: World, e: Entity, authored?: MapObject, planted = false): void {
   const p = authored?.tree;
@@ -68,7 +90,8 @@ export function fencedInterior(w: World, area: string): Set<string> {
 
 /** Authority checks natural ground, authored protection and current live entities. */
 export function naturalPlacement(w: World, area: string, x: number, y: number,
-  purpose: "tree"|"debris", enclosed = new Set<string>(), treeSpacing = 3): boolean {
+  purpose: "tree"|"debris", enclosed = new Set<string>(), treeSpacing = 3,
+  spatial?: NaturePlacementIndex): boolean {
   const map = mapFor(area,w.layout?.maps);
   if (area !== "farm" || x < 1 || y < 1 || x >= map.width-1 || y >= map.height-1) return false;
   if (!/^(grass|dark_grass|meadow)$/.test(terrainAt(map,x,y))) return false;
@@ -91,7 +114,10 @@ export function naturalPlacement(w: World, area: string, x: number, y: number,
       if(Math.abs(dx)<Math.max(1,(o.width??2)/2) && Math.abs(dy)<Math.max(1,(o.height??2)/2))return false;
     }
   }
-  for (const e of Object.values(w.entities)) {
+  const nearby = spatial
+    ? nearbyIndexedNature(spatial, area, x, y, Math.ceil(Math.max(3, treeSpacing)) + 1)
+    : Object.values(w.entities);
+  for (const e of nearby) {
     if(e.area!==area)continue;
     const dx=e.x/TILE-(x+.5),dy=e.y/TILE-(y+.5);
     if(Math.floor(e.x/TILE)===x && Math.floor(e.y/TILE)===y)return false;
