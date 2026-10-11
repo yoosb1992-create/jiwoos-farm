@@ -106,7 +106,7 @@ export function prepareDynamicObstacles(
 // may overlap players; only roots, trunks, stones and dense shrubs are solid.
 // Leave flowers, forage and soft grass walkable.
 const staticDebrisKinds = new Map<string, string>(DEBRIS.map(d => [d.id, d.kind] as const));
-const sceneryCollision = (
+export const sceneryCollision = (
   o: MapObject,
 ): { x: number; y: number; width: number; height: number } | undefined => {
   const asset = o.assetId;
