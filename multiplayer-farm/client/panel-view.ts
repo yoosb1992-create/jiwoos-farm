@@ -1,6 +1,11 @@
 /** Keep the actual body scroller, tab strip and visible inventory card in place
  * when an authoritative update replaces the DOM (including a removed stack). */
 export function updatePanelContent(panel: HTMLElement, body: HTMLElement, render: () => void): void {
+  const active = document.activeElement;
+  // Let Android/Korean IME finish its current syllable before replacing inputs.
+  if (active instanceof HTMLInputElement && body.contains(active) && active.dataset.composing === "true") return;
+  const selection = active instanceof HTMLInputElement && active.selectionStart !== null
+    ? [active.selectionStart, active.selectionEnd ?? active.selectionStart] as const : undefined;
   const panelTop = panel.scrollTop, bodyTop = body.scrollTop;
   const bounds = body.getBoundingClientRect();
   const anchors = [...body.querySelectorAll<HTMLElement>("[data-scroll-key]")]
@@ -11,8 +16,11 @@ export function updatePanelContent(panel: HTMLElement, body: HTMLElement, render
   const focus = body.contains(document.activeElement)
     ? (document.activeElement as HTMLElement)?.dataset.focus : undefined;
   render();
-  if (focus) [...body.querySelectorAll<HTMLElement>("[data-focus]")]
-    .find(node => node.dataset.focus === focus)?.focus({ preventScroll: true });
+  if (focus) {
+    const restored = [...body.querySelectorAll<HTMLElement>("[data-focus]")].find(node => node.dataset.focus === focus);
+    restored?.focus({ preventScroll: true });
+    if (selection && restored instanceof HTMLInputElement) restored.setSelectionRange(...selection);
+  }
   for (const node of body.querySelectorAll<HTMLElement>("[data-scroll]")) {
     const saved = scrolls.get(node.dataset.scroll);
     node.scrollTop = saved?.top ?? 0;

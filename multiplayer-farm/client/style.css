@@ -1288,6 +1288,21 @@ h1 {
 .storage-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
 .storage-side { min-width: 0; border: 1px solid #d7ddc4; border-radius: 16px; padding: 12px; background: #eef3e5; }
 .chest-side { background: #f7edda; border-color: #e1cba8; }
+#panel[data-panel="chest"] #panel-title { min-width: 0; overflow-wrap: anywhere; }
+.chest-settings { margin: 0 0 12px; padding: 8px 12px; background: #f3efdf; border: 1px solid #dcdcc7; border-radius: 12px; }
+.chest-settings summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; font-size: 13px; }
+.chest-settings summary::before { content: "▸"; margin-right: 6px; }
+.chest-settings[open] summary::before { content: "▾"; }
+.chest-settings label { display: grid; gap: 6px; font-size: 13px; }
+.chest-settings input { width: 100%; min-width: 0; min-height: 44px; font-size: 16px; }
+.chest-palette { display: flex; flex-wrap: wrap; gap: 6px; border: 0; padding: 8px 0; margin: 8px 0; min-width: 0; }
+.chest-palette legend { font-size: 13px; }
+.chest-palette button { display: flex; gap: 5px; align-items: center; min-height: 44px; padding: 6px 8px; font-size: 12px; }
+.chest-palette button[aria-pressed="true"] { outline: 2px solid #738753; background: #eef4dd; }
+.chest-swatch { width: 16px; height: 16px; border: 1px solid #685947; border-radius: 3px; }
+.chest-settings button { min-height: 44px; }
+.chest-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.chest-links button { flex: 1 1 120px; padding: 8px; font-size: 13px; }
 .storage-side h3 { margin: 0; font-size: 17px; }
 .storage-summary { font-size: 12px; }
 .storage-items { min-width: 0; }
@@ -1303,8 +1318,8 @@ h1 {
 .household-empty { padding: 20px 8px; color: #6b7563; line-height: 1.8; }
 .workshop-layout { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 16px; align-items: start; }
 .workshop-menu { min-width: 0; }
-.craft-categories { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding: 3px; margin-bottom: 10px; }
-.craft-categories button { min-width: 0; min-height: 44px; white-space: normal; overflow-wrap: anywhere; padding: 7px 4px; font-size: 12px; }
+.craft-categories { display: flex; gap: 6px; padding: 3px; margin-bottom: 12px; max-width: 100%; overflow-x: auto; touch-action: pan-x; scrollbar-width: thin; }
+.craft-categories button { flex: 0 0 auto; min-height: 44px; white-space: nowrap; padding: 8px 10px; font-size: 12px; }
 .category-count { margin-left: 5px; font-size: 11px; color: #65755f; }
 .recipe-list { display: grid; gap: 7px; max-height: min(390px, 40dvh); overflow-y: auto; padding: 3px; min-width: 0; touch-action: pan-y; scrollbar-width: thin; }
 .recipe-choice { display: grid; grid-template-columns: 38px 1fr; gap: 3px 9px; text-align: left; min-height: 64px; padding: 9px; border: 1px solid #dcdcc7; background: #fffdf5; }
@@ -1343,8 +1358,8 @@ h1 {
   .quantity-actions button:last-child { grid-column: auto; }
   .workshop-layout { gap: 8px; }
   .craft-categories { gap: 4px; margin-bottom: 6px; }
-  .craft-categories button { font-size: 11px; padding: 5px 2px; }
-  .category-count { display: block; margin-left: 0; font-size: 10px; }
+  .craft-categories button { font-size: 12px; padding: 7px 9px; }
+  .category-count { font-size: 10px; }
   .recipe-list { grid-template-columns: minmax(0, 1fr); max-height: min(390px, 46dvh); }
   .recipe-choice { grid-template-columns: 32px minmax(0, 1fr); gap: 3px 5px; padding: 6px; }
   .recipe-choice .household-icon { width: 32px; height: 32px; }

@@ -1,5 +1,5 @@
 import { inRect } from "../shared/world2.js";
-import { chestStorageKeys } from "../shared/chest-storage.js";
+import { chestInfo, chestInfos, chestStorageKeys } from "../shared/chest-storage.js";
 import { calendar } from "../shared/expansion.js";
 import { Encoder } from "@colyseus/schema";
 // Initial immutable layout is sent once. Subsequent 30 Hz patches remain deltas.
@@ -84,7 +84,14 @@ export class FarmRoom extends MovementRoom {
       void this.disconnect(4010);
     });
     this.world = await this.lease.load();
+    const migrateGroups = this.world.chestGroupsVersion !== 1;
     upgradeWorld(this.world);
+    if (migrateGroups) {
+      // Commit the one-time routing/ledger transition before any client can
+      // observe the group. The lease keeps the old snapshot intact on failure.
+      const revision = this.world.revision++;
+      await this.lease.save(this.world, revision);
+    }
     this.movementMaps = this.world.layout!.maps;
     this.state.layout = JSON.stringify(this.world.layout);
     this.clockMinute = this.world.minute;
@@ -401,9 +408,11 @@ export class FarmRoom extends MovementRoom {
     for (const id of this.state.entities.keys())
       if (!entities[id]) this.state.entities.delete(id);
     for (const [id, data] of Object.entries(entities)) {
+      const info = data.kind === "chest" ? chestInfo(this.world, id) : undefined;
+      const visible = info ? { ...data, chestName: info.name, chestColor: info.color, chestSize: info.size, chestIndex: info.index } : data;
       const current = this.state.entities.get(id);
-      if (current) Object.assign(current, data);
-      else this.state.entities.set(id, new WorldEntity(data));
+      if (current) Object.assign(current, visible);
+      else this.state.entities.set(id, new WorldEntity(visible));
     }
   }
   private privateState(client: Client): void {
@@ -413,6 +422,7 @@ export class FarmRoom extends MovementRoom {
         member: this.world.members[id],
         chestStores: this.world.chestStores ?? {},
         chestStorageKeys: chestStorageKeys(this.world),
+        chestInfos: chestInfos(this.world),
         legacyChestTarget: this.world.legacyChestTarget,
         sleepVoted: this.votes.has(id),
         farmId: this.farmId,

@@ -4,6 +4,7 @@ import { CROPS, ITEMS, type MapData, TILE } from "../shared/content.js";
 import { SEASON_INFO, FISH_CATALOG, type Season } from "../shared/expansion.js";
 import { paintMaterial } from "./world/painted-materials.js";
 import { createCropTextures } from "./crop-art.js";
+import { createChestTextures } from "./chest-art.js";
 
 // Original small painted details, generated once into textures. No per-frame canvas uploads.
 const hex = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
@@ -39,6 +40,7 @@ function texture(
 }
 export function createContentTextures(scene: Phaser.Scene): void {
   createCropTextures(scene);
+  createChestTextures(scene);
   // A 2x painted soil patch keeps furrows readable on phone zoom. Texture work
   // happens once at launch, never per plant or per animation frame.
   if (scene.textures.exists("terrain-art-soil"))

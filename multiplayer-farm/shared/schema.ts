@@ -54,6 +54,10 @@ export const WorldEntity = schema(
     regrow: t.boolean().default(false),
     treeDrop: t.string().default(""),
     treeStageDay: t.uint32().default(1),
+    chestName: t.string().default(""),
+    chestColor: t.string().default("wood"),
+    chestSize: t.uint8().default(1),
+    chestIndex: t.uint8().default(0),
   },
   "FarmEntity",
 );

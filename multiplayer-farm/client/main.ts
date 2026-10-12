@@ -1,4 +1,4 @@
-import { renderHouseholdPanel } from "./household-panels.js";
+import { renderHouseholdPanel, type ChestSettingsDraft } from "./household-panels.js";
 import { recipesInCategory, type CraftCategory } from "./craft-categories.js";
 import { itemIconSource, toolIconImage } from "./item-icons.js";
 import { updatePanelContent } from "./panel-view.js";
@@ -72,10 +72,11 @@ let fishingOffset = 0,
   dialoguePage = 0;
 let lastStep = 0;
 let selectedRecipe = "wood_plank", householdFeedback = "", householdPending: string | undefined;
+let chestDraft: ChestSettingsDraft | undefined;
 let selectedCraftCategory: CraftCategory = "all";
 const categorySelections: Partial<Record<CraftCategory, string>> = {};
 let householdReadyAt = 0, observedDay = 0, sleepPanelDay = 1;
-const householdActions = new Set(["depositChest", "withdrawChest", "craftItem", "upgradeTool", "sleepVote"]);
+const householdActions = new Set(["depositChest", "withdrawChest", "configureChest", "linkChest", "unlinkChest", "craftItem", "upgradeTool", "sleepVote"]);
 
 document.documentElement.style.setProperty(
   "--ui-scale",
@@ -145,6 +146,7 @@ panel.addEventListener(
 );
 function showPanel(type: string, title: string, targetId?: string): void {
   const samePanel = modal === type;
+  if (!samePanel || targetId !== panelTarget) chestDraft = undefined;
   panelTarget = targetId;
   householdFeedback = "";
   sleepPanelDay = network.state?.day ?? 1;
@@ -215,9 +217,18 @@ function renderPanelContent(): void {
   const local = latest.players.find((p) => p.local),
     state = network.state;
   const chestKey = panelTarget ? personal?.chestStorageKeys?.[panelTarget] : undefined;
+  const chestInfo = panelTarget ? personal?.chestInfos?.[panelTarget] : undefined;
+  if (modal === "chest" && chestInfo) {
+    el("panel-title").textContent = chestInfo.name;
+    if (chestDraft?.key !== chestInfo.storageKey) chestDraft = { key: chestInfo.storageKey, name: chestInfo.customName, color: chestInfo.color, open: false, dirty: false };
+    else if (!chestDraft.dirty || (chestDraft.name.trim().normalize("NFC") === chestInfo.customName && chestDraft.color === chestInfo.color)) {
+      chestDraft.name = chestInfo.customName; chestDraft.color = chestInfo.color; chestDraft.dirty = false;
+    }
+  }
   if (renderHouseholdPanel(modal, panelBody, {
     member: m, chest: (chestKey ? personal?.chestStores?.[chestKey] : undefined) ?? {},
-    storageReady: !!chestKey && !!personal?.chestStores, legacyChestTarget: personal?.legacyChestTarget,
+    storageReady: !!chestKey && !!personal?.chestStores && !!chestInfo, legacyChestTarget: personal?.legacyChestTarget,
+    chestInfo, chestDraft,
     day: sleepPanelDay, minute: state?.minute ?? 360,
     entities: [...(state?.entities.values() ?? [])], players: latest.players, targetId: panelTarget,
     recipe: selectedRecipe, category: selectedCraftCategory,
@@ -276,6 +287,7 @@ function renderPanelContent(): void {
       const actions: HTMLElement[] = [];
       if (id === "stamina_biscuit")
         actions.push(button("먹기", () => send("eat")));
+      if (id === "storage_chest") actions.push(button("앞칸에 놓기", () => { closePanel(); send("placeChest"); }));
       if (id === "wood_processor")
         actions.push(
           button("배치", () => {

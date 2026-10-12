@@ -137,6 +137,7 @@ export class ColyseusAdapter implements NetworkAdapter {
     member: Member;
     chestStores?: Record<string, Record<string, number>>;
     chestStorageKeys?: Record<string, string>;
+    chestInfos?: Record<string, import("../shared/chest-storage.js").ChestInfo>;
     legacyChestTarget?: string;
     sleepVoted?: boolean;
     farmId: string;

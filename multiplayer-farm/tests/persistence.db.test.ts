@@ -1,4 +1,5 @@
-import { chestInventory } from "../shared/chest-storage.js";
+import { chestInfo, chestInventory } from "../shared/chest-storage.js";
+import { mergeChestGroup } from "../shared/chest-groups.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -92,6 +93,10 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
       next.revision++;
       chestInventory(next, "family_chest").wood = 5;
       chestInventory(next, "family-chest").stone = 7;
+      const original = next.entities.family_chest!;
+      next.entities["snapshot-neighbor"] = { ...original, id: "snapshot-neighbor", x: original.x + 32 };
+      next.chestSettings = { "chest:family_chest": { name: "나무창고", color: "green" } };
+      assert.equal(mergeChestGroup(next, ["family_chest", "snapshot-neighbor"]), undefined);
       const receipt = {
         playerId: s.playerId,
         actionId: "db-receipt-001",
@@ -122,6 +127,10 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
       const saved = await restored.load();
       assert.equal(chestInventory(saved, "family_chest").wood, 5);
       assert.deepEqual(chestInventory(saved, "family-chest"), { stone: 7 });
+      assert.equal(chestInfo(saved, "snapshot-neighbor").name, "나무창고");
+      assert.equal(chestInfo(saved, "snapshot-neighbor").color, "green");
+      assert.equal(chestInfo(saved, "snapshot-neighbor").capacity, 32);
+      assert.equal(chestInventory(saved, "snapshot-neighbor"), chestInventory(saved, "family_chest"));
     } finally {
       await restored.close();
     }

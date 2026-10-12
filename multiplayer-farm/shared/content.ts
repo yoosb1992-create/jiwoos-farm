@@ -66,6 +66,8 @@ export interface Asset {
 }
 export const MAPS: Record<string, MapData> = snapshot.maps;
 export const ASSETS: Record<string, Asset> = withNatureArt(withPaintedArt(snapshot.assets, EXPANSION_CROPS));
+// The original front-facing runtime painting has a one-tile footprint.
+ASSETS.storage_chest = { ...ASSETS.storage_chest!, frameSize: { width: 32, height: 40 }, displayScale: { x: 1, y: 1 }, origin: { x: .5, y: .65 } };
 export const CROPS: Record<string, CropDef> = Object.fromEntries(
   EXPANSION_CROPS.map((c) => [c.id, c]),
 );
@@ -86,6 +88,7 @@ export interface ItemDefinition {
   description?: string;
 }
 export const ITEMS: Record<string, ItemDefinition> = { ...snapshot.items };
+ITEMS.storage_chest = { id: "storage_chest", name: "작은 보관함", kind: "placeable", assetId: "storage_chest", description: "앞칸에 놓는 16칸 보관함. 가로로 최대 3개까지 연결해요. 이름과 색상은 보관함 설정에서 바꿀 수 있어요." };
 ITEMS.water = { ...ITEMS.water!, description: "어디서든 앞칸에 물을 뿌려요. 사용할 때마다 기력 1이 들며, 물 보충은 손을 선택하고 우물에서 행동하세요." };
 ITEMS.scythe = { id: "scythe", name: "낫", kind: "tool", assetId: "item_scythe", description: "목초·잡초와 야생 꽃을 베어 채집해요. 재배 작물은 손으로 수확해요." };
 ASSETS.item_scythe = { assetId: "item_scythe", textureKey: "item_scythe", source: null, frameSize: { width: 32, height: 32 }, origin: { x: .5, y: .5 } };
@@ -195,6 +198,7 @@ export const RECIPES: Record<
     output: { itemId: string; quantity: number };
   }
 > = { ...snapshot.recipes };
+RECIPES.storage_chest = { id: "storage_chest", name: "작은 보관함", ingredients: [{ itemId: "wood", quantity: 20 }, { itemId: "stone", quantity: 5 }], output: { itemId: "storage_chest", quantity: 1 } };
 for (const [id, d] of Object.entries(DECORATIONS))
   RECIPES[id] = {
     id,

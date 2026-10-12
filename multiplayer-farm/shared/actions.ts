@@ -46,7 +46,8 @@ import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 import { isTool, cuttableGrass, pickupRadius, PICKUP_RANGE_EPSILON, type Tool, type ActionFx } from "./interaction.js";
 import { naturalFlower, normalizeRock, rockMaxHp } from "./resources.js";
-import { chestInventory } from "./chest-storage.js";
+import { chestInfo, chestInventory, validChestColor, validChestName } from "./chest-storage.js";
+import { adjacentChestIds, mergeChestGroup, splitChestGroup } from "./chest-groups.js";
 import { toolStaminaCost, HAND_STAMINA_COST, FISHING_CAST_STAMINA_COST } from "./tool-stamina.js";
 export class ActionError extends Error {}
 function requireThat(condition: unknown, message: string): asserts condition {
@@ -69,6 +70,10 @@ const TYPES = new Set([
   "gather",
   "depositChest",
   "withdrawChest",
+  "configureChest",
+  "linkChest",
+  "unlinkChest",
+  "placeChest",
   "craftItem",
   "placeMachine",
   "startMachine",
@@ -113,6 +118,14 @@ export function parseCommand(value: unknown): Command {
     "지원하지 않는 행동",
   );
   const out: Command = { actionId: c.actionId, type: c.type };
+  if (c.chestName !== undefined) {
+    requireThat(out.type === "configureChest" && validChestName(c.chestName), "보관함 이름은 특수 제어문자 없이 20자 이내로 입력해 주세요");
+    out.chestName = c.chestName.normalize("NFC").trim();
+  }
+  if (c.chestColor !== undefined) {
+    requireThat(out.type === "configureChest" && validChestColor(c.chestColor), "팔레트에서 보관함 색상을 선택해 주세요");
+    out.chestColor = c.chestColor;
+  }
   if (c.toolId !== undefined) {
     requireThat(typeof c.toolId === "string" && isTool(c.toolId), "도구 오류");
     out.toolId = c.toolId;
@@ -621,6 +634,43 @@ function applyActionCore(
       delete w.entities[e.id];
       break;
     }
+    case "configureChest": {
+      const e = target("chest");
+      requireThat(validChestName(c.chestName) && validChestColor(c.chestColor), "이름과 색상을 확인해 주세요");
+      const info = chestInfo(w, e.id);
+      (w.chestSettings ??= {})[info.storageKey] = { name: c.chestName.normalize("NFC").trim(), color: c.chestColor };
+      result.message = "보관함 이름과 색상을 저장했어요";
+      break;
+    }
+    case "linkChest":
+    case "unlinkChest": {
+      const e = target("chest");
+      const error = c.type === "linkChest" ? mergeChestGroup(w, adjacentChestIds(w, e.id), e.id) : splitChestGroup(w, e.id);
+      requireThat(!error, error ?? "연결을 확인해 주세요");
+      result.message = c.type === "linkChest" ? "보관함을 연결했어요" : "빈 보관함의 연결을 해제했어요";
+      break;
+    }
+    case "placeChest": {
+      own("storage_chest");
+      const t = frontTile(a), desired = { x: (t.tileX + .5) * TILE, y: (t.tileY + .5) * TILE };
+      // Editor furniture can be anchored on tile edges rather than centers.
+      // Snap a nearby front cell to its neighbor's actual horizontal anchor.
+      const snaps = Object.values(w.entities).filter(e => e.kind === "chest" && e.area === a.area)
+        .flatMap(e => [-TILE, TILE].map(dx => ({ x: e.x + dx, y: e.y })))
+        .filter(p => Math.hypot(p.x - desired.x, p.y - desired.y) <= TILE * .72)
+        .sort((p, q) => Math.hypot(p.x - desired.x, p.y - desired.y) - Math.hypot(q.x - desired.x, q.y - desired.y));
+      const p = snaps[0] ?? desired;
+      requireThat(placementAllowed(mapFor(a.area, w.layout?.maps), "building", Math.floor(p.x / TILE), Math.floor(p.y / TILE)), "건물 배치 가능 영역에 놓으세요");
+      requireThat(!collidesWithObstacle(p.x, p.y, a.area, w.layout?.maps, Object.values(w.entities)) &&
+        !Object.values(w.entities).some(e => e.area === a.area && Math.hypot(e.x - p.x, e.y - p.y) < 24), "빈 자리에 배치하세요");
+      change(m.inventory, "storage_chest", -1);
+      const id = `chest-${++w.nextEntity}`;
+      w.entities[id] = entity(id, a.area, "chest", p.x, p.y, "storage_chest");
+      const neighbors = adjacentChestIds(w, id);
+      const error = neighbors.length > 1 ? mergeChestGroup(w, neighbors, neighbors.find(other => other !== id)) : undefined;
+      result.message = error ? `작은 보관함을 놓았어요. ${error}` : neighbors.length > 1 ? "보관함을 놓고 옆 보관함과 연결했어요" : "작은 보관함을 놓았어요";
+      break;
+    }
     case "depositChest":
     case "withdrawChest": {
       const chest = target("chest");
@@ -634,6 +684,9 @@ function applyActionCore(
       const amount = c.quantityMode ? transferQuantity(source[c.itemId] ?? 0, c.quantityMode) : q;
       requireThat(amount > 0 && (source[c.itemId] ?? 0) >= amount, "수량이 바뀌었어요. 다시 확인해 주세요");
       requireThat((destination[c.itemId] ?? 0) + amount <= STACK_LIMIT, "보관 한도를 확인하세요");
+      const storage = chestInfo(w, chest.id);
+      requireThat(!into || (inventory[c.itemId] ?? 0) > 0 || storage.used < storage.capacity,
+        `보관함이 가득 찼어요 (${storage.used}/${storage.capacity}칸). 새 종류의 물품은 넣을 수 없어요`);
       requireThat(into || destination[c.itemId] || Object.keys(destination).length < 48, "가방이 가득 찼어요");
       change(source, c.itemId, -amount);
       change(destination, c.itemId, amount);

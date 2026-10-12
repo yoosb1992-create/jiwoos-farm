@@ -157,6 +157,8 @@ export function renderLifePanel(
             c.send("placeMachine");
           }),
         );
+      if (id === "storage_chest")
+        buttons.push(action("앞칸에 놓기", () => { c.close(); c.send("placeChest"); }));
       if (id in DECORATIONS)
         buttons.push(
           action("앞칸에 놓기", () => {

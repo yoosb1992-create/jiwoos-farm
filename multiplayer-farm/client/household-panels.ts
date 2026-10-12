@@ -1,14 +1,19 @@
 import { ITEMS, itemName } from "../shared/content.js";
 import { recipesInCategory, visibleCraftCategories, type CraftCategory } from "./craft-categories.js";
 import { itemIconSource, toolIconImage } from "./item-icons.js";
-import { canCraft, maxCrafts, transferQuantity } from "../shared/household.js";
+import { canCraft, maxCrafts, transferQuantity, STACK_LIMIT } from "../shared/household.js";
 import type { Command, Entity, Member } from "../shared/world.js";
 import type { RenderPlayer } from "./network.js";
+import { CHEST_COLORS, CHEST_NAME_LIMIT, validChestName, type ChestColor, type ChestInfo } from "../shared/chest-storage.js";
+
+export interface ChestSettingsDraft { key: string; name: string; color: ChestColor; open: boolean; dirty: boolean }
 
 export interface HouseholdContext {
   member?: Member;
   chest: Record<string, number>;
   storageReady?: boolean;
+  chestInfo?: ChestInfo;
+  chestDraft?: ChestSettingsDraft;
   legacyChestTarget?: string;
   day: number;
   minute: number;
@@ -69,18 +74,56 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
   status.setAttribute("aria-live", "polite");
   body.append(status);
   if (type === "chest" && m) {
-    const chests = c.entities.filter(e => e.kind === "chest").sort((a, b) => a.id.localeCompare(b.id, "en"));
-    const number = chests.findIndex(e => e.id === c.targetId) + 1;
-    body.append(el("p", `보관함 ${number || ""} · 이 보관함의 물품을 가족과 함께 사용해요. 다른 보관함과는 따로 보관해요.`, "household-note"));
-    if (c.targetId === c.legacyChestTarget) body.append(el("p", "기존 공동 보관함의 물품이 이곳으로 옮겨졌어요.", "household-note"));
+    const info = c.chestInfo, draft = c.chestDraft;
+    body.append(el("p", `${info?.size ?? 1}칸 보관함 · 이 보관함의 물품을 가족과 함께 사용해요.`, "household-note"));
+    if (info?.members.includes(c.legacyChestTarget ?? "") || c.targetId === c.legacyChestTarget) body.append(el("p", "기존 공동 보관함의 물품이 이곳으로 옮겨졌어요.", "household-note"));
     if (c.storageReady === false) body.append(el("p", "보관함 정보를 준비 중이에요. 잠시 후에도 같으면 새로고침해 주세요.", "unavailable"));
+    if (info && info.used > info.capacity) body.append(el("p", "기존 물품은 모두 보존되어 있어요. 용량 안으로 정리할 때까지 새 종류의 물품만 넣을 수 없어요.", "unavailable"));
+    if (info && draft) {
+      const settings = el("details", "", "chest-settings");
+      settings.open = draft.open;
+      settings.ontoggle = () => { draft.open = settings.open; };
+      settings.append(el("summary", "보관함 설정 · 이름 / 색상 / 연결"));
+      const form = el("form"), label = el("label", `이름 · 최대 ${CHEST_NAME_LIMIT}자`), input = el("input");
+      input.type = "text"; input.maxLength = CHEST_NAME_LIMIT; input.value = draft.name;
+      input.placeholder = "비워 두면 기본 이름을 사용해요";
+      input.dataset.focus = "chest-name"; input.disabled = blocked;
+      input.oninput = () => { draft.name = input.value; draft.dirty = true; };
+      input.addEventListener("compositionstart", () => { input.dataset.composing = "true"; });
+      input.addEventListener("compositionend", () => { input.dataset.composing = "false"; draft.name = input.value; draft.dirty = true; });
+      label.append(input); form.append(label);
+      const palette = el("fieldset", "", "chest-palette");
+      palette.append(el("legend", "목재 색상"));
+      for (const [color, colors] of Object.entries(CHEST_COLORS)) {
+        const choice = button(colors.name, `chest-color-${color}`, () => {
+          draft.color = color as ChestColor; draft.dirty = true;
+          for (const b of palette.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b === choice));
+        }, blocked);
+        choice.setAttribute("aria-pressed", String(draft.color === color));
+        const swatch = el("span", "", "chest-swatch"); swatch.style.backgroundColor = colors.main;
+        choice.prepend(swatch); palette.append(choice);
+      }
+      const error = el("p", "", "unavailable"); error.setAttribute("role", "status");
+      const save = button("이름·색상 저장", "save-chest", () => {}, blocked); save.type = "submit";
+      form.onsubmit = event => {
+        event.preventDefault();
+        if (!validChestName(draft.name)) { error.textContent = "이름은 제어문자 없이 20자 이내로 입력해 주세요."; return; }
+        c.send("configureChest", { targetId: target?.id, chestName: draft.name, chestColor: draft.color });
+      };
+      form.append(palette, error, save);
+      const links = el("div", "", "chest-links");
+      links.append(button("옆 보관함과 연결", "link-chest", () => c.send("linkChest", { targetId: target?.id }), blocked || info.size >= 3));
+      if (info.size > 1) links.append(button("연결 해제", "unlink-chest", () => c.send("unlinkChest", { targetId: target?.id }), blocked || info.used > 0));
+      settings.append(form, links, el("p", "가로로 최대 3칸까지 연결해요. 연결하면 물품이 합쳐지고 이 보관함의 이름·색상을 사용해요. 연결 해제는 물품을 모두 꺼낸 뒤 가능해요.", "household-note"));
+      body.append(settings);
+    }
     const columns = el("div", "", "storage-columns");
     for (const [into, title, inventory] of [[true, "내 가방", m.inventory], [false, "가족 보관함", c.chest]] as const) {
       const section = el("section", "", into ? "storage-side bag-side" : "storage-side chest-side");
       section.setAttribute("aria-label", title);
       const entries = Object.entries(inventory).filter(([id, n]) => n > 0 && ITEMS[id]?.kind !== "tool")
         .sort(([a], [b]) => itemName(a).localeCompare(itemName(b), "ko"));
-      section.append(el("h3", title), el("p", into ? `사용 중 ${Object.keys(m.inventory).length}/48칸` : `${entries.length}종 보관 중`, "storage-summary"));
+      section.append(el("h3", into ? title : info?.name ?? title), el("p", into ? `사용 중 ${Object.keys(m.inventory).length}/48칸` : `${info?.used ?? entries.length} / ${info?.capacity ?? 16}칸`, "storage-summary"));
       const stack = el("div", "", "storage-items");
       stack.dataset.scroll = into ? "bag" : "chest";
       section.append(stack);
@@ -96,9 +139,13 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
           const amount = mode === "one" ? 1 : transferQuantity(count, mode);
           const verb = into ? "넣기" : "꺼내기";
           const name = mode === "one" ? "1개" : mode === "half" ? `절반 (${amount.toLocaleString()})` : `전체 (${amount.toLocaleString()})`;
+          const destination = into ? c.chest : m.inventory;
+          const full = into ? !!info && info.used >= info.capacity : Object.keys(m.inventory).length >= 48;
+          const noSlot = full && !((destination[id] ?? 0) > 0);
           const b = button(`${name} ${verb}`, `${into}-${id}-${mode}`, () => c.send(into ? "depositChest" : "withdrawChest", {
             targetId: target?.id, itemId: id, ...(mode === "one" ? { quantity: 1 } : { quantityMode: mode }),
-          }), blocked);
+          }), blocked || noSlot || (destination[id] ?? 0) + amount > STACK_LIMIT);
+          if (noSlot) b.title = into ? "보관함의 빈 칸이 필요해요" : "가방의 빈 칸이 필요해요";
           actions.append(b);
         }
         card.append(heading, actions);
@@ -122,10 +169,12 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
       if (category.id !== "upgrade") tab.append(el("span", String(recipesInCategory(category.id).length), "category-count"));
       categories.append(tab);
     }
-    menu.append(categories);
     workshop.append(menu);
-    body.append(workshop);
+    body.append(categories, workshop);
     if (c.category === "upgrade") {
+      const choice = el("div", "도구 강화", "recipe-choice selected");
+      choice.append(el("span", `현재 Lv${m.toolLevel}`, "available"));
+      menu.append(choice);
       const upgrade = el("section", "", "upgrade-tools");
       upgrade.setAttribute("aria-label", "도구 강화");
       upgrade.append(el("h3", `도구 강화 · 현재 Lv${m.toolLevel}`));

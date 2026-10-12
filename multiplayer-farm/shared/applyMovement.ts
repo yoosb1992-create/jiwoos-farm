@@ -74,7 +74,7 @@ const solidNatureEntity = (e: DynamicObstacle): boolean =>
   SOLID_NATURE_KINDS.has(e.kind) || e.kind === "gather";
 const dynamicObstacleBox = (e: DynamicObstacle): DynamicObstacleBox | undefined => {
   // Machines/decorations retain their authored footprint collision.
-  if (["machine", "decoration", "barn", "trough"].includes(e.kind))
+  if (["machine", "decoration", "barn", "trough", "chest"].includes(e.kind))
     return { halfW: 14, halfH: 14, offsetY: 0 };
   return undefined;
 };
@@ -247,6 +247,8 @@ export function collidesWithObstacle(
     map.world2 ? nearbyObjects(map, x / TILE, y / TILE) : map.objects
   ).some((o) => {
     if (o.visible === false || o.bridge) return false;
+    // A chest occupies one tile, including each part of a connected chest.
+    if (o.kind === "chest") return hit(o.position.tileX * TILE - 14, o.position.tileY * TILE - 14, 28, 28);
     // Interactable nature leaves no static ghost when harvested or destroyed.
     // Its collision belongs to current server-authoritative live entities.
     if (["tree", "stump", "rock", "twig", "gather"].includes(o.kind ?? ""))

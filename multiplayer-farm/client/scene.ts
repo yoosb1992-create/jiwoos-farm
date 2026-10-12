@@ -35,6 +35,7 @@ import type { Sound } from "./audio.js";
 import { createFarmerFrames } from "./tool-animation-art.js";
 import { rockMaxHp } from "../shared/resources.js";
 import { currentLightLevel, seedGlowVisibility } from "../shared/sunlight.js";
+import { chestTextureKey } from "./chest-art.js";
 interface View {
   kind?: string;
   body: Phaser.GameObjects.Sprite;
@@ -436,7 +437,10 @@ export class FarmScene extends Phaser.Scene {
       } else if (e.kind === "soil") asset = "tile_farm_empty";
       else if (e.kind === "tree" || e.kind === "rock" || e.kind === "stump")
         label = Math.hypot(e.x - me.x, e.y - me.y) < 80 ? `${e.hp}타` : "";
-      else if (e.kind === "chest") label = "공유 보관함";
+      else if (e.kind === "chest") {
+        asset = chestTextureKey(e.chestColor, e.chestSize, e.chestIndex);
+        if (e.chestIndex === Math.floor((e.chestSize - 1) / 2)) label = e.chestName || "작은 보관함";
+      }
       else if (e.kind === "craft") label = "제작대";
       else if (e.kind === "bed") label = Math.hypot(e.x - me.x, e.y - me.y) <= 80 ? "침대 · 행동으로 잠자기" : "침대";
       else if (e.kind === "machine") label = e.readyAt ? "가공 중" : "가공기";
@@ -508,6 +512,7 @@ export class FarmScene extends Phaser.Scene {
       }
       v.body.clearTint();
       v.body.setTint(foliageColor(asset, this.season));
+      if (e.kind === "chest") v.body.setDisplaySize(TILE, 40).setOrigin(.5, .65).setAngle(0).clearTint();
       if (e.kind === "withered") v.body.setTint(0x8d765d);
       const forage = FORAGE.find((f) => f.id === e.item);
       if (forage && (e.kind === "gather" || e.kind === "drop"))
@@ -533,6 +538,7 @@ export class FarmScene extends Phaser.Scene {
         v.body.setFlipX(Math.cos(now / 3000 + e.x) < 0);
       }
       v.label.setPosition(e.x, e.y + 12).setDepth(e.y + 2);
+      if (e.kind === "chest") v.label.setX(e.x + (e.chestSize === 2 ? TILE / 2 : 0));
       if (e.kind === "drop") {
         v.body.setDisplaySize(28, 28).setOrigin(0.5).setBlendMode(Phaser.BlendModes.NORMAL);
         // Quantity text is separate from the alpha icon; no opaque label panel.

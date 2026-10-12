@@ -10,8 +10,9 @@ import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 import type { ActionFx, Tool } from "./interaction.js";
 import { normalizeRock } from "./resources.js";
-import { migrateChestStorage, type ChestBinding, type ChestStores } from "./chest-storage.js";
-export const WORLD_VERSION = 9;
+import { migrateChestStorage, type ChestBinding, type ChestStores, type ChestSettings } from "./chest-storage.js";
+import { initializeChestGroups } from "./chest-groups.js";
+export const WORLD_VERSION = 10;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
 export const ACTION_RANGE = 64;
@@ -35,6 +36,11 @@ export interface Member {
   collections?: Record<string, number>;
 }
 export interface Entity {
+  /** Derived network appearance; authoritative settings live on the storage key. */
+  chestName?: string;
+  chestColor?: string;
+  chestSize?: number;
+  chestIndex?: number;
   /** JSON-only compatibility marker; no database/schema migration. */
   rockRule?: number;
   species?: string;
@@ -84,6 +90,9 @@ export interface World {
   chest: Record<string, number>;
   chestStores?: ChestStores;
   chestBindings?: Record<string, ChestBinding>;
+  chestSettings?: Record<string, ChestSettings>;
+  chestGroups?: Record<string, string[]>;
+  chestGroupsVersion?: number;
   legacyChestTarget?: string;
   nextEntity: number;
   events: string[];
@@ -111,6 +120,8 @@ export interface Command {
   area?: string;
   inputs?: number[];
   value?: boolean;
+  chestName?: string;
+  chestColor?: string;
 }
 export interface ActionResult {
   actionId: string;
@@ -462,6 +473,7 @@ export function newWorld(
   activateHomeFurniture(w.layout!.maps);
   seedFixtures(w, false);
   generateDaily(w);
+  initializeChestGroups(w);
   return w;
 }
 function seedFixtures(w: World, daily: boolean): void {
@@ -582,5 +594,6 @@ export function upgradeWorld(w: World): void {
   w.grassDay ??= w.day;
   w.naturalTreesSeeded ??= true;
   migrateChestStorage(w);
+  initializeChestGroups(w);
   w.version = WORLD_VERSION;
 }

@@ -1,5 +1,6 @@
 import { ASSETS, ITEMS } from "../shared/content.js";
 import { HELD_TOOLS, paintHeldTool, type HeldTool } from "./tool-art.js";
+import { chestIconSource } from "./chest-art.js";
 
 const toolIcons = new Map<string, string>();
 
@@ -45,6 +46,7 @@ export function toolIconSource(id: string): string | undefined {
 }
 
 export function itemIconSource(id: string): string | undefined {
+  if (id === "storage_chest") return chestIconSource();
   const tool = toolIconSource(id);
   if (tool) return tool;
   const source = ASSETS[ITEMS[id]?.assetId ?? id]?.source;

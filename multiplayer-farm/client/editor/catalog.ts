@@ -4,6 +4,7 @@ import { PAINTED_SPRITES, visualSize, foliageColor } from "../../shared/art-asse
 import type { SeasonKey } from "../../shared/world2.js";
 import type { Stamp } from "./model.js";
 import { terrainCode, ZONES, tileHash } from "../../shared/world2.js";
+import { chestIconSource } from "../chest-art.js";
 export const uid = () => crypto.randomUUID().replaceAll("-", "").slice(0, 16);
 export const category = (id: string) =>
   id.startsWith("tree") ? "Trees" : /flower|crop_.*_mature/.test(id) ? "Flowers" : id.startsWith("farm_") ? "Nature" :
@@ -163,7 +164,7 @@ export function spriteImage(id: string, ready: () => void) {
       if (src.fallbackPath && img!.src !== new URL(src.fallbackPath, location.href).href)
         img!.src = src.fallbackPath;
     };
-    img.src = src.path;
+    img.src = id === "storage_chest" ? chestIconSource() : src.path;
     images.set(id, img);
   }
   return img;
