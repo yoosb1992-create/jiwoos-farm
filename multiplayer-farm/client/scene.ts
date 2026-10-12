@@ -37,7 +37,8 @@ import type { ActionFx } from "../shared/interaction.js";
 import type { Sound } from "./audio.js";
 import { createFarmerFrames, createCarryFrames } from "./tool-animation-art.js";
 import { rockMaxHp } from "../shared/resources.js";
-import { currentLightLevel, seedGlowVisibility } from "../shared/sunlight.js";
+import { getSunState, seedGlowVisibility, type SunState } from "../shared/sunlight.js";
+import { atmosphereLight, groundShadow, lightEnvironment, objectSunTint, receivesSunlight } from "./solar-lighting.js";
 import { chestTextureKey } from "./chest-art.js";
 interface View {
   kind?: string;
@@ -47,6 +48,7 @@ interface View {
   ground?: Phaser.GameObjects.Sprite;
   seedGlow?: Phaser.GameObjects.Sprite;
   roots?: Phaser.GameObjects.Sprite;
+  baseTint?: number;
   x: number;
   y: number;
 }
@@ -81,6 +83,12 @@ export class FarmScene extends Phaser.Scene {
   private atmosphere?: Phaser.GameObjects.Graphics;
   private highlight?: Phaser.GameObjects.Ellipse;
   private lastAtmosphere = 0;
+  private sunlight: SunState = getSunState({ day: 1, minute: 360 });
+  private sunlightKey = "";
+  private sunTints = new Map<string, [number, number, number, number]>();
+  private sunShadows?: Phaser.GameObjects.Graphics;
+  private lastSunShadows = -Infinity;
+  private shadowSignature = "";
   private terrain?: Phaser.GameObjects.Container;
   private players = new Map<string, View>();
   private objects = new Map<string, View>();
@@ -168,6 +176,8 @@ export class FarmScene extends Phaser.Scene {
     );
     this.setZoom(Number.isFinite(savedZoom) ? savedZoom : 1);
     this.atmosphere = this.add.graphics().setScrollFactor(0).setDepth(20000);
+    // World-space ground layer: pinch/pan cannot reverse the east/west light.
+    this.sunShadows = this.add.graphics().setDepth(-4);
     this.highlight = this.add
       .ellipse(0, 0, 45, 20, 0xffedbb, 0.2)
       .setStrokeStyle(2, 0xfff2b8)
@@ -188,6 +198,9 @@ export class FarmScene extends Phaser.Scene {
   private changeArea(id: string): void {
     this.feedback?.clear();
     this.area = id;
+    this.sunShadows?.clear();
+    this.lastSunShadows = -Infinity;
+    this.shadowSignature = "";
     this.terrain?.destroy(true);
     this.chunkTerrain?.destroy();
     this.chunkTerrain = undefined;
@@ -354,7 +367,13 @@ export class FarmScene extends Phaser.Scene {
     this.me = me;
     if (!me || !state) return;
     const season = calendar(state.day).season;
-    const seedLight = seedGlowVisibility(currentLightLevel({ minute: state.minute, season }));
+    const sunKey = `${state.day}:${state.minute}`;
+    if (sunKey !== this.sunlightKey) {
+      this.sunlightKey = sunKey;
+      this.sunlight = getSunState({ day: state.day, minute: state.minute });
+      this.sunTints.clear();
+    }
+    const seedLight = seedGlowVisibility(this.sunlight.sunlightIntensity);
     if (
       this.area !== me.area ||
       this.season !== season ||
@@ -554,6 +573,8 @@ export class FarmScene extends Phaser.Scene {
       if (e.kind === "crop")
         // Water is shown on the tilled soil beneath the plant, not by tinting the crop.
         v.body.setOrigin(0.5, 0.8).setTint(0xffffff);
+      v.baseTint = v.body.tintTopLeft;
+      this.lightObject(v);
       if (e.kind === "crop" && e.stage === 0) {
         v.seedGlow ??= this.add.sprite(e.x, e.y, `crop_${e.crop}_glow`);
         v.seedGlow.setTexture(`crop_${e.crop}_glow`).setPosition(e.x, e.y)
@@ -599,6 +620,10 @@ export class FarmScene extends Phaser.Scene {
         this.objects.delete(id);
       }
     this.feedback?.update(now,snapshot.players,me.area);
+    if (now - this.lastSunShadows >= 100) {
+      this.lastSunShadows = now;
+      this.drawSunShadows(state.revision);
+    }
     for (const npc of NPCS) {
       const s = worldNpcSchedule(npc, state.day, state.minute, CLIENT_MAPS);
       let v = this.npcs.get(npc.id);
@@ -632,6 +657,45 @@ export class FarmScene extends Phaser.Scene {
         .setDepth(s.from.y * TILE + 1);
     }
   }
+  private lightObject(v: View): void {
+    if (lightEnvironment(this.area) !== "outdoor" || !receivesSunlight(v.body.texture.key, v.kind)) return;
+    const b = v.body, r = this.cameras.main.worldView;
+    if (!b.visible || b.x < r.left - b.displayWidth || b.x > r.right + b.displayWidth ||
+      b.y < r.top - 180 || b.y > r.bottom + b.displayHeight) return;
+    const base = v.baseTint ?? foliageColor(v.body.texture.key, this.season);
+    const key = `${base}:${v.body.rotation}`;
+    let tint = this.sunTints.get(key);
+    if (!tint) { tint = objectSunTint(base, this.sunlight, v.body.rotation); this.sunTints.set(key, tint); }
+    v.body.setTint(...tint);
+  }
+  private drawSunShadows(revision: number): void {
+    const g = this.sunShadows;
+    if (!g) return;
+    const r = this.cameras.main.worldView;
+    const signature = `${this.sunlightKey}:${revision}:${this.objects.size}:${Math.round(r.x / 8)}:${Math.round(r.y / 8)}:${r.width}:${r.height}`;
+    if (signature === this.shadowSignature) return;
+    this.shadowSignature = signature;
+    g.clear();
+    if (lightEnvironment(this.area) !== "outdoor") return;
+    let count = 0;
+    for (const v of this.objects.values()) {
+      const b = v.body;
+      if (!b.visible || !receivesSunlight(b.texture.key, v.kind) ||
+        b.x < r.left - 180 || b.x > r.right + 180 ||
+        b.y < r.top - 180 || b.y > r.bottom + b.displayHeight) continue;
+      // Authored/static scenery has no per-frame entity tint update.
+      if (!v.kind) this.lightObject(v);
+      if (this.sunlight.sunlightIntensity <= 0 || count++ >= 160) continue;
+      const shadow = groundShadow(this.sunlight, b.displayWidth, b.displayHeight);
+      // Original tree anchors are at their feet; painted buildings use a center
+      // origin. Keep the projected shadow attached to the original art footprint.
+      const footY = b.y + Math.max(0, .9 - b.originY) * b.displayHeight;
+      g.fillStyle(0x24362f, shadow.alpha * .65);
+      g.fillEllipse(b.x + shadow.x, footY + shadow.y, shadow.width, shadow.height, 16);
+      g.fillStyle(0x24362f, shadow.alpha * .35);
+      g.fillEllipse(b.x + shadow.x, footY + shadow.y, shadow.width * .82, shadow.height * .76, 16);
+    }
+  }
   private drawAtmosphere(now: number, state: FarmState): void {
     const g = this.atmosphere;
     if (!g) return;
@@ -640,19 +704,15 @@ export class FarmScene extends Phaser.Scene {
     const zoom = this.cameras.main.zoom;
     g.setPosition((w - w / zoom) / 2, (h - h / zoom) / 2).setScale(1 / zoom);
     g.clear();
-    const indoors = ["farmhouse", "general_store", "cafe", "workshop"].includes(
-        this.area,
-      ),
-      mine = this.area.startsWith("mine");
-    const night =
-      state.minute >= 1140
-        ? Math.min(0.32, (state.minute - 1140) / 800)
-        : state.minute < 420
-          ? 0.08
-          : 0;
-    g.fillStyle(mine ? 0x283043 : 0x263653, mine ? 0.18 : night);
+    const environment = lightEnvironment(this.area);
+    const light = atmosphereLight(this.area, state.minute, this.sunlight);
+    g.fillStyle(light.darkColor, light.darkness);
     g.fillRect(0, 0, w, h);
-    if (!indoors && !mine)
+    if (light.warmth > 0) {
+      g.fillStyle(light.warmColor, light.warmth);
+      g.fillRect(0, 0, w, h);
+    }
+    if (environment === "outdoor")
       for (let i = 0; i < 32; i++) {
         const x = (i * 137 + Math.sin(now / 2200 + i) * 24 + w) % w;
         const y =
@@ -676,19 +736,14 @@ export class FarmScene extends Phaser.Scene {
         g.fillStyle(0xffdb8f, 0.18 + Math.sin(now / 900 + i) * 0.08);
         g.fillCircle((i * 79) % w, 70 + Math.sin(i) * 24, 8);
       }
-    const near =
-      this.me &&
-      [...state.entities.values()]
-        .filter(
-          (e) =>
-            e.area === this.area &&
-            Math.hypot(e.x - this.me!.x, e.y - this.me!.y) < 66,
-        )
-        .sort(
-          (a, b) =>
-            Math.hypot(a.x - this.me!.x, a.y - this.me!.y) -
-            Math.hypot(b.x - this.me!.x, b.y - this.me!.y),
-        )[0];
+    // Reuse the rendered view set instead of allocating/sorting the full world
+    // twenty times per second just for a proximity highlight.
+    let near: { x: number; y: number } | undefined, nearest = 66 * 66;
+    if (this.me) for (const v of this.objects.values()) {
+      if (!v.kind || !v.body.visible) continue;
+      const distance = (v.body.x - this.me.x) ** 2 + (v.body.y - this.me.y) ** 2;
+      if (distance < nearest) { nearest = distance; near = v.body; }
+    }
     this.highlight?.setVisible(Boolean(near));
     if (near) this.highlight?.setPosition(near.x, near.y);
   }

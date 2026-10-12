@@ -106,14 +106,14 @@ for (const mobile of [false, true]) test(`${mobile ? "phone touch" : "PC mouse/k
 });
 
 test("seed light in the live scene and botanical growth contact sheet", async ({ page }, info) => {
-  test.setTimeout(90000); await page.setViewportSize({ width: 1280, height: 1000 }); await openClearFarm(page);
+  test.setTimeout(90000); await page.setViewportSize({ width: 390, height: 844 }); await openClearFarm(page);
   const measured = await page.evaluate(async () => {
     const d = window.__FARM_DEBUG__ as any, s = d.scene(), original = s.onFrame;
     const frame = original(performance.now(), 16), me = frame.snapshot.players.find((p: any) => p.local);
     const e = { id: "qa-seed", area: me.area, kind: "crop", asset: "tile_farm_empty", crop: "goldcorn", stage: 0, watered: false, x: me.x + 32, y: me.y + 32, hp: 0, item: "", quantity: 0 };
     s.scene.pause(); const values: any[] = [];
-    for (const minute of [720, 1080, 1380]) {
-      s.onFrame = () => ({ snapshot: frame.snapshot, state: { ...frame.state.toJSON(), minute, entities: new Map([[e.id, e]]) } });
+    for (const minute of [765, 1080, 1380]) {
+      s.onFrame = () => ({ snapshot: frame.snapshot, state: { ...frame.state.toJSON(), day: 42, minute, entities: new Map([[e.id, e]]) } });
       s.update(1000, 16); const v = s.objects.get(e.id);
       values.push({ alpha: v.seedGlow.alpha, glow: v.seedGlow.visible, seed: v.body.visible });
     }
@@ -123,6 +123,54 @@ test("seed light in the live scene and botanical growth contact sheet", async ({
   });
   expect(measured[0].alpha).toBeGreaterThan(measured[1].alpha); expect(measured[1].alpha).toBeGreaterThan(0);
   expect(measured[2]).toEqual({ alpha: 0, glow: false, seed: true }); expect(measured[3].sproutHasGlow).toBe(false);
+  // Reuse this one scene check: no new login/E2E suite or gameplay clock changes.
+  await page.evaluate(() => {
+    const s=(window.__FARM_DEBUG__ as any).scene(), frame=s.onFrame(performance.now(),16);
+    const me=frame.snapshot.players.find((p:any)=>p.local), state=frame.state.toJSON();
+    const tree={id:"qa-solar-tree",area:me.area,kind:"tree",asset:"tree_pine",species:"tree_pine",stage:2,x:me.x+68,y:me.y+30,hp:3,item:"wood",quantity:0};
+    const rock={...tree,id:"qa-solar-rock",kind:"rock",asset:"farm_stone_a",x:me.x-65,y:me.y+38};
+    const seed={...tree,id:"qa-solar-seed",kind:"crop",crop:"goldcorn",stage:0,watered:false,x:me.x,y:me.y+55};
+    s.staticObject("static-solar-house","house",me.x-128,me.y-60,"");
+    s.cameras.main.stopFollow().removeBounds().setZoom(.8).centerOn(me.x,me.y-40);
+    // Keep the paused render probe monotonic so the existing atmosphere throttle
+    // actually redraws (a fixed 2000 can be earlier than asset-loading frames).
+    let tick=Math.max(performance.now(),s.lastAtmosphere,s.lastSunShadows)+1000;
+    (window as any).__solarProbe=(minute:number)=>{
+      s.onFrame=()=>({snapshot:frame.snapshot,state:{...state,day:42,minute,weather:"clear",entities:new Map([tree,rock,seed].map(e=>[e.id,e]))}});
+      s.update(tick+=200,16);
+      const b=s.objects.get(tree.id).body, glow=s.objects.get(seed.id).seedGlow;
+      return {sun:s.sunlight,left:b.tintTopLeft,right:b.tintTopRight,glow:glow.alpha,
+        shadows:s.sunShadows.commandBuffer.length,atmosphere:s.atmosphere.commandBuffer.slice(0,20),
+        textures:s.textures.getTextureKeys().length};
+    };
+  });
+  const phases: any[]=[];
+  for(const [name,minute] of [["morning",450],["noon",765],["evening",1080],["night",1380]] as const) {
+    phases.push(await page.evaluate(minute=>(window as any).__solarProbe(minute),minute));
+    await page.screenshot({path:info.outputPath(`solar-${name}.png`)});
+  }
+  expect(phases[0].right).toBeGreaterThan(phases[0].left);
+  expect(phases[2].left).toBeGreaterThan(phases[2].right);
+  expect(phases[0].sun.sunDirectionX).toBeGreaterThan(0);
+  expect(phases[2].sun.sunDirectionX).toBeLessThan(0);
+  expect(phases[0].sun.shadowDirectionX).toBeLessThan(0);
+  expect(phases[2].sun.shadowDirectionX).toBeGreaterThan(0);
+  expect(phases[0].shadows).toBeGreaterThan(0);
+  expect(phases[3].shadows).toBeLessThan(phases[0].shadows);
+  expect(phases[3].glow).toBe(0);
+  expect(phases[3].atmosphere).not.toEqual(phases[1].atmosphere);
+  expect(phases[1].sun.sunElevation).toBeGreaterThan(phases[0].sun.sunElevation);
+  expect(new Set(phases.map(p=>p.textures)).size).toBe(1);
+  const cameraInvariant=await page.evaluate(()=>{
+    const s=(window.__FARM_DEBUG__ as any).scene(), probe=(window as any).__solarProbe;
+    const before=probe(450); s.cameras.main.setScroll(s.cameras.main.scrollX+20,s.cameras.main.scrollY+12).setZoom(1.25);
+    const after=probe(450);
+    return {before,after};
+  });
+  expect(cameraInvariant.after.sun).toEqual(cameraInvariant.before.sun);
+  expect(cameraInvariant.after.left).toBe(cameraInvariant.before.left);
+  expect(cameraInvariant.after.right).toBe(cameraInvariant.before.right);
+  await page.setViewportSize({ width: 1280, height: 1000 });
   await page.evaluate(async () => {
     const mod = "/shared/sunlight.ts", { currentLightLevel, seedGlowVisibility } = await import(mod);
     const s = (window.__FARM_DEBUG__ as any).scene();

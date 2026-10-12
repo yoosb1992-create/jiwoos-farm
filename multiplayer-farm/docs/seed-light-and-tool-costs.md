@@ -13,19 +13,33 @@ The seed texture has no foliage. Sprouts have cotyledons; growing plants use
 root-crop tops, cabbage rosettes, corn blades, climbing/ground vines, bushes,
 flower buds or narrow bulb/lavender leaves. Mature artwork is preserved.
 
-`shared/sunlight.ts` is the presentation entry point. The default profile has
-sunrise at 06:00, a 90-minute dawn, dusk beginning at 17:00 and sunset at 19:00.
-Smooth transitions produce a normalized light level. Seed glow is a separate
+`shared/sunlight.ts` is the presentation entry point. `getSunState({day, minute})`
+uses the unchanged authoritative world clock and a continuous 112-day cosine.
+Mid-season anchors are spring/autumn 06:30–18:45 at 96%, summer 05:30–20:00
+at 100%, and winter 07:30–17:30 at 92%. Solar noon is halfway between sunrise
+and sunset. Seed glow is a separate
 halo/highlight texture with a small local shimmer, multiplied by that level.
 At night its opacity is exactly zero; the seed and dry/wet soil remain visible.
 Only stage-zero crops receive glow. Advancing growth or unloading an area
 removes the overlay.
 
-Future code can provide `profile` (sunrise, sunset, dawn/dusk lengths, peak),
-`sunlightIntensity`, `seasonalSunModifier` and local `exposure`. Seasonal profile
-overrides currently remain neutral. This release does not change crop growth
-rates or implement seasonal sun travel. There are no additional network ticks
-or persisted light fields; all clients derive light from the server day/minute.
+Future code can provide `profile`, `sunlightIntensity`, `seasonalSunModifier`
+and local `exposure`; direct sunlight remains zero below the horizon.
+SunState also exposes azimuth/elevation in radians, ambient light, warmth,
+and opposite sun/shadow vectors. World +X is east, +Y south, +Z up; sunDirection
+points toward the light source (incoming rays travel along its negative).
+The sun peaks at 78 degrees in summer and 56 in winter. All clients derive the
+same state from the server day/minute, with no extra packets or saved fields.
+
+Outdoor scenery uses gentle vertex tints and capped ground ellipses; camera
+pan/zoom cannot change their world direction. The scene caches solar state and
+tints, only visits nearby rendered scenery, and caps shadow work at 160 casters
+at 10 Hz. No per-frame texture creation, normal maps or ray casting are used.
+Outdoor blue night/warm twilight and seed glow share the same SunState.
+Interior brightness and mine darkness retain their previous behavior. Windows,
+occlusion, weather attenuation, lamps and moonlight are deferred; they can later
+consume the same position/intensity without replacing this calculation.
+Crop graphics, growth, yield, calendar speed and the 06:00 day start are unchanged.
 
 ## Input and authority
 

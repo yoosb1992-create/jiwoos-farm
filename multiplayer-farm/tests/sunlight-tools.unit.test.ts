@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { applyAction, nextDay, parseCommand } from "../shared/actions.js";
 import { newWorld, newMember, entity, upgradeWorld, type Actor, type Command } from "../shared/world.js";
 import { legacyLayout } from "../shared/layout.js";
-import { currentLightLevel, seedGlowVisibility } from "../shared/sunlight.js";
+import { currentLightLevel, getSunState, sunlightProfile, seedGlowVisibility, SEASONAL_SUNLIGHT } from "../shared/sunlight.js";
+import { atmosphereLight, groundShadow, objectSunTint } from "../client/solar-lighting.js";
 import { CROP_VISUALS } from "../shared/crop-visuals.js";
 import { CROPS } from "../shared/content.js";
 import { TOOL_STAMINA_COST } from "../shared/tool-stamina.js";
@@ -19,16 +20,89 @@ test("sunlit seeds fade continuously through dusk to zero; seasonal/exposure inp
   const glow = (minute: number) => seedGlowVisibility(currentLightLevel({ minute }));
   assert(glow(720) > glow(1080) && glow(1080) > glow(1120));
   assert.equal(glow(1140), 0); assert.equal(glow(1380), 0); assert.equal(glow(300), 0);
-  assert(glow(380) > 0 && glow(380) < glow(480));
+  assert(glow(410) > 0 && glow(410) < glow(480));
   assert.equal(currentLightLevel({ minute: 720, exposure: 0 }), 0);
-  assert.equal(currentLightLevel({ minute: 720, seasonalSunModifier: .6 }), .6);
+  const noon = getSunState({ minute: 720 }).solarNoon;
+  assert(Math.abs(currentLightLevel({ minute: noon, seasonalSunModifier: .6 }) - .96 * .6) < 1e-12);
   assert.equal(currentLightLevel({ minute: 720, sunlightIntensity: .5, exposure: .5 }), .25);
   assert.equal(currentLightLevel({ minute: 1080, profile: { sunset: 1050 } }), 0);
   assert.equal(currentLightLevel({ minute: 400, profile: { sunrise: 450 } }), 0);
   for (const season of ["spring", "summer", "autumn", "winter"] as const)
-    assert.equal(currentLightLevel({ minute: 720, season }), 1, "future seasonal tuning is currently neutral");
+    assert(Math.abs(currentLightLevel({ minute: getSunState({ minute: 720, season }).solarNoon, season }) - SEASONAL_SUNLIGHT[season].peakIntensity) < 1e-12);
   assert.equal(seedGlowVisibility(Number.NaN), 0);
   assert.deepEqual(Object.keys(CROP_VISUALS).sort(), Object.keys(CROPS).sort());
+});
+test("112-day solar year has continuous mid-season anchors and repeatable solstices", () => {
+  const close = (a: number, b: number) => assert(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
+  for (const [day, sunrise, sunset, peak] of [[14.5,390,1125,.96],[42.5,330,1200,1],[70.5,390,1125,.96],[98.5,450,1050,.92]]) {
+    const p = sunlightProfile(day!);
+    close(p.sunrise, sunrise!); close(p.sunset, sunset!); close(p.peakIntensity, peak!);
+    const next = sunlightProfile(day! + 112);
+    for (const key of ["sunrise", "sunset", "peakIntensity", "maxElevation"] as const) close(p[key], next[key]);
+  }
+  const lengths = Array.from({length:112}, (_,i) => { const p=sunlightProfile(i+1); return p.sunset-p.sunrise; });
+  assert.equal(lengths.indexOf(Math.max(...lengths)) + 1, 42);
+  assert.equal(lengths.indexOf(Math.min(...lengths)) + 1, 98);
+  for (const boundary of [29,57,85,113]) {
+    const a=sunlightProfile(boundary-1e-6), b=sunlightProfile(boundary+1e-6);
+    assert(Math.abs(a.sunrise-b.sunrise)<.00001); assert(Math.abs(a.sunset-b.sunset)<.00001);
+    const before=sunlightProfile(boundary-1), after=sunlightProfile(boundary);
+    assert(Math.abs(before.sunrise-after.sunrise)<3.4); assert(Math.abs(before.sunset-after.sunset)<4.3);
+  }
+  assert(lengths[40]! < lengths[41]! && lengths[43]! < lengths[42]!);
+  assert(lengths[96]! > lengths[97]! && lengths[99]! > lengths[98]!);
+});
+test("sun moves east-high-west; light rises and fades with opposite bounded shadows", () => {
+  for (const day of [14.5,42.5,70.5,98.5]) {
+    const p=sunlightProfile(day), span=p.sunset-p.sunrise;
+    const at=(t:number)=>getSunState({day,minute:p.sunrise+span*t});
+    const morning=at(.15), noon=at(.5), evening=at(.85);
+    assert(morning.sunDirectionX>0 && evening.sunDirectionX<0);
+    assert(Math.abs(noon.sunDirectionX)<1e-10);
+    assert(noon.sunElevation>morning.sunElevation && noon.sunElevation>evening.sunElevation);
+    assert(at(0).sunElevation<1e-10 && Math.abs(at(1).sunElevation)<1e-10);
+    for(let i=1;i<=50;i++) assert(at(i/100).sunlightIntensity>=at((i-1)/100).sunlightIntensity);
+    for(let i=51;i<=100;i++) assert(at(i/100).sunlightIntensity<=at((i-1)/100).sunlightIntensity);
+    for (const sun of [morning,noon,evening]) {
+      assert(sun.sunDirectionX*sun.shadowDirectionX + sun.sunDirectionY*sun.shadowDirectionY < 0);
+      assert(Math.abs(Math.hypot(sun.sunDirectionX,sun.sunDirectionY,sun.sunDirectionZ)-1)<1e-12);
+      assert(sun.shadowLength<=2.8);
+    }
+    assert(morning.shadowLength>noon.shadowLength && evening.shadowLength>noon.shadowLength);
+    for(const minute of [0,p.sunrise-1,p.sunrise,p.sunset,p.sunset+1,1439]) {
+      const night=getSunState({day,minute,sunlightIntensity:1});
+      assert.equal(night.sunlightIntensity,0); assert.equal(seedGlowVisibility(night.sunlightIntensity),0);
+      assert(night.ambientLight>=.72);
+      if(minute===0) assert(night.sunElevation<0);
+    }
+    for(const boundary of [p.sunrise,p.sunset]) {
+      const a=getSunState({day,minute:boundary-.001}),b=getSunState({day,minute:boundary+.001});
+      assert(Math.abs(a.ambientLight-b.ambientLight)<.00002);
+      assert(Math.abs(a.sunDirectionX-b.sunDirectionX)<.0001);
+    }
+    assert.deepEqual(getSunState({day,minute:731}),getSunState(JSON.parse(JSON.stringify({day,minute:731}))),"peers only need identical authoritative clock values");
+  }
+  assert(getSunState({day:42.5,minute:765}).sunElevation>getSunState({day:98.5,minute:750}).sunElevation);
+});
+test("render response changes sides, preserves indoor/mine brightness and readable nights", () => {
+  const morning=getSunState({day:42.5,minute:450}), evening=getSunState({day:42.5,minute:1080}), noon=getSunState({day:42.5,minute:765});
+  const east=objectSunTint(0xffffff,morning), west=objectSunTint(0xffffff,evening);
+  assert(east[1]>east[0]); assert(west[0]>west[1]);
+  const rotated=objectSunTint(0xffffff,morning,Math.PI);
+  assert(rotated[0]>rotated[1],"rotated art still receives world-east light");
+  assert(groundShadow(morning,128,160).x<0); assert(groundShadow(evening,128,160).x>0);
+  assert(groundShadow(morning,128,160).width>groundShadow(noon,128,160).width);
+  assert(morning.warmth>noon.warmth && evening.warmth>noon.warmth);
+  for(let minute=0;minute<1440;minute+=30) {
+    const sun=getSunState({day:98.5,minute});
+    const legacy=minute>=1140 ? Math.min(.32,(minute-1140)/800) : minute<420 ? .08 : 0;
+    for(const area of ["farmhouse","general_store","cafe","workshop"]) {
+      assert.equal(atmosphereLight(area,minute,sun).darkness,legacy);
+      assert.equal(atmosphereLight(area,minute,sun).warmth,0);
+    }
+    assert.equal(atmosphereLight("mine_1",minute,sun).darkness,.18);
+    assert(atmosphereLight("farm",minute,sun).darkness<=.281);
+  }
 });
 test("every physical tool spends exactly its base cost on an empty/invalid swing", () => {
   for (const toolId of ["axe", "pickaxe", "hoe", "scythe", "water"] as const) {
