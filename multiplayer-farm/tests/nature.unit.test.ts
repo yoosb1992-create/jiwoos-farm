@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { newWorld, newMember, entity, upgradeWorld, seedFarmDebris, seedFarmGrass, seedFarmTrees, random, type Actor, type World } from "../shared/world.js";
+import { WORLD_VERSION, newWorld, newMember, entity, upgradeWorld, seedFarmDebris, seedFarmGrass, seedFarmTrees, random, type Actor, type World } from "../shared/world.js";
 import { applyAction, nextDay, parseCommand } from "../shared/actions.js";
 import { defaultLayout, validateLayout } from "../shared/layout.js";
 import { TREE_SPECIES, TREES, TREE_STAGES, TREE_STAGE_IDS, DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, FARM_GRASS, GRASS_FIRST, GRASS_MAX, NATURAL_TREE_FIRST, treeHp, natureRoll, treeSprite, stumpSprite } from "../shared/nature.js";
@@ -232,7 +232,7 @@ test("v6 farms receive the extreme opening pass only on untouched grass during a
   w.version=6;w.entities={};w.naturalTreesSeeded=undefined;w.debrisDay=undefined;w.grassDay=undefined;
   w.entities["keep-soil"]=entity("keep-soil","farm","soil",10.5*32,10.5*32,"tile_farm_empty");
   upgradeWorld(w);
-  assert.equal(w.version,8);
+  assert.equal(w.version,WORLD_VERSION);
   assert(Object.values(w.entities).filter(e=>e.id.startsWith("farmnature-tree-")).length>0);
   assert(Object.values(w.entities).filter(e=>e.id.startsWith("farmdebris-")).length>0);
   assert(Object.values(w.entities).filter(e=>e.id.startsWith("farmgrass-")).length>0);
