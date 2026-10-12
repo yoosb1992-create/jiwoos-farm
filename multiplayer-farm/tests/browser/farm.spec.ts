@@ -36,14 +36,16 @@ test("mobile farm load, two contexts, joystick+RUN, action, inventory and reconn
   await expect(page.locator("canvas")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("v26-mobile-farm.png") });
   await page.locator("#menu").click();
+  await page.getByRole("button", { name: "❧ 도감", exact: true }).click();
   await page
-    .getByRole("button", { name: "❧ 사계절 도감", exact: true })
+    .getByRole("button", { name: "사계절 작물·자연 도감", exact: true })
     .click();
   await expect(page.locator("#panel-body")).toContainText("겨울별꽃");
   await page.locator("#panel-close").click();
   await page.locator("#menu").click();
+  await page.getByRole("button", { name: "❧ 도감", exact: true }).click();
   await page
-    .getByRole("button", { name: "≈ 물고기 도감", exact: true })
+    .getByRole("button", { name: "물고기 도감", exact: true })
     .click();
   await expect(page.locator("#panel-body")).toContainText("0/24");
   await page.screenshot({
