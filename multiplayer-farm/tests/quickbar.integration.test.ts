@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { matchMaker } from "@colyseus/core";
 import { action,fixture,join,until,type TestRoom } from "./helpers.js";
 import type { Member } from "../shared/world.js";
+import type { FarmRoom } from "../server/FarmRoom.js";
 
 function personal(room:TestRoom):Promise<Member> {
   return new Promise((resolve,reject)=>{
@@ -24,7 +25,9 @@ test("quickbar deltas persist across room disposal and same-player reconnect, is
     assert.deepEqual((await personal(f.B)).quickbar,beforeB.quickbar);
     assert.deepEqual(afterA.quickbar!.favorites,["water","axe"]);
     const roomId=f.A.roomId;
-    await Promise.all([f.A.leave(),f.B.leave(),f.C.leave()]);
+    // Listing removal happens before the async PostgreSQL checkpoint/unlock.
+    // disconnect() awaits onDispose; client leave() alone does not.
+    await (matchMaker.getLocalRoomById(roomId) as FarmRoom).disconnect();
     await until(()=>!matchMaker.getLocalRoomById(roomId),10000);
     restored=await join(f.url,f.a);
     assert.deepEqual((await personal(restored)).quickbar,afterA.quickbar);
