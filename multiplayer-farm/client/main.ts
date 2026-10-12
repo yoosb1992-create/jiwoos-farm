@@ -486,8 +486,9 @@ function updateSelectedToolIcon(): void {
     preview.setAttribute("aria-hidden", "true");
     el("tool-picker").prepend(preview);
   }
-  let icon = toolIconImage(selected);
-  const source = itemIconSource(selected);
+  const available = ownedItem(network.personal?.member,selected);
+  let icon = available ? toolIconImage(selected) : null;
+  const source = available ? itemIconSource(selected) : undefined;
   if (!icon && source) {
     icon = document.createElement("img");
     icon.src = source; icon.alt = ""; icon.className = "tool-icon";
@@ -507,7 +508,10 @@ function refreshTools(): void {
   const select=el<HTMLSelectElement>("tool");
   select.replaceChildren();
   for(const [id,text] of choices) {const option=document.createElement("option");option.value=id;option.textContent=text;select.append(option);}
-  if(!ownedItem(member,selected)) { selected="hand";bufferedToolAction=undefined;actionHeld=false; }
+  // Reconnection clears personal state until the authenticated inventory arrives.
+  // Unknown ownership must not erase selection; a confirmed missing item does.
+  if(member && !ownedItem(member,selected)) { selected="hand";bufferedToolAction=undefined;actionHeld=false; }
+  select.disabled=!member;
   select.value=selected;
   updateSelectedToolIcon();
   quickbar.refresh();
@@ -525,6 +529,7 @@ function act(): void {
   }
   const me = latest.players.find((p) => p.local);
   if (!me || modal) return;
+  if (!network.personal?.member) {notice("가방 정보를 불러오는 중이에요");return;}
   if (!ownedItem(network.personal?.member,selected)) {selectTool("hand");return;}
   if (ITEMS[selected]?.placement) {startPlacement(selected);return;}
   if (selected!=="hand" && !isTool(selected) && selected!=="fishing_rod" && !plantingTree(selected) && ITEMS[selected]?.kind!=="seed") {
@@ -757,7 +762,7 @@ function updateConnection(status: NetworkSnapshot["status"]): void {
   if (!el("login").hidden && status !== "disconnected") el("login-error").textContent = network.snapshot().message;
   el("cancel-connect").hidden = !["connecting", "reconnecting"].includes(status);
   el<HTMLButtonElement>("action").disabled =
-    status !== "connected" || panel.open;
+    status !== "connected" || !network.personal?.member || panel.open;
 }
 network.onConnection = (status) => {
   updateConnection(status);
@@ -971,7 +976,7 @@ const renderer = createRenderer((now, delta) => {
     }
   }
   el<HTMLButtonElement>("action").disabled =
-    latest.status !== "connected" || panel.open;
+    latest.status !== "connected" || !network.personal?.member || panel.open;
   if (actionHeld && now > nextAction) {
     nextAction = now + 320;
     act();

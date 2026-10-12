@@ -2,6 +2,43 @@ import {test,expect,type Page} from "@playwright/test";
 import {waitForFarmInput} from "./nature-target.js";
 
 const slot=(page:Page,n:number)=>page.locator(`#quickslots [data-slot-id="${n}"]`);
+test("selected owned tool survives a reconnect with delayed personal inventory",async({page})=>{
+  test.setTimeout(60000);
+  let delayPersonal=false;
+  await page.routeWebSocket("ws://127.0.0.1:2575/**",ws=>{
+    const server=ws.connectToServer();
+    server.onMessage(message=>{
+      if(delayPersonal && Buffer.from(message).includes(Buffer.from("personal")))
+        setTimeout(()=>ws.send(message),1200);
+      else ws.send(message);
+    });
+  });
+  await page.addInitScript(()=>{
+    const sockets:WebSocket[]=[],Native=window.WebSocket;
+    window.WebSocket=class extends Native {
+      constructor(...args:ConstructorParameters<typeof WebSocket>){
+        // Preserve the native rejection of the SDK's Node-only headers probe;
+        // Playwright's routed socket otherwise accepts it then fails remotely.
+        if(args[1] && typeof args[1]==="object" && !Array.isArray(args[1]))throw new TypeError("Browser protocols required");
+        super(...args);sockets.push(this);
+      }
+    };
+    Object.assign(window,{dropQuickbarConnection:()=>sockets.filter(s=>s.url.includes(":2575/")).forEach(s=>s.close(4010,"temporary network loss"))});
+  });
+  await page.goto("/");await page.locator("#nickname").fill("재접속 도구");await page.locator("#create-farm").click();
+  await expect(page.locator("#connection")).toHaveAttribute("data-status","connected",{timeout:25000});
+  await waitForFarmInput(page);await page.locator("#tool").selectOption("axe");
+  delayPersonal=true;
+  await page.evaluate(()=>(window as unknown as {dropQuickbarConnection():void}).dropQuickbarConnection());
+  // A missing personal packet is not evidence that the owned axe was removed.
+  await expect(page.locator("#tool")).toBeDisabled({timeout:15000});
+  await expect(page.locator("#action")).toBeDisabled();
+  await expect(slot(page,4)).toHaveAttribute("data-tool","");
+  await expect(page.locator("#tool")).toBeEnabled({timeout:15000});
+  await expect(page.locator("#tool")).toHaveValue("axe");
+  await expect(slot(page,4)).toHaveAttribute("data-tool","axe");
+});
+
 test("mobile quickbar registration, favorites, persistence, silhouettes and connected soil",async({page},info)=>{
   test.setTimeout(120000);
   const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
