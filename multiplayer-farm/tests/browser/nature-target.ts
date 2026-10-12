@@ -60,10 +60,16 @@ export async function reachableNatureTarget(page: Page, mode: "till" | "tree"): 
     const debug = window.__FARM_DEBUG__ as typeof window.__FARM_DEBUG__ & {
       pickWorld(x:number,y:number): { entityId?:string;npcId?:string;warpId?:string;x:number;y:number };
     };
-    const picked = element?.tagName === "CANVAS" ? debug.pickWorld(screen.x,screen.y) : undefined;
+    // A newly cultivable tile can sit exactly on a tree crown's hit-box edge.
+    // Touch coordinates are rounded differently from JS camera coordinates;
+    // require a small clear tap area instead of trusting a floating-point edge.
+    const clear = element?.tagName === "CANVAS" && [[0,0],[-1,0],[1,0],[0,-1],[0,1]].every(([dx,dy]) => {
+      const picked = debug.pickWorld(screen.x+dx!,screen.y+dy!);
+      return !picked.entityId && !picked.npcId && !picked.warpId &&
+        Math.floor(picked.x / 32) === tile.x && Math.floor(picked.y / 32) === tile.y;
+    });
     return { ...tile, screenX:screen.x, screenY:screen.y,
-      valid: !!picked && !picked.entityId && !picked.npcId && !picked.warpId &&
-        Math.floor(picked.x / 32) === tile.x && Math.floor(picked.y / 32) === tile.y };
+      valid: clear };
   }).filter(tile=>tile.valid), points);
   for (const tile of onscreen) {
     const target = (p:{x:number;y:number}) =>
