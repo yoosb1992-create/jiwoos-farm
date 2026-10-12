@@ -6,7 +6,7 @@ import { frontTile, type MovementInput } from "../shared/applyMovement.js";
 import { TILE, NPCS, npcSchedule, tileIn } from "../shared/content.js";
 import { FISHING_SPOTS, fishingSpot } from "../shared/expansion.js";
 import type { FarmState } from "../shared/schema.js";
-import type { RenderPlayer } from "./network.js";
+import type { NetworkSnapshot, RenderPlayer } from "./network.js";
 import { CLIENT_MAPS, mapFor } from "./layout.js";
 import { BASE_PICKUP_RADIUS, PICKUP_RANGE_EPSILON } from "../shared/interaction.js";
 export type TouchTarget = {
@@ -30,6 +30,7 @@ export class TouchNavigator {
   private planned = 0;
   private lastDistance = Infinity;
   private progressAt = 0;
+  private stopInput: number | undefined;
   constructor(
     private notice: (s: string) => void,
     private act: (t: TouchTarget) => void,
@@ -38,6 +39,7 @@ export class TouchNavigator {
   cancel(): void {
     this.target = undefined;
     this.path = [];
+    this.stopInput = undefined;
   }
   choose(
     point: Point & {
@@ -157,6 +159,7 @@ export class TouchNavigator {
     me: RenderPlayer | undefined,
     state: FarmState | undefined,
     manual: MovementInput,
+    progress?: Pick<NetworkSnapshot, "sentInputs" | "acknowledgedInputs">,
   ): MovementInput {
     const t = this.target;
     if (!t) return manual;
@@ -205,6 +208,13 @@ export class TouchNavigator {
         this.cancel();
         return stop;
       }
+      // A stationary patch can precede movement already queued in transit.
+      // Fence on a NEW neutral input before turning/acting, so the server has
+      // processed both the approach and our stop. Range/physics stay unchanged.
+      if (progress) {
+        this.stopInput ??= progress.sentInputs + 1;
+        if (progress.acknowledgedInputs < this.stopInput) return stop;
+      }
       const dx = t.x - authoritative.x,
         dy = t.y - authoritative.y,
         face =
@@ -243,6 +253,7 @@ export class TouchNavigator {
       this.act(t);
       return stop;
     }
+    this.stopInput = undefined;
     if (!this.path.length || now - this.planned > 1500) {
       this.path =
         findPath(t.area, me, near, CLIENT_MAPS, state.entities.values()) ?? [];

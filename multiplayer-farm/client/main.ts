@@ -949,6 +949,7 @@ const renderer = createRenderer((now, delta) => {
       me,
       network.state,
       command,
+      latest,
     );
   else touchNavigation.cancel();
   // Keep the existing server input lock and 30Hz prediction contract. The
