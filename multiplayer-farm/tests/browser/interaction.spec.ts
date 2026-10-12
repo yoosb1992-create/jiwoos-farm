@@ -35,14 +35,19 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
   });
   await waitForFarmInput(page);
   const tap=async(id:string,tool:string)=>{
-    await waitForFarmInput(page);
     await page.locator("#tool").selectOption(tool);
-    const p=await page.evaluate(id=>{
-      const view=(window.__FARM_DEBUG__ as any).scene().objects.get(id);
-      return view && window.__FARM_DEBUG__.snapshot().status==="connected"
-        ? window.__FARM_DEBUG__.screenPoint(view.x,view.y-5) : undefined;
-    },id);
-    expect(p,"A connected, visible target must exist before a tap").toBeDefined();
+    // Selection can span a reconnect on a slow renderer. Read the new live
+    // target before the single damaging tap; never replay that tap here.
+    await waitForFarmInput(page);
+    let p:{x:number;y:number}|undefined;
+    await expect.poll(async()=>{
+      p=await page.evaluate(id=>{
+        const view=(window.__FARM_DEBUG__ as any).scene().objects.get(id);
+        return view && window.__FARM_DEBUG__.state()?.entities[id] && window.__FARM_DEBUG__.snapshot().status==="connected"
+          ? window.__FARM_DEBUG__.screenPoint(view.x,view.y-5) : undefined;
+      },id);
+      return p;
+    },{timeout:25000,message:"A connected, visible target must exist before a tap"}).toBeDefined();
     await page.touchscreen.tap(p!.x,p!.y);
   };
   const kind=(id:string)=>page.evaluate(id=>{
@@ -95,7 +100,12 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
   })).toBe(0);
   await tap("fx-flower","scythe");await expect.poll(()=>kind("fx-flower")).toBeUndefined();
   await page.waitForTimeout(430);await tap("fx-grass","scythe");await expect.poll(()=>kind("fx-grass")).toBeUndefined();
-  await tap("fx-rock","axe");await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");expect(await kind("fx-rock")).toBe("rock");
+  await tap("fx-rock","axe");
+  // The same notice remains from the earlier tree attempt. Wait for this
+  // rock's committed miss before changing the tool during walk-and-use.
+  await expect.poll(()=>page.evaluate(()=>(window as any).__committedFx.filter((e:any)=>
+    e.target?.id==="fx-rock"&&e.tool==="axe"&&e.outcome==="fail").length)).toBe(1);
+  await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");expect(await kind("fx-rock")).toBe("rock");
   await page.waitForTimeout(430);await tap("fx-rock","pickaxe");await expect.poll(()=>kind("fx-rock")).toBeUndefined();
   await tap("fx-twig","axe");await expect.poll(()=>kind("fx-twig")).toBeUndefined();
   for(const health of [2,1,0]) {

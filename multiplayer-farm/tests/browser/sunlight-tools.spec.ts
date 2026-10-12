@@ -53,6 +53,9 @@ for (const mobile of [false, true]) test(`${mobile ? "phone touch" : "PC mouse/k
     return [...s.feedback.swings.values()].some((v: any) => v.event.tool === "water" && v.event.outcome === "fail" && s.time.now - v.start > 240 && s.time.now - v.start < 590 && v.rig.trail.commandBuffer.length > 0);
   });
   await page.screenshot({ path: info.outputPath("empty-pour.png") });
+  // Capturing software WebGL can interrupt the room after idle first becomes
+  // true. Observe live input acknowledgements before the next single charge.
+  await waitForFarmInput(page);
   await idle(page);
   const well = await point(page, 42.5 * 32, 40.5 * 32);
   if (mobile) await page.touchscreen.tap(well.x, well.y); else await page.mouse.click(well.x, well.y);
