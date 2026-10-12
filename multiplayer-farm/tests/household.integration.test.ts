@@ -1,3 +1,4 @@
+import { chestInventory, chestStorageKey, type ChestStores } from "../shared/chest-storage.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -13,6 +14,10 @@ test("real room: bulk transfers and batch crafting commit once, concurrent withd
     const world = () => (room as unknown as { world: World }).world;
     const bag = (id: string) => world().members[id]!.inventory;
     const chest = room.state.entities.get("family_chest")!;
+    const otherId = "second-household-chest";
+    world().entities[otherId] = { ...world().entities[chest.id]!, id: otherId, x: chest.x + 16 };
+    let familyStores: ChestStores | undefined;
+    f.C.onMessage("personal", p => { familyStores = p.chestStores; });
     for (const peer of [f.A, f.B, f.C]) Object.assign(room.state.players.get(peer.sessionId)!, {area:"farmhouse", x:chest.x, y:chest.y+48});
     bag(f.a.playerId).wood = 3001;
     const depositId = randomUUID();
@@ -20,16 +25,21 @@ test("real room: bulk transfers and batch crafting commit once, concurrent withd
     const first = await action(f.A, "depositChest", deposit);
     assert.equal(first.ok, true);
     assert.equal((await action(f.A,"depositChest",deposit)).revision, first.revision);
-    assert.equal(world().chest.wood, 3001); assert.equal(bag(f.a.playerId).wood, undefined);
+    assert.equal(chestInventory(world(), chest.id).wood, 3001); assert.equal(bag(f.a.playerId).wood, undefined);
+    await until(() => familyStores?.[chestStorageKey(chest.id)]?.wood === 3001);
+    bag(f.b.playerId).stone = 9;
+    assert.equal((await action(f.B, "depositChest", { targetId: otherId, itemId: "stone", quantityMode: "all" })).ok, true);
+    assert.deepEqual(chestInventory(world(), otherId), { stone: 9 });
+    assert.equal(chestInventory(world(), chest.id).wood, 3001);
     await delay(230);
     const contested = await Promise.all([f.A,f.B].map(peer => action(peer,"withdrawChest",{targetId:chest.id,itemId:"wood",quantityMode:"all"})));
     assert.equal(contested.filter(r=>r.ok).length,1);
     const winner = contested[0]!.ok ? f.A : f.B, member = contested[0]!.ok ? f.a : f.b;
-    assert.equal(world().chest.wood, undefined);
+    assert.equal(chestInventory(world(), chest.id).wood, undefined);
     assert.equal((bag(f.a.playerId).wood??0)+(bag(f.b.playerId).wood??0),3001);
     await delay(230);
     assert.equal((await action(winner,"depositChest",{targetId:chest.id,itemId:"wood",quantityMode:"half"})).ok,true);
-    assert.equal(world().chest.wood,1501); assert.equal(bag(member.playerId).wood,1500);
+    assert.equal(chestInventory(world(), chest.id).wood,1501); assert.equal(bag(member.playerId).wood,1500);
     const table=room.state.entities.get("crafting_table")!;
     Object.assign(room.state.players.get(winner.sessionId)!,{x:table.x,y:table.y+48});
     await delay(230);
@@ -41,10 +51,11 @@ test("real room: bulk transfers and batch crafting commit once, concurrent withd
     await winner.leave();
     const restored=await join(f.url,member);
     try {
-      let personal: {chest:Record<string,number>;member:{inventory:Record<string,number>}}|undefined;
+      let personal: {chestStores:ChestStores;chestStorageKeys:Record<string,string>;member:{inventory:Record<string,number>}}|undefined;
       restored.onMessage("personal",p=>{personal=p;}); restored.send("personal");
       await until(()=>!!personal);
-      assert.equal(personal!.chest.wood,1501); assert.equal(personal!.member.inventory.wood_plank,5);
+      assert.equal(personal!.chestStores[personal!.chestStorageKeys[chest.id]!]!.wood,1501); assert.equal(personal!.member.inventory.wood_plank,5);
+      assert.deepEqual(personal!.chestStores[personal!.chestStorageKeys[otherId]!], { stone: 9 });
     } finally {await restored.leave();}
   } finally {await f.close();}
 });

@@ -1,4 +1,5 @@
 import { inRect } from "../shared/world2.js";
+import { chestStorageKeys } from "../shared/chest-storage.js";
 import { calendar } from "../shared/expansion.js";
 import { Encoder } from "@colyseus/schema";
 // Initial immutable layout is sent once. Subsequent 30 Hz patches remain deltas.
@@ -410,7 +411,9 @@ export class FarmRoom extends MovementRoom {
     if (id)
       client.send("personal", {
         member: this.world.members[id],
-        chest: this.world.chest,
+        chestStores: this.world.chestStores ?? {},
+        chestStorageKeys: chestStorageKeys(this.world),
+        legacyChestTarget: this.world.legacyChestTarget,
         sleepVoted: this.votes.has(id),
         farmId: this.farmId,
         events: this.world.events,

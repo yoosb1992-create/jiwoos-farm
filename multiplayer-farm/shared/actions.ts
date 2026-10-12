@@ -46,6 +46,7 @@ import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 import { isTool, cuttableGrass, pickupRadius, PICKUP_RANGE_EPSILON, type Tool, type ActionFx } from "./interaction.js";
 import { naturalFlower, normalizeRock, rockMaxHp } from "./resources.js";
+import { chestInventory } from "./chest-storage.js";
 import { toolStaminaCost, HAND_STAMINA_COST, FISHING_CAST_STAMINA_COST } from "./tool-stamina.js";
 export class ActionError extends Error {}
 function requireThat(condition: unknown, message: string): asserts condition {
@@ -622,13 +623,14 @@ function applyActionCore(
     }
     case "depositChest":
     case "withdrawChest": {
-      target("chest");
+      const chest = target("chest");
       requireThat(
         c.itemId && ITEMS[c.itemId] && ITEMS[c.itemId]!.kind !== "tool",
         "보관할 자원을 선택하세요",
       );
       const into = c.type === "depositChest";
-      const source = into ? m.inventory : w.chest, destination = into ? w.chest : m.inventory;
+      const inventory = chestInventory(w, chest.id);
+      const source = into ? m.inventory : inventory, destination = into ? inventory : m.inventory;
       const amount = c.quantityMode ? transferQuantity(source[c.itemId] ?? 0, c.quantityMode) : q;
       requireThat(amount > 0 && (source[c.itemId] ?? 0) >= amount, "수량이 바뀌었어요. 다시 확인해 주세요");
       requireThat((destination[c.itemId] ?? 0) + amount <= STACK_LIMIT, "보관 한도를 확인하세요");

@@ -1,6 +1,6 @@
 import { renderHouseholdPanel } from "./household-panels.js";
 import { recipesInCategory, type CraftCategory } from "./craft-categories.js";
-import { toolIconImage } from "./item-icons.js";
+import { itemIconSource, toolIconImage } from "./item-icons.js";
 import { updatePanelContent } from "./panel-view.js";
 import { TREE_SPECIES, plantingTree } from "../shared/nature.js";
 import { inRect } from "../shared/world2.js";
@@ -43,7 +43,7 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `<div id="arena" aria-label="가족 농장 게임 화면"></div>
 <header id="top"><div class="day-block"><span class="brand">JIWOO’S FARM · v2.7 · 타일 충돌</span><strong id="calendar">우리 가족의 작은 세계</strong><span id="place">사계절을 함께 가꾸어요</span></div><div class="top-actions"><span id="wallet">0 G</span><button id="bag" aria-label="가방">가방 <small id="bag-space">0/48</small></button><button id="menu" aria-label="메뉴">☰</button></div><div id="stamina"><i></i><span>기력</span></div></header><button hidden id="today" aria-label="오늘 할 일">✦ 오늘의 작은 한 걸음</button>
 <div id="notice" role="status">가족 농장에 오신 것을 환영합니다.</div><div id="connection"></div>
-<button id="sleep-status" hidden aria-label="잠자기 투표 현황"></button><div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><label for="tool">선택</label><select id="tool"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="scythe">낫</option><option value="fishing_rod">낚싯대</option></select></div>
+<button id="sleep-status" hidden aria-label="잠자기 투표 현황"></button><div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><div id="tool-picker"><select id="tool" aria-label="도구와 씨앗 선택"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="scythe">낫</option><option value="fishing_rod">낚싯대</option></select></div></div>
 <div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action" aria-label="행동">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
 <pre id="hud" hidden></pre><dialog id="panel"><div id="panel-top"><h2 id="panel-title"></h2><button id="panel-close">닫기</button></div><div id="panel-body"></div></dialog>
 <section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>새 농장 이름 <small>(선택 · 만들 때만 적용)</small><input id="farm-name" maxlength="30" autocomplete="off" placeholder="예: 지우네 가족 농장"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><div id="saved-farms"></div><p id="login-error" role="alert"></p><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>가족 코드만 공유하면 함께할 수 있어요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
@@ -214,8 +214,11 @@ function renderPanelContent(): void {
     m = personal?.member;
   const local = latest.players.find((p) => p.local),
     state = network.state;
+  const chestKey = panelTarget ? personal?.chestStorageKeys?.[panelTarget] : undefined;
   if (renderHouseholdPanel(modal, panelBody, {
-    member: m, chest: personal?.chest ?? {}, day: sleepPanelDay, minute: state?.minute ?? 360,
+    member: m, chest: (chestKey ? personal?.chestStores?.[chestKey] : undefined) ?? {},
+    storageReady: !!chestKey && !!personal?.chestStores, legacyChestTarget: personal?.legacyChestTarget,
+    day: sleepPanelDay, minute: state?.minute ?? 360,
     entities: [...(state?.entities.values() ?? [])], players: latest.players, targetId: panelTarget,
     recipe: selectedRecipe, category: selectedCraftCategory,
     busy: !!householdPending || performance.now() < householdReadyAt,
@@ -431,7 +434,10 @@ function selectTool(id: string): void {
   for (const b of el("quickslots").querySelectorAll<HTMLButtonElement>(
     "button",
   ))
-    b.classList.toggle("selected", b.dataset.tool === id);
+    {
+      b.classList.toggle("selected", b.dataset.tool === id);
+      b.setAttribute("aria-pressed", String(b.dataset.tool === id));
+    }
 }
 function updateSelectedToolIcon(): void {
   let preview = document.getElementById("selected-tool-icon");
@@ -439,11 +445,19 @@ function updateSelectedToolIcon(): void {
     preview = document.createElement("span");
     preview.id = "selected-tool-icon";
     preview.setAttribute("aria-hidden", "true");
-    el("toolbar").insertBefore(preview, el("tool"));
+    el("tool-picker").prepend(preview);
   }
-  const icon = toolIconImage(selected);
+  let icon = toolIconImage(selected);
+  const source = itemIconSource(selected);
+  if (!icon && source) {
+    icon = document.createElement("img");
+    icon.src = source; icon.alt = ""; icon.className = "tool-icon";
+  }
   preview.replaceChildren(...(icon ? [icon] : []));
   preview.hidden = !icon;
+  const name = el<HTMLSelectElement>("tool").selectedOptions[0]?.textContent ?? "도구";
+  el("tool").setAttribute("aria-label", `${name} 선택 중 · 도구와 씨앗 선택`);
+  el("tool-picker").title = `${name} · 도구와 씨앗 선택`;
 }
 function refreshTools(): void {
   const choices: Array<[string, string]> = [
@@ -501,13 +515,11 @@ function refreshTools(): void {
     );
     b.dataset.tool = id;
     b.setAttribute("aria-label", `${b.textContent} 빠른 선택`);
+    b.title = b.textContent ?? "";
     const icon = toolIconImage(id!);
-    if (icon) {
-      const label = document.createElement("span");
-      label.textContent = b.textContent;
-      b.replaceChildren(icon, label);
-    }
+    b.replaceChildren(...(icon ? [icon] : []));
     b.classList.toggle("selected", id === selected);
+    b.setAttribute("aria-pressed", String(id === selected));
     slots.append(b);
   }
 }
@@ -568,7 +580,7 @@ function act(): void {
   if (crop?.kind === "crop") return send("harvestCrop", tile);
   const e = nearest();
   if (e) {
-    if (e.kind === "chest") return showPanel("chest", "가족 보관함", e.id);
+    if (e.kind === "chest") return showPanel("chest", "보관함", e.id);
     if (e.kind === "craft") return showPanel("craft", "제작대", e.id);
     if (e.kind === "gather") return send("gather", { targetId: e.id });
     if (e.kind === "ladder") return send("mineAction", { targetId: e.id });
@@ -688,7 +700,7 @@ function touchAct(t: TouchTarget): void {
       showPanel("sleep", "포근한 잠자리", e.id);
       break;
     case "chest":
-      showPanel("chest", "공유 보관함", e.id);
+      showPanel("chest", "보관함", e.id);
       break;
     case "craft":
       showPanel("craft", "제작", e.id);

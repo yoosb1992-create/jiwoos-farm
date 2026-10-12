@@ -8,6 +8,8 @@ import type { RenderPlayer } from "./network.js";
 export interface HouseholdContext {
   member?: Member;
   chest: Record<string, number>;
+  storageReady?: boolean;
+  legacyChestTarget?: string;
   day: number;
   minute: number;
   entities: Entity[];
@@ -60,14 +62,18 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
   const target = c.entities.find(e => e.id === c.targetId);
   const inRange = !!target && !!me && target.area === me.area &&
     Math.hypot(target.x - me.authoritativeX, target.y - me.authoritativeY) <= 64;
-  const blocked = c.busy || !c.connected || !inRange;
+  const blocked = c.busy || !c.connected || !inRange || (type === "chest" && c.storageReady === false);
   const status = el("p", c.busy ? "물건을 정리하고 있어요…" : c.feedback ||
     (!c.connected ? "연결을 복구하고 있어요" : ""), "household-feedback");
   status.setAttribute("role", "status");
   status.setAttribute("aria-live", "polite");
   body.append(status);
   if (type === "chest" && m) {
-    body.append(el("p", "가족이 함께 쓰는 보관함 · 도구는 가방에 남겨 두어요. 절반은 홀수일 때 올림해요.", "household-note"));
+    const chests = c.entities.filter(e => e.kind === "chest").sort((a, b) => a.id.localeCompare(b.id, "en"));
+    const number = chests.findIndex(e => e.id === c.targetId) + 1;
+    body.append(el("p", `보관함 ${number || ""} · 이 보관함의 물품을 가족과 함께 사용해요. 다른 보관함과는 따로 보관해요.`, "household-note"));
+    if (c.targetId === c.legacyChestTarget) body.append(el("p", "기존 공동 보관함의 물품이 이곳으로 옮겨졌어요.", "household-note"));
+    if (c.storageReady === false) body.append(el("p", "보관함 정보를 준비 중이에요. 잠시 후에도 같으면 새로고침해 주세요.", "unavailable"));
     const columns = el("div", "", "storage-columns");
     for (const [into, title, inventory] of [[true, "내 가방", m.inventory], [false, "가족 보관함", c.chest]] as const) {
       const section = el("section", "", into ? "storage-side bag-side" : "storage-side chest-side");
@@ -104,6 +110,7 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
   }
   if (type === "craft" && m) {
     body.append(el("p", c.category === "upgrade" ? "가방의 재료로 도구를 강화해요." : "가방의 재료로 바로 만들어요. 제작 횟수만큼 재료가 사용됩니다.", "household-note"));
+    const workshop = el("div", "", "workshop-layout"), menu = el("aside", "", "workshop-menu");
     const categories = el("nav", "", "craft-categories");
     categories.setAttribute("aria-label", "제작 카테고리");
     categories.dataset.scroll = "categories";
@@ -115,7 +122,9 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
       if (category.id !== "upgrade") tab.append(el("span", String(recipesInCategory(category.id).length), "category-count"));
       categories.append(tab);
     }
-    body.append(categories);
+    menu.append(categories);
+    workshop.append(menu);
+    body.append(workshop);
     if (c.category === "upgrade") {
       const upgrade = el("section", "", "upgrade-tools");
       upgrade.setAttribute("aria-label", "도구 강화");
@@ -136,10 +145,10 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
         upgrade.append(button("Lv2로 강화", "upgrade", () => c.send("upgradeTool", { targetId: target?.id }),
           blocked || (m.inventory.copper_ore ?? 0) < 5 || (m.inventory.wood ?? 0) < 5));
       }
-      body.append(upgrade);
+      workshop.append(upgrade);
     } else {
       const recipes = recipesInCategory(c.category);
-      const workshop = el("div", "", "workshop-layout"), list = el("nav", "", "recipe-list");
+      const list = el("nav", "", "recipe-list");
       list.setAttribute("aria-label", "제작법");
       list.dataset.scroll = "recipes";
       for (const recipe of recipes) {
@@ -172,8 +181,8 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
         actions.append(b);
       }
       detail.append(el("p", max ? `지금 최대 ${max}회 · 결과 ${max * recipe.output.quantity}개` : "재료가 부족하거나 가방이 가득 찼어요.", max ? "available" : "unavailable"), actions);
-      workshop.append(list, detail);
-      body.append(workshop);
+      menu.append(list);
+      workshop.append(detail);
     }
   }
   if (type === "sleep" || type === "sleep-status") {

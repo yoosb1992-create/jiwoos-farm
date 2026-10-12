@@ -10,7 +10,8 @@ import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 import type { ActionFx, Tool } from "./interaction.js";
 import { normalizeRock } from "./resources.js";
-export const WORLD_VERSION = 8;
+import { migrateChestStorage, type ChestBinding, type ChestStores } from "./chest-storage.js";
+export const WORLD_VERSION = 9;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
 export const ACTION_RANGE = 64;
@@ -79,7 +80,11 @@ export interface World {
   deepest: number;
   members: Record<string, Member>;
   entities: Record<string, Entity>;
+  /** Legacy ledger, emptied only after its contents have a real chest store. */
   chest: Record<string, number>;
+  chestStores?: ChestStores;
+  chestBindings?: Record<string, ChestBinding>;
+  legacyChestTarget?: string;
   nextEntity: number;
   events: string[];
 }
@@ -449,6 +454,7 @@ export function newWorld(
     members: {},
     entities: {},
     chest: {},
+    chestStores: {},
     nextEntity: 0,
     events: [],
     layout: structuredClone(layout),
@@ -575,5 +581,6 @@ export function upgradeWorld(w: World): void {
   w.debrisDay ??= w.day;
   w.grassDay ??= w.day;
   w.naturalTreesSeeded ??= true;
+  migrateChestStorage(w);
   w.version = WORLD_VERSION;
 }

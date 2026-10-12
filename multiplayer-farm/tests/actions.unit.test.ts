@@ -1,3 +1,4 @@
+import { chestInventory } from "../shared/chest-storage.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { applyAction, parseCommand, nextDay } from "../shared/actions.js";
@@ -111,7 +112,7 @@ test("12 contested chest withdrawal cannot duplicate", () => {
   const c = w.entities["family-chest"]!;
   a.x = c.x;
   a.y = c.y;
-  w.chest.wood = 1;
+  chestInventory(w, c.id).wood = 1;
   act(w, a, "withdrawChest", { targetId: c.id, itemId: "wood" });
   assert.throws(() =>
     act(w, { ...a, id: "b" }, "withdrawChest", {
@@ -120,7 +121,7 @@ test("12 contested chest withdrawal cannot duplicate", () => {
     }),
   );
   assert.equal(w.members.a!.inventory.wood, 1);
-  assert.equal(w.chest.wood, undefined);
+  assert.equal(chestInventory(w, c.id).wood, undefined);
 });
 test("13/14 crafting verifies every ingredient before changing any stack", () => {
   const { w, a } = setup();

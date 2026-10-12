@@ -1301,9 +1301,10 @@ h1 {
 .quantity-actions button:last-child { grid-column: 1 / -1; background: #f1e8cd; }
 .quantity-actions button, .craft-actions button, .upgrade-tools button { min-width: 0; min-height: 44px; padding: 8px; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
 .household-empty { padding: 20px 8px; color: #6b7563; line-height: 1.8; }
-.workshop-layout { display: grid; grid-template-columns: minmax(190px, .8fr) minmax(0, 1.2fr); gap: 16px; align-items: start; }
-.craft-categories { display: flex; gap: 7px; max-width: 100%; overflow-x: auto; padding: 3px 2px 10px; margin-bottom: 10px; touch-action: pan-x pan-y; scrollbar-width: thin; }
-.craft-categories button { flex: 0 0 auto; min-height: 44px; white-space: nowrap; padding: 8px 10px; }
+.workshop-layout { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 16px; align-items: start; }
+.workshop-menu { min-width: 0; }
+.craft-categories { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding: 3px; margin-bottom: 10px; }
+.craft-categories button { min-width: 0; min-height: 44px; white-space: normal; overflow-wrap: anywhere; padding: 7px 4px; font-size: 12px; }
 .category-count { margin-left: 5px; font-size: 11px; color: #65755f; }
 .recipe-list { display: grid; gap: 7px; max-height: min(390px, 40dvh); overflow-y: auto; padding: 3px; min-width: 0; touch-action: pan-y; scrollbar-width: thin; }
 .recipe-choice { display: grid; grid-template-columns: 38px 1fr; gap: 3px 9px; text-align: left; min-height: 64px; padding: 9px; border: 1px solid #dcdcc7; background: #fffdf5; }
@@ -1340,24 +1341,39 @@ h1 {
   .quantity-actions { grid-template-columns: 1fr; gap: 4px; margin-top: 7px; }
   .quantity-actions button { font-size: 12px; padding: 6px 3px; }
   .quantity-actions button:last-child { grid-column: auto; }
-  .workshop-layout { grid-template-columns: 1fr; }
-  .recipe-list { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: min(240px, 32dvh); }
-  .recipe-choice { grid-template-columns: 32px minmax(0, 1fr); gap: 3px 6px; padding: 7px; }
+  .workshop-layout { gap: 8px; }
+  .craft-categories { gap: 4px; margin-bottom: 6px; }
+  .craft-categories button { font-size: 11px; padding: 5px 2px; }
+  .category-count { display: block; margin-left: 0; font-size: 10px; }
+  .recipe-list { grid-template-columns: minmax(0, 1fr); max-height: min(390px, 46dvh); }
+  .recipe-choice { grid-template-columns: 32px minmax(0, 1fr); gap: 3px 5px; padding: 6px; }
   .recipe-choice .household-icon { width: 32px; height: 32px; }
   .recipe-choice > span:last-child { grid-column: 1 / -1; }
-  .recipe-choice strong { font-size: 13px; overflow-wrap: anywhere; }
+  .recipe-choice strong { font-size: 12px; overflow-wrap: anywhere; }
+  .recipe-choice > span:last-child { font-size: 11px; }
+  .recipe-detail, .upgrade-tools { padding: 8px; border-radius: 12px; font-size: 12px; }
+  .recipe-detail h3, .upgrade-tools h3 { font-size: 14px; min-width: 0; }
+  .recipe-detail .household-item-heading { flex-wrap: wrap; gap: 5px; }
+  .recipe-detail .household-note { margin-bottom: 8px; line-height: 1.5; }
+  .ingredient { grid-template-columns: 30px minmax(0, 1fr); gap: 3px 5px; padding: 6px 0; }
+  .ingredient strong, .ingredient small { grid-column: 2; }
+  .craft-actions { gap: 5px; margin-top: 9px; }
+  .craft-actions button, .upgrade-tools button { font-size: 12px; padding: 6px; }
 }
 .tool-icon { width: 32px; height: 32px; object-fit: contain; image-rendering: pixelated; }
 .item-art.tool-icon { width: 48px; height: 48px; }
 .upgrade-icons { display: flex; gap: 8px; margin-top: 10px; }
-#quickslots button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 44px; }
-#quickslots .tool-icon { width: 16px; height: 16px; pointer-events: none; }
-#selected-tool-icon { display: flex; flex: 0 0 16px; }
-#selected-tool-icon .tool-icon { width: 16px; height: 16px; }
-#toolbar select { min-width: 0; width: 0; }
-@media (max-height: 480px) {
-  #quickslots .tool-icon { width: 14px; height: 14px; }
-}
+/* Compact icon-only tray; each of its eight controls keeps a 44px touch target. */
+#toolbar { display: grid; grid-template-columns: repeat(4, 44px); width: max-content; gap: 2px; padding: 3px; border-radius: 12px; }
+#quickslots { display: contents; }
+#quickslots button { display: flex; align-items: center; justify-content: center; width: 44px; min-width: 44px; height: 44px; padding: 0; }
+#quickslots .tool-icon { width: 14px; height: 14px; pointer-events: none; }
+#tool-picker { position: relative; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid #b9c89f; border-radius: 8px; background: #eef3df; }
+#tool-picker::after { content: ""; position: absolute; right: 5px; bottom: 6px; width: 4px; height: 4px; border-right: 1px solid #597b4e; border-bottom: 1px solid #597b4e; transform: rotate(45deg); pointer-events: none; }
+#tool-picker:focus-within { outline: 3px solid #dca854; outline-offset: 2px; }
+#selected-tool-icon { display: flex; pointer-events: none; }
+#selected-tool-icon .tool-icon { width: 14px; height: 14px; }
+#toolbar #tool { position: absolute; inset: 0; width: 44px; height: 44px; min-height: 44px; padding: 0; opacity: 0; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   #panel[open] { animation: none !important; }
 }
