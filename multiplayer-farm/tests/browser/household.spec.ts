@@ -29,12 +29,35 @@ async function enterHome(page: Page): Promise<void> {
 }
 async function goHome(page: Page): Promise<void> {
   await waitForFarmInput(page);
+  let connection = await page.evaluate(() => window.__FARM_DEBUG__.snapshot().reconnectCount);
+  let recoveryAck: number | undefined, homeAck: number | undefined;
   await page.locator("#action").tap();
-  await expect.poll(()=>page.evaluate(()=>window.__FARM_DEBUG__.snapshot().players.find(p=>p.local)?.area),{timeout:15000}).toBe("farmhouse").catch(async error=>{
+  await expect.poll(async () => {
+    const snapshot = await page.evaluate(() => window.__FARM_DEBUG__.snapshot());
+    if (snapshot.status !== "connected") { homeAck = undefined; return snapshot.status; }
+    if (snapshot.reconnectCount !== connection) {
+      connection = snapshot.reconnectCount;
+      recoveryAck = snapshot.acknowledgedInputs;
+      homeAck = undefined;
+    }
+    const area = snapshot.players.find(p => p.local)?.area;
+    if (area === "farmhouse") {
+      homeAck ??= snapshot.acknowledgedInputs;
+      return snapshot.acknowledgedInputs - homeAck >= 60 ? area : "entering";
+    }
+    homeAck = undefined;
+    // Reconnection deliberately discards volatile movement/actions and asks
+    // the player to press again. Repeat once per observed NEW connection,
+    // never blindly retry an ignored/invalid entrance on a healthy connection.
+    if (recoveryAck !== undefined && snapshot.acknowledgedInputs - recoveryAck >= 60) {
+      recoveryAck = undefined;
+      await page.locator("#action").tap();
+    }
+    return area;
+  },{timeout:15000,intervals:[150]}).toBe("farmhouse").catch(async error=>{
     const diagnostic=await page.evaluate(()=>({players:window.__FARM_DEBUG__.snapshot().players,notice:document.getElementById("notice")?.textContent,tool:(document.getElementById("tool") as HTMLSelectElement).value}));
     throw Error(`${String(error)}\nEntry diagnostic: ${JSON.stringify(diagnostic)}`);
   });
-  await waitForFarmInput(page);
 }
 async function tapObject(page:Page,id:string):Promise<void>{
   // A software-rendered screenshot can trigger the existing backlog reconnect.
