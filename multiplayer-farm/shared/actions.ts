@@ -1,3 +1,4 @@
+import { parseAppearance } from "./appearance.js";
 import { TRANSPORT_DURATION_MS, HAND_CARRY_LIMIT_KG } from "./transport-config.js";
 import { parseQuickbarEdit, editQuickbar } from "./quickbar.js";
 import { carryAppearance } from "./transport.js";
@@ -59,6 +60,7 @@ function requireThat(condition: unknown, message: string): asserts condition {
   if (!condition) throw new ActionError(message);
 }
 const TYPES = new Set([
+  "updateAppearance",
   "updateQuickbar",
   "useTool",
   "cutGrass",
@@ -127,6 +129,7 @@ export function parseCommand(value: unknown): Command {
     "지원하지 않는 행동",
   );
   const out: Command = { actionId: c.actionId, type: c.type };
+  if (out.type === "updateAppearance") out.appearance = parseAppearance(c.appearance);
   if(out.type === "updateQuickbar") out.quickbarEdit=parseQuickbarEdit(c.quickbarEdit);
   if (c.chestName !== undefined) {
     requireThat(out.type === "configureChest" && validChestName(c.chestName), "보관함 이름은 특수 제어문자 없이 20자 이내로 입력해 주세요");
@@ -250,8 +253,8 @@ export function applyAction(
   let failed = false;
   const m = w.members[a.id];
   requireThat(m, "플레이어 없음");
-  requireThat(command.type === "pickupDrop" || command.type === "updateQuickbar" || ctx.now >= (m.transportUntil ?? 0), "운반 동작을 마칠 때까지 기다려 주세요");
-  requireThat(!m.carried || ["lowerChest", "pickupDrop", "enterArea", "worldEvent", "updateQuickbar"].includes(command.type), "보관함을 먼저 내려놓아 주세요");
+  requireThat(["pickupDrop", "updateQuickbar", "updateAppearance"].includes(command.type) || ctx.now >= (m.transportUntil ?? 0), "운반 동작을 마칠 때까지 기다려 주세요");
+  requireThat(!m.carried || ["lowerChest", "pickupDrop", "enterArea", "worldEvent", "updateQuickbar", "updateAppearance"].includes(command.type), "보관함을 먼저 내려놓아 주세요");
   const cost = tool && command.type !== "refill" ? toolStaminaCost(tool, before) : 0;
   if (tool) {
     requireThat(isTool(tool) && (m.inventory[tool] ?? 0) > 0, "도구가 없습니다");
@@ -409,6 +412,11 @@ function applyActionCore(
   const q = c.quantity ?? 1;
   requireThat(q >= 1 && q <= MAX_QUANTITY, "수량은 1~999입니다");
   switch (c.type) {
+    case "updateAppearance": {
+      m.appearance = parseAppearance(c.appearance);
+      result.message = "캐릭터 외형을 저장했어요";
+      break;
+    }
     case "updateQuickbar": {
       editQuickbar(m,parseQuickbarEdit(c.quickbarEdit));
       result.message="단축슬롯과 즐겨찾기를 저장했어요";

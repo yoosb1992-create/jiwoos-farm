@@ -40,7 +40,7 @@ test("phone: lost first-join response, matchmaking failure, offline/visible reco
   await expect(page.locator("#connection")).toHaveAttribute("data-status", "connected", { timeout: 15000 });
   await expect(page.locator("#action")).toBeEnabled();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("farm-v26-session")!))).toEqual(saved);
-  await page.locator("#menu").click(); await page.getByRole("button", { name: "로그아웃", exact: true }).click();
+  await page.locator("#menu").click(); await page.getByRole("button", { name: "농장 및 가족", exact: true }).click(); await page.getByRole("button", { name: "로그아웃", exact: true }).click();
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.locator("#login")).toBeVisible();
   await expect(page.locator("#connection")).toHaveAttribute("data-status", "disconnected");

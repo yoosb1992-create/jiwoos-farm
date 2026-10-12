@@ -177,7 +177,7 @@ export class FarmFeedback {
       if(!p || p.area!==area || !this.visible(p.x,p.y,200)) {
         s.rig.hide();this.rigs.push(s.rig);this.swings.delete(id);this.queued.delete(id);continue;
       }
-      s.rig.update(elapsed,p.x,p.y);
+      s.rig.update(elapsed,p.x,p.y,p.appearance);
       if(!s.whooshed && elapsed>=timing.windup && e.tool!=="hand" && e.tool!=="water") {
         s.whooshed=true;this.sound(e.tool==="scythe"?"swish":"swing");
       }

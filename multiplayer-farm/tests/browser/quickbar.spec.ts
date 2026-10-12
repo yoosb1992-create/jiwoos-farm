@@ -89,6 +89,20 @@ test("mobile quickbar registration, favorites, persistence, silhouettes and conn
       return popup.left<r.right&&popup.right>r.left&&popup.top<r.bottom&&popup.bottom>r.top;
     });
   });expect(overlap).toBe(false);
+  for(const mode of ["vertical","expanded"])for(const viewport of [{width:344,height:882},{width:768,height:1024},{width:844,height:390},{width:1280,height:900}]) {
+    await page.setViewportSize(viewport);
+    await page.evaluate(mode=>{localStorage.setItem("farm-favorite-mode",mode);window.dispatchEvent(new Event("favorite-mode-change"));window.dispatchEvent(new Event("favorite-visibility"));},mode);
+    await expect.poll(()=>page.evaluate(()=>{
+      const popup=document.getElementById("favorite-popup")!.getBoundingClientRect(),tray=document.getElementById("toolbar")!.getBoundingClientRect(),star=document.getElementById("favorite-toggle")!.getBoundingClientRect();
+      const clear=["top","toolbar","action","run","joystick","furniture-action"].every(id=>{
+        const e=document.getElementById(id)!;if(e.hidden)return true;const r=e.getBoundingClientRect();
+        return !(popup.left<r.right&&popup.right>r.left&&popup.top<r.bottom&&popup.bottom>r.top);
+      });
+      return clear&&popup.top>=0&&popup.left>=0&&popup.right<=innerWidth&&popup.bottom<=innerHeight&&Math.abs(tray.top-popup.bottom-8)<2&&Math.abs(popup.right-star.right)<2;
+    })).toBe(true);
+  }
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>{localStorage.setItem("farm-favorite-mode","vertical");window.dispatchEvent(new Event("favorite-mode-change"));window.dispatchEvent(new Event("favorite-visibility"));});
   await page.screenshot({path:info.outputPath("mobile-slots-favorites.png")});
   await page.reload();await expect(page.locator("#connection")).toHaveAttribute("data-status","connected",{timeout:25000});
   await expect(slot(page,2)).toHaveAttribute("data-tool","axe");await expect(slot(page,4)).toHaveAttribute("data-tool","scythe");

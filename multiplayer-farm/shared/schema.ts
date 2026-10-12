@@ -29,6 +29,7 @@ export const Player = schema(
     actionTicks: t.uint8().default(0),
     carrying: t.boolean().default(false),
     carry: t.string().default(""),
+    appearance: t.string().default(""),
   },
   "FarmPlayer",
 );

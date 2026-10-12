@@ -1,3 +1,4 @@
+import { editorHeaders } from "./editor-auth.js";
 import { expect, type Page } from "@playwright/test";
 import { collidesWithObstacle, isFarmable, prepareDynamicObstacles } from "../../shared/applyMovement.js";
 import { findPath } from "../../shared/pathfinding.js";
@@ -96,7 +97,7 @@ export async function clearWorldBlueprint(page: Page, spawnX: number, spawnY: nu
   if (!farmEntry) throw Error("Missing default farm spawn");
   farmEntry.tileX = spawnX;
   farmEntry.tileY = spawnY;
-  const draftResponse = await page.request.post(`${backend}/api/blueprints`, {data: layout});
+  const draftResponse = await page.request.post(`${backend}/api/blueprints`, {headers:await editorHeaders(page),data: layout});
   if (!draftResponse.ok()) throw Error("Cannot create test blueprint: " + await draftResponse.text());
   const draft = await draftResponse.json();
   const published = await page.request.post(`${backend}/api/blueprints/${draft.id}`, {

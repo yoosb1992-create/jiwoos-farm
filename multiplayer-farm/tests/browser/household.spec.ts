@@ -1,3 +1,4 @@
+import { editorHeaders } from "./editor-auth.js";
 import { test, expect, type Page } from "@playwright/test";
 import { newWorld2 } from "../../shared/world2.js";
 import { waitForFarmInput } from "./nature-target.js";
@@ -18,7 +19,7 @@ async function enterHome(page: Page): Promise<void> {
     {id:"supplies",name:"공방 재료",area:{startX:1,endX:20,startY:2,endY:10},trigger:"enter",condition:"",once:true,action:"item",value:"wood",quantity:25},
     {id:"copper",name:"강화 재료",area:{startX:1,endX:20,startY:2,endY:10},trigger:"enter",condition:"",once:true,action:"item",value:"copper_ore",quantity:5},
   ];
-  const response=await page.request.post(`${api}/api/blueprints`,{data:layout});expect(response.ok()).toBe(true);
+  const response=await page.request.post(`${api}/api/blueprints`,{headers:await editorHeaders(page),data:layout});expect(response.ok()).toBe(true);
   const draft=await response.json();
   expect((await page.request.post(`${api}/api/blueprints/${draft.id}`,{headers:{Authorization:`Bearer ${draft.editToken}`},data:{layout,revision:draft.revision,publish:true}})).ok()).toBe(true);
   await page.addInitScript(id=>{localStorage.setItem("farm-active-blueprint",id);localStorage.setItem("farm-zoom","0.75");},draft.id);
@@ -29,7 +30,10 @@ async function enterHome(page: Page): Promise<void> {
 async function goHome(page: Page): Promise<void> {
   await waitForFarmInput(page);
   await page.locator("#action").tap();
-  await expect.poll(()=>page.evaluate(()=>window.__FARM_DEBUG__.snapshot().players.find(p=>p.local)?.area),{timeout:15000}).toBe("farmhouse");
+  await expect.poll(()=>page.evaluate(()=>window.__FARM_DEBUG__.snapshot().players.find(p=>p.local)?.area),{timeout:15000}).toBe("farmhouse").catch(async error=>{
+    const diagnostic=await page.evaluate(()=>({players:window.__FARM_DEBUG__.snapshot().players,notice:document.getElementById("notice")?.textContent,tool:(document.getElementById("tool") as HTMLSelectElement).value}));
+    throw Error(`${String(error)}\nEntry diagnostic: ${JSON.stringify(diagnostic)}`);
+  });
   await waitForFarmInput(page);
 }
 async function tapObject(page:Page,id:string):Promise<void>{
@@ -100,7 +104,9 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`hou
   await page.getByRole("button",{name:"잠자기",exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>(window.__FARM_DEBUG__.state() as unknown as {day:number}|undefined)?.day)).toBe(2);
   await expect(page.locator("#panel")).not.toBeVisible();
+  await waitForFarmInput(page);
   await page.keyboard.press("Space");
+  await expect(page.locator("#panel")).toBeVisible();
   await expect(page.locator("#panel")).toHaveAttribute("data-panel","sleep");
   if (viewport.width > 600) {
     await page.locator("#panel-close").click();

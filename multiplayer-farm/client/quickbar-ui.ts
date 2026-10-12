@@ -67,7 +67,11 @@ export class QuickbarUI {
     this.choice=choice;this.category="all";
     this.open("quickbar-picker","slotId" in choice?`${choice.slotId}번 슬롯에 등록`:"즐겨찾기 아이템 선택");
   }
-  closeFavorites() {this.popup.hidden=true;document.getElementById("favorite-toggle")?.setAttribute("aria-expanded","false");}
+  closeFavorites() {
+    const wasOpen=!this.popup.hidden;this.popup.hidden=true;
+    document.getElementById("favorite-toggle")?.setAttribute("aria-expanded","false");
+    if(wasOpen)window.dispatchEvent(new Event("favorite-visibility"));
+  }
   refresh() {
     const m=this.c.member(),bar=quickbarFor(m),selected=this.c.selected();
     const signature=JSON.stringify([m?.id,bar,m?.inventory,selected]);
@@ -87,6 +91,7 @@ export class QuickbarUI {
     const star=button("",()=>{
       this.c.pause();this.popup.hidden=!this.popup.hidden;
       star.setAttribute("aria-expanded",String(!this.popup.hidden));this.renderFavorites();
+      window.dispatchEvent(new Event("favorite-visibility"));
     });
     star.id="favorite-toggle";star.ariaLabel="즐겨찾기 전환";star.title="즐겨찾기";
     star.style.gridRow=String(bar.rows);star.style.gridColumn=String(bar.columns);
@@ -114,23 +119,18 @@ export class QuickbarUI {
   }
   positionPopup() {
     if(this.popup.hidden)return;
-    const w=window.visualViewport?.width??innerWidth,h=window.visualViewport?.height??innerHeight;
-    const tray=document.getElementById("toolbar")!.getBoundingClientRect();
-    const occupied=["top","toolbar","joystick","action","run","furniture-action","placement-cancel"]
-      .map(id=>document.getElementById(id)).filter((e):e is HTMLElement=>!!e&&!e.hidden).map(e=>e.getBoundingClientRect());
-    const width=Math.min(favoriteMode()==="vertical"?72:204,w-16);
-    let best:{x:number;y:number;height:number;score:number}|undefined;
-    for(let height=Math.min(288,h-32);height>=56;height-=16) {
-      for(let y=8;y<=h-height-8;y+=8)for(let x=8;x<=w-width-8;x+=8) {
-        if(occupied.some(r=>x<r.right+5&&x+width>r.left-5&&y<r.bottom+5&&y+height>r.top-5))continue;
-        const score=(x+width-tray.left)**2+(y+height-tray.bottom)**2+(288-height)*160;
-        if(!best || score<best.score)best={x,y,height,score};
-      }
-    }
-    // Extremely constrained/customized screens still have a scrollable in-view
-    // chooser. Pause controls while it is open instead of clipping its content.
-    if(!best) {this.openManager();return;}
-    Object.assign(this.popup.style,{left:`${best.x}px`,top:`${best.y}px`,width:`${width}px`,maxHeight:`${best.height}px`});
+    const viewport=window.visualViewport,w=viewport?.width??innerWidth,h=viewport?.height??innerHeight;
+    const tray=document.getElementById("toolbar")!.getBoundingClientRect(),star=document.getElementById("favorite-toggle")!.getBoundingClientRect();
+    const top=document.getElementById("top")!.getBoundingClientRect();
+    const space=Math.max(54,tray.top-Math.max(8,top.bottom+8)-8);
+    const compact=space<145;
+    const width=Math.min(compact?tray.width:favoriteMode()==="vertical"?72:Math.max(tray.width,224),w-16);
+    const height=Math.min(space,compact?62:favoriteMode()==="vertical"?316:240);
+    this.popup.dataset.compact=String(compact);
+    // Both modes share the same anchor. No viewport-wide vacant-space search:
+    // this is always directly above the tray, aligned with its star column.
+    Object.assign(this.popup.style,{left:`${Math.max(8,Math.min(w-width-8,star.right-width))}px`,top:"auto",bottom:`${h-tray.top+8}px`,width:`${width}px`,maxHeight:`${height}px`});
+    this.popup.style.setProperty("--favorite-anchor",`${Math.min(width-12,star.width/2)}px`);
   }
   renderPanel(type:string,body:HTMLElement):boolean {
     if(!type.startsWith("quickbar-"))return false;

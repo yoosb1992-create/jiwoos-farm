@@ -1,3 +1,4 @@
+import { appearanceOf, DEFAULT_APPEARANCE, type Appearance } from "./appearance.js";
 import type { CarriedChest, TransportFx } from "./transport.js";
 import { defaultQuickbar, ensureQuickbar, type Quickbar, type QuickbarEdit } from "./quickbar.js";
 import { activateHomeFurniture } from "./home-furniture.js";
@@ -24,6 +25,7 @@ export const GAME_MINUTE_MS = 500;
 export const MAX_QUANTITY = 999;
 export type Facing = "up" | "down" | "left" | "right";
 export interface Member {
+  appearance?: Appearance;
   quickbar?: Quickbar;
   id: string;
   nickname: string;
@@ -117,6 +119,7 @@ export interface Actor {
   stamina: number;
 }
 export interface Command {
+  appearance?: Appearance;
   quickbarEdit?: QuickbarEdit;
   actionId: string;
   type: string;
@@ -177,6 +180,7 @@ export const entity = (
 });
 export function newMember(id: string, nickname: string, day = 1): Member {
   return {
+    appearance: { ...DEFAULT_APPEARANCE },
     quickbar: defaultQuickbar(),
     id,
     nickname,
@@ -549,6 +553,7 @@ export function upgradeWorld(w: World): void {
   if (w.version > WORLD_VERSION)
     throw new Error("This farm needs a newer server");
   for (const m of Object.values(w.members)) {
+    m.appearance = appearanceOf(m.appearance);
     ensureQuickbar(m);
     migrateToolLevels(m);
     if (m.carried) for (const e of m.carried.entities) {

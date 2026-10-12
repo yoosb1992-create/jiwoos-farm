@@ -1,3 +1,4 @@
+import { editorHeaders } from "./editor-auth.js";
 import { test,expect } from "@playwright/test";
 import { waitForFarmInput } from "./nature-target.js";
 
@@ -11,7 +12,7 @@ test("five tree ages: juvenile cutting, species stumps, three-hit clearing and r
   const species=["tree_cherry","tree_bamboo","tree_birch","tree_pine","tree_metasequoia"];
   for(let stage=0;stage<5;stage++)m.objects.push({id:`age-${stage}`,assetId:species[stage],kind:"tree",
     position:{tileX:points[stage]![0],tileY:points[stage]![1]},tree:{species:species[stage],stage,chop:true,regrow:stage===0}});
-  const response=await page.request.post(`${backend}/api/blueprints`,{data:layout});expect(response.ok()).toBe(true);
+  const response=await page.request.post(`${backend}/api/blueprints`,{headers:await editorHeaders(page),data:layout});expect(response.ok()).toBe(true);
   const draft=await response.json();
   expect((await page.request.post(`${backend}/api/blueprints/${draft.id}`,{headers:{Authorization:`Bearer ${draft.editToken}`},data:{layout,revision:draft.revision,publish:true}})).ok()).toBe(true);
   await page.addInitScript(id=>{localStorage.setItem("farm-active-blueprint",id);localStorage.setItem("farm-zoom","1.2");},draft.id);

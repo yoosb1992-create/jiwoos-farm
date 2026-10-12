@@ -57,9 +57,15 @@ const defaults = (await (
   await fetch(new URL("/api/blueprints/defaults", backend))
 ).json()) as import("../shared/layout.js").WorldLayout;
 defaults.maps.farm!.width = 136;
+const editorLogin = await fetch(new URL("/api/session", backend), {
+  method:"POST",headers:{"Content-Type":"application/json",Origin:frontend.origin},
+  body:JSON.stringify({create:true,nickname:"Editor Owner"}),
+});
+assert.equal(editorLogin.status,200);
+const editorIdentity=await editorLogin.json() as Session;
 const blueprintResponse = await fetch(new URL("/api/blueprints", backend), {
   method: "POST",
-  headers: { "Content-Type": "application/json", Origin: frontend.origin },
+  headers: { "Content-Type": "application/json", Origin: frontend.origin, Authorization:`Bearer ${editorIdentity.token}` },
   body: JSON.stringify(defaults),
 });
 assert.equal(blueprintResponse.status, 200);

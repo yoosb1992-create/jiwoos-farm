@@ -1,3 +1,4 @@
+import { editorHeaders } from "./editor-auth.js";
 import { test, expect } from "@playwright/test";
 import { waitForFarmInput } from "./nature-target.js";
 
@@ -20,7 +21,7 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
     {id:"fx-ore",assetId:"mine_copper",position:{tileX:38.5,tileY:42.5},kind:"rock"},
     ...["hand","axe","pickaxe"].map((tool,i)=>({id:`flower-${tool}`,assetId:"farm_pink_wildflower",position:{tileX:36.5+i*2,tileY:44.5},kind:"gather"})),
   );
-  const response=await page.request.post(`${backend}/api/blueprints`,{data:layout});expect(response.ok()).toBe(true);
+  const response=await page.request.post(`${backend}/api/blueprints`,{headers:await editorHeaders(page),data:layout});expect(response.ok()).toBe(true);
   const draft=await response.json();
   expect((await page.request.post(`${backend}/api/blueprints/${draft.id}`,{headers:{Authorization:`Bearer ${draft.editToken}`},data:{layout,revision:draft.revision,publish:true}})).ok()).toBe(true);
   await page.addInitScript(id=>{localStorage.setItem("farm-active-blueprint",id);localStorage.setItem("farm-zoom","1.4");},draft.id);

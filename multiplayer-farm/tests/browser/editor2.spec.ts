@@ -1,3 +1,4 @@
+import { authorizeEditor } from "./editor-auth.js";
 import { test, expect } from "@playwright/test";
 import type { WorldLayout } from "../../shared/layout.js";
 declare global {
@@ -25,6 +26,7 @@ test("World Editor 2.0: phone 80k map, brush history, route, draft restore, sand
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("dialog", (d) => d.accept());
+  await authorizeEditor(page);
   await page.goto("/editor.html");
   await expect(page.locator("#status")).toContainText("초안 준비");
   await page.locator("#menu").click();

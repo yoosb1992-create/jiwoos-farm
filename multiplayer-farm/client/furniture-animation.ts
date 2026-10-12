@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { appearanceTexture, characterScale } from "./character-art.js";
 import type { CarryAppearance, TransportFx } from "../shared/transport.js";
 import { TRANSPORT_DURATION_MS } from "../shared/transport-config.js";
 import type { Facing } from "../shared/world.js";
@@ -46,13 +47,14 @@ export class FurnitureAnimation {
     const moving = !motion && p.moving;
     const frame = Math.floor(now / 150) % 4;
     const texture = moving ? `farmer-carry-${facing}-${frame}` : farmerKey(facing, motion ? pose : "raised");
+    const size=characterScale(p.appearance);
     body.anims.stop();
-    body.setTexture(texture).setOrigin(.5, moving ? 70 / 72 : farmerGround(facing, motion ? pose : "raised") / 72)
+    body.setTexture(appearanceTexture(this.scene,texture,p.appearance)).setScale(size.x,size.y).setOrigin(.5, moving ? 70 / 72 : farmerGround(facing, motion ? pose : "raised") / 72)
       .setPosition(p.x, p.y + (motion ? Math.sin(Math.PI * progress) * 2 : 0)).setAngle(0).setAlpha(p.connected ? 1 : .4);
     const bob = moving ? Math.sin(now / 150 * Math.PI) * .7 : 0;
     for (let i = 0; i < appearance!.size; i++) {
       const part = view.parts[i] ??= this.scene.add.image(0, 0, chestTextureKey(appearance!.color, appearance!.size, i));
-      const head = { x: p.x + (i - (appearance!.size - 1) / 2) * 32, y: p.y + (farmerTop(facing, "raised") - farmerGround(facing, "raised")) * 1.05 - 8 + bob };
+      const head = { x: p.x + (i - (appearance!.size - 1) / 2) * 32, y: p.y + (farmerTop(facing, "raised") - farmerGround(facing, "raised")) * size.y - 8 + bob };
       const floor = motion?.event.cells[i] ?? head;
       const amount = motion ? lifting ? blend : 1 - blend : 1;
       const landing = motion && !lifting && progress > .82 ? -2 * Math.sin((progress - .82) / .18 * Math.PI) : 0;

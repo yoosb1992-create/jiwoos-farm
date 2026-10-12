@@ -153,6 +153,7 @@ export class ControlLayout {
       opts,
     );
     window.addEventListener("resize", () => this.apply(true), opts);
+    window.addEventListener("favorite-visibility", () => {this.apply(true);this.placeAuxiliary();}, opts);
     window.visualViewport?.addEventListener(
       "resize",
       () => this.apply(true),
@@ -209,8 +210,9 @@ export class ControlLayout {
     const occupied = [
       document.getElementById("top"),
       document.getElementById("toolbar"),
+      document.getElementById("favorite-popup"),
     ]
-      .filter((e): e is HTMLElement => !!e)
+      .filter((e): e is HTMLElement => !!e && !e.hidden)
       .map((e) => e.getBoundingClientRect());
     for (const id of ids) {
       const p = data[id],

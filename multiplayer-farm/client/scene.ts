@@ -1,3 +1,4 @@
+import { appearanceTexture, characterScale } from "./character-art.js";
 import { FurnitureAnimation } from "./furniture-animation.js";
 import type { TransportFx } from "../shared/transport.js";
 import type { PlacementHint } from "./placement-preview.js";
@@ -444,11 +445,13 @@ export class FarmScene extends Phaser.Scene {
         .setDepth(p.y)
         .setAngle(0)
         .setAlpha((p.connected?1:.4)*(1-(action?.blend??0)));
-      if (v.body.texture.key !== "player") v.body.setTexture("player").setOrigin(.5, 70 / 72);
-      const animation=`${action || p.actionTicks > 0 ? "idle" : moved ? "walk" : "idle"}_${facing}`;
-      if(!v.body.anims.isPlaying || v.body.anims.currentAnim?.key!==animation)v.body.play(animation);
-      if(action){v.body.anims.pause();v.body.setFrame(["down","up","left","right"].indexOf(facing)*4);}else v.body.anims.resume();
-      v.label.setPosition(p.x, p.y - 54).setDepth(p.y + 1);
+      const texture=appearanceTexture(this,"player",p.appearance),scale=characterScale(p.appearance);
+      const walking=!action&&p.actionTicks===0&&moved;
+      const frame=(walking?16:0)+["down","up","left","right"].indexOf(facing)*4+
+        (action?0:Math.floor(now/(walking?(p.running?70:100):500))%4);
+      v.body.anims.stop();
+      v.body.setTexture(texture,frame).setOrigin(.5,70/72).setScale(scale.x,scale.y);
+      v.label.setPosition(p.x, p.y - 54*scale.y/1.05).setDepth(p.y + 1);
       this.furniture?.update(p, v.body, v.label, now, me.area);
       v.x = p.x;
       v.y = p.y;

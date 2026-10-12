@@ -1,3 +1,4 @@
+import { appearanceOf, parseAppearance } from "../shared/appearance.js";
 import { carryAppearance } from "../shared/transport.js";
 import { TRANSPORT_DURATION_MS } from "../shared/transport-config.js";
 import { inRect } from "../shared/world2.js";
@@ -146,7 +147,7 @@ export class FarmRoom extends MovementRoom {
   }
   async onJoin(
     client: Client,
-    _options: unknown,
+    options: { initialAppearance?: unknown },
     auth: Identity,
   ): Promise<void> {
     // A valid saved token may replace its previous connection on mobile reload.
@@ -172,6 +173,8 @@ export class FarmRoom extends MovementRoom {
             auth.nickname,
             proposed.day,
           );
+          if (options.initialAppearance !== undefined)
+            proposed.members[auth.playerId]!.appearance = parseAppearance(options.initialAppearance);
           proposed.revision++;
           await this.lease.save(proposed, this.world.revision);
           this.world = proposed;
@@ -227,7 +230,10 @@ export class FarmRoom extends MovementRoom {
     };
   }
   private async command(client: Client, value: unknown, automaticPickup = false): Promise<void> {
-    let actionId = "";
+    // Correlate validation errors as well as successful commands. Invalid
+    // cosmetic enums must produce a visible rejection, not a waiting client.
+    const receivedId=(value as {actionId?:unknown}|null)?.actionId;
+    let actionId = typeof receivedId==="string"&&/^[a-zA-Z0-9_-]{8,100}$/.test(receivedId)?receivedId:"";
     try {
       if (this.closing) throw new Error("서버를 저장하고 있습니다");
       const identity = this.identities.get(client.sessionId),
@@ -251,7 +257,7 @@ export class FarmRoom extends MovementRoom {
         throw new Error("지역 이동 준비 중입니다");
       const now = Date.now();
       const picking = command.type === "pickupDrop";
-      const preference = command.type === "updateQuickbar";
+      const preference = ["updateQuickbar", "updateAppearance"].includes(command.type);
       const cooldown = picking ? this.pickupCooldown : this.cooldown;
       if (
         !preference && now - (cooldown.get(identity.playerId) ?? 0) <
@@ -423,6 +429,7 @@ export class FarmRoom extends MovementRoom {
     this.state.votes = this.votes.size;
     for (const p of this.state.players.values()) {
       const m = this.world.members[p.playerId];
+      p.appearance = JSON.stringify(appearanceOf(m?.appearance));
       const appearance = m && carryAppearance(this.world, m);
       p.carrying = !!appearance;
       p.carry = appearance ? JSON.stringify(appearance) : "";
@@ -444,6 +451,7 @@ export class FarmRoom extends MovementRoom {
     const id = this.identities.get(client.sessionId)?.playerId;
     if (id)
       client.send("personal", {
+        canDevelop: this.identities.get(client.sessionId)?.isOwner === true,
         member: this.world.members[id],
         chestStores: this.world.chestStores ?? {},
         chestStorageKeys: chestStorageKeys(this.world),

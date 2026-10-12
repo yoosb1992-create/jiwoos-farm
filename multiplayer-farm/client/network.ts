@@ -1,3 +1,4 @@
+import { appearanceOf, type Appearance } from "../shared/appearance.js";
 import type { TransportFx } from "../shared/transport.js";
 import { CLIENT_MAPS, receiveLayout } from "./layout.js";
 import type { Session } from "../persistence/store.js";
@@ -42,6 +43,7 @@ export type ConnectionStatus =
   | "reconnecting"
   | "error";
 export interface RenderPlayer {
+  appearance?: Appearance;
   id: string;
   nickname: string;
   color: string;
@@ -170,6 +172,7 @@ export class ColyseusAdapter implements NetworkAdapter {
   private lastSessionId = "";
   private disposed = false;
   personal?: {
+    canDevelop?: boolean;
     member: Member;
     chestStores?: Record<string, Record<string, number>>;
     chestStorageKeys?: Record<string, string>;
@@ -189,14 +192,14 @@ export class ColyseusAdapter implements NetworkAdapter {
   get state(): FarmState | undefined {
     return this.room?.state;
   }
-  openFarm(session: Session): Promise<void> {
+  openFarm(session: Session, initialAppearance?: Appearance): Promise<void> {
     if (this.savedToken === session.token && this.status === "connected") return Promise.resolve();
     if (this.savedToken === session.token && this.recovery?.generation === this.generation)
       return this.recovery.promise;
     return this.connect(() =>
       this.client.joinOrCreate<FarmState>(
         ROOM_NAME,
-        { farmId: session.farmId, token: session.token },
+        { farmId: session.farmId, token: session.token, initialAppearance },
         FarmState,
       ), session.token,
     );
@@ -662,6 +665,7 @@ export class ColyseusAdapter implements NetworkAdapter {
         running: player.running,
         stamina: player.stamina,
         actionTicks: player.actionTicks,
+        appearance: appearanceOf(player.appearance),
         carrying: player.carrying, carry: player.carry,
       });
     });

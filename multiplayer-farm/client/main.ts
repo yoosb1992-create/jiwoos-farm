@@ -1,3 +1,6 @@
+import { CharacterEditor } from "./character-editor.js";
+import { appearanceOf, type Appearance } from "../shared/appearance.js";
+import { DEVELOPER_KEY, verifyDeveloperAccess } from "./developer-access.js";
 import { QuickbarUI } from "./quickbar-ui.js";
 import { ownedItem } from "../shared/quickbar.js";
 import { placementHints, type PlacementHint } from "./placement-preview.js";
@@ -45,12 +48,12 @@ const audio = new FarmAudio();
 const actionKinds = new Map<string, string>();
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `<div id="arena" aria-label="가족 농장 게임 화면"></div>
-<header id="top"><div class="day-block"><span class="brand">JIWOO’S FARM · v2.7 · 타일 충돌</span><strong id="calendar">우리 가족의 작은 세계</strong><span id="place">사계절을 함께 가꾸어요</span></div><div class="top-actions"><span id="wallet">0 G</span><button id="bag" aria-label="가방">가방 <small id="bag-space">0/48</small></button><button id="menu" aria-label="메뉴">☰</button></div><div id="stamina"><i></i><span>기력</span></div></header><button hidden id="today" aria-label="오늘 할 일">✦ 오늘의 작은 한 걸음</button>
+<header id="top"><div class="day-block"><span class="brand">JIWOO’S FARM · v2.8</span><strong id="calendar">우리 가족의 작은 세계</strong><span id="place">사계절을 함께 가꾸어요</span></div><div class="top-actions"><span id="wallet">0 G</span><button id="bag" aria-label="가방">가방 <small id="bag-space">0/48</small></button><button id="menu" aria-label="메뉴">☰</button></div><div id="stamina"><i></i><span>기력</span></div></header><button hidden id="today" aria-label="오늘 할 일">✦ 오늘의 작은 한 걸음</button>
 <div id="notice" role="status">가족 농장에 오신 것을 환영합니다.</div><div id="connection"></div>
 <button id="sleep-status" hidden aria-label="잠자기 투표 현황"></button><div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><div id="tool-picker"><select id="tool" aria-label="도구와 씨앗 선택"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="scythe">낫</option><option value="fishing_rod">낚싯대</option></select></div></div>
 <button id="furniture-action" hidden type="button"></button><button id="placement-cancel" hidden type="button">설치 취소</button><div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action" aria-label="행동">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
 <pre id="hud" hidden></pre><dialog id="panel"><div id="panel-top"><h2 id="panel-title"></h2><button id="panel-close">닫기</button></div><div id="panel-body"></div></dialog>
-<section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>새 농장 이름 <small>(선택 · 만들 때만 적용)</small><input id="farm-name" maxlength="30" autocomplete="off" placeholder="예: 지우네 가족 농장"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><div id="saved-farms"></div><p id="login-error" role="status"></p><button type="button" id="cancel-connect" hidden>연결 취소</button><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>가족 코드만 공유하면 함께할 수 있어요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
+<section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>새 농장 이름 <small>(선택 · 만들 때만 적용)</small><input id="farm-name" maxlength="30" autocomplete="off" placeholder="예: 지우네 가족 농장"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><button type="button" id="new-appearance">캐릭터 꾸미기</button><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><div id="saved-farms"></div><p id="login-error" role="status"></p><button type="button" id="cancel-connect" hidden>연결 취소</button><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>가족 코드만 공유하면 함께할 수 있어요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
 function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
@@ -84,6 +87,14 @@ let selectedCraftCategory: CraftCategory = "all";
 const categorySelections: Partial<Record<CraftCategory, string>> = {};
 let householdReadyAt = 0, observedDay = 0, sleepPanelDay = 1;
 const householdActions = new Set(["depositChest", "withdrawChest", "configureChest", "linkChest", "unlinkChest", "craftItem", "upgradeTool", "sleepVote"]);
+const characterEditor=new CharacterEditor();
+let newAppearance=appearanceOf(),appearanceDraft=appearanceOf(),appearanceForNew=false,appearanceRequest:string|undefined;
+let verifiedDeveloper=false;
+const developerActive=()=>verifiedDeveloper&&localStorage.getItem(DEVELOPER_KEY)==="true";
+function openAppearance(forNew=false):void {
+  appearanceForNew=forNew;appearanceDraft=appearanceOf(forNew?newAppearance:network.personal?.member.appearance);
+  showPanel("appearance","캐릭터 꾸미기");
+}
 
 document.documentElement.style.setProperty(
   "--ui-scale",
@@ -112,7 +123,7 @@ const notice = (message: string) => {
   el("notice").classList.remove("quiet");
 };
 let bufferedToolAction: {type:string;extra:Partial<Command>;expires:number}|undefined;
-const send = (type: string, extra: Partial<Command> = {}) => {
+const send = (type: string, extra: Partial<Command> = {}):void => {
   if (network.snapshot().status !== "connected") return;
   const actor=latest.players.find(p=>p.local);
   if(actor && ["useTool","gather","harvestCrop","tillTile","waterCrop","refill"].includes(type) && renderer.scene.actionBusy(actor.id)) {
@@ -133,6 +144,7 @@ const send = (type: string, extra: Partial<Command> = {}) => {
   actionKinds.set(actionId, type);
   if (actionKinds.size > 100)
     actionKinds.delete(actionKinds.keys().next().value!);
+  if(type==="updateAppearance")appearanceRequest=actionId;
   network.action({ actionId, type, ...extra });
 };
 const quickbar = new QuickbarUI({
@@ -150,11 +162,13 @@ function startPlacement(id: string): void {
   placementItem=id; candidateHints=[]; notice("상하좌우의 초록색 칸을 눌러 설치하세요");
 }
 function closePanel(cancelFishing = true): void {
+  characterEditor.dispose();
   if (modal === "fishing" && fishing && cancelFishing) send("cancelFishing");
   fishingUI?.dispose();
   fishingUI = undefined;
   fishing = undefined;
   panel.close();
+  delete panel.dataset.panel;
   modal = "";
   input.reset();
   actionHeld = false;
@@ -169,6 +183,8 @@ panel.addEventListener(
   opts,
 );
 function showPanel(type: string, title: string, targetId?: string): void {
+  if(type==="developer"&&!developerActive())return;
+  characterEditor.dispose();
   quickbar.closeFavorites();
   const samePanel = modal === type;
   if (!samePanel || targetId !== panelTarget) chestDraft = undefined;
@@ -241,6 +257,32 @@ function renderPanelContent(): void {
     m = personal?.member;
   const local = latest.players.find((p) => p.local),
     state = network.state;
+  if(modal==="appearance") {
+    characterEditor.mount(panelBody,appearanceDraft,value=>{
+      if(appearanceForNew){newAppearance=value;closePanel();el("new-appearance").textContent="캐릭터 꾸미기 · 설정됨";return;}
+      if(network.snapshot().status!=="connected"){characterEditor.busy("연결을 복구한 뒤 저장해 주세요.");return;}
+      send("updateAppearance",{appearance:value});
+      characterEditor.busy("외형을 저장하고 있어요…",true);
+    },()=>closePanel());return;
+  }
+  if(modal==="settings") {
+    const section=document.createElement("section");section.className="developer-setting";
+    const toggle=button(developerActive()?"개발자 모드 끄기":"개발자 모드 켜기",()=>{
+      if(!verifiedDeveloper)return;
+      localStorage.setItem(DEVELOPER_KEY,String(!developerActive()));
+      el("hud").hidden=true;document.body.classList.toggle("developer-mode",developerActive());
+      showPanel("settings","게임 설정");
+    });toggle.id="developer-toggle";toggle.disabled=!verifiedDeveloper;toggle.setAttribute("aria-pressed",String(developerActive()));
+    const help=document.createElement("p");help.textContent=verifiedDeveloper?"농장 소유자 또는 설계도 편집 권한 확인됨 · 편집/진단 메뉴를 표시합니다.":"일반 플레이어 모드 · 편집 권한이 있는 계정에서 사용할 수 있어요.";
+    section.append(toggle,help);panelBody.append(section);
+  }
+  if(modal==="developer") {
+    row("개발자 모드 · 편집 권한은 서버에서 별도로 확인합니다",[button("월드 편집기",()=>{window.location.href="/editor.html";})]);
+    row("네트워크 보간",["Stable","Fast","Aggressive"].map(p=>button(`${p} ${p==="Stable"?100:p==="Fast"?75:60}ms`,()=>{network.setProfile(p as "Stable"|"Fast"|"Aggressive");notice(`${p} 보간 적용`);})));
+    row("멀티플레이 진단",[button("Network HUD",()=>{el("hud").hidden=!el("hud").hidden;closePanel();})]);
+    row(`접속 ${latest.status} · ${latest.players.length}명 · RTT ${latest.rtt?.toFixed(0)??"—"}ms · 재접속 ${latest.reconnectCount}회`);
+    return;
+  }
   const chestKey = panelTarget ? personal?.chestStorageKeys?.[panelTarget] : undefined;
   const chestInfo = panelTarget ? personal?.chestInfos?.[panelTarget] : undefined;
   if (modal === "chest" && chestInfo) {
@@ -373,89 +415,33 @@ function renderPanelContent(): void {
         ]);
   }
   if (modal === "menu") {
-    const menuGrid = document.createElement("div");
-    menuGrid.className = "menu-grid";
-    for (const [id, title] of [
-      ["bag", "가방"],
-      ["journal", "✦ 퀘스트 / 오늘 할 일"],
-      ["crops", "❧ 사계절 도감"],
-      ["fish", "≈ 물고기 도감"],
-      ["map", "⌖ 지역 지도"],
-      ["residents", "♧ 주민과 부탁"],
-      ["calendar", "▦ 행사 달력"],
-      ["animals", "♡ 동물 돌보기"],
-      ["decoration", "⌂ 정원 꾸미기"],
-      ["settings", "⚙ 소리·화면 설정"],
-    ])
-      menuGrid.append(button(title!, () => showPanel(id!, title!)));
-    menuGrid.append(
-      button("조작 배치 편집", () => {
-        closePanel();
-        controls.open();
-      }),
-      button("월드 편집기", () => {
-        window.location.href = "/editor.html";
-      }),
-      button("저장 농장 관리", () => {
-        window.location.href = "/?newFarm=1";
-      }),
-    );
+    const menuGrid=document.createElement("div");menuGrid.className="menu-grid player-menu";
+    for(const [id,title] of [["journal","✦ 퀘스트 / 오늘 할 일"],["map","⌖ 지역 지도"],["residents","♧ 주민과 부탁"],["calendar","▦ 행사 달력"],["codex","❧ 도감"],["settings","⚙ 소리·화면 설정"],["family","농장 및 가족"]])
+      menuGrid.append(button(title!,()=>showPanel(id!,title!)));
+    menuGrid.prepend(button("가방",()=>showPanel("bag","가방")),button("캐릭터 꾸미기",()=>openAppearance()));
+    menuGrid.append(button("조작 배치 편집",()=>{closePanel();controls.open();}));
+    if(developerActive())menuGrid.append(button("개발자 도구",()=>showPanel("developer","개발자 도구")));
     panelBody.append(menuGrid);
-    if (["general_store", "cafe"].includes(local?.area ?? ""))
-      menuGrid.append(
-        button("상점 둘러보기", () => showPanel("shop", "사계절 상점")),
-      );
-    row(`가족 코드 ${session?.farmId ?? ""}`, [
-      button("코드 복사", () => {
-        void navigator.clipboard
-          .writeText(session?.farmId ?? "")
-          .then(() => notice("가족 코드 복사 완료"))
-          .catch(() => notice(`가족 코드: ${session?.farmId}`));
-      }),
-    ]);
-    row("가족이 모두 투표하면 다음 날이 됩니다", [
-      button("잠자기 투표", () => {
-        showPanel("sleep-status", "잠자기");
-      }),
-      button("투표 취소", () => send("sleepVote", { value: false, day: network.state?.day })),
-    ]);
-    row(
-      "네트워크 보간",
-      ["Stable", "Fast", "Aggressive"].map((p) =>
-        button(
-          `${p} ${p === "Stable" ? 100 : p === "Fast" ? 75 : 60}ms`,
-          () => {
-            network.setProfile(p as "Stable" | "Fast" | "Aggressive");
-            notice(`${p} 보간 적용`);
-          },
-        ),
-      ),
-    );
-    row("개발 진단", [
-      button("Network HUD", () => {
-        el("hud").hidden = !el("hud").hidden;
-        closePanel();
-      }),
-    ]);
-    row("농장 → 들꽃길 → 마을 / 요정의 숲 / 광산");
-    row("이동: 조이스틱·화면 탭·WASD / 달리기: RUN·Shift");
-    row("행동: 도구 선택 후 앞칸에서 행동 버튼·Space / 두 손가락: 화면 확대");
-    row("씨앗은 행동 버튼을 누른 채 걸으면 연속 심기. 달리기는 불가.");
-    row("연결 복구", [
-      button("같은 플레이어로 다시 연결", () => {
-        closePanel();
-        void connectSaved();
-      }),
-    ]);
-    row("이 기기의 세션 보관", [
-      button("로그아웃", () => {
-        void cancelConnecting();
-        localStorage.removeItem(SESSION_KEY);
-        session = undefined;
-        closePanel();
-        el("login").hidden = false;
-      }),
-    ]);
+    return;
+  }
+  if(modal==="codex") {
+    row("농장의 도감",[button("사계절 작물·자연 도감",()=>showPanel("crops","사계절 도감")),button("물고기 도감",()=>showPanel("fish","물고기 도감"))]);return;
+  }
+  if(modal==="family") {
+    row(`가족 코드 ${session?.farmId??""}`,[button("코드 복사",()=>{
+      void navigator.clipboard.writeText(session?.farmId??"").then(()=>notice("가족 코드 복사 완료")).catch(()=>notice(`가족 코드: ${session?.farmId}`));
+    })]);
+    row("가족이 모두 투표하면 다음 날이 됩니다",[button("잠자기 투표",()=>showPanel("sleep-status","가족 잠자기")),button("투표 취소",()=>send("sleepVote",{value:false,day:network.state?.day}))]);
+    row("농장 생활",[button("동물 돌보기",()=>showPanel("animals","동물 돌보기")),button("정원 꾸미기",()=>showPanel("decoration","정원 꾸미기"))]);
+    if(["general_store","cafe"].includes(local?.area??""))row("상점",[button("상점 둘러보기",()=>showPanel("shop","사계절 상점"))]);
+    row("농장 목록",[button("저장 농장 관리",()=>{window.location.href="/?newFarm=1";})]);
+    row("다른 기기에서 같은 플레이어로 이어하기 · 이 개인 코드는 본인만 사용하세요.",[button("개인 이어하기 코드 복사",()=>{
+      void navigator.clipboard.writeText(session?.token??"").then(()=>notice("개인 코드를 다른 기기의 ‘내 플레이어 이어하기’에 붙여 넣으세요.")).catch(()=>notice("복사가 지원되지 않는 기기예요."));
+    })]);
+    row("접속 관리",[button("같은 플레이어로 다시 연결",()=>{closePanel();void connectSaved();}),button("로그아웃",()=>{
+      void cancelConnecting();localStorage.removeItem(SESSION_KEY);session=undefined;verifiedDeveloper=false;el("hud").hidden=true;
+      document.body.classList.remove("developer-mode");closePanel();el("login").hidden=false;
+    })]);return;
   }
   if (modal === "fishing" && fishing) {
     const current = fishing;
@@ -770,7 +756,8 @@ network.onConnection = (status) => {
     bufferedToolAction = undefined;
     householdPending = undefined;
     householdFeedback = "연결을 복구하고 있어요. 다시 연결되면 수량을 확인해 주세요.";
-    if (modal) renderPanel();
+    if (modal && modal!=="appearance") renderPanel();
+    if(modal==="appearance"){appearanceRequest=undefined;characterEditor.busy("연결을 복구한 뒤 저장을 다시 눌러 주세요.");}
     input.reset();
     actionHeld = false;
     furniturePending = undefined; placementItem = undefined; candidateHints = [];
@@ -784,6 +771,11 @@ network.onConnection = (status) => {
   controlStatus = status;
 };
 network.onAction = (result) => {
+  if(appearanceRequest===result.actionId){
+    appearanceRequest=undefined;
+    if(result.ok&&modal==="appearance")closePanel();
+    else characterEditor.busy(result.message);
+  }
   if (householdPending === result.actionId || (householdPending && !result.actionId && !result.ok)) {
     householdPending = undefined;
     householdReadyAt = performance.now() + 220;
@@ -990,7 +982,7 @@ const renderer = createRenderer((now, delta) => {
     sleepStatus.hidden = !state?.votes;
     sleepStatus.textContent = `☾ 잠자기 ${state?.votes ?? 0}/${latest.players.filter(p => p.connected).length} · ${network.personal?.sleepVoted ? "동의함" : "확인"}`;
     if (state && observedDay && state.day > observedDay) {
-      if (["sleep", "sleep-status"].includes(modal)) closePanel();
+      if (["sleep", "sleep-status"].includes(modal) && sleepPanelDay < state.day) closePanel();
       notice("☀ 새로운 아침이에요. 기력을 회복했어요!");
       renderer.scene.transition();
     }
@@ -1058,7 +1050,7 @@ const renderer = createRenderer((now, delta) => {
     if (network.personal !== lastPersonal) {
       lastPersonal = network.personal;
       refreshTools();
-      if (modal && !["fishing", "settings", "dialogue"].includes(modal))
+      if (modal && !["fishing", "settings", "dialogue", "appearance"].includes(modal))
         renderPanel();
     }
   }
@@ -1263,9 +1255,12 @@ async function connectSaved(): Promise<void> {
     // Otherwise the first rendered frame can enqueue a preloading-time backlog.
     await renderer.scene.ready;
     if (intent !== connectionIntent || session !== value) return;
-    await network.openFarm(value);
+    await network.openFarm(value,newAppearance);
     if (intent !== connectionIntent || session !== value || network.snapshot().status !== "connected") return;
     el("login").hidden = true;
+    verifiedDeveloper=await verifyDeveloperAccess();
+    document.body.classList.toggle("developer-mode",developerActive());
+    if(!developerActive())el("hud").hidden=true;
     notice("연결됐습니다. 길 밖의 잔디 평지를 괭이로 갈아 우리 가족의 밭을 만들어 보세요.");
   } catch (e) {
     if (intent !== connectionIntent) return;
@@ -1332,6 +1327,22 @@ async function login(create: boolean): Promise<void> {
     if (intent === connectionIntent) el("cancel-connect").hidden = true;
   }
 }
+el("new-appearance").addEventListener("click",()=>openAppearance(true),opts);
+const recovery=document.createElement("details");recovery.className="player-recovery";
+recovery.innerHTML='<summary>다른 기기의 내 플레이어 이어하기</summary><p>기존 기기 → 농장 및 가족 → 개인 이어하기 코드 복사</p><label>개인 이어하기 코드<input id="resume-code" type="password" autocomplete="off"></label><button type="button" id="import-player">내 플레이어 이어하기</button>';
+el("login-form").after(recovery);
+el("import-player").addEventListener("click",async()=>{
+  const b=el<HTMLButtonElement>("import-player");b.disabled=true;
+  try{
+    const token=el<HTMLInputElement>("resume-code").value.trim();
+    if(!token||token.length>200)throw Error("개인 이어하기 코드를 입력하세요");
+    const r=await fetch(`${http}/api/session`,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(JOIN_TIMEOUT_MS)});
+    if(!r.ok)throw Error("코드를 확인하세요. 만료된 코드는 사용할 수 없어요.");
+    const identity=await r.json();
+    archiveSession(session);session={...identity,token};archiveSession(session);localStorage.setItem(SESSION_KEY,JSON.stringify(session));
+    el<HTMLInputElement>("resume-code").value="";await connectSaved();
+  }catch(e){el("login-error").textContent=e instanceof Error?e.message:"이어하기 실패";}finally{b.disabled=false;}
+},opts);
 el("login-form").addEventListener(
   "submit",
   (e) => {

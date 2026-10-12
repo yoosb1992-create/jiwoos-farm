@@ -1,3 +1,4 @@
+import { ownerAuthorization, verifyDeveloperAccess } from "../developer-access.js";
 import { TREE_SPECIES, NATURE_MATERIALS } from "../../shared/nature.js";
 import "./style.css";
 import { html } from "./ui.js";
@@ -1772,7 +1773,7 @@ async function save(publish: boolean) {
     if (!capability) {
       const r = await fetch(endpoint + "/api/blueprints", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...ownerAuthorization() },
           body: JSON.stringify(valid),
         }),
         b = (await r.json()) as Blueprint & {
@@ -2514,6 +2515,14 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden && dirty) void autosave();
 });
 async function init() {
+  const root = document.querySelector<HTMLElement>("#editor")!;
+  root.inert = true;
+  if (!await verifyDeveloperAccess()) {
+    root.innerHTML = '<main style="padding:32px"><h1>월드 편집 권한이 필요해요</h1><p>농장 소유자 세션 또는 기존 설계도 편집 권한으로 접속해 주세요.</p><a href="/">농장으로 돌아가기</a></main>';
+    root.inert = false;
+    return;
+  }
+  root.inert = false;
   void loadMaterials().then(() => { painter.clear(); render(); });
   let restoreError = "";
   try {

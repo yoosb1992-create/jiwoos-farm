@@ -1,3 +1,4 @@
+import { editorHeaders } from "./editor-auth.js";
 import { test, expect, type Page } from "@playwright/test";
 import { waitForFarmInput } from "./nature-target.js";
 
@@ -9,7 +10,7 @@ async function openClearFarm(page: Page) {
   map.baseTileType = "grass"; map.farmAreas = [{ startX: 34, endX: 46, startY: 34, endY: 46 }];
   Object.assign(map.spawns.find((s: any) => s.id === "farm_entry"), { tileX: 40.5, tileY: 40.5, facing: "right" });
   map.objects.push({ id: "water-well", assetId: "stone_well", kind: "well", position: { tileX: 42.5, tileY: 40.5 } });
-  const draft = await (await page.request.post(`${api}/api/blueprints`, { data: layout })).json();
+  const draft = await (await page.request.post(`${api}/api/blueprints`, { headers:await editorHeaders(page), data: layout })).json();
   expect((await page.request.post(`${api}/api/blueprints/${draft.id}`, {
     headers: { Authorization: `Bearer ${draft.editToken}` }, data: { layout, revision: draft.revision, publish: true },
   })).ok()).toBe(true);

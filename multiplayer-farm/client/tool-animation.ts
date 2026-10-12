@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import { appearanceTexture, characterScale } from "./character-art.js";
+import { appearanceOf, type Appearance } from "../shared/appearance.js";
 import { actionTiming, toolMotion, type ActionFx, type ToolMotion, type ToolTiming } from "../shared/interaction.js";
 import type { Facing } from "../shared/world.js";
 import { FARMER_FRAMES, farmerKey, farmerGround, type FarmerPose } from "./tool-animation-art.js";
@@ -37,13 +39,15 @@ export class ToolAnimationRig {
   private scale=.64;
   private readonly tips:Point[]=[];
   private currentPose:FarmerPose="idle";
+  private appearance=appearanceOf();
   constructor(private scene:Phaser.Scene) {
     this.body=scene.add.image(0,0,farmerKey("down","idle")).setOrigin(.5,70/72).setScale(1.05);
     this.palm=scene.add.image(0,0,`${farmerKey("down","idle")}-palm`).setOrigin(.5,70/72).setScale(1.05);
     this.tool=scene.add.image(0,0,"held-axe");
     this.trail=scene.add.graphics();this.hide();
   }
-  start(fx:ActionFx):void {
+  start(fx:ActionFx,appearance?:Appearance):void {
+    this.appearance=appearanceOf(appearance);
     this.fx=fx;this.motion=toolMotion(fx);this.tips.length=0;
     const t=actionTiming(fx),f=facingVector(fx.facing),tree=fx.target?.kind==="tree";
     const p=fx.point??fx.target??{x:fx.x+f.x*32,y:fx.y+f.y*32};
@@ -69,7 +73,8 @@ export class ToolAnimationRig {
     this.keys.sort((a,b)=>a.at-b.at);
     const frame=FARMER_FRAMES[fx.facing][this.poseAt(t.impact)];
     const a=TOOL_ANCHORS[fx.tool==="hand"?"hoe":fx.tool];
-    const hx=fx.x+(frame.hand[0]-24)*1.05,hy=fx.y+(frame.hand[1]-farmerGround(fx.facing,this.poseAt(t.impact)))*1.05;
+    const size=characterScale(this.appearance);
+    const hx=fx.x+(frame.hand[0]-24)*size.x,hy=fx.y+(frame.hand[1]-farmerGround(fx.facing,this.poseAt(t.impact)))*size.y;
     const mx=fx.facing==="left"?-1:1;
     const base=Math.atan2(a.tip.y-a.grip.y,(a.tip.x-a.grip.x)*mx);
     const toward=Math.atan2(this.contact.y-hy,this.contact.x-hx);
@@ -100,7 +105,9 @@ export class ToolAnimationRig {
     if(elapsed<t.follow)return lerp(this.impactAngle,follow,smooth((elapsed-t.impact-t.hold)/(t.follow-t.impact-t.hold)));
     return lerp(follow,nearestAngle(follow,this.windAngle+mx*.35),smooth((elapsed-t.follow)/(t.duration-t.follow)));
   }
-  update(elapsed:number,x:number,y:number):void {
+  update(elapsed:number,x:number,y:number,appearance?:Appearance):void {
+    if(appearance&&JSON.stringify(appearance)!==JSON.stringify(this.appearance))this.start(this.fx,appearance);
+    const size=characterScale(this.appearance);
     const t=actionTiming(this.fx),f=this.fx.facing,up=f==="up",pose=this.poseAt(elapsed);
     const key=farmerKey(f,pose),frame=FARMER_FRAMES[f][pose];
     this.currentPose=pose;
@@ -110,9 +117,9 @@ export class ToolAnimationRig {
     const shift=Math.sin(clamp(elapsed/t.duration)*Math.PI)*recovery;
     const bx=x+(f==="left"?-1:f==="right"?1:0)*shift,by=y;
     const ground=farmerGround(f,pose);
-    this.body.setTexture(key).setOrigin(.5,ground/72).setPosition(bx,by).setDepth(y+.03).setAlpha(1);
-    this.palm.setTexture(`${key}-palm`).setOrigin(.5,ground/72).setPosition(bx,by).setDepth(y+.12).setAlpha(1).setVisible(!up&&pose!=="idle");
-    const gx=bx+(frame.hand[0]-24)*1.05,gy=by+(frame.hand[1]-ground)*1.05;
+    this.body.setTexture(appearanceTexture(this.scene,key,this.appearance)).setOrigin(.5,ground/72).setScale(size.x,size.y).setPosition(bx,by).setDepth(y+.03).setAlpha(1);
+    this.palm.setTexture(`${key}-palm`).setOrigin(.5,ground/72).setScale(size.x,size.y).setPosition(bx,by).setDepth(y+.12).setAlpha(1).setVisible(!up&&pose!=="idle");
+    const gx=bx+(frame.hand[0]-24)*size.x,gy=by+(frame.hand[1]-ground)*size.y;
     const a=TOOL_ANCHORS[this.fx.tool==="hand"?"hoe":this.fx.tool],mirror=f==="left"?-1:1,rotation=this.angleAt(elapsed,t);
     const alpha=Math.min(smooth(elapsed/65),smooth((t.duration-elapsed)/70));
     this.tool.setPosition(gx,gy).setRotation(rotation).setScale(mirror*this.scale,this.scale).setDepth(up?y+.02:y+.11).setAlpha(alpha).setVisible(this.fx.tool!=="hand");
