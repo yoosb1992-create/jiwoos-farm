@@ -66,6 +66,36 @@ async function hold(page: Page, id: string, ms = 110) {
   );
   await page.locator(id).click({ delay: ms });
 }
+async function plantableScenario(page: Page) {
+  // Publish an isolated field through the real editor API. Movement and crop
+  // actions still run on the production server; unrelated random forest
+  // placement must not decide whether this planting scenario is reachable.
+  const ownerResponse = await page.request.post(`${api}/api/session`, {
+    data: { create: true, nickname: "Field author" },
+  });
+  expect(ownerResponse.ok()).toBe(true);
+  const owner = await ownerResponse.json();
+  const layoutResponse = await page.request.get(`${api}/api/blueprints/defaults`);
+  expect(layoutResponse.ok()).toBe(true);
+  const layout = await layoutResponse.json();
+  const farm = layout.maps.farm;
+  delete farm.world2;
+  Object.assign(farm, { baseTileType: "grass", objects: [], terrainRegions: [], collisionRegions: [], warps: [] });
+  Object.assign(farm.spawns.find((s: { id: string }) => s.id === "farm_entry"), {
+    tileX: 10.5, tileY: 10.5, facing: "right",
+  });
+  const draftResponse = await page.request.post(`${api}/api/blueprints`, {
+    headers: { Authorization: `Bearer ${owner.token}` }, data: layout,
+  });
+  expect(draftResponse.ok()).toBe(true);
+  const draft = await draftResponse.json();
+  const published = await page.request.post(`${api}/api/blueprints/${draft.id}`, {
+    headers: { Authorization: `Bearer ${draft.editToken}` },
+    data: { layout, revision: draft.revision, publish: true },
+  });
+  expect(published.ok()).toBe(true);
+  await page.addInitScript(id => localStorage.setItem("farm-active-blueprint", id), draft.id);
+}
 // Keep independent production scenarios inside the existing 60s budget.
 // CI trace 38039642779 passed gameplay assertions but exhausted the combined
 // budget during the final screenshot/session teardown. No timeout was raised.
@@ -75,6 +105,7 @@ test("production mobile: authoritative movement, remote canvas, crop planting an
   request,
 }, info) => {
   await transport(page.context());
+  await plantableScenario(page);
   const peerContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
     hasTouch: true,
@@ -114,18 +145,10 @@ test("production mobile: authoritative movement, remote canvas, crop planting an
     const before = await peer.locator("canvas").screenshot();
     const startX = local().x;
     await page.keyboard.down("ArrowRight");
-    await expect.poll(() => local().x).toBeGreaterThan(startX + 4);
+    await expect.poll(() => local().x).toBeGreaterThan(startX + 40);
     await page.keyboard.up("ArrowRight");
     const after = await peer.locator("canvas").screenshot();
     expect(before.equals(after)).toBe(false);
-    // The new yard is deliberately protected from tilling. Walk to clear grass
-    // with real inputs instead of assuming the former 52x26 starter field.
-    await page.keyboard.down("ArrowRight");
-    await expect.poll(() => local().x, { intervals: [30] }).toBeGreaterThan(67.5 * 32);
-    await page.keyboard.up("ArrowRight");
-    await page.keyboard.down("ArrowDown");
-    await expect.poll(() => local().y, { intervals: [30] }).toBeGreaterThan(43.5 * 32);
-    await page.keyboard.up("ArrowDown");
     await expect.poll(()=>local().moving).toBe(false);
     // Inspect actual authority state: Postgres family seeds vary, so a fixed
     // farming coordinate can contain a newly spawned branch or stone.

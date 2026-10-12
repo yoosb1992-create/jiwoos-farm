@@ -105,6 +105,10 @@ export async function clearWorldBlueprint(page: Page, spawnX: number, spawnY: nu
     data: { layout, revision: draft.revision, publish: true },
   });
   if (!published.ok()) throw Error("Cannot publish test blueprint: " + await published.text());
-  await page.addInitScript((id: string) => localStorage.setItem("farm-active-blueprint", id), draft.id);
+  // Seed the initial selection once. Later editor publishing must be able to
+  // replace it, including across navigation and creation of a second farm.
+  await page.addInitScript((id: string) => {
+    if (!localStorage.getItem("farm-active-blueprint")) localStorage.setItem("farm-active-blueprint", id);
+  }, draft.id);
   return draft.id;
 }

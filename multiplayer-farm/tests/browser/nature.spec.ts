@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { ASSETS } from "../../shared/content.js";
 import { TREE_SPECIES } from "../../shared/nature.js";
-import { naturalPlacement } from "../../shared/nature-world.js";
+import { authorizeEditor } from "./editor-auth.js";
 import { reachableNatureTarget, clearWorldBlueprint, waitForFarmInput } from "./nature-target.js";
-import type { Entity, World } from "../../shared/world.js";
+import type { Entity } from "../../shared/world.js";
 
 test("mobile nature: decode shipped art, touch plant a seed and reload the saved tree", async ({ page }, info) => {
   const errors: string[] = [];
@@ -24,14 +24,12 @@ test("mobile nature: decode shipped art, touch plant a seed and reload the saved
       try { await image.decode(); return ""; } catch { return path; }
     }))).filter(Boolean);
   }, paths)).toEqual([]);
-  const state = await page.evaluate(() => window.__FARM_DEBUG__.state());
-  const world = { ...state, layout: JSON.parse(state.layout) } as unknown as World;
   await waitForFarmInput(page);
   const target = await reachableNatureTarget(page, "tree");
   expect(target, "A plantable tree tile must be reachable without crossing natural objects").toBeDefined();
   await page.locator("#tool").selectOption("pine_cone");
   await page.touchscreen.tap(target!.screenX, target!.screenY);
-  await expect.poll(() => page.evaluate(() => (Object.values(window.__FARM_DEBUG__.state().entities) as Entity[]).filter(e => e.planted && e.species === "tree_pine").length), { timeout: 15000 }).toBe(1);
+  await expect.poll(() => page.evaluate(() => (Object.values(window.__FARM_DEBUG__.state()?.entities ?? {}) as Entity[]).filter(e => e.planted && e.species === "tree_pine").length), { timeout: 15000 }).toBe(1);
   const tree = await page.evaluate(() => (Object.values(window.__FARM_DEBUG__.state().entities) as Entity[]).find(e => e.planted)!);
   expect(tree.stage).toBe(0);
   await page.locator("#bag").click();
@@ -41,11 +39,12 @@ test("mobile nature: decode shipped art, touch plant a seed and reload the saved
   await page.reload();
   await expect(page.locator("#connection")).toHaveAttribute("data-status", "connected");
   await expect.poll(() => page.evaluate(() => !!window.__FARM_DEBUG__.snapshot().local)).toBe(true);
-  await expect.poll(() => page.evaluate(id => (window.__FARM_DEBUG__.state().entities[id] as Entity | undefined)?.stage, tree.id)).toBe(0);
+  await expect.poll(() => page.evaluate(id => (window.__FARM_DEBUG__.state()?.entities[id] as Entity | undefined)?.stage, tree.id)).toBe(0);
   expect(errors).toEqual([]);
 });
 
 test("editor nature: eight thumbnails, five stages and species properties survive draft reload", async ({ page }, info) => {
+  await authorizeEditor(page);
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto("/editor.html");
   await expect(page.locator("#status")).toContainText("초안 준비");
