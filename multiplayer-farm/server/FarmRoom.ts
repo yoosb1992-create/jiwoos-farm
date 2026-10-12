@@ -1,3 +1,5 @@
+import { carryAppearance } from "../shared/transport.js";
+import { TRANSPORT_DURATION_MS } from "../shared/transport-config.js";
 import { inRect } from "../shared/world2.js";
 import { chestInfo, chestInfos, chestStorageKeys } from "../shared/chest-storage.js";
 import { calendar } from "../shared/expansion.js";
@@ -13,6 +15,7 @@ import {
   upgradeWorld,
   ACTION_COOLDOWN_MS,
   CHECKPOINT_MS,
+  WORLD_VERSION,
   GAME_MINUTE_MS,
   type World,
   type Actor,
@@ -29,6 +32,7 @@ import {
   safeSpawn,
   TRANSITION_COOLDOWN_MS,
 } from "../shared/regions.js";
+import { collidesWithObstacle } from "../shared/applyMovement.js";
 import { TILE, mapFor } from "../shared/content.js";
 import { DropIndex, PICKUP_SCAN_MS, DROP_SETTLE_MS, dropAppearDelay, pickupRadius } from "../shared/interaction.js";
 
@@ -84,7 +88,7 @@ export class FarmRoom extends MovementRoom {
       void this.disconnect(4010);
     });
     this.world = await this.lease.load();
-    const migrateGroups = this.world.chestGroupsVersion !== 1;
+    const migrateGroups = this.world.chestGroupsVersion !== 1 || this.world.version < WORLD_VERSION;
     upgradeWorld(this.world);
     if (migrateGroups) {
       // Commit the one-time routing/ledger transition before any client can
@@ -180,7 +184,13 @@ export class FarmRoom extends MovementRoom {
         p.y = spawn.y;
         p.facing = spawn.facing;
 
-        p.stamina = this.world.members[auth.playerId]!.stamina;
+        const member = this.world.members[auth.playerId]!;
+        const carriedPosition = member.carried?.position;
+        if (carriedPosition && this.movementMaps![carriedPosition.area] &&
+            !collidesWithObstacle(carriedPosition.x, carriedPosition.y, carriedPosition.area, this.movementMaps, this.state.entities.values())) {
+          p.area = carriedPosition.area; p.x = carriedPosition.x; p.y = carriedPosition.y; p.facing = carriedPosition.facing;
+        }
+        p.stamina = member.stamina;
         this.sync();
         this.privateState(client);
       });
@@ -198,7 +208,10 @@ export class FarmRoom extends MovementRoom {
     w.minute = this.state.minute;
     for (const p of this.state.players.values()) {
       const m = w.members[p.playerId];
-      if (m) m.stamina = p.stamina;
+      if (m) {
+        m.stamina = p.stamina;
+        if (m.carried) m.carried.position = { area: p.area, x: p.x, y: p.y, facing: p.facing };
+      }
     }
     return w;
   }
@@ -256,9 +269,10 @@ export class FarmRoom extends MovementRoom {
         online: [...this.state.players.values()]
           .filter((x) => x.connected)
           .map((x) => x.playerId),
-        votes,
+        votes, players: [...this.state.players.values()].filter(other => other.connected),
       });
       if (result.fx) result.fx.actorId = client.sessionId;
+      if (result.transportFx) result.transportFx.actorId = client.sessionId;
       // Reserve actor while a durable action is committing. Movement packets cannot alter action range during storage.
       const freeze = command.type !== "plantSeed" && !picking;
       if (freeze) p.actionTicks = 30;
@@ -283,7 +297,8 @@ export class FarmRoom extends MovementRoom {
         proposed.members[p.playerId]!.stamina -
           Math.max(0, actor.stamina - p.stamina),
       );
-      if (freeze) p.actionTicks = result.fx?.tool === "scythe" ? 10 : 12;
+      if (freeze) p.actionTicks = result.transportFx ? Math.ceil(TRANSPORT_DURATION_MS / (1000 / 30)) : result.fx?.tool === "scythe" ? 10 : 12;
+      if (result.transportFx) this.broadcast("transportFx", result.transportFx);
       if (result.transition) {
         this.transitionUntil.set(
           client.sessionId,
@@ -326,6 +341,9 @@ export class FarmRoom extends MovementRoom {
     }
   }
   protected override afterMovement(_context: StepContext): void {
+    // Re-arm a short lock once per server tick, even if input catch-up consumed
+    // extra frames. No per-frame animation coordinates cross the network.
+    for (const p of this.state.players.values()) if ((this.world.members[p.playerId]?.transportUntil ?? 0) > Date.now()) p.actionTicks = Math.max(3, p.actionTicks);
     if (this.closing || this.pending >= 32) return;
     const now = Date.now();
     if (now - this.lastPickupScan >= PICKUP_SCAN_MS) {
@@ -402,6 +420,12 @@ export class FarmRoom extends MovementRoom {
     this.state.revision = this.world.revision;
     this.state.deepest = this.world.deepest;
     this.state.votes = this.votes.size;
+    for (const p of this.state.players.values()) {
+      const m = this.world.members[p.playerId];
+      const appearance = m && carryAppearance(this.world, m);
+      p.carrying = !!appearance;
+      p.carry = appearance ? JSON.stringify(appearance) : "";
+    }
     const entities = this.world.entities;
     this.drops.rebuild(Object.values(entities));
     for (const id of this.dropReady.keys()) if (!entities[id]) this.dropReady.delete(id);

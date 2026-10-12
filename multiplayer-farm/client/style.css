@@ -1382,13 +1382,17 @@ h1 {
 #toolbar { display: grid; grid-template-columns: repeat(4, 44px); width: max-content; gap: 2px; padding: 3px; border-radius: 12px; }
 #quickslots { display: contents; }
 #quickslots button { display: flex; align-items: center; justify-content: center; width: 44px; min-width: 44px; height: 44px; padding: 0; }
-#quickslots .tool-icon { width: 14px; height: 14px; pointer-events: none; }
+#quickslots .tool-icon { width: 24px; height: 24px; max-width: 100%; object-fit: contain; pointer-events: none; }
 #tool-picker { position: relative; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid #b9c89f; border-radius: 8px; background: #eef3df; }
 #tool-picker::after { content: ""; position: absolute; right: 5px; bottom: 6px; width: 4px; height: 4px; border-right: 1px solid #597b4e; border-bottom: 1px solid #597b4e; transform: rotate(45deg); pointer-events: none; }
 #tool-picker:focus-within { outline: 3px solid #dca854; outline-offset: 2px; }
 #selected-tool-icon { display: flex; pointer-events: none; }
-#selected-tool-icon .tool-icon { width: 14px; height: 14px; }
+#selected-tool-icon .tool-icon { width: 24px; height: 24px; object-fit: contain; }
 #toolbar #tool { position: absolute; inset: 0; width: 44px; height: 44px; min-height: 44px; padding: 0; opacity: 0; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   #panel[open] { animation: none !important; }
 }
+
+#furniture-action, #placement-cancel { position: fixed; z-index: 24; min-height: 44px; padding: 4px; font-size: 12px; border-radius: 13px; touch-action: manipulation; background: #fff8dfed; border: 1px solid #9b9f78; box-shadow: 0 2px 6px #294b3826; }
+#furniture-action:disabled { opacity: .7; }
+#furniture-action[hidden], #placement-cancel[hidden] { display: none; }

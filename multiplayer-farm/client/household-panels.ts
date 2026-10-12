@@ -1,6 +1,7 @@
+import { UPGRADE_TOOLS, TOOL_UPGRADES, toolLevel, type UpgradeTool } from "../shared/tool-levels.js";
 import { ITEMS, itemName } from "../shared/content.js";
 import { recipesInCategory, visibleCraftCategories, type CraftCategory } from "./craft-categories.js";
-import { itemIconSource, toolIconImage } from "./item-icons.js";
+import { itemIconSource } from "./item-icons.js";
 import { canCraft, maxCrafts, transferQuantity, STACK_LIMIT } from "../shared/household.js";
 import type { Command, Entity, Member } from "../shared/world.js";
 import type { RenderPlayer } from "./network.js";
@@ -21,6 +22,8 @@ export interface HouseholdContext {
   players: RenderPlayer[];
   targetId?: string;
   recipe: string;
+  upgradeTool?: UpgradeTool;
+  selectUpgradeTool?(id: UpgradeTool): void;
   category: CraftCategory;
   busy: boolean;
   connected: boolean;
@@ -78,6 +81,7 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
     body.append(el("p", `${info?.size ?? 1}칸 보관함 · 이 보관함의 물품을 가족과 함께 사용해요.`, "household-note"));
     if (info?.members.includes(c.legacyChestTarget ?? "") || c.targetId === c.legacyChestTarget) body.append(el("p", "기존 공동 보관함의 물품이 이곳으로 옮겨졌어요.", "household-note"));
     if (c.storageReady === false) body.append(el("p", "보관함 정보를 준비 중이에요. 잠시 후에도 같으면 새로고침해 주세요.", "unavailable"));
+    if (info) body.append(el("p", `총 무게 ${info.weightKg.toFixed(1)}kg · ${info.canCarry ? "손으로 운반 가능" : "너무 무거워요 (손 운반 한도 36kg)"}`, "household-note"));
     if (info && info.used > info.capacity) body.append(el("p", "기존 물품은 모두 보존되어 있어요. 용량 안으로 정리할 때까지 새 종류의 물품만 넣을 수 없어요.", "unavailable"));
     if (info && draft) {
       const settings = el("details", "", "chest-settings");
@@ -112,9 +116,9 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
       };
       form.append(palette, error, save);
       const links = el("div", "", "chest-links");
-      links.append(button("옆 보관함과 연결", "link-chest", () => c.send("linkChest", { targetId: target?.id }), blocked || info.size >= 3));
+
       if (info.size > 1) links.append(button("연결 해제", "unlink-chest", () => c.send("unlinkChest", { targetId: target?.id }), blocked || info.used > 0));
-      settings.append(form, links, el("p", "가로로 최대 3칸까지 연결해요. 연결하면 물품이 합쳐지고 이 보관함의 이름·색상을 사용해요. 연결 해제는 물품을 모두 꺼낸 뒤 가능해요.", "household-note"));
+      settings.append(form, links, el("p", "바로 옆에 설치하면 가로로 최대 3칸까지 자동 연결돼요. 연결하면 물품이 합쳐져요. 연결 해제는 물품을 모두 꺼낸 뒤 가능해요.", "household-note"));
       body.append(settings);
     }
     const columns = el("div", "", "storage-columns");
@@ -172,27 +176,32 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
     workshop.append(menu);
     body.append(categories, workshop);
     if (c.category === "upgrade") {
-      const choice = el("div", "도구 강화", "recipe-choice selected");
-      choice.append(el("span", `현재 Lv${m.toolLevel}`, "available"));
-      menu.append(choice);
-      const upgrade = el("section", "", "upgrade-tools");
-      upgrade.setAttribute("aria-label", "도구 강화");
-      upgrade.append(el("h3", `도구 강화 · 현재 Lv${m.toolLevel}`));
-      const upgradeIcons = el("div", "", "upgrade-icons");
-      upgradeIcons.setAttribute("aria-hidden", "true");
-      for (const id of ["axe", "pickaxe"]) {
-        const image = toolIconImage(id);
-        if (image) upgradeIcons.append(image);
+      const selectedTool = c.upgradeTool ?? "axe";
+      const list = el("nav", "", "recipe-list");
+      list.setAttribute("aria-label", "강화할 도구");
+      for (const id of UPGRADE_TOOLS) {
+        const choice = button("", `upgrade-tool-${id}`, () => c.selectUpgradeTool?.(id));
+        choice.className = `recipe-choice${selectedTool === id ? " selected" : ""}`;
+        choice.setAttribute("aria-pressed", String(selectedTool === id));
+        choice.append(icon(id), el("strong", itemName(id)), el("span", `Lv${toolLevel(m, id)}`, "available"));
+        list.append(choice);
       }
-      upgrade.append(upgradeIcons);
-      if (m.toolLevel >= 2) upgrade.append(el("p", "✓ 최고 단계 강화 완료", "available"));
+      menu.append(list);
+      const upgrade = el("section", "", "upgrade-tools"), level = toolLevel(m, selectedTool);
+      upgrade.setAttribute("aria-label", "도구 강화");
+      const heading = el("div", "", "household-item-heading");
+      heading.append(icon(selectedTool), el("h3", `${itemName(selectedTool)} · Lv${level}`));
+      upgrade.append(heading);
+      const definition = TOOL_UPGRADES[selectedTool];
+      if (!definition) {
+        upgrade.append(el("p", "강화 효과 준비 중 · 현재 도구는 그대로 사용할 수 있어요.", "household-note"),
+          button("강화 준비 중", "upgrade", () => {}, true));
+      } else if (level >= 2) upgrade.append(el("p", "✓ 최고 단계 강화 완료", "available"), el("p", definition.effect));
       else {
-        upgrade.append(el("h4", "필요 재료 · 보유 / 필요"));
-        for (const id of ["copper_ore", "wood"]) upgrade.append(el("p", `${itemName(id)} · ${m.inventory[id] ?? 0} / 5`, (m.inventory[id] ?? 0) >= 5 ? "available" : "unavailable"));
-        const ready = (m.inventory.copper_ore ?? 0) >= 5 && (m.inventory.wood ?? 0) >= 5;
-        upgrade.append(el("p", ready ? "강화할 수 있어요." : "강화 재료가 부족해요.", ready ? "available" : "unavailable"));
-        upgrade.append(button("Lv2로 강화", "upgrade", () => c.send("upgradeTool", { targetId: target?.id }),
-          blocked || (m.inventory.copper_ore ?? 0) < 5 || (m.inventory.wood ?? 0) < 5));
+        upgrade.append(el("p", `다음 단계 Lv${level + 1}`), el("p", definition.effect), el("h4", "필요 재료 · 보유 / 필요"));
+        for (const [id, count] of Object.entries(definition.materials)) upgrade.append(el("p", `${itemName(id)} · ${m.inventory[id] ?? 0} / ${count}`, (m.inventory[id] ?? 0) >= count ? "available" : "unavailable"));
+        const ready = Object.entries(definition.materials).every(([id, count]) => (m.inventory[id] ?? 0) >= count) && (m.inventory[selectedTool] ?? 0) > 0;
+        upgrade.append(button("Lv2로 강화", "upgrade", () => c.send("upgradeTool", { targetId: target?.id, itemId: selectedTool }), blocked || !ready));
       }
       workshop.append(upgrade);
     } else {

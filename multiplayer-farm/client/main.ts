@@ -1,3 +1,5 @@
+import { placementHints, type PlacementHint } from "./placement-preview.js";
+import type { UpgradeTool } from "../shared/tool-levels.js";
 import { renderHouseholdPanel, type ChestSettingsDraft } from "./household-panels.js";
 import { recipesInCategory, type CraftCategory } from "./craft-categories.js";
 import { itemIconSource, toolIconImage } from "./item-icons.js";
@@ -44,7 +46,7 @@ app.innerHTML = `<div id="arena" aria-label="가족 농장 게임 화면"></div>
 <header id="top"><div class="day-block"><span class="brand">JIWOO’S FARM · v2.7 · 타일 충돌</span><strong id="calendar">우리 가족의 작은 세계</strong><span id="place">사계절을 함께 가꾸어요</span></div><div class="top-actions"><span id="wallet">0 G</span><button id="bag" aria-label="가방">가방 <small id="bag-space">0/48</small></button><button id="menu" aria-label="메뉴">☰</button></div><div id="stamina"><i></i><span>기력</span></div></header><button hidden id="today" aria-label="오늘 할 일">✦ 오늘의 작은 한 걸음</button>
 <div id="notice" role="status">가족 농장에 오신 것을 환영합니다.</div><div id="connection"></div>
 <button id="sleep-status" hidden aria-label="잠자기 투표 현황"></button><div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><div id="tool-picker"><select id="tool" aria-label="도구와 씨앗 선택"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="scythe">낫</option><option value="fishing_rod">낚싯대</option></select></div></div>
-<div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action" aria-label="행동">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
+<button id="furniture-action" hidden type="button"></button><button id="placement-cancel" hidden type="button">설치 취소</button><div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action" aria-label="행동">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
 <pre id="hud" hidden></pre><dialog id="panel"><div id="panel-top"><h2 id="panel-title"></h2><button id="panel-close">닫기</button></div><div id="panel-body"></div></dialog>
 <section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>새 농장 이름 <small>(선택 · 만들 때만 적용)</small><input id="farm-name" maxlength="30" autocomplete="off" placeholder="예: 지우네 가족 농장"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><div id="saved-farms"></div><p id="login-error" role="alert"></p><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>가족 코드만 공유하면 함께할 수 있어요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
 function el<T extends HTMLElement>(id: string): T {
@@ -73,6 +75,9 @@ let fishingOffset = 0,
 let lastStep = 0;
 let selectedRecipe = "wood_plank", householdFeedback = "", householdPending: string | undefined;
 let chestDraft: ChestSettingsDraft | undefined;
+let placementItem: string | undefined, furniturePending: string | undefined;
+let candidateHints: PlacementHint[] = [];
+let selectedUpgradeTool: UpgradeTool = "axe";
 let selectedCraftCategory: CraftCategory = "all";
 const categorySelections: Partial<Record<CraftCategory, string>> = {};
 let householdReadyAt = 0, observedDay = 0, sleepPanelDay = 1;
@@ -114,7 +119,9 @@ const send = (type: string, extra: Partial<Command> = {}) => {
     if (householdPending || performance.now() < householdReadyAt) return;
     if (network.snapshot().status !== "connected") { notice("연결을 복구하고 있어요"); return; }
   }
+  if (["placeItem", "liftChest", "lowerChest"].includes(type) && furniturePending) return;
   const actionId = crypto.randomUUID();
+  if (["placeItem", "liftChest", "lowerChest"].includes(type)) furniturePending = actionId;
   if (householdActions.has(type)) {
     householdPending = actionId;
     householdFeedback = "";
@@ -232,6 +239,7 @@ function renderPanelContent(): void {
     day: sleepPanelDay, minute: state?.minute ?? 360,
     entities: [...(state?.entities.values() ?? [])], players: latest.players, targetId: panelTarget,
     recipe: selectedRecipe, category: selectedCraftCategory,
+    upgradeTool: selectedUpgradeTool, selectUpgradeTool: id => { selectedUpgradeTool = id; renderPanel(); },
     busy: !!householdPending || performance.now() < householdReadyAt,
     connected: latest.status === "connected", feedback: householdFeedback,
     sleepVoted: personal?.sleepVoted ?? false, votes: state?.votes ?? 0,
@@ -268,6 +276,11 @@ function renderPanelContent(): void {
       audio,
       send,
       select: selectTool,
+      place: id => {
+        if (!ITEMS[id]?.placement || network.personal?.member.carried) { notice("들고 있는 보관함을 먼저 내려놓아 주세요"); return; }
+        closePanel(); touchNavigation.cancel(); actionHeld = false; input.reset();
+        placementItem = id; candidateHints = []; notice("상하좌우의 초록색 칸을 눌러 설치하세요");
+      },
       close: () => closePanel(),
       open: showPanel,
       page: (n) => {
@@ -281,7 +294,7 @@ function renderPanelContent(): void {
     return;
   if (modal === "bag" && m) {
     row(
-      `기력 ${Math.floor(m.stamina)} · ${m.money}골드 · 경험치 ${m.xp} · 도구 Lv${m.toolLevel} · 물 ${m.water}/30`,
+      `기력 ${Math.floor(m.stamina)} · ${m.money}골드 · 경험치 ${m.xp} · 물 ${m.water}/30`,
     );
     for (const [id, count] of Object.entries(m.inventory)) {
       const actions: HTMLElement[] = [];
@@ -548,6 +561,7 @@ function act(): void {
   }
   const me = latest.players.find((p) => p.local);
   if (!me || modal) return;
+  if (placementItem || me.carrying) return notice(placementItem ? "초록색 설치 칸을 선택하거나 취소하세요" : "내려놓기 버튼으로 보관함을 내려놓아 주세요");
   const tile = frontTile({
     x: me.authoritativeX,
     y: me.authoritativeY,
@@ -572,7 +586,7 @@ function act(): void {
     const dy = me.facing === "up" ? -1 : me.facing === "down" ? 1 : 0;
     const targets = [...(network.state?.entities.values() ?? [])].filter(e => {
       const ex=e.x-me.authoritativeX, ey=e.y-me.authoritativeY;
-      return e.area===me.area && ["tree","stump","rock","twig","gather","crop","soil","withered"].includes(e.kind) &&
+      return e.area===me.area && ["tree","stump","rock","twig","gather","crop","soil","withered","chest"].includes(e.kind) &&
         // Include the adjacent trunk corner while the player's collision body
         // stays outside its full tile. All tools share the same aiming rule.
         Math.hypot(ex,ey)<=64 && ex*dx+ey*dy>=4 && Math.abs(ex*dy-ey*dx)<=TILE;
@@ -633,6 +647,7 @@ function act(): void {
   notice("도구를 선택하거나 입구·주민·보관함 가까이에서 행동하세요");
 }
 function touchAct(t: TouchTarget): void {
+  if (placementItem || latest.players.find(p => p.local)?.carrying) return;
   if (t.kind === "ground" && t.signature === "water") {
     if (selected !== "water") return;
     send("useTool", { toolId: "water", tileX: Math.floor(t.x / TILE), tileY: Math.floor(t.y / TILE) });
@@ -667,7 +682,7 @@ function touchAct(t: TouchTarget): void {
   }
   if (!e || e.kind !== t.signature) return;
   const tile = { tileX: Math.floor(e.x / TILE), tileY: Math.floor(e.y / TILE) };
-  if (isTool(selected) && ["tree","stump","twig","rock","gather","crop","soil","withered"].includes(e.kind)) {
+  if (isTool(selected) && ["tree","stump","twig","rock","gather","crop","soil","withered","chest"].includes(e.kind)) {
     send("useTool",{toolId:selected,targetId:e.id,...tile});
     return;
   }
@@ -777,6 +792,7 @@ network.onConnection = (status) => {
     if (modal) renderPanel();
     input.reset();
     actionHeld = false;
+    furniturePending = undefined; placementItem = undefined; candidateHints = [];
     touchNavigation.cancel();
   }
   if (controlStatus === "connected" && status === "reconnecting")
@@ -795,8 +811,12 @@ network.onAction = (result) => {
     setTimeout(() => { if (modal) renderPanel(); }, 230);
   }
   if (result.ok && actionKinds.get(result.actionId) === "sleepVote" && ["sleep", "sleep-status"].includes(modal)) closePanel();
-  if (result.message !== "완료") notice(result.message);
+  if (result.message !== "완료" && !result.transportFx) notice(result.message);
   const kind = actionKinds.get(result.actionId);
+  if (furniturePending === result.actionId || (!result.actionId && !result.ok)) {
+    furniturePending = undefined;
+    if (result.ok && kind === "placeItem") { placementItem = undefined; candidateHints = []; renderer.scene.placementFeedback(); }
+  }
   actionKinds.delete(result.actionId);
   if (result.ok && !result.fx) {
     const effect = (
@@ -838,7 +858,22 @@ network.onAction = (result) => {
     renderer.scene.transition(result.transition.effect);
   }
 };
+network.onTransportFx = event => { renderer.scene.transportFeedback(event); };
 network.onActionFx = event => renderer.scene.actionFeedback(event);
+el("placement-cancel").addEventListener("click", () => {
+  if (furniturePending) return;
+  placementItem = undefined; candidateHints = []; renderer.scene.setPlacementHints([]); input.reset();
+}, opts);
+el("furniture-action").addEventListener("click", () => {
+  const me = network.snapshot().players.find(p => p.local);
+  if (!me || furniturePending || renderer.scene.actionBusy(me.id) || panel.open) return;
+  touchNavigation.cancel(); actionHeld = false; input.reset();
+  if (me.carrying) send("lowerChest");
+  else if (selected === "hand") {
+    const target = nearest("chest");
+    if (target) send("liftChest", { targetId: target.id });
+  }
+}, opts);
 el("sleep-status").addEventListener("click", () => showPanel("sleep-status", "가족 잠자기"), opts);
 el("tool").addEventListener(
   "change",
@@ -975,6 +1010,20 @@ const renderer = createRenderer((now, delta) => {
     const cal = calendar(state?.day ?? 1),
       info = SEASON_INFO[cal.season];
     const personal = network.personal?.member;
+    candidateHints = local && latest.status === "connected" && !panel.open ? placementHints(network, local, placementItem) : [];
+    renderer.scene.setPlacementHints(candidateHints);
+    el("placement-cancel").hidden = !placementItem;
+    el<HTMLButtonElement>("placement-cancel").disabled = !!furniturePending;
+    const furnitureButton = el<HTMLButtonElement>("furniture-action");
+    const liftTarget = selected === "hand" && !local?.carrying ? nearest("chest") : undefined;
+    const liftInfo = liftTarget && network.personal?.chestInfos?.[liftTarget.id];
+    const canShow = !!local && !panel.open && !placementItem && latest.status === "connected";
+    furnitureButton.hidden = !canShow || (!local?.carrying && !liftInfo);
+    furnitureButton.textContent = local?.carrying ? "내려놓기" : liftInfo && !liftInfo.canCarry ? "너무 무거워요" : "들어올리기";
+    furnitureButton.disabled = !!furniturePending || !!local && renderer.scene.actionBusy(local.id) || (!local?.carrying && !liftInfo?.canCarry);
+    furnitureButton.title = local?.carrying ? candidateHints[0]?.error ?? "앞칸에 내려놓기" : liftInfo ? `${liftInfo.weightKg.toFixed(1)} / 36kg · ${liftInfo.name}` : "";
+    el<HTMLButtonElement>("run").disabled = !!local?.carrying;
+    controls.placeAuxiliary();
     el("calendar").textContent = state
       ? `${info.icon} ${info.name} ${cal.day}일 · ${String(Math.floor(state.minute / 60)).padStart(2, "0")}:${String(state.minute % 60).padStart(2, "0")} ${state.weather === "rain" ? "☂" : state.weather === "snow" ? "❄" : "☀"}`
       : "우리 가족의 작은 세계";
@@ -1073,7 +1122,13 @@ el("arena").addEventListener(
       Math.hypot(start.x - e.clientX, start.y - e.clientY) < 12
     ) {
       const me = network.snapshot().players.find((p) => p.local);
-      if (me && network.state)
+      if (me && network.state && placementItem) {
+        candidateHints = placementHints(network, me, placementItem);
+        const point = renderer.scene.pickWorld(e.clientX, e.clientY);
+        const hint = candidateHints.find(h => h.cells.some(p => Math.abs(p.x - point.x) <= TILE / 2 && Math.abs(p.y - point.y) <= TILE / 2));
+        if (hint?.error) notice(hint.error);
+        else if (hint) send("placeItem", { itemId: placementItem, tileX: hint.tileX, tileY: hint.tileY });
+      } else if (me && network.state)
         touchNavigation.choose(
           renderer.scene.pickWorld(e.clientX, e.clientY),
           me,

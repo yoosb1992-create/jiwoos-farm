@@ -1,3 +1,4 @@
+import type { CarriedChest, TransportFx } from "./transport.js";
 import { activateHomeFurniture } from "./home-furniture.js";
 import { DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, FARM_GRASS, GRASS_FIRST, GRASS_MAX, NATURAL_TREE_FIRST, TREE_SPECIES, treeHp } from "./nature.js";
 import { initializeTree, naturalPlacement, fencedInterior, buildNaturePlacementIndex, recordNaturePlacement } from "./nature-world.js";
@@ -12,7 +13,8 @@ import type { ActionFx, Tool } from "./interaction.js";
 import { normalizeRock } from "./resources.js";
 import { migrateChestStorage, type ChestBinding, type ChestStores, type ChestSettings } from "./chest-storage.js";
 import { initializeChestGroups } from "./chest-groups.js";
-export const WORLD_VERSION = 10;
+import { migrateToolLevels, type UpgradeTool } from "./tool-levels.js";
+export const WORLD_VERSION = 11;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
 export const ACTION_RANGE = 64;
@@ -27,9 +29,13 @@ export interface Member {
   stamina: number;
   money: number;
   xp: number;
+  /** Legacy common level, retained only as a migration source. */
   toolLevel: number;
+  toolLevels?: Partial<Record<UpgradeTool, number>>;
   quests: Record<string, number>;
   water: number;
+  carried?: CarriedChest;
+  transportUntil?: number;
   fishing?: FishingChallenge;
   fishBook?: Record<string, { count: number; bestCm: number }>;
   friendship?: Record<string, number>;
@@ -70,6 +76,8 @@ export interface World {
   /** Felled juvenile regrowth, saved in the existing JSON snapshot only.
    * These are not entities: no rendering, targeting or collision on any client. */
   treeRegrowth?: Record<string, Entity>;
+  /** Authored furniture moved/recovered once must never respawn at its blueprint anchor. */
+  retiredFixtures?: Record<string, boolean>;
   natureCleared?: Record<string, number>;
   debrisDay?: number;
   grassDay?: number;
@@ -129,6 +137,7 @@ export interface ActionResult {
   message: string;
   revision: number;
   fx?: ActionFx;
+  transportFx?: TransportFx;
   transition?: {
     area: string;
     x: number;
@@ -189,6 +198,7 @@ export function newMember(id: string, nickname: string, day = 1): Member {
     money: 120,
     xp: 0,
     toolLevel: 1,
+    toolLevels: { axe: 1, pickaxe: 1, hoe: 1, scythe: 1, water: 1, fishing_rod: 1 },
     quests: {},
     fishBook: {},
     friendship: {},
@@ -327,7 +337,7 @@ export function seedFarmGrass(world: World, rng: () => number, bootstrap = false
 export function generateDaily(world: World): void {
   for (const [id, e] of Object.entries(world.entities))
     if (
-      (!e.planted && ((e.area === "forest" && e.kind !== "tree" && e.kind !== "stump") || e.area.startsWith("mine"))) ||
+      (!e.planted && !["chest", "machine", "decoration"].includes(e.kind) && ((e.area === "forest" && e.kind !== "tree" && e.kind !== "stump") || e.area.startsWith("mine"))) ||
       id.startsWith("zoneforage-")
     )
       delete world.entities[id];
@@ -481,6 +491,7 @@ function seedFixtures(w: World, daily: boolean): void {
     if ((map.id === "forest" || map.id.startsWith("mine")) !== daily) continue;
     for (const o of map.objects)
       if (o.kind && o.visible !== false) {
+        if (o.kind === "chest" && (w.retiredFixtures?.[o.id] || w.entities[o.id])) continue;
         if (daily && (o.kind === "tree" || o.kind === "stump") &&
           (w.entities[o.id] || w.treeRegrowth?.[o.id] ||
             w.natureCleared?.[`${map.id}:${Math.floor(o.position.tileX)},${Math.floor(o.position.tileY)}`] !== undefined)) continue;
@@ -534,6 +545,13 @@ export function upgradeWorld(w: World): void {
   if (w.version > WORLD_VERSION)
     throw new Error("This farm needs a newer server");
   for (const m of Object.values(w.members)) {
+    migrateToolLevels(m);
+    if (m.carried) for (const e of m.carried.entities) {
+      // Carried entities are the sole physical copy. Their ledgers/group keys
+      // stay in the world snapshot; reconnect never copies inventory contents.
+      (w.retiredFixtures ??= {})[e.id] = true;
+      delete w.entities[e.id];
+    }
     // Add the new starter tool without replacing any saved inventory or world.
     m.inventory.scythe ??= 1;
     m.fishBook ??= {};

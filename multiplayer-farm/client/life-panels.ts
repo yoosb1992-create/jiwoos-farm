@@ -37,6 +37,7 @@ export interface LifeContext {
   audio: FarmAudio;
   send(type: string, extra?: Partial<Command>): void;
   select(id: string): void;
+  place(id: string): void;
   close(): void;
   open(type: string, title: string, targetId?: string): void;
   page(n: number): void;
@@ -111,7 +112,7 @@ export function renderLifePanel(
     card(
       body,
       `${m.money} G · 가방 ${Object.keys(m.inventory).length}/48`,
-      `기력 ${Math.floor(m.stamina)} · 물 ${m.water}/30 · 경험치 ${m.xp} · 도구 Lv${m.toolLevel}`,
+      `기력 ${Math.floor(m.stamina)} · 물 ${m.water}/30 · 경험치 ${m.xp}`,
     );
     tabs(body, [
       [
@@ -150,22 +151,7 @@ export function renderLifePanel(
         buttons.push(
           action(`먹기 +${item!.energy}`, () => c.send("eat", { itemId: id })),
         );
-      if (id === "wood_processor")
-        buttons.push(
-          action("배치", () => {
-            c.close();
-            c.send("placeMachine");
-          }),
-        );
-      if (id === "storage_chest")
-        buttons.push(action("앞칸에 놓기", () => { c.close(); c.send("placeChest"); }));
-      if (id in DECORATIONS)
-        buttons.push(
-          action("앞칸에 놓기", () => {
-            c.close();
-            c.send("placeDecoration", { itemId: id });
-          }),
-        );
+      if (item?.placement) buttons.push(action("설치", () => c.place(id)));
       const el = card(
         body,
         `${itemName(id)} ×${count}`,

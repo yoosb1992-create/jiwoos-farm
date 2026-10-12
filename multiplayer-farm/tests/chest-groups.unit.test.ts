@@ -123,10 +123,9 @@ test("bag placement snaps to an authored chest, consumes one item, and connects 
   assert.deepEqual(w.chest, {});
   Object.assign(actor, { x: 384, y: 368 }); act("placeChest");
   assert.equal(chestInfo(w, "c0").size, 3);
-  Object.assign(actor, { x: 416, y: 368 }); const result = act("placeChest");
-  assert.match(result.message, /최대 3칸/);
-  assert.equal(m.inventory.storage_chest, undefined);
+  Object.assign(actor, { x: 416, y: 368 }); assert.throws(() => act("placeChest"), /최대 3칸/);
+  assert.equal(m.inventory.storage_chest, 1);
   assert.equal(chestInfo(w, "c0").capacity, 48);
-  assert.equal(chestInfo(w, "chest-3").size, 1);
+  assert.equal(w.entities["chest-3"], undefined);
   assert.ok(collidesWithObstacle(384, 320, "farm", w.layout!.maps, Object.values(w.entities)));
 });

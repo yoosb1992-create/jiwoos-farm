@@ -97,6 +97,13 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
       next.entities["snapshot-neighbor"] = { ...original, id: "snapshot-neighbor", x: original.x + 32 };
       next.chestSettings = { "chest:family_chest": { name: "나무창고", color: "green" } };
       assert.equal(mergeChestGroup(next, ["family_chest", "snapshot-neighbor"]), undefined);
+      const carrier = next.members[s.playerId]!;
+      const info = chestInfo(next, "family_chest");
+      carrier.toolLevels = { axe: 2, pickaxe: 1 };
+      carrier.carried = { itemId: "storage_chest", mode: "hand", storageKey: info.storageKey,
+        entities: info.members.map(id => next.entities[id]!), position: { area: "farmhouse", x: 128, y: 176, facing: "up" } };
+      next.retiredFixtures = {};
+      for (const id of info.members) { next.retiredFixtures[id] = true; delete next.entities[id]; }
       const receipt = {
         playerId: s.playerId,
         actionId: "db-receipt-001",
@@ -131,6 +138,10 @@ test("PostgreSQL migration idempotency, transaction rollback, durable idempotenc
       assert.equal(chestInfo(saved, "snapshot-neighbor").color, "green");
       assert.equal(chestInfo(saved, "snapshot-neighbor").capacity, 32);
       assert.equal(chestInventory(saved, "snapshot-neighbor"), chestInventory(saved, "family_chest"));
+      assert.equal(saved.members[s.playerId]!.carried?.storageKey, chestInfo(saved, "family_chest").storageKey);
+      assert.equal(saved.members[s.playerId]!.carried?.entities.length, 2);
+      assert.equal(saved.entities.family_chest, undefined);
+      assert.deepEqual(saved.members[s.playerId]!.toolLevels, { axe: 2, pickaxe: 1 });
     } finally {
       await restored.close();
     }

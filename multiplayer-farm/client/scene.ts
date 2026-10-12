@@ -1,3 +1,6 @@
+import { FurnitureAnimation } from "./furniture-animation.js";
+import type { TransportFx } from "../shared/transport.js";
+import type { PlacementHint } from "./placement-preview.js";
 import { treeSprite, inferSpecies, treeSeasonScale, treeRootSprite, TREE_STAGES, stumpSprite } from "../shared/nature.js";
 import { SceneTerrain } from "./world/scene-terrain.js";
 import { TERRAIN_ART, visualSize, foliageColor } from "../shared/art-assets.js";
@@ -32,7 +35,7 @@ import { mapFor, layoutRevision } from "./layout.js";
 import { FarmFeedback } from "./feedback.js";
 import type { ActionFx } from "../shared/interaction.js";
 import type { Sound } from "./audio.js";
-import { createFarmerFrames } from "./tool-animation-art.js";
+import { createFarmerFrames, createCarryFrames } from "./tool-animation-art.js";
 import { rockMaxHp } from "../shared/resources.js";
 import { currentLightLevel, seedGlowVisibility } from "../shared/sunlight.js";
 import { chestTextureKey } from "./chest-art.js";
@@ -48,6 +51,28 @@ interface View {
   y: number;
 }
 export class FarmScene extends Phaser.Scene {
+  private placementMarks?: Phaser.GameObjects.Graphics;
+  private placementLabels: Phaser.GameObjects.Text[] = [];
+  setPlacementHints(hints: PlacementHint[]): void {
+    if (!this.add || !this.sys.isActive()) return;
+    this.placementMarks ??= this.add.graphics().setDepth(8998);
+    this.placementMarks.clear();
+    this.placementLabels.forEach(label => label.setVisible(false));
+    let index = 0;
+    for (const hint of hints) for (const p of hint.cells) {
+      const color = hint.error ? 0xc75950 : 0x79b468;
+      this.placementMarks.fillStyle(color, .28).fillRect(p.x - 15, p.y - 15, 30, 30);
+      this.placementMarks.lineStyle(2, color, .9).strokeRect(p.x - 15, p.y - 15, 30, 30);
+      const label = this.placementLabels[index] ??= this.add.text(0, 0, "", { fontSize: "16px", color: "#ffffff", stroke: "#344c39", strokeThickness: 2 }).setOrigin(.5).setDepth(8999);
+      label.setText(hint.error ? "×" : "✓").setPosition(p.x, p.y).setVisible(true); index++;
+    }
+    this.target?.setVisible(!hints.length);
+  }
+  placementFeedback(): void {
+    if (!this.placementMarks) return;
+    this.tweens.add({ targets: this.placementMarks, alpha: .35, duration: 140, yoyo: true, onComplete: () => { this.placementMarks?.setAlpha(1).clear(); } });
+    this.placementLabels.forEach(label => label.setVisible(false));
+  }
   private area = "";
   private chunkTerrain?: SceneTerrain;
   private staticRefresh = 0;
@@ -63,9 +88,11 @@ export class FarmScene extends Phaser.Scene {
   private target?: Phaser.GameObjects.Rectangle;
   private me?: RenderPlayer;
   private feedback?: FarmFeedback;
+  private furniture?: FurnitureAnimation;
+  transportFeedback(event: TransportFx): void { this.furniture?.event(event); }
   onSound?: (sound: Sound) => void;
   actionFeedback(event: ActionFx): void { this.feedback?.event(event,this.area,this.season); }
-  actionBusy(id:string):boolean { return this.feedback?.busy(id)??false; }
+  actionBusy(id:string):boolean { return (this.feedback?.busy(id) ?? false) || (this.furniture?.busy(id) ?? false); }
   constructor(
     private readonly onFrame: (
       now: number,
@@ -115,6 +142,8 @@ export class FarmScene extends Phaser.Scene {
     createContentTextures(this);
     createItemTextures(this);
     createFarmerFrames(this);
+    createCarryFrames(this);
+    this.furniture = new FurnitureAnimation(this);
     this.feedback = new FarmFeedback(this, sound=>this.onSound?.(sound), id=>this.objects.get(id));
     const directions = ["down", "up", "left", "right"];
     for (const [state, offset] of [
@@ -367,7 +396,7 @@ export class FarmScene extends Phaser.Scene {
       const visible = p.area === me.area;
       v.body.setVisible(visible).setAlpha(p.connected ? 1 : 0.4);
       v.label.setVisible(visible);
-      if (!visible) continue;
+      if (!visible) { this.furniture?.update(p, v.body, v.label, now, me.area); continue; }
       const moved = Math.hypot(p.x - v.x, p.y - v.y) > 0.05;
       const action = this.feedback?.acting(p.id,now);
       const dx = p.x - v.x,
@@ -386,10 +415,12 @@ export class FarmScene extends Phaser.Scene {
         .setDepth(p.y)
         .setAngle(0)
         .setAlpha((p.connected?1:.4)*(1-(action?.blend??0)));
+      if (v.body.texture.key !== "player") v.body.setTexture("player").setOrigin(.5, 70 / 72);
       const animation=`${action || p.actionTicks > 0 ? "idle" : moved ? "walk" : "idle"}_${facing}`;
-      if(v.body.anims.currentAnim?.key!==animation)v.body.play(animation);
+      if(!v.body.anims.isPlaying || v.body.anims.currentAnim?.key!==animation)v.body.play(animation);
       if(action){v.body.anims.pause();v.body.setFrame(["down","up","left","right"].indexOf(facing)*4);}else v.body.anims.resume();
       v.label.setPosition(p.x, p.y - 54).setDepth(p.y + 1);
+      this.furniture?.update(p, v.body, v.label, now, me.area);
       v.x = p.x;
       v.y = p.y;
       if (p.local) {
@@ -407,9 +438,10 @@ export class FarmScene extends Phaser.Scene {
         v.label.destroy();
         this.players.delete(id);
       }
+    this.furniture?.prune(present);
     const ids = new Set<string>();
     state.entities.forEach((e, id) => {
-      if (e.area !== me.area) return;
+      if (e.area !== me.area || this.furniture?.hiddenFloor(id, now)) return;
       const authored = objectById(mapFor(me.area), id);
       if (authored && !objectVisible(authored, this.season)) return;
       const viewport = this.cameras.main.worldView;

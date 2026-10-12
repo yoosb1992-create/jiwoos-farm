@@ -282,6 +282,25 @@ export class ControlLayout {
       }
     }
   }
+  /** Fit contextual furniture controls around the actual customized touch UI. */
+  placeAuxiliary(): void {
+    const { w, h } = this.viewport();
+    const occupied = ["top", "toolbar", ...ids].map(id => document.getElementById(id)!.getBoundingClientRect());
+    const action = this.element("action").getBoundingClientRect();
+    for (const id of ["furniture-action", "placement-cancel"]) {
+      const button = document.getElementById(id);
+      if (!button || button.hidden) continue;
+      const width = 100, height = 44;
+      let best = Infinity, bx = 8, by = 8;
+      for (let y = 8; y <= h - height - 16; y += 8) for (let x = 8; x <= w - width - 8; x += 8) {
+        if (occupied.some(r => x < r.right + 6 && x + width > r.left - 6 && y < r.bottom + 6 && y + height > r.top - 6)) continue;
+        const distance = (x + width / 2 - action.left - action.width / 2) ** 2 + (y + height / 2 - action.top) ** 2;
+        if (distance < best) { best = distance; bx = x; by = y; }
+      }
+      Object.assign(button.style, { left: `${bx}px`, top: `${by}px`, width: `${width}px`, height: `${height}px` });
+      occupied.push({ left: bx, right: bx + width, top: by, bottom: by + height } as DOMRect);
+    }
+  }
   open(): void {
     this.pause();
     this.before = this.layout ? structuredClone(this.layout) : undefined;

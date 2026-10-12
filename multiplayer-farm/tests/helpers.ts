@@ -37,6 +37,7 @@ export async function join(url: string, session: Session): Promise<TestRoom> {
   room.onMessage("personal", () => undefined);
   room.onMessage("actionResult", () => undefined);
   room.onMessage("actionFx", () => undefined);
+  room.onMessage("transportFx", () => undefined);
   await until(() => !!room.state?.players.has(room.sessionId));
   return room;
 }

@@ -41,6 +41,8 @@ export const FARMER_FRAMES:Record<Facing,Record<FarmerPose,Frame>> = {
 };
 export const farmerKey=(facing:Facing,pose:FarmerPose)=>`farmer-action-${facing}-${pose}`;
 const groundLines=new Map<string,number>();
+const topLines=new Map<string,number>();
+export const farmerTop=(facing:Facing,pose:FarmerPose)=>topLines.get(farmerKey(facing,pose))??24;
 export const farmerGround=(facing:Facing,pose:FarmerPose)=>groundLines.get(farmerKey(facing,pose))??70;
 
 /** Twenty tiny cached frames. All visible RGB samples are copied verbatim from
@@ -82,10 +84,31 @@ export function createFarmerFrames(scene:Phaser.Scene):void {
       outer:for(let y=71;y>=50;y--)for(let x=12;x<33;x++)if(pixels[(y*48+x)*4+3]!>48){ground=y-1;break outer;}
     }
     groundLines.set(key,ground);
+    let top = 24;
+    outer:for(let y=0;y<72;y++)for(let x=0;x<48;x++)if(pixels[(y*48+x)*4+3]!>48){top=y;break outer;}
+    topLines.set(key,top);
     t.refresh();t.setFilter(Phaser.Textures.FilterMode.NEAREST);
     const palm=scene.textures.createCanvas(`${key}-palm`,48,72)!;
     // Preserve the source's own knuckles/outline in front of the handle.
     palm.context.drawImage(t.canvas,f.hand[0]-2,f.hand[1]-2,4,4,f.hand[0]-2,f.hand[1]-2,4,4);
     palm.refresh();palm.setFilter(Phaser.Textures.FilterMode.NEAREST);
+  }
+}
+
+/** Carry walk keeps the original raised torso and the original walking legs.
+ * No articulated arms, repainted face, outfit changes, or tool-frame edits. */
+export function createCarryFrames(scene: Phaser.Scene): void {
+  const atlas = scene.textures.get("player").getSourceImage() as HTMLImageElement;
+  for (const [direction, facing] of (["down", "up", "left", "right"] as const).entries()) {
+    const raised = scene.textures.get(farmerKey(facing, "raised")).getSourceImage() as HTMLCanvasElement;
+    for (let frame = 0; frame < 4; frame++) {
+      const key = `farmer-carry-${facing}-${frame}`;
+      if (scene.textures.exists(key)) continue;
+      const texture = scene.textures.createCanvas(key, 48, 72)!;
+      texture.context.imageSmoothingEnabled = false;
+      texture.context.drawImage(raised, 0, 0, 48, 52, 0, 0, 48, 52);
+      texture.context.drawImage(atlas, (direction * 4 + frame) * 48, 72 + 52, 48, 20, 0, 52, 48, 20);
+      texture.refresh(); texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
   }
 }

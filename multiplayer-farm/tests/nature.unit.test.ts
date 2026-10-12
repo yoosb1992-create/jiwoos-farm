@@ -68,7 +68,7 @@ test("five persisted stages: species days, deterministic rare promotions, minimu
 test("every species has correct drops, mature/giant/guardian hits and three-hit stumps at both tool levels",()=>{
   for(const t of TREE_SPECIES)for(const stage of [2,3,4])for(const level of [1,2]){
     const {w,a}=setup(),e=entity("harvest-tree","farm","tree",a.x,a.y+32,t.id);
-    e.stage=stage;e.species=t.id;e.hp=treeHp(stage);initializeTree(w,e);w.entities[e.id]=e;w.members.a!.toolLevel=level;
+    e.stage=stage;e.species=t.id;e.hp=treeHp(stage);initializeTree(w,e);w.entities[e.id]=e;w.members.a!.toolLevels={axe:level,pickaxe:level};
     const hits=Math.ceil(treeHp(stage)/(level===2?2:1));
     for(let i=0;i<hits;i++){act(w,a,"hitTree",{targetId:e.id});assert.equal(e.kind,i===hits-1?"stump":"tree");}
     assert.equal(e.asset,stumpSprite(t.id,stage));

@@ -78,6 +78,8 @@ for (const crop of EXPANSION_CROPS) for (const stage of ["seed", "sprout", "grow
   if (asset) asset.source = null;
 }
 export interface ItemDefinition {
+  weightKg?: number;
+  placement?: { kind: "chest" | "machine" | "decoration"; policy: "recoverable" | "destructible" | "permanent"; transport?: "hand"[]; recoveryTool?: "pickaxe" };
   naturalHarvest?: "flower";
   id: string;
   name: string;
@@ -88,7 +90,7 @@ export interface ItemDefinition {
   description?: string;
 }
 export const ITEMS: Record<string, ItemDefinition> = { ...snapshot.items };
-ITEMS.storage_chest = { id: "storage_chest", name: "작은 보관함", kind: "placeable", assetId: "storage_chest", description: "앞칸에 놓는 16칸 보관함. 가로로 최대 3개까지 연결해요. 이름과 색상은 보관함 설정에서 바꿀 수 있어요." };
+ITEMS.storage_chest = { id: "storage_chest", name: "작은 보관함", kind: "placeable", assetId: "storage_chest", description: "상하좌우에 설치하는 16칸 보관함. 가로로 최대 3개까지 자동 연결해요. 이름과 색상은 보관함 설정에서 바꿀 수 있어요." };
 ITEMS.water = { ...ITEMS.water!, description: "어디서든 앞칸에 물을 뿌려요. 사용할 때마다 기력 1이 들며, 물 보충은 손을 선택하고 우물에서 행동하세요." };
 ITEMS.scythe = { id: "scythe", name: "낫", kind: "tool", assetId: "item_scythe", description: "목초·잡초와 야생 꽃을 베어 채집해요. 재배 작물은 손으로 수확해요." };
 ASSETS.item_scythe = { assetId: "item_scythe", textureKey: "item_scythe", source: null, frameSize: { width: 32, height: 32 }, origin: { x: .5, y: .5 } };
@@ -189,6 +191,14 @@ ITEMS.stamina_biscuit = {
   energy: 35,
   description: "기력 35를 회복하는 든든한 간식.",
 };
+// Every shipped item receives a weight; inventory slots remain the only bag limit.
+const itemWeights: Record<string, number> = { wood: .5, stone: 1.8, copper_ore: 2, iron_ore: 2.2, gold_ore: 2.5, coal: .6, wood_plank: .7, grass: .05, fiber: .05, cherry_petals: .02, maple_sap: .3, bamboo: .4, storage_chest: 6, wood_processor: 18, axe: 2, pickaxe: 3, hoe: 2, scythe: 1.5, water: 2, watering_can: 2, fishing_rod: .8, egg: .06, milk: 1, wool: .3, animal_feed: .25, stamina_biscuit: .1 };
+for (const item of Object.values(ITEMS)) {
+  item.weightKg = itemWeights[item.id] ?? (item.kind === "seed" || item.kind === "tree_seed" ? .08 : item.kind === "fish" ? .8 : item.kind === "decoration" ? 4 : item.kind === "tool" ? 2 : item.kind === "material" || item.kind === "resource" ? .5 : .2);
+  if (item.id === "storage_chest") item.placement = { kind: "chest", policy: "recoverable", recoveryTool: "pickaxe", transport: ["hand"] };
+  else if (item.id === "wood_processor") item.placement = { kind: "machine", policy: "permanent" };
+  else if (Object.hasOwn(DECORATIONS, item.id)) item.placement = { kind: "decoration", policy: "recoverable" };
+}
 export const RECIPES: Record<
   string,
   {

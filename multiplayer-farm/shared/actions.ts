@@ -1,3 +1,7 @@
+import { TRANSPORT_DURATION_MS, HAND_CARRY_LIMIT_KG } from "./transport-config.js";
+import { carryAppearance } from "./transport.js";
+import { planPlacement } from "./placement.js";
+import { isUpgradeTool, migrateToolLevels, toolLevel, TOOL_UPGRADES } from "./tool-levels.js";
 import { transferQuantity, canCraft, STACK_LIMIT } from "./household.js";
 import { TREES, plantingTree, natureRoll } from "./nature.js";
 import { initializeTree, growTrees, naturalPlacement, markCleared } from "./nature-world.js";
@@ -46,7 +50,7 @@ import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 import { isTool, cuttableGrass, pickupRadius, PICKUP_RANGE_EPSILON, type Tool, type ActionFx } from "./interaction.js";
 import { naturalFlower, normalizeRock, rockMaxHp } from "./resources.js";
-import { chestInfo, chestInventory, migrateChestStorage, validChestColor, validChestName } from "./chest-storage.js";
+import { chestInfo, chestInventory, validChestColor, validChestName } from "./chest-storage.js";
 import { adjacentChestIds, mergeChestGroup, splitChestGroup } from "./chest-groups.js";
 import { toolStaminaCost, HAND_STAMINA_COST, FISHING_CAST_STAMINA_COST } from "./tool-stamina.js";
 export class ActionError extends Error {}
@@ -74,6 +78,9 @@ const TYPES = new Set([
   "linkChest",
   "unlinkChest",
   "placeChest",
+  "placeItem",
+  "liftChest",
+  "lowerChest",
   "craftItem",
   "placeMachine",
   "startMachine",
@@ -178,6 +185,7 @@ export interface ActionContext {
   now: number;
   online: string[];
   votes: Set<string>;
+  players?: Array<Pick<Actor, "area" | "x" | "y">>;
 }
 export function nextDay(w: World): void {
   const previousDay = w.day;
@@ -239,6 +247,8 @@ export function applyAction(
   let failed = false;
   const m = w.members[a.id];
   requireThat(m, "플레이어 없음");
+  requireThat(command.type === "pickupDrop" || ctx.now >= (m.transportUntil ?? 0), "운반 동작을 마칠 때까지 기다려 주세요");
+  requireThat(!m.carried || ["lowerChest", "pickupDrop", "enterArea", "worldEvent"].includes(command.type), "보관함을 먼저 내려놓아 주세요");
   const cost = tool && command.type !== "refill" ? toolStaminaCost(tool, before) : 0;
   if (tool) {
     requireThat(isTool(tool) && (m.inventory[tool] ?? 0) > 0, "도구가 없습니다");
@@ -261,6 +271,7 @@ export function applyAction(
     const type = tool === "axe" && before?.kind === "twig" ? "clearTwig"
       : before && naturalFlower(before) && (tool === "axe" || tool === "pickaxe") ? "destroyFlower"
       : tool === "axe" && ["tree","stump"].includes(before?.kind ?? "") ? "hitTree"
+      : tool === "pickaxe" && before?.kind === "chest" ? "recoverChest"
       : tool === "pickaxe" && before?.kind === "rock" ? "hitRock"
       : tool === "scythe" && before && (cuttableGrass(before) || naturalFlower(before)) ? "cutGrass"
       : tool === "hoe" && (!before || ["soil","withered"].includes(before.kind)) ? "tillTile"
@@ -341,6 +352,7 @@ function applyActionCore(
       "대상이 없거나 이미 처리됐습니다",
     );
     near(e);
+    requireThat(e.kind !== "chest" || e.readyAt <= ctx.now, "내려놓는 중이에요. 잠시 기다려 주세요");
     return e;
   };
   const front = (e: Pick<Entity, "x" | "y">) => {
@@ -536,7 +548,7 @@ function applyActionCore(
       requireThat(e.chopEnabled!==false,"이 나무는 벌목할 수 없습니다");
       front(e);
       initializeTree(w,e,authored);
-      e.hp -= e.kind==="stump" ? 1 : m.toolLevel >= 2 ? 2 : 1;
+      e.hp -= e.kind==="stump" ? 1 : toolLevel(m, "axe") >= 2 ? 2 : 1;
       if (e.hp <= 0) {
         if (e.kind === "tree") {
           const tree=TREES[e.species!]!;
@@ -568,7 +580,7 @@ function applyActionCore(
       const e = target("rock");
       front(e);
       normalizeRock(e);
-      e.hp -= m.toolLevel >= 2 ? 2 : 1;
+      e.hp -= toolLevel(m, "pickaxe") >= 2 ? 2 : 1;
       if (e.hp <= 0) {
         addDrop(w, e, e.item || "stone", 1);
         markCleared(w,e);
@@ -634,6 +646,56 @@ function applyActionCore(
       delete w.entities[e.id];
       break;
     }
+    case "liftChest": {
+      const e = target("chest"); front(e);
+      const info = chestInfo(w, e.id);
+      requireThat(!m.carried, "이미 물건을 들고 있어요");
+      requireThat(w.chestBindings?.[e.id]?.mode !== "shared", "이 보관함은 손으로 옮길 수 없어요");
+      requireThat(ITEMS.storage_chest!.placement?.transport?.includes("hand"), "들어 올릴 수 없는 물건이에요");
+      requireThat(info.weightKg <= HAND_CARRY_LIMIT_KG, `너무 무거워요 (${info.weightKg.toFixed(1)} / ${HAND_CARRY_LIMIT_KG}kg)`);
+      requireThat(info.members.every(id => w.entities[id]?.kind === "chest"), "이미 다른 가족이 옮긴 보관함이에요");
+      const entities = info.members.map(id => w.entities[id]!).sort((a, b) => a.x - b.x);
+      m.carried = { itemId: "storage_chest", mode: "hand", storageKey: info.storageKey, entities,
+        position: { area: a.area, x: a.x, y: a.y, facing: a.facing } };
+      m.transportUntil = ctx.now + TRANSPORT_DURATION_MS;
+      result.transportFx = { ...carryAppearance(w, m)!, id: c.actionId, actorId: a.id, area: a.area, kind: "lift", x: a.x, y: a.y, facing: a.facing as import("./world.js").Facing, cells: entities.map(e => ({ x: e.x, y: e.y })) };
+      for (const segment of entities) { (w.retiredFixtures ??= {})[segment.id] = true; delete w.entities[segment.id]; }
+      result.message = "들어올리는 중…";
+      break;
+    }
+    case "lowerChest": {
+      const carried = m.carried;
+      requireThat(carried?.entities.length, "들고 있는 보관함이 없어요");
+      const t = frontTile(a), appearance = carryAppearance(w, m)!;
+      requireThat((c.tileX ?? t.tileX) === t.tileX && (c.tileY ?? t.tileY) === t.tileY, "바라보는 앞칸에 내려놓아 주세요");
+      const plan = planPlacement(w, a, carried.itemId, t.tileX, t.tileY, carried.entities, ctx.players, ctx.now);
+      requireThat(plan.world, plan.error ?? "이곳에는 내려놓을 수 없어요");
+      Object.assign(w, plan.world);
+      // Lock the entire resulting group until the accepted landing completes.
+      for (const id of chestInfo(w, plan.ids[0]!).members) w.entities[id] = { ...w.entities[id]!, readyAt: ctx.now + TRANSPORT_DURATION_MS };
+      result.transportFx = { ...appearance, id: c.actionId, actorId: a.id, area: a.area, kind: "lower", x: a.x, y: a.y, facing: a.facing as import("./world.js").Facing, cells: plan.cells };
+      delete m.carried;
+      m.transportUntil = ctx.now + TRANSPORT_DURATION_MS;
+      result.message = "내려놓는 중…";
+      break;
+    }
+    case "recoverChest": {
+      own("pickaxe");
+      const e = target("chest"); front(e);
+      const policy = ITEMS.storage_chest!.placement;
+      requireThat(policy?.policy === "recoverable" && policy.recoveryTool === "pickaxe", "회수할 수 없는 설치물이에요");
+      const info = chestInfo(w, e.id);
+      requireThat(Object.values(chestInventory(w, e.id)).every(n => n === 0), "내용물을 모두 꺼낸 빈 보관함만 회수할 수 있어요");
+      requireThat(info.members.every(id => w.entities[id]?.kind === "chest"), "이미 옮기거나 회수한 보관함이에요");
+      for (const id of info.members) {
+        const segment = w.entities[id]!;
+        addDrop(w, segment, "storage_chest", 1);
+        (w.retiredFixtures ??= {})[id] = true;
+        delete w.entities[id];
+      }
+      result.message = `빈 보관함 ${info.size}개를 회수했어요`;
+      break;
+    }
     case "configureChest": {
       const e = target("chest");
       requireThat(validChestName(c.chestName) && validChestColor(c.chestColor), "이름과 색상을 확인해 주세요");
@@ -645,33 +707,25 @@ function applyActionCore(
     case "linkChest":
     case "unlinkChest": {
       const e = target("chest");
+      requireThat(adjacentChestIds(w, e.id).every(id => w.entities[id]!.readyAt <= ctx.now), "옆 보관함을 내려놓는 중이에요");
       const error = c.type === "linkChest" ? mergeChestGroup(w, adjacentChestIds(w, e.id), e.id) : splitChestGroup(w, e.id);
       requireThat(!error, error ?? "연결을 확인해 주세요");
       result.message = c.type === "linkChest" ? "보관함을 연결했어요" : "빈 보관함의 연결을 해제했어요";
       break;
     }
-    case "placeChest": {
-      own("storage_chest");
-      const t = frontTile(a), desired = { x: (t.tileX + .5) * TILE, y: (t.tileY + .5) * TILE };
-      // Editor furniture can be anchored on tile edges rather than centers.
-      // Snap a nearby front cell to its neighbor's actual horizontal anchor.
-      const snaps = Object.values(w.entities).filter(e => e.kind === "chest" && e.area === a.area)
-        .flatMap(e => [-TILE, TILE].map(dx => ({ x: e.x + dx, y: e.y })))
-        .filter(p => Math.hypot(p.x - desired.x, p.y - desired.y) <= TILE * .72)
-        .sort((p, q) => Math.hypot(p.x - desired.x, p.y - desired.y) - Math.hypot(q.x - desired.x, q.y - desired.y));
-      const p = snaps[0] ?? desired;
-      requireThat(placementAllowed(mapFor(a.area, w.layout?.maps), "building", Math.floor(p.x / TILE), Math.floor(p.y / TILE)), "건물 배치 가능 영역에 놓으세요");
-      requireThat(!collidesWithObstacle(p.x, p.y, a.area, w.layout?.maps, Object.values(w.entities)) &&
-        !Object.values(w.entities).some(e => e.area === a.area && Math.hypot(e.x - p.x, e.y - p.y) < 24), "빈 자리에 배치하세요");
-      change(m.inventory, "storage_chest", -1);
-      const id = `chest-${++w.nextEntity}`;
-      w.entities[id] = entity(id, a.area, "chest", p.x, p.y, "storage_chest");
-      // A legacy snapshot may have retained stock because every previous chest
-      // was missing or occupied. Give that stock a home before joining stores.
-      migrateChestStorage(w);
-      const neighbors = adjacentChestIds(w, id);
-      const error = neighbors.length > 1 ? mergeChestGroup(w, neighbors, neighbors.find(other => other !== id)) : undefined;
-      result.message = error ? `작은 보관함을 놓았어요. ${error}` : neighbors.length > 1 ? "보관함을 놓고 옆 보관함과 연결했어요" : "작은 보관함을 놓았어요";
+    case "placeChest":
+    case "placeMachine":
+    case "placeDecoration":
+    case "placeItem": {
+      const item = c.type === "placeChest" ? "storage_chest" : c.type === "placeMachine" ? "wood_processor" : c.itemId;
+      requireThat(item && ITEMS[item]?.placement, "설치 가능한 아이템을 선택해 주세요");
+      own(item);
+      const tile = frontTile(a);
+      const plan = planPlacement(w, a, item, c.tileX ?? tile.tileX, c.tileY ?? tile.tileY, undefined, ctx.players, ctx.now);
+      requireThat(plan.world, plan.error ?? "이곳에는 설치할 수 없어요");
+      change(m.inventory, item, -1);
+      Object.assign(w, plan.world);
+      result.message = `${itemName(item)}를 설치했어요`;
       break;
     }
     case "depositChest":
@@ -706,38 +760,6 @@ function applyActionCore(
         change(m.inventory, i.itemId, -i.quantity * q);
       change(m.inventory, recipe.output.itemId, recipe.output.quantity * q);
       result.message = `${recipe.name} ${recipe.output.quantity * q}개 제작했어요`;
-      break;
-    }
-    case "placeMachine": {
-      own("wood_processor");
-      requireThat(
-        placementAllowed(
-          mapFor(a.area, w.layout?.maps),
-          "building",
-          frontTile(a).tileX,
-          frontTile(a).tileY,
-        ),
-        "건물 배치 가능 영역에 놓으세요",
-      );
-      const t = frontTile(a);
-      const p = { x: (t.tileX + 0.5) * TILE, y: (t.tileY + 0.5) * TILE };
-      requireThat(
-        !collidesWithObstacle(p.x, p.y, a.area, w.layout?.maps) &&
-          !Object.values(w.entities).some(
-            (e) => e.area === a.area && Math.hypot(e.x - p.x, e.y - p.y) < 24,
-          ),
-        "빈 자리에 배치하세요",
-      );
-      change(m.inventory, "wood_processor", -1);
-      const id = `machine-${++w.nextEntity}`;
-      w.entities[id] = entity(
-        id,
-        a.area,
-        "machine",
-        p.x,
-        p.y,
-        "wood_processor",
-      );
       break;
     }
     case "startMachine": {
@@ -839,13 +861,16 @@ function applyActionCore(
     }
     case "upgradeTool": {
       target("craft");
-      requireThat(m.toolLevel < 2, "현재 최고 단계입니다");
-      own("copper_ore", 5);
-      own("wood", 5);
-      change(m.inventory, "copper_ore", -5);
-      change(m.inventory, "wood", -5);
-      m.toolLevel = 2;
-      result.message = "도구를 Lv2로 강화했어요";
+      requireThat(isUpgradeTool(c.itemId), "강화할 도구를 선택해 주세요");
+      const upgrade = TOOL_UPGRADES[c.itemId];
+      requireThat(upgrade, "이 도구의 강화 효과는 아직 준비 중이에요");
+      own(c.itemId);
+      requireThat(toolLevel(m, c.itemId) < 2, "현재 최고 단계입니다");
+      for (const [id, count] of Object.entries(upgrade.materials)) own(id, count);
+      migrateToolLevels(m);
+      for (const [id, count] of Object.entries(upgrade.materials)) change(m.inventory, id, -count);
+      m.toolLevels![c.itemId] = 2;
+      result.message = `${itemName(c.itemId)}를 Lv2로 강화했어요`;
       break;
     }
     case "buyItem":
@@ -1127,44 +1152,6 @@ function applyActionCore(
         e.readyAt = 0;
         result.message = `${ITEMS[def.produce]?.name}를 받았어요`;
       }
-      break;
-    }
-    case "placeDecoration": {
-      const def = DECORATIONS[c.itemId as keyof typeof DECORATIONS];
-      requireThat(
-        def &&
-          placementAllowed(
-            mapFor(a.area, w.layout?.maps),
-            "decoration",
-            frontTile(a).tileX,
-            frontTile(a).tileY,
-          ),
-        "장식 배치 가능 영역에 놓으세요",
-      );
-      own(c.itemId!);
-      const t = frontTile(a),
-        x = (t.tileX + 0.5) * TILE,
-        y = (t.tileY + 0.5) * TILE;
-      requireThat(
-        !collidesWithObstacle(x, y, a.area, w.layout?.maps) &&
-          !isFarmable(a.area, t.tileX, t.tileY, w.layout?.maps),
-        "밭과 건물을 피해서 정원에 놓아주세요",
-      );
-      requireThat(
-        Object.values(w.entities).filter((e) => e.kind === "decoration")
-          .length < 64 &&
-          !Object.values(w.entities).some(
-            (e) => e.area === a.area && Math.hypot(e.x - x, e.y - y) < 28,
-          ),
-        "다른 빈자리에 놓아주세요 (장식 최대 64개)",
-      );
-      change(m.inventory, c.itemId!, -1);
-      const id = `decor-${++w.nextEntity}`,
-        e = entity(id, a.area, "decoration", x, y, def.asset);
-      e.item = c.itemId!;
-      e.owner = a.id;
-      w.entities[id] = e;
-      result.message = `${def.name}를 놓았어요`;
       break;
     }
     case "removeDecoration": {

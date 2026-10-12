@@ -38,7 +38,7 @@ test("all content-classified natural flowers: hand/scythe gather, axe/pick destr
 test("all surface stones take one hit; mining nodes three, upgraded pick two, including saved rocks",()=>{
   for(const asset of [...DEBRIS.filter(d=>d.kind==="rock").map(d=>d.id),"forest_rock","mine_stone","mine_copper","forest_ore"])
     for(const level of [1,2]) {
-      const {w,act}=setup();w.members.a!.toolLevel=level;
+      const {w,act}=setup();w.members.a!.toolLevels={axe:level,pickaxe:level};
       const e=entity("saved-rock","farm","rock",304,304,asset);e.hp=2;e.item=asset==="mine_copper"?"copper_ore":"stone";w.entities[e.id]=e;
       const point=[e.x,e.y],inventory=structuredClone(w.members.a!.inventory);upgradeWorld(w);
       const max=rockMaxHp(e);assert.equal(e.hp,max);assert.deepEqual([e.x,e.y],point);assert.deepEqual(w.members.a!.inventory,inventory);

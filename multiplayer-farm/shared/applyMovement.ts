@@ -1,3 +1,4 @@
+import { CARRY_SPEED_RATIO } from "./transport-config.js";
 import {
   blockedTile,
   nearbyObjects,
@@ -22,6 +23,7 @@ export interface Position {
   moving?: boolean;
   running?: boolean;
   actionTicks?: number;
+  carrying?: boolean;
 }
 export interface MovementInput {
   moveX: number;
@@ -247,8 +249,9 @@ export function collidesWithObstacle(
     map.world2 ? nearbyObjects(map, x / TILE, y / TILE) : map.objects
   ).some((o) => {
     if (o.visible === false || o.bridge) return false;
-    // A chest occupies one tile, including each part of a connected chest.
-    if (o.kind === "chest") return hit(o.position.tileX * TILE - 14, o.position.tileY * TILE - 14, 28, 28);
+    // Live entities own chest collision. Only editor/offline map queries without
+    // a live entity index fall back to the original authored footprint.
+    if (o.kind === "chest") return !obstacleIndex && hit(o.position.tileX * TILE - 14, o.position.tileY * TILE - 14, 28, 28);
     // Interactable nature leaves no static ghost when harvested or destroyed.
     // Its collision belongs to current server-authoritative live entities.
     if (["tree", "stump", "rock", "twig", "gather"].includes(o.kind ?? ""))
@@ -292,7 +295,7 @@ export function applyMovement(
   const faceLength = Math.hypot(i.faceX ?? 0, i.faceY ?? 0);
   const active = length > 0.01;
   p.moving = active;
-  p.running = active && i.run && (p.stamina ?? 100) > 0;
+  p.running = active && !p.carrying && i.run && (p.stamina ?? 100) > 0;
   if ((p.actionTicks ?? 0) > 0) {
     p.actionTicks = Math.max(0, (p.actionTicks ?? 0) - 1);
     p.moving = false;
@@ -317,7 +320,7 @@ export function applyMovement(
         : (i.faceY ?? 0) > 0
           ? "down"
           : "up";
-  const speed = p.running ? RUN_SPEED : WALK_SPEED;
+  const speed = (p.running ? RUN_SPEED : WALK_SPEED) * (p.carrying ? CARRY_SPEED_RATIO : 1);
   const dx = (i.moveX / Math.max(1, length)) * speed * dt,
     dy = (i.moveY / Math.max(1, length)) * speed * dt;
   const steps = Math.max(

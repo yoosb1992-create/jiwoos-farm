@@ -1,3 +1,5 @@
+import { ITEMS } from "./content.js";
+import { HAND_CARRY_LIMIT_KG } from "./transport-config.js";
 import type { World } from "./world.js";
 
 export type ChestStores = Record<string, Record<string, number>>;
@@ -16,7 +18,7 @@ export type ChestColor = keyof typeof CHEST_COLORS;
 export interface ChestSettings { name?: string; color?: ChestColor }
 export interface ChestInfo {
   storageKey: string; name: string; customName: string; color: ChestColor; size: number; index: number;
-  capacity: number; used: number; members: string[];
+  capacity: number; used: number; members: string[]; weightKg: number; canCarry: boolean;
 }
 export const CHEST_NAME_LIMIT = 20;
 export const CHEST_SLOTS = 16;
@@ -36,7 +38,8 @@ export function chestInfo(w: World, id: string): ChestInfo {
   const binding = w.chestBindings?.[id], storageKey = chestStorageKey(id, binding);
   const members = binding?.mode === "group" ? w.chestGroups?.[binding.group] ?? [id] : [id];
   const size = members.length, settings = w.chestSettings?.[storageKey];
-  return { storageKey, members, size, index: Math.max(0, members.indexOf(id)), capacity: CHEST_SLOTS * size,
+  const weightKg = Math.round((size * ITEMS.storage_chest!.weightKg! + Object.entries(w.chestStores?.[storageKey] ?? {}).reduce((sum, [item, count]) => sum + Math.max(0, count) * (ITEMS[item]?.weightKg ?? 1), 0)) * 1000) / 1000;
+  return { weightKg, canCarry: weightKg <= HAND_CARRY_LIMIT_KG, storageKey, members, size, index: Math.max(0, members.indexOf(id)), capacity: CHEST_SLOTS * size,
     customName: settings?.name ?? "",
     name: settings?.name || ["작은 보관함", "큰 보관함", "대형 보관함"][size - 1] || "보관함",
     color: validChestColor(settings?.color) ? settings.color : "wood",

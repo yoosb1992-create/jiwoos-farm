@@ -163,10 +163,10 @@ test("batch crafting consumes exact costs, frees slots and rejects overflow atom
   assert.equal(maxCrafts(m.inventory, RECIPES.wood_plank!), 5);
   act("craftItem", { targetId: "crafting_table", itemId: "wood_plank", quantity: 5 });
   assert.equal(Object.keys(m.inventory).length, 48);
-  m.inventory = { wood: 5, copper_ore: 5 };
-  act("upgradeTool", { targetId: "crafting_table" });
-  assert.equal(m.toolLevel, 2); assert.deepEqual(m.inventory, {});
-  assert.throws(() => act("upgradeTool", { targetId: "crafting_table" }));
+  m.inventory = { axe: 1, wood: 5, copper_ore: 5 };
+  act("upgradeTool", { targetId: "crafting_table", itemId: "axe" });
+  assert.equal(m.toolLevels?.axe, 2); assert.equal(m.toolLevels?.pickaxe, 1); assert.deepEqual(m.inventory, { axe: 1 });
+  assert.throws(() => act("upgradeTool", { targetId: "crafting_table", itemId: "axe" }));
 });
 test("bed requires farmhouse proximity; solo advances once, multiplayer waits, cancellation and stale day are safe", () => {
   const { w, a, ctx, act, m } = fixture();
