@@ -1,3 +1,4 @@
+import { renderHouseholdPanel } from "./household-panels.js";
 import { TREE_SPECIES, plantingTree } from "../shared/nature.js";
 import { inRect } from "../shared/world2.js";
 import { worldNpcSchedule } from "../shared/world2-runtime.js";
@@ -12,7 +13,6 @@ import { createRenderer } from "./scene.js";
 import { serverUrl } from "./config.js";
 import {
   CROPS,
-  RECIPES,
   ITEMS,
   NPCS,
   npcSchedule,
@@ -40,7 +40,7 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `<div id="arena" aria-label="가족 농장 게임 화면"></div>
 <header id="top"><div class="day-block"><span class="brand">JIWOO’S FARM · v2.7 · 타일 충돌</span><strong id="calendar">우리 가족의 작은 세계</strong><span id="place">사계절을 함께 가꾸어요</span></div><div class="top-actions"><span id="wallet">0 G</span><button id="bag" aria-label="가방">가방 <small id="bag-space">0/48</small></button><button id="menu" aria-label="메뉴">☰</button></div><div id="stamina"><i></i><span>기력</span></div></header><button hidden id="today" aria-label="오늘 할 일">✦ 오늘의 작은 한 걸음</button>
 <div id="notice" role="status">가족 농장에 오신 것을 환영합니다.</div><div id="connection"></div>
-<div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><label for="tool">선택</label><select id="tool"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="scythe">낫</option><option value="fishing_rod">낚싯대</option></select></div>
+<button id="sleep-status" hidden aria-label="잠자기 투표 현황"></button><div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><label for="tool">선택</label><select id="tool"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="scythe">낫</option><option value="fishing_rod">낚싯대</option></select></div>
 <div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action" aria-label="행동">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
 <pre id="hud" hidden></pre><dialog id="panel"><div id="panel-top"><h2 id="panel-title"></h2><button id="panel-close">닫기</button></div><div id="panel-body"></div></dialog>
 <section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>새 농장 이름 <small>(선택 · 만들 때만 적용)</small><input id="farm-name" maxlength="30" autocomplete="off" placeholder="예: 지우네 가족 농장"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><div id="saved-farms"></div><p id="login-error" role="alert"></p><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>가족 코드만 공유하면 함께할 수 있어요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
@@ -68,6 +68,10 @@ let fishingOffset = 0,
   dialogue: ActionResult["dialogue"],
   dialoguePage = 0;
 let lastStep = 0;
+let selectedRecipe = "wood_plank", householdFeedback = "", householdPending: string | undefined;
+let householdReadyAt = 0, observedDay = 0, sleepPanelDay = 1;
+const householdActions = new Set(["depositChest", "withdrawChest", "craftItem", "upgradeTool", "sleepVote"]);
+
 document.documentElement.style.setProperty(
   "--ui-scale",
   localStorage.getItem("farm-ui-scale") ?? "1",
@@ -100,7 +104,16 @@ const send = (type: string, extra: Partial<Command> = {}) => {
   if(actor && ["useTool","gather","harvestCrop","tillTile","waterCrop","refill"].includes(type) && renderer.scene.actionBusy(actor.id)) {
     bufferedToolAction={type,extra,expires:performance.now()+1200};return;
   }
+  if (householdActions.has(type)) {
+    if (householdPending || performance.now() < householdReadyAt) return;
+    if (network.snapshot().status !== "connected") { notice("연결을 복구하고 있어요"); return; }
+  }
   const actionId = crypto.randomUUID();
+  if (householdActions.has(type)) {
+    householdPending = actionId;
+    householdFeedback = "";
+    renderPanel();
+  }
   actionKinds.set(actionId, type);
   if (actionKinds.size > 100)
     actionKinds.delete(actionKinds.keys().next().value!);
@@ -127,6 +140,10 @@ panel.addEventListener(
 );
 function showPanel(type: string, title: string, targetId?: string): void {
   panelTarget = targetId;
+  householdFeedback = "";
+  sleepPanelDay = network.state?.day ?? 1;
+  panel.dataset.panel = type;
+  if (["chest", "craft", "sleep"].includes(type)) audio.play("clunk");
   modal = type;
   input.reset();
   touchNavigation.cancel();
@@ -159,6 +176,7 @@ function nearest(kind?: string): Entity | undefined {
         (kind
           ? e.kind === kind
           : [
+              "bed",
               "chest",
               "craft",
               "gather",
@@ -179,6 +197,15 @@ function nearest(kind?: string): Entity | undefined {
     )[0];
 }
 function renderPanel(): void {
+  const scroll = panel.scrollTop;
+  const scrolls = new Map([...panelBody.querySelectorAll<HTMLElement>("[data-scroll]")].map(e => [e.dataset.scroll, e.scrollTop]));
+  const focus = (document.activeElement as HTMLElement | null)?.dataset.focus;
+  renderPanelContent();
+  if (focus) [...panelBody.querySelectorAll<HTMLElement>("[data-focus]")].find(e => e.dataset.focus === focus)?.focus({ preventScroll: true });
+  for (const e of panelBody.querySelectorAll<HTMLElement>("[data-scroll]")) e.scrollTop = scrolls.get(e.dataset.scroll) ?? 0;
+  panel.scrollTop = scroll;
+}
+function renderPanelContent(): void {
   fishingUI?.dispose();
   fishingUI = undefined;
   panelBody.replaceChildren();
@@ -186,6 +213,14 @@ function renderPanel(): void {
     m = personal?.member;
   const local = latest.players.find((p) => p.local),
     state = network.state;
+  if (renderHouseholdPanel(modal, panelBody, {
+    member: m, chest: personal?.chest ?? {}, day: sleepPanelDay, minute: state?.minute ?? 360,
+    entities: [...(state?.entities.values() ?? [])], players: latest.players, targetId: panelTarget,
+    recipe: selectedRecipe, busy: !!householdPending || performance.now() < householdReadyAt,
+    connected: latest.status === "connected", feedback: householdFeedback,
+    sleepVoted: personal?.sleepVoted ?? false, votes: state?.votes ?? 0,
+    selectRecipe: id => { selectedRecipe = id; renderPanel(); }, send, close: () => closePanel(),
+  })) return;
   if (
     renderLifePanel(modal, panelBody, {
       member: m,
@@ -230,46 +265,6 @@ function renderPanel(): void {
       row(`${itemName(id)} ×${count}`, actions);
     }
     row(`보람의 부탁: 작물 3개 수확 (${Math.min(3, m.quests.harvest ?? 0)}/3)`);
-  }
-  if (modal === "chest" && personal) {
-    const chest = nearest("chest");
-    row("가족이 함께 쓰는 보관함이에요. 가까이에서 물건을 넣고 꺼내세요.");
-    for (const [id, count] of Object.entries(personal.member.inventory))
-      if (ITEMS[id]?.kind !== "tool")
-        row(`${itemName(id)} 소지 ${count}`, [
-          button("1개 넣기", () =>
-            send("depositChest", {
-              targetId: chest?.id,
-              itemId: id,
-              quantity: 1,
-            }),
-          ),
-        ]);
-    for (const [id, count] of Object.entries(personal.chest))
-      row(`${itemName(id)} 보관 ${count}`, [
-        button("1개 꺼내기", () =>
-          send("withdrawChest", {
-            targetId: chest?.id,
-            itemId: id,
-            quantity: 1,
-          }),
-        ),
-      ]);
-  }
-  if (modal === "craft") {
-    const table = nearest("craft");
-    for (const recipe of Object.values(RECIPES))
-      row(
-        `${recipe.name} · ${recipe.ingredients.map((i) => `${itemName(i.itemId)} ${i.quantity}`).join(" + ")}`,
-        [
-          button("제작", () =>
-            send("craftItem", { targetId: table?.id, itemId: recipe.id }),
-          ),
-        ],
-      );
-    row("도구 Lv2 · 구리 5 + 나무 5", [
-      button("강화", () => send("upgradeTool", { targetId: table?.id })),
-    ]);
   }
   if (modal === "shop") {
     const season = calendar(network.state?.day ?? 1).season;
@@ -356,10 +351,9 @@ function renderPanel(): void {
     ]);
     row("가족이 모두 투표하면 다음 날이 됩니다", [
       button("잠자기 투표", () => {
-        send("sleepVote", { value: true });
-        closePanel();
+        showPanel("sleep-status", "잠자기");
       }),
-      button("취소", () => send("sleepVote", { value: false })),
+      button("투표 취소", () => send("sleepVote", { value: false, day: network.state?.day })),
     ]);
     row(
       "네트워크 보간",
@@ -500,6 +494,8 @@ function act(): void {
   // Pouring has priority over wells, harvesting, doors, shops and object use.
   // Refilling remains an explicit hand interaction with a well.
   if (selected === "water") return send("useTool", { toolId: "water", ...tile });
+  const bed = me.area === "farmhouse" ? nearest("bed") : undefined;
+  if (bed && nearest()?.id === bed.id) return showPanel("sleep", "포근한 잠자리", bed.id);
   const event = mapFor(me.area).world2?.events.find(
     (e) =>
       e.trigger === "interact" &&
@@ -534,8 +530,8 @@ function act(): void {
   if (crop?.kind === "crop") return send("harvestCrop", tile);
   const e = nearest();
   if (e) {
-    if (e.kind === "chest") return showPanel("chest", "가족 보관함");
-    if (e.kind === "craft") return showPanel("craft", "제작대");
+    if (e.kind === "chest") return showPanel("chest", "가족 보관함", e.id);
+    if (e.kind === "craft") return showPanel("craft", "제작대", e.id);
     if (e.kind === "gather") return send("gather", { targetId: e.id });
     if (e.kind === "ladder") return send("mineAction", { targetId: e.id });
     if (["animal", "barn", "trough"].includes(e.kind))
@@ -650,6 +646,9 @@ function touchAct(t: TouchTarget): void {
       } else notice("씨앗이나 물뿌리개를 선택하세요");
       break;
     }
+    case "bed":
+      showPanel("sleep", "포근한 잠자리", e.id);
+      break;
     case "chest":
       showPanel("chest", "공유 보관함", e.id);
       break;
@@ -711,6 +710,9 @@ function updateConnection(status: NetworkSnapshot["status"]): void {
 network.onConnection = (status) => {
   updateConnection(status);
   if (status !== "connected") {
+    householdPending = undefined;
+    householdFeedback = "연결을 복구하고 있어요. 다시 연결되면 수량을 확인해 주세요.";
+    if (modal) renderPanel();
     input.reset();
     actionHeld = false;
     touchNavigation.cancel();
@@ -722,6 +724,15 @@ network.onConnection = (status) => {
   controlStatus = status;
 };
 network.onAction = (result) => {
+  if (householdPending === result.actionId || (householdPending && !result.actionId && !result.ok)) {
+    householdPending = undefined;
+    householdReadyAt = performance.now() + 220;
+    householdFeedback = result.ok ? `✓ ${result.message}` : result.message;
+    if (result.ok) audio.play("pickup");
+    if (modal) renderPanel();
+    setTimeout(() => { if (modal) renderPanel(); }, 230);
+  }
+  if (result.ok && actionKinds.get(result.actionId) === "sleepVote" && ["sleep", "sleep-status"].includes(modal)) closePanel();
   if (result.message !== "완료") notice(result.message);
   const kind = actionKinds.get(result.actionId);
   actionKinds.delete(result.actionId);
@@ -766,6 +777,7 @@ network.onAction = (result) => {
   }
 };
 network.onActionFx = event => renderer.scene.actionFeedback(event);
+el("sleep-status").addEventListener("click", () => showPanel("sleep-status", "가족 잠자기"), opts);
 el("tool").addEventListener(
   "change",
   () => {
@@ -889,6 +901,15 @@ const renderer = createRenderer((now, delta) => {
     el("notice").classList.toggle("quiet", now > noticeUntil);
     const state = network.state;
     const local = latest.players.find((p) => p.local);
+    const sleepStatus = el("sleep-status");
+    sleepStatus.hidden = !state?.votes;
+    sleepStatus.textContent = `☾ 잠자기 ${state?.votes ?? 0}/${latest.players.filter(p => p.connected).length} · ${network.personal?.sleepVoted ? "동의함" : "확인"}`;
+    if (state && observedDay && state.day > observedDay) {
+      if (["sleep", "sleep-status"].includes(modal)) closePanel();
+      notice("☀ 새로운 아침이에요. 기력을 회복했어요!");
+      renderer.scene.transition();
+    }
+    if (state) observedDay = state.day;
     const cal = calendar(state?.day ?? 1),
       info = SEASON_INFO[cal.season];
     const personal = network.personal?.member;
@@ -907,7 +928,9 @@ const renderer = createRenderer((now, delta) => {
         ? `✦ ${task.title} · ${Math.min(task.goal, personal?.quests[task.stat] ?? 0)}/${task.goal}  ›`
         : `✦ ${info.name}의 하루 · 도감과 마을을 둘러보세요`;
     const spot = local && fishingSpot(local.area, local.x, local.y, NPC_MAPS);
-    el("context-hint").textContent = spot
+    el("context-hint").textContent = local?.area === "farmhouse" && nearest("bed")
+      ? "☾ 침대 · 행동 버튼 / Space로 잠자기"
+      : spot
       ? "≈ 낚시 가능 · 낚싯대를 선택하세요"
       : nearest("animal")
         ? "♡ 동물에게 먹이와 인사를 주세요"

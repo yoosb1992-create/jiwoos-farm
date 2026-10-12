@@ -1,3 +1,4 @@
+import { activateHomeFurniture } from "./home-furniture.js";
 import { DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, FARM_GRASS, GRASS_FIRST, GRASS_MAX, NATURAL_TREE_FIRST, TREE_SPECIES, treeHp } from "./nature.js";
 import { initializeTree, naturalPlacement, fencedInterior, buildNaturePlacementIndex, recordNaturePlacement } from "./nature-world.js";
 import { cell, hasZone, tileHash } from "./world2.js";
@@ -9,7 +10,7 @@ import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 import type { ActionFx, Tool } from "./interaction.js";
 import { normalizeRock } from "./resources.js";
-export const WORLD_VERSION = 7;
+export const WORLD_VERSION = 8;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
 export const ACTION_RANGE = 64;
@@ -100,6 +101,8 @@ export interface Command {
   tileY?: number;
   itemId?: string;
   quantity?: number;
+  quantityMode?: "half" | "all";
+  day?: number;
   area?: string;
   inputs?: number[];
   value?: boolean;
@@ -450,6 +453,7 @@ export function newWorld(
     events: [],
     layout: structuredClone(layout),
   };
+  activateHomeFurniture(w.layout!.maps);
   seedFixtures(w, false);
   generateDaily(w);
   return w;
@@ -545,6 +549,12 @@ export function upgradeWorld(w: World): void {
   }
   // Missing snapshots belong to legacy families, never opt them into new maps.
   w.layout ??= legacyLayout();
+  if (w.version < 8) {
+    activateHomeFurniture(w.layout.maps);
+    for (const o of w.layout.maps.farmhouse?.objects ?? [])
+      if (["bed", "chest", "craft"].includes(o.kind ?? "") && o.visible !== false)
+        w.entities[o.id] ??= entity(o.id, "farmhouse", o.kind!, o.position.tileX * TILE, o.position.tileY * TILE, o.assetId);
+  }
   for(const e of Object.values(w.entities)) normalizeRock(e);
   for(const e of Object.values(w.entities)) if(e.kind==="tree" || e.kind==="stump") {
     const o=w.layout.maps[e.area]?.objects.find(o=>o.id===e.id);

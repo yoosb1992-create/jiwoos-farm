@@ -1,3 +1,4 @@
+import { transferQuantity, canCraft, STACK_LIMIT } from "./household.js";
 import { TREES, plantingTree, natureRoll } from "./nature.js";
 import { initializeTree, growTrees, naturalPlacement, markCleared } from "./nature-world.js";
 import { placementAllowed, inRect } from "./world2.js";
@@ -12,6 +13,7 @@ import {
   tileIn,
   NPCS,
   npcSchedule,
+  itemName,
 } from "./content.js";
 import { isFarmable, frontTile } from "./applyMovement.js";
 import {
@@ -133,6 +135,15 @@ export function parseCommand(value: unknown): Command {
       );
       out[key] = c[key];
     }
+  }
+  if (c.quantityMode !== undefined) {
+    requireThat(["depositChest", "withdrawChest"].includes(out.type) &&
+      (c.quantityMode === "half" || c.quantityMode === "all") && c.quantity === undefined, "수량 선택 오류");
+    out.quantityMode = c.quantityMode;
+  }
+  if (c.day !== undefined) {
+    requireThat(out.type === "sleepVote" && Number.isSafeInteger(c.day) && Number(c.day) > 0, "날짜 오류");
+    out.day = c.day as number;
   }
   if (c.inputs !== undefined) {
     requireThat(
@@ -617,8 +628,14 @@ function applyActionCore(
         "보관할 자원을 선택하세요",
       );
       const into = c.type === "depositChest";
-      change(into ? m.inventory : w.chest, c.itemId, -q);
-      change(into ? w.chest : m.inventory, c.itemId, q);
+      const source = into ? m.inventory : w.chest, destination = into ? w.chest : m.inventory;
+      const amount = c.quantityMode ? transferQuantity(source[c.itemId] ?? 0, c.quantityMode) : q;
+      requireThat(amount > 0 && (source[c.itemId] ?? 0) >= amount, "수량이 바뀌었어요. 다시 확인해 주세요");
+      requireThat((destination[c.itemId] ?? 0) + amount <= STACK_LIMIT, "보관 한도를 확인하세요");
+      requireThat(into || destination[c.itemId] || Object.keys(destination).length < 48, "가방이 가득 찼어요");
+      change(source, c.itemId, -amount);
+      change(destination, c.itemId, amount);
+      result.message = `${itemName(c.itemId)} ${amount}개 ${into ? "넣었어요" : "꺼냈어요"}`;
       break;
     }
     case "craftItem": {
@@ -626,9 +643,11 @@ function applyActionCore(
       const recipe = c.itemId ? RECIPES[c.itemId] : undefined;
       requireThat(recipe, "제작법 없음");
       for (const i of recipe.ingredients) own(i.itemId, i.quantity * q);
+      requireThat(canCraft(m.inventory, recipe, q), "가방 공간 또는 수량 한도를 확인하세요");
       for (const i of recipe.ingredients)
         change(m.inventory, i.itemId, -i.quantity * q);
       change(m.inventory, recipe.output.itemId, recipe.output.quantity * q);
+      result.message = `${recipe.name} ${recipe.output.quantity * q}개 제작했어요`;
       break;
     }
     case "placeMachine": {
@@ -686,6 +705,11 @@ function applyActionCore(
       break;
     }
     case "sleepVote": {
+      requireThat(c.day === undefined || c.day === w.day, "이미 다음 날이 되었어요");
+      if (c.targetId) {
+        requireThat(a.area === "farmhouse", "농가 안의 침대를 이용하세요");
+        target("bed");
+      }
       requireThat(
         ["farm", "farmhouse"].includes(a.area),
         "농장으로 돌아와 잠자기 투표하세요",
@@ -699,7 +723,7 @@ function applyActionCore(
         nextDay(w);
         ctx.votes.clear();
         result.message = "새로운 아침입니다";
-      } else result.message = "잠자기 투표를 기다립니다";
+      } else result.message = c.value === false ? "잠자기 투표를 취소했어요" : "잠자기 투표를 시작했어요. 가족의 동의를 기다려요";
       break;
     }
     case "enterArea": {
@@ -763,6 +787,7 @@ function applyActionCore(
       change(m.inventory, "copper_ore", -5);
       change(m.inventory, "wood", -5);
       m.toolLevel = 2;
+      result.message = "도구를 Lv2로 강화했어요";
       break;
     }
     case "buyItem":

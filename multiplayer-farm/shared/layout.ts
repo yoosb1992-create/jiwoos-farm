@@ -1,3 +1,4 @@
+import { activateHomeFurniture } from "./home-furniture.js";
 import { TERRAIN } from "./world2.js";
 import { validateProperties, validateWorld2 } from "./world2-validation.js";
 import { MAPS, ASSETS, TILE, type MapData, type MapObject } from "./content.js";
@@ -16,6 +17,7 @@ export const FIXTURE_KINDS = [
   "gather",
   "well",
   "chest",
+  "bed",
   "craft",
   "barn",
   "trough",
@@ -79,6 +81,7 @@ export function legacyLayout(): WorldLayout {
     });
   // The old well is replaced by its authoritative interactive counterpart.
   maps.farm!.objects = maps.farm!.objects.filter((o) => o.id !== "yard_well");
+  activateHomeFurniture(maps);
   return { version: 1, maps };
 }
 /** The same editable data is used by new families, the defaults API and editor. */

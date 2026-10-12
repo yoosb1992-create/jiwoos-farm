@@ -198,7 +198,7 @@ export class TouchNavigator {
               ? Math.abs(Math.floor(p.x / TILE) - Math.floor(t.x / TILE)) +
                   Math.abs(Math.floor(p.y / TILE) - Math.floor(t.y / TILE)) ===
                 1
-              : Math.hypot(p.x - t.x, p.y - t.y) <= (t.signature === "drop" ? BASE_PICKUP_RADIUS + PICKUP_RANGE_EPSILON : 48);
+              : Math.hypot(p.x - t.x, p.y - t.y) <= (t.signature === "drop" ? BASE_PICKUP_RADIUS + PICKUP_RANGE_EPSILON : t.signature === "bed" ? 64 : 48);
     const authoritative = { x: me.authoritativeX, y: me.authoritativeY };
     if (t.kind !== "warp" && near(authoritative) && (!tileTarget || near(me))) {
       if (t.kind === "ground" && !groundAction) {

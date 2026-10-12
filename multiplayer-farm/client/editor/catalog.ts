@@ -41,6 +41,7 @@ const labels: Record<string, string> = {
   bridge: "작은 목교",
   bridge_wide: "넓은 다리",
   bench: "벤치",
+  bed: "침대 · 잠자기",
   storage_chest: "보관함",
   crafting_table: "제작대",
   stone_well: "우물",
@@ -108,6 +109,10 @@ export function objectFor(assetId: string, x: number, y: number): MapObject {
   } else if (assetId === "storage_chest") o.kind = "chest";
   else if (assetId === "crafting_table") o.kind = "craft";
   else if (assetId === "stone_well") o.kind = "well";
+  else if (assetId === "bed") {
+    o.kind = "bed";
+    o.collision = { x: -48, y: -28, width: 96, height: 56 };
+  }
   const debris=[...DEBRIS, ...FARM_GRASS].find(d=>d.id===assetId);
   if(debris) o.kind=debris.kind;
   return o;

@@ -411,6 +411,7 @@ export class FarmRoom extends MovementRoom {
       client.send("personal", {
         member: this.world.members[id],
         chest: this.world.chest,
+        sleepVoted: this.votes.has(id),
         farmId: this.farmId,
         events: this.world.events,
       });

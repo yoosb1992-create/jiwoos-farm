@@ -438,6 +438,7 @@ export class FarmScene extends Phaser.Scene {
         label = Math.hypot(e.x - me.x, e.y - me.y) < 80 ? `${e.hp}타` : "";
       else if (e.kind === "chest") label = "공유 보관함";
       else if (e.kind === "craft") label = "제작대";
+      else if (e.kind === "bed") label = Math.hypot(e.x - me.x, e.y - me.y) <= 80 ? "침대 · 행동으로 잠자기" : "침대";
       else if (e.kind === "machine") label = e.readyAt ? "가공 중" : "가공기";
       else if (e.kind === "animal") {
         const d = ANIMALS[e.crop as keyof typeof ANIMALS];

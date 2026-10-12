@@ -136,6 +136,7 @@ export class ColyseusAdapter implements NetworkAdapter {
   personal?: {
     member: Member;
     chest: Record<string, number>;
+    sleepVoted?: boolean;
     farmId: string;
     events: string[];
   };

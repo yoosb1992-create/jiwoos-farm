@@ -1,0 +1,114 @@
+import { test, expect, type Page } from "@playwright/test";
+import { newWorld2 } from "../../shared/world2.js";
+import { waitForFarmInput } from "./nature-target.js";
+
+async function enterHome(page: Page): Promise<void> {
+  const api="http://127.0.0.1:2575";
+  const layout=await (await page.request.get(`${api}/api/blueprints/defaults`)).json();
+  const farm=layout.maps.farm,home=layout.maps.farmhouse;
+  delete farm.world2;
+  farm.objects=[];farm.baseTileType="stone_floor";farm.terrainRegions=[];farm.collisionRegions=[];farm.farmAreas=[];
+  Object.assign(farm.spawns.find((s:{id:string})=>s.id==="farm_entry"),{tileX:10.5,tileY:9.5});
+  farm.warps=[{id:"home-entry",area:{startX:10,endX:11,startY:10,endY:11},targetMapId:"farmhouse",targetSpawnId:"entry"}];
+  Object.assign(home.spawns.find((s:{id:string})=>s.id==="entry"),{tileX:3,tileY:5.5,facing:"up"});
+  // Real authored item events seed this disposable blueprint. No test-only
+  // granting command, teleport or client-side inventory edit is introduced.
+  home.world2=newWorld2();
+  home.world2.events=[
+    {id:"supplies",name:"공방 재료",area:{startX:1,endX:20,startY:2,endY:10},trigger:"enter",condition:"",once:true,action:"item",value:"wood",quantity:25},
+    {id:"copper",name:"강화 재료",area:{startX:1,endX:20,startY:2,endY:10},trigger:"enter",condition:"",once:true,action:"item",value:"copper_ore",quantity:5},
+  ];
+  const response=await page.request.post(`${api}/api/blueprints`,{data:layout});expect(response.ok()).toBe(true);
+  const draft=await response.json();
+  expect((await page.request.post(`${api}/api/blueprints/${draft.id}`,{headers:{Authorization:`Bearer ${draft.editToken}`},data:{layout,revision:draft.revision,publish:true}})).ok()).toBe(true);
+  await page.addInitScript(id=>{localStorage.setItem("farm-active-blueprint",id);localStorage.setItem("farm-zoom","0.75");},draft.id);
+  await page.goto("/");await page.locator("#nickname").fill("생활 농부");await page.locator("#create-farm").click();
+  await expect(page.locator("#login")).toBeHidden({timeout:20000});
+  await goHome(page);
+}
+async function goHome(page: Page): Promise<void> {
+  await waitForFarmInput(page);
+  await page.locator("#action").tap();
+  await expect.poll(()=>page.evaluate(()=>window.__FARM_DEBUG__.snapshot().players.find(p=>p.local)?.area),{timeout:15000}).toBe("farmhouse");
+  await waitForFarmInput(page);
+}
+async function tapObject(page:Page,id:string):Promise<void>{
+  const point=await page.evaluate(id=>{
+    const e=window.__FARM_DEBUG__.state().entities[id] as unknown as {x:number;y:number};
+    return window.__FARM_DEBUG__.screenPoint(e.x,e.y);
+  },id);
+  await page.touchscreen.tap(point.x,point.y);
+}
+for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`household flow ${viewport.width}: transfer, batch craft, upgrade and bedside morning`,async({page,browser},info)=>{
+  test.setTimeout(180000);
+  await page.setViewportSize(viewport);
+  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  await enterHome(page);
+  // PC Space and mobile button both use the authoritative nearby furniture.
+  if(viewport.width>600)await page.keyboard.press("Space");else await page.locator("#action").tap();
+  await expect(page.locator("#panel")).toHaveAttribute("data-panel","chest");
+  const bag=page.getByRole("region",{name:"내 가방",exact:true});
+  const chest=page.getByRole("region",{name:"가족 보관함",exact:true});
+  const seeds=(region: typeof bag)=>region.locator('[data-item="sproutberry_seed"]');
+  await expect(seeds(bag)).toContainText("×12");
+  await seeds(bag).getByRole("button",{name:"1개 넣기",exact:true}).click();
+  await expect(seeds(chest)).toContainText("×1");
+  await seeds(bag).getByRole("button",{name:/절반/}).click();
+  await expect(seeds(chest)).toContainText("×7");
+  await seeds(bag).getByRole("button",{name:/전체/}).click();
+  await expect(seeds(chest)).toContainText("×12");await expect(seeds(bag)).toHaveCount(0);
+  await seeds(chest).getByRole("button",{name:/절반/}).click();
+  await expect(seeds(bag)).toContainText("×6");
+  expect(await page.locator("#panel-body").evaluate(e=>e.scrollWidth<=e.clientWidth)).toBe(true);
+  await expect(seeds(chest).getByRole("button",{name:/전체/})).toHaveCSS("min-height","44px");
+  await page.screenshot({path:info.outputPath(`chest-${viewport.width}.png`)});
+  await page.locator("#panel-close").click();
+  await page.reload();await expect(page.locator("#login")).toBeHidden({timeout:20000});await goHome(page);
+  await page.locator("#action").tap();await expect(seeds(chest)).toContainText("×6");
+  await seeds(chest).getByRole("button",{name:/전체/}).click();await expect(seeds(bag)).toContainText("×12");
+  await page.locator("#panel-close").click();
+  await tapObject(page,"crafting_table");
+  await expect(page.locator("#panel")).toHaveAttribute("data-panel","craft",{timeout:15000});
+  const detail=page.getByRole("region",{name:"선택한 제작법"});
+  await expect(detail.locator(".ingredient strong")).toHaveText("25 / 2");
+  await page.getByRole("button",{name:"5회 제작",exact:true}).click();
+  await expect(detail.locator(".ingredient strong")).toHaveText("15 / 2");
+  await expect(page.locator(".household-feedback")).toContainText("5개 제작");
+  await page.getByRole("button",{name:"Lv2로 강화",exact:true}).click();
+  await expect(page.getByRole("region",{name:"도구 강화"})).toContainText("강화 완료");
+  await page.getByRole("button",{name:/최대 5회 제작/}).click();
+  await expect(detail.locator(".ingredient strong")).toHaveText("0 / 2");
+  await expect(page.getByRole("button",{name:"1회 제작",exact:true})).toBeDisabled();
+  await page.screenshot({path:info.outputPath(`craft-${viewport.width}.png`)});
+  await page.locator("#panel-close").click();
+  await tapObject(page,"bed");await expect(page.locator("#panel")).toHaveAttribute("data-panel","sleep",{timeout:15000});
+  await expect(page.locator(".sleep-card")).toContainText("잠");
+  await page.screenshot({path:info.outputPath(`bed-${viewport.width}.png`)});
+  await page.getByRole("button",{name:"잠자기",exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>(window.__FARM_DEBUG__.state() as unknown as {day:number}).day)).toBe(2);
+  await expect(page.locator("#panel")).not.toBeVisible();
+  await page.keyboard.press("Space");
+  await expect(page.locator("#panel")).toHaveAttribute("data-panel","sleep");
+  if (viewport.width > 600) {
+    await page.locator("#panel-close").click();
+    const code = await page.evaluate(() => JSON.parse(localStorage.getItem("farm-v26-session")!).farmId as string);
+    const context = await browser.newContext({viewport:{width:390,height:844},hasTouch:true});
+    try {
+      const peer = await context.newPage();
+      await peer.goto("/"); await peer.locator("#nickname").fill("가족 농부");
+      await peer.locator("#farm-code").fill(code); await peer.locator("#join-farm").click();
+      await expect(peer.locator("#login")).toBeHidden({timeout:20000}); await goHome(peer);
+      await expect(page.locator("#connection")).toHaveAttribute("aria-label",/2명/);
+      await page.locator("#action").tap();
+      await page.getByRole("button",{name:"잠자기에 동의",exact:true}).click();
+      await expect(peer.locator("#sleep-status")).toContainText("1/2");
+      expect(await page.evaluate(()=>(window.__FARM_DEBUG__.state() as unknown as {day:number}).day)).toBe(2);
+      await peer.locator("#sleep-status").tap();
+      await expect(peer.locator(".sleep-card")).toContainText("1/2");
+      await peer.getByRole("button",{name:"잠자기에 동의",exact:true}).click();
+      await expect.poll(()=>page.evaluate(()=>(window.__FARM_DEBUG__.state() as unknown as {day:number}).day)).toBe(3);
+      await expect(peer.locator("#sleep-status")).toBeHidden();
+    } finally {await context.close();}
+  }
+  expect(errors).toEqual([]);
+});

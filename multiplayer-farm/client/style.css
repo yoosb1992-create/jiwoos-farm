@@ -1255,3 +1255,62 @@ h1 {
     top: 80px;
   }
 }
+
+/* Household panels: readable inventories and immediate, touch-sized actions. */
+#panel[data-panel="chest"], #panel[data-panel="craft"] { width: min(94vw, 900px); }
+#panel[data-panel="chest"][open], #panel[data-panel="craft"][open], #panel[data-panel="sleep"][open] { animation: household-open .16s ease-out; }
+@keyframes household-open { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: none; } }
+.household-note, .storage-summary { color: #65755f; line-height: 1.6; margin: 6px 0 14px; }
+.household-feedback { color: #355d41; margin: 0 0 10px; min-height: 22px; font-weight: 650; }
+.household-feedback:empty { display: none; }
+.storage-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.storage-side { min-width: 0; border: 1px solid #d7ddc4; border-radius: 16px; padding: 12px; background: #eef3e5; }
+.chest-side { background: #f7edda; border-color: #e1cba8; }
+.storage-side h3 { margin: 0; font-size: 17px; }
+.storage-summary { font-size: 12px; }
+.storage-items { max-height: 390px; overflow-y: auto; overscroll-behavior: contain; padding-right: 3px; scrollbar-width: thin; }
+.storage-item { background: #fffef8; padding: 10px; border: 1px solid #e4dfca; border-radius: 12px; margin: 9px 0; }
+.household-item-heading { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.household-item-heading strong { flex: 1; overflow-wrap: anywhere; }
+.item-count { font-weight: 750; color: #405e38; white-space: nowrap; }
+.household-icon { flex: 0 0 38px; width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; background: #edeedb; border-radius: 9px; color: #748356; overflow: hidden; }
+.household-icon img { width: 90%; height: 90%; object-fit: contain; }
+.quantity-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 9px; }
+.quantity-actions button:last-child { grid-column: 1 / -1; background: #f1e8cd; }
+.quantity-actions button, .craft-actions button, .upgrade-tools button { min-height: 44px; padding: 8px; font-size: 13px; line-height: 1.35; }
+.household-empty { padding: 20px 8px; color: #6b7563; line-height: 1.8; }
+.workshop-layout { display: grid; grid-template-columns: minmax(190px, .8fr) minmax(0, 1.2fr); gap: 16px; align-items: start; }
+.recipe-list { display: grid; gap: 7px; max-height: 390px; overflow-y: auto; padding: 2px; }
+.recipe-choice { display: grid; grid-template-columns: 38px 1fr; gap: 3px 9px; text-align: left; min-height: 64px; padding: 9px; border: 1px solid #dcdcc7; background: #fffdf5; }
+.recipe-choice .household-icon { grid-row: 1 / 3; }
+.recipe-choice strong { font-size: 14px; }
+.recipe-choice > span:last-child { font-size: 12px; }
+.recipe-choice.selected { outline: 2px solid #738753; background: #eef4dd; }
+.recipe-detail, .upgrade-tools { border: 1px solid #dcdcc7; border-radius: 16px; padding: 16px; background: #fffdf4; }
+.recipe-detail h3, .upgrade-tools h3 { margin: 0; }
+.recipe-detail h4 { margin-bottom: 10px; }
+.ingredient { display: grid; grid-template-columns: 30px 1fr auto; gap: 5px 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #ece6d2; }
+.ingredient .household-icon { width: 30px; height: 30px; grid-row: 1 / 3; }
+.ingredient small { grid-column: 2 / -1; }
+.available { color: #426439; }
+.unavailable { color: #9a503b; }
+.craft-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+.craft-actions button { flex: 1 1 95px; }
+.upgrade-tools { margin-top: 18px; background: #f0eddf; }
+.sleep-card { text-align: center; padding: 15px 5px; line-height: 1.8; }
+.sleep-card > .household-icon { width: 80px; height: 65px; }
+#sleep-status { position: absolute; z-index: 4; top: 92px; right: 12px; min-height: 44px; font-size: 13px; background: #fff5d9; box-shadow: 0 3px 12px #263e3926; }
+#sleep-status[hidden] { display: none; }
+@media (max-width: 600px) {
+  .storage-columns { grid-template-columns: 1fr; }
+  .storage-items { max-height: 24dvh; }
+  .workshop-layout { grid-template-columns: 1fr; }
+  .recipe-list { grid-template-columns: 1fr 1fr; max-height: 220px; }
+  .recipe-choice { grid-template-columns: 1fr; }
+  .recipe-choice .household-icon { display: none; }
+  .quantity-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .quantity-actions button:last-child { grid-column: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #panel[open] { animation: none !important; }
+}

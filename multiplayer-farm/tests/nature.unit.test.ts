@@ -232,7 +232,7 @@ test("v6 farms receive the extreme opening pass only on untouched grass during a
   w.version=6;w.entities={};w.naturalTreesSeeded=undefined;w.debrisDay=undefined;w.grassDay=undefined;
   w.entities["keep-soil"]=entity("keep-soil","farm","soil",10.5*32,10.5*32,"tile_farm_empty");
   upgradeWorld(w);
-  assert.equal(w.version,7);
+  assert.equal(w.version,8);
   assert(Object.values(w.entities).filter(e=>e.id.startsWith("farmnature-tree-")).length>0);
   assert(Object.values(w.entities).filter(e=>e.id.startsWith("farmdebris-")).length>0);
   assert(Object.values(w.entities).filter(e=>e.id.startsWith("farmgrass-")).length>0);
