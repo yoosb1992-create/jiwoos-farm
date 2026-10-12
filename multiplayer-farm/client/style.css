@@ -1303,7 +1303,7 @@ h1 {
 .chest-settings button { min-height: 44px; }
 .chest-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .chest-links button { flex: 1 1 120px; padding: 8px; font-size: 13px; }
-.storage-side h3 { margin: 0; font-size: 17px; }
+.storage-side h3 { margin: 0; font-size: 17px; overflow-wrap: anywhere; }
 .storage-summary { font-size: 12px; }
 .storage-items { min-width: 0; }
 .storage-item { background: #fffef8; padding: 10px; border: 1px solid #e4dfca; border-radius: 12px; margin: 9px 0; }
