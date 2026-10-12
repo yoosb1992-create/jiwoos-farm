@@ -1,6 +1,6 @@
 import { ITEMS, mapFor, TILE } from "./content.js";
 import { collidesWithObstacle, isFarmable } from "./applyMovement.js";
-import { placementAllowed } from "./world2.js";
+import { blockedTile, inRect, placementAllowed, terrainAt, waterTerrain } from "./world2.js";
 import { adjacentChestIds, mergeChestGroup } from "./chest-groups.js";
 import { migrateChestStorage } from "./chest-storage.js";
 import { entity, type Actor, type Entity, type World } from "./world.js";
@@ -33,12 +33,22 @@ export function planPlacement(w: World, a: Actor, itemId: string, tileX: number,
   if (!definition || size < 1 || size > 3) return fail("설치할 수 없는 아이템이에요");
   if (!Number.isInteger(tileX) || !Number.isInteger(tileY) || Math.abs(dx) + Math.abs(dy) !== 1)
     return fail("상하좌우 바로 한 칸에만 설치할 수 있어요");
-  const map = mapFor(a.area, w.layout?.maps);
-  // Interiors are furniture already authored by the editor, not outdoor placement areas.
-  if (["farmhouse", "general_store", "workshop", "cafe"].includes(a.area)) return fail("건물 안에는 설치할 수 없어요");
+  const map = mapFor(a.area, w.layout?.maps), portableChest = itemId === "storage_chest";
+  // Keep authored interior restrictions for other items. Portable chests only
+  // need clear physical ground and protected entrances, indoors or outdoors.
+  if (!portableChest && ["farmhouse", "general_store", "workshop", "cafe"].includes(a.area)) return fail("건물 안에는 설치할 수 없어요");
   for (const p of cells) {
     const x = Math.floor(p.x / TILE), y = Math.floor(p.y / TILE);
-    if (!placementAllowed(map, definition.kind === "decoration" ? "decoration" : "building", x, y))
+    // Portable chests use physical ground, not the editor's building/no-placement
+    // zones. Keep other furniture's authored policies and all movement collisions.
+    if (portableChest && (blockedTile(map, x, y) || waterTerrain(terrainAt(map, x, y))))
+      return fail("물이나 막힌 지형에는 놓을 수 없어요");
+    if (portableChest && (map.warps.some(warp => inRect({
+      startX: warp.area.startX - 1, endX: warp.area.endX + 1,
+      startY: warp.area.startY - 1, endY: warp.area.endY + 1,
+    }, x, y)) || map.spawns.some(s => Math.abs(Math.floor(s.tileX) - x) + Math.abs(Math.floor(s.tileY) - y) <= 1)))
+      return fail("문과 출입구 주변은 비워 주세요");
+    if (!portableChest && !placementAllowed(map, definition.kind === "decoration" ? "decoration" : "building", x, y))
       return fail("이곳은 설치할 수 없는 땅이에요");
     if (definition.kind === "decoration" && isFarmable(a.area, x, y, w.layout?.maps)) return fail("밭을 피해 장식을 놓아 주세요");
     if (collidesWithObstacle(p.x, p.y, a.area, w.layout?.maps, live) ||

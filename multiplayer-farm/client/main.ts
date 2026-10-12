@@ -12,10 +12,10 @@ import "./style.css";
 import { TouchNavigator, type TouchTarget } from "./navigation.js";
 import { ControlLayout } from "./control-layout.js";
 import { mapFor } from "./layout.js";
-import { ColyseusAdapter, type NetworkSnapshot } from "./network.js";
+import { ColyseusAdapter, reconnectDelay, terminalConnectionError, type NetworkSnapshot } from "./network.js";
 import { InputController } from "./input.js";
 import { createRenderer } from "./scene.js";
-import { serverUrl } from "./config.js";
+import { serverUrl, JOIN_TIMEOUT_MS } from "./config.js";
 import {
   CROPS,
   ITEMS,
@@ -48,7 +48,7 @@ app.innerHTML = `<div id="arena" aria-label="가족 농장 게임 화면"></div>
 <button id="sleep-status" hidden aria-label="잠자기 투표 현황"></button><div id="context-hint"></div><div id="toolbar"><div id="quickslots"></div><div id="tool-picker"><select id="tool" aria-label="도구와 씨앗 선택"><option value="hand">손 · 줍기/상호작용</option><option value="hoe">괭이</option><option value="sproutberry_seed">새싹열매 씨앗</option><option value="sunpotato_seed">햇살감자 씨앗</option><option value="heartberry_seed">하트딸기 씨앗</option><option value="morningcarrot_seed">아침당근 씨앗</option><option value="water">물뿌리개</option><option value="axe">도끼</option><option value="pickaxe">곡괭이</option><option value="scythe">낫</option><option value="fishing_rod">낚싯대</option></select></div></div>
 <button id="furniture-action" hidden type="button"></button><button id="placement-cancel" hidden type="button">설치 취소</button><div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action" aria-label="행동">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
 <pre id="hud" hidden></pre><dialog id="panel"><div id="panel-top"><h2 id="panel-title"></h2><button id="panel-close">닫기</button></div><div id="panel-body"></div></dialog>
-<section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>새 농장 이름 <small>(선택 · 만들 때만 적용)</small><input id="farm-name" maxlength="30" autocomplete="off" placeholder="예: 지우네 가족 농장"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><div id="saved-farms"></div><p id="login-error" role="alert"></p><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>가족 코드만 공유하면 함께할 수 있어요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
+<section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>새 농장 이름 <small>(선택 · 만들 때만 적용)</small><input id="farm-name" maxlength="30" autocomplete="off" placeholder="예: 지우네 가족 농장"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><div id="saved-farms"></div><p id="login-error" role="status"></p><button type="button" id="cancel-connect" hidden>연결 취소</button><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>가족 코드만 공유하면 함께할 수 있어요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
 function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
@@ -111,6 +111,7 @@ const notice = (message: string) => {
 };
 let bufferedToolAction: {type:string;extra:Partial<Command>;expires:number}|undefined;
 const send = (type: string, extra: Partial<Command> = {}) => {
+  if (network.snapshot().status !== "connected") return;
   const actor=latest.players.find(p=>p.local);
   if(actor && ["useTool","gather","harvestCrop","tillTile","waterCrop","refill"].includes(type) && renderer.scene.actionBusy(actor.id)) {
     bufferedToolAction={type,extra,expires:performance.now()+1200};return;
@@ -431,7 +432,7 @@ function renderPanelContent(): void {
     ]);
     row("이 기기의 세션 보관", [
       button("로그아웃", () => {
-        void network.leave();
+        void cancelConnecting();
         localStorage.removeItem(SESSION_KEY);
         session = undefined;
         closePanel();
@@ -774,19 +775,24 @@ function updateConnection(status: NetworkSnapshot["status"]): void {
     status === "connected"
       ? "●"
       : status === "reconnecting"
-        ? "↻ 복구 중"
-        : "○ 연결 대기";
+        ? "↻ 자동으로 다시 연결하고 있어요…"
+        : status === "connecting" ? "서버에 연결하는 중…"
+        : status === "error" ? "연결할 수 없어요"
+        : "연결이 끊겼어요.";
   connection.setAttribute(
     "aria-label",
     `${status === "connected" ? "연결됨" : status === "reconnecting" ? "재연결 중" : "연결 끊김"} · ${players}명`,
   );
-  connection.title = `${players}명 · 가족 코드 ${session?.farmId ?? ""}`;
+  connection.title = `${network.snapshot().message} · ${players}명 · 가족 코드 ${session?.farmId ?? ""}`;
+  if (!el("login").hidden && status !== "disconnected") el("login-error").textContent = network.snapshot().message;
+  el("cancel-connect").hidden = !["connecting", "reconnecting"].includes(status);
   el<HTMLButtonElement>("action").disabled =
     status !== "connected" || panel.open;
 }
 network.onConnection = (status) => {
   updateConnection(status);
   if (status !== "connected") {
+    bufferedToolAction = undefined;
     householdPending = undefined;
     householdFeedback = "연결을 복구하고 있어요. 다시 연결되면 수량을 확인해 주세요.";
     if (modal) renderPanel();
@@ -799,6 +805,7 @@ network.onConnection = (status) => {
     notice("연결을 복구하고 있어요. 잠시 기다려 주세요.");
   if (controlStatus === "reconnecting" && status === "connected")
     notice("연결이 복구됐어요. 이동하거나 행동을 다시 눌러 주세요.");
+  if (status === "error") notice(network.snapshot().message);
   controlStatus = status;
 };
 network.onAction = (result) => {
@@ -952,12 +959,15 @@ document.addEventListener(
   "visibilitychange",
   () => {
     if (document.hidden) {
+      input.reset();
       actionHeld = false;
       touchNavigation.cancel();
-    }
+    } else resumeConnections();
   },
   opts,
 );
+window.addEventListener("online", resumeConnections, opts);
+window.addEventListener("focus", resumeConnections, opts);
 const renderer = createRenderer((now, delta) => {
   let command = input.read();
   if (panel.open || controls.editing || !session)
@@ -1155,6 +1165,24 @@ el("arena").addEventListener(
 const http = serverUrl().replace(/^ws/, "http");
 const SESSION_KEY = "farm-v26-session";
 const SESSION_LIST_KEY = "farm-v26-sessions";
+let connectionIntent = 0;
+let sessionRequest: AbortController | undefined, wakeLoginRetry: (() => void) | undefined;
+function resumeConnections(): void {
+  network.resumeConnection();
+  wakeLoginRetry?.();
+}
+function cancelConnecting(): Promise<void> {
+  ++connectionIntent;
+  sessionRequest?.abort();
+  sessionRequest = undefined;
+  wakeLoginRetry?.();
+  return network.leave();
+}
+el("cancel-connect").addEventListener("click", () => {
+  void cancelConnecting();
+  el("cancel-connect").hidden = true;
+  el("login-error").textContent = "연결을 취소했어요. 저장된 농장을 다시 선택할 수 있어요.";
+}, opts);
 function savedSessions(): Session[] {
   try { return JSON.parse(localStorage.getItem(SESSION_LIST_KEY) ?? "[]") as Session[]; }
   catch { return []; }
@@ -1198,7 +1226,7 @@ async function renameSavedFarm(value: Session): Promise<void> {
 async function deleteSavedFarm(value: Session): Promise<void> {
   if (!confirm(`"${value.farmName ?? value.farmId}" 농장을 정말 삭제하시겠습니까?\n삭제한 농장은 복구할 수 없습니다.`)) return;
   if (session?.farmId === value.farmId) {
-    await network.leave().catch(() => undefined);
+    await cancelConnecting().catch(() => undefined);
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
   let removed = false;
@@ -1249,48 +1277,81 @@ function renderSavedFarms(): void {
 }
 async function connectSaved(): Promise<void> {
   if (!session) return;
+  const value = session, closing = cancelConnecting(), intent = connectionIntent;
+  // Cancel the old target before waiting for assets or opening another farm.
+  await closing;
   try {
     // Do not start the fixed input clock while Phaser is still loading assets.
     // Otherwise the first rendered frame can enqueue a preloading-time backlog.
     await renderer.scene.ready;
-    await network.openFarm(session);
+    if (intent !== connectionIntent || session !== value) return;
+    await network.openFarm(value);
+    if (intent !== connectionIntent || session !== value || network.snapshot().status !== "connected") return;
     el("login").hidden = true;
     notice("연결됐습니다. 길 밖의 잔디 평지를 괭이로 갈아 우리 가족의 밭을 만들어 보세요.");
   } catch (e) {
+    if (intent !== connectionIntent) return;
     el("login-error").textContent =
       e instanceof Error ? e.message : "연결 실패";
     el("login").hidden = false;
   }
 }
 async function login(create: boolean): Promise<void> {
-  el("login-error").textContent = "농장에 연결하고 있습니다…";
+  if (sessionRequest) return; // repeated taps never create parallel login jobs
+  const closing = cancelConnecting(), intent = connectionIntent;
+  const controller = new AbortController();
+  sessionRequest = controller;
+  await closing;
+  el("login-error").textContent = "서버에 연결하는 중…";
+  el("cancel-connect").hidden = false;
   try {
-    const nickname = el<HTMLInputElement>("nickname").value,
-      code = el<HTMLInputElement>("farm-code").value;
-    const r = await fetch(`${http}/api/session`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        create,
-        nickname,
-        code,
-        farmName: create ? el<HTMLInputElement>("farm-name").value : undefined,
-        templateId: create
-          ? (localStorage.getItem("farm-active-blueprint") ?? undefined)
-          : undefined,
-      }),
-    });
-    const result = (await r.json()) as Session & { error?: string };
-    if (!r.ok) throw new Error(result.error ?? "로그인 실패");
-    archiveSession(session);
-    session = result;
-    archiveSession(session);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-
-    await connectSaved();
+    const nickname = el<HTMLInputElement>("nickname").value.trim(),
+      code = el<HTMLInputElement>("farm-code").value.trim().toUpperCase();
+    const saved = !create && savedSessions().find(s => s.farmId === code && s.nickname === nickname);
+    if (saved) {
+      session = saved;
+      localStorage.setItem(SESSION_KEY, JSON.stringify(saved));
+      await connectSaved();
+      return;
+    }
+    // Stable for this first-join request: retries use the same durable identity.
+    const requestToken = create ? undefined : Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, "0")).join("");
+    const body = JSON.stringify({ create, nickname, code, requestToken,
+      farmName: create ? el<HTMLInputElement>("farm-name").value : undefined,
+      templateId: create ? (localStorage.getItem("farm-active-blueprint") ?? undefined) : undefined });
+    let attempt = 0;
+    while (!controller.signal.aborted && intent === connectionIntent) {
+      try {
+        const r = await fetch(`${http}/api/session`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body,
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(JOIN_TIMEOUT_MS)]),
+        });
+        const result = (await r.json()) as Session & { error?: string };
+        if (!r.ok) throw Object.assign(new Error(result.error ?? "접속 실패"), { code: r.status });
+        if (controller.signal.aborted || intent !== connectionIntent) return;
+        archiveSession(session);
+        session = result;
+        archiveSession(session);
+        localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        await connectSaved();
+        return;
+      } catch (error) {
+        if (controller.signal.aborted || intent !== connectionIntent) return;
+        // New farm creation is not replayed; existing-family joins are idempotent.
+        if (create || terminalConnectionError(error) || (error as {code?: number})?.code === 400) throw error;
+        el("login-error").textContent = "자동으로 다시 연결하고 있어요…";
+        await new Promise<void>(resolve => {
+          const finish = () => { clearTimeout(timer); wakeLoginRetry = undefined; resolve(); };
+          const timer = setTimeout(finish, reconnectDelay(attempt++));
+          wakeLoginRetry = finish;
+        });
+      }
+    }
   } catch (e) {
-    el("login-error").textContent =
-      e instanceof Error ? e.message : "접속 실패";
+    if (intent === connectionIntent) el("login-error").textContent = e instanceof Error ? e.message : "접속 실패";
+  } finally {
+    if (sessionRequest === controller) sessionRequest = undefined;
+    if (intent === connectionIntent) el("cancel-connect").hidden = true;
   }
 }
 el("login-form").addEventListener(
@@ -1355,6 +1416,7 @@ window.addEventListener("pageshow", (event) => {
 window.addEventListener(
   "pagehide",
   () => {
+    void cancelConnecting();
     fishingUI?.dispose();
     controls.dispose();
     audio.dispose();

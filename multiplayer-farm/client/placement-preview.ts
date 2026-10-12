@@ -25,7 +25,7 @@ export function placementHints(network: ColyseusAdapter, me: RenderPlayer, itemI
     chest: {}, chestStores: personal?.chestStores ?? {}, chestBindings: bindings, chestGroups: groups, chestSettings: settings,
     nextEntity: 1_000_000_000 };
   const choices = itemId ? adjacentCells(actor) : [frontTile(actor)];
-  const others = network.snapshot().players.filter(p => !p.local).map(p => ({ area: p.area, x: p.authoritativeX, y: p.authoritativeY }));
+  const others = network.snapshot().players.filter(p => !p.local && p.connected).map(p => ({ area: p.area, x: p.authoritativeX, y: p.authoritativeY }));
   return choices.map(t => {
     const plan = planPlacement(world, actor, itemId ?? "storage_chest", t.tileX, t.tileY, itemId ? undefined : carried?.entities, others);
     return { ...t, cells: plan.cells, error: plan.error };

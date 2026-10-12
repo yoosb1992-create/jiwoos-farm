@@ -2,8 +2,10 @@
 export const CORRECTION_SMOOTH_MS = 65;
 export const HUD_INTERVAL_MS = 200;
 export const JOIN_TIMEOUT_MS = 12_000;
-export const RECONNECT_MAX_RETRIES = 10;
-export const RECONNECT_MAX_DELAY_MS = 2_000;
+export const RECONNECT_BASE_DELAY_MS = 1_000;
+export const RECONNECT_MAX_DELAY_MS = 30_000;
+export const RECONNECT_SESSION_MS = 25_000;
+export const CONNECTION_STALE_MS = 10_000;
 export const JOYSTICK_DEADZONE = 0.13;
 export const GRID_SIZE = 40;
 

@@ -30,7 +30,9 @@ import {
   CORRECTION_SMOOTH_MS,
   JOIN_TIMEOUT_MS,
   RECONNECT_MAX_DELAY_MS,
-  RECONNECT_MAX_RETRIES,
+  RECONNECT_BASE_DELAY_MS,
+  RECONNECT_SESSION_MS,
+  CONNECTION_STALE_MS,
 } from "./config.js";
 
 export type ConnectionStatus =
@@ -91,8 +93,30 @@ export interface NetworkAdapter {
 
 type FarmClientRoom = Room<unknown, FarmState>;
 
+/** Close half-open sockets as well as HTTP matchmaking when an attempt times out. */
+class FarmConnectionClient extends Client {
+  readonly openingRooms = new Set<Room>();
+  protected override createRoom<T>(name: string, schema?: new (...args: any[]) => T) {
+    const room = super.createRoom(name, schema);
+    room.reconnection.enabled = false;
+    room.reconnection.maxEnqueuedMessages = 0;
+    this.openingRooms.add(room);
+    return room;
+  }
+}
+
+export function terminalConnectionError(error: unknown): boolean {
+  const value = error as { code?: number; status?: number; message?: string } | undefined;
+  return [401, 403, 1008, 4000, 4002].includes(Number(value?.code ?? value?.status)) ||
+    /세션이 만료|세션 없음|가족 세션이 일치|잘못된 가족|가족 코드|Invalid token|unauthorized|forbidden|access denied|onAuth failed|fixed timestep/i.test(value?.message ?? "");
+}
+export function reconnectDelay(attempt: number): number {
+  const base = Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_BASE_DELAY_MS * 2 ** Math.min(attempt, 5));
+  return Math.round(base * (.85 + Math.random() * .15));
+}
+
 export class ColyseusAdapter implements NetworkAdapter {
-  private readonly client: Client;
+  private readonly client: FarmConnectionClient;
   private room?: FarmClientRoom;
   private predict?: Predict<FarmState>;
   private readonly remotePredictors = new Map<number, Predict<FarmState>>();
@@ -129,6 +153,15 @@ export class ColyseusAdapter implements NetworkAdapter {
   private reconnectCount = 0;
   private reconnectAttempt = 0;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
+  private wakeRetry?: () => void;
+  private reopen?: () => Promise<FarmClientRoom>;
+  private recoveryToken = "";
+  private recoveryStarted = 0;
+  private recovery?: { generation: number; promise: Promise<void> };
+  private lastStateAt = 0;
+  private dropCurrent?: () => void;
+  private savedToken = "";
+  private lastWakeAt = 0;
   private readonly pendingCancels = new Set<() => void>();
   private frozenPlayers: RenderPlayer[] = [];
   private stateTimes: number[] = [];
@@ -157,12 +190,15 @@ export class ColyseusAdapter implements NetworkAdapter {
     return this.room?.state;
   }
   openFarm(session: Session): Promise<void> {
+    if (this.savedToken === session.token && this.status === "connected") return Promise.resolve();
+    if (this.savedToken === session.token && this.recovery?.generation === this.generation)
+      return this.recovery.promise;
     return this.connect(() =>
       this.client.joinOrCreate<FarmState>(
         ROOM_NAME,
         { farmId: session.farmId, token: session.token },
         FarmState,
-      ),
+      ), session.token,
     );
   }
   action(command: Command): void {
@@ -174,7 +210,7 @@ export class ColyseusAdapter implements NetworkAdapter {
   }
 
   constructor(url: string) {
-    this.client = new Client(url);
+    this.client = new FarmConnectionClient(url);
   }
 
   create(nickname: string): Promise<void> {
@@ -189,27 +225,116 @@ export class ColyseusAdapter implements NetworkAdapter {
     );
   }
 
-  private async connect(open: () => Promise<FarmClientRoom>): Promise<void> {
-    await this.leave();
-    if (this.disposed) return;
-    const generation = ++this.generation;
-    this.status = "connecting";
+  private async connect(open: () => Promise<FarmClientRoom>, savedToken = ""): Promise<void> {
+    const closing = this.leave();
+    const generation = this.generation;
+    this.savedToken = savedToken;
+    await closing;
+    if (this.disposed || generation !== this.generation) return;
+    // Only authenticated farm joins can safely be replayed. Never recreate a farm.
+    this.reopen = savedToken ? open : undefined;
     this.message = "서버에 연결하는 중…";
-    try {
-      const room = await this.openRoom(open);
-      if (this.disposed || generation !== this.generation) {
-        void this.closeRoom(room);
+    this.status = "connecting";
+    await this.recover(generation, open);
+  }
+
+  private recover(generation: number, firstOpen?: () => Promise<FarmClientRoom>): Promise<void> {
+    if (this.recovery?.generation === generation) return this.recovery.promise;
+    const promise = this.recoverLoop(generation, firstOpen).finally(() => {
+      if (this.recovery?.generation === generation) this.recovery = undefined;
+    });
+    this.recovery = { generation, promise };
+    return promise;
+  }
+
+  private async recoverLoop(generation: number, firstOpen?: () => Promise<FarmClientRoom>): Promise<void> {
+    while (!this.disposed && generation === this.generation) {
+      let candidate: FarmClientRoom | undefined;
+      const token = Date.now() - this.recoveryStarted < RECONNECT_SESSION_MS ? this.recoveryToken : "";
+      const open = firstOpen ?? (token ? () => this.client.reconnect<FarmState>(token, FarmState) : this.reopen);
+      firstOpen = undefined;
+      if (!open) {
+        this.message = "세션 복구 시간이 지났어요. 저장된 농장을 다시 선택해 주세요.";
+        this.status = "error";
         return;
       }
-      await this.bindRoom(room, generation);
-      this.message = "연결됨 · 방 코드를 다른 기기에 입력하세요.";
-    } catch (error: unknown) {
-      if (generation !== this.generation) return;
-      const message = error instanceof Error ? error.message : String(error);
-      await this.leave();
-      this.status = "error";
-      this.message = `연결 실패: ${message}`;
-      throw new Error(this.message);
+      try {
+        candidate = await this.openRoom(open);
+        if (generation !== this.generation || this.disposed) { void this.closeRoom(candidate); return; }
+        await this.bindRoom(candidate, generation);
+        if (generation !== this.generation) return;
+        if (this.reconnectAttempt || this.recoveryToken) this.reconnectCount++;
+        this.reconnectAttempt = 0;
+        this.recoveryToken = "";
+        this.message = "연결이 복구됐어요.";
+        return;
+      } catch (error) {
+        if (generation !== this.generation || this.disposed) return;
+        this.detachRoom();
+        // A handshake rotates the short-lived token, even if its state is lost.
+        if (candidate?.reconnectionToken) {
+          this.recoveryToken = candidate.reconnectionToken;
+          this.recoveryStarted = Date.now();
+        } else if (token && ([522, 524].includes(Number((error as {code?: number})?.code)) ||
+          /reconnection|room.*not found|room.*does not exist|room.*disposed|seat reservation/i.test(String((error as Error)?.message)))) {
+          this.recoveryToken = "";
+        }
+        if (candidate?.connection.isOpen)
+          candidate.connection.close(CloseCode.MAY_TRY_RECONNECT, "Retry initial state");
+        if (terminalConnectionError(error) || (!this.reopen && !this.recoveryToken)) {
+          this.reopen = undefined;
+          this.recoveryToken = "";
+          this.message = `연결할 수 없어요: ${error instanceof Error ? error.message : String(error)}`;
+          this.status = "error";
+          throw new Error(this.message);
+        }
+        this.message = "자동으로 다시 연결하고 있어요…";
+        this.status = "reconnecting";
+        await this.waitToRetry(generation);
+      }
+    }
+  }
+
+  private waitToRetry(generation: number): Promise<void> {
+    const delay = reconnectDelay(this.reconnectAttempt++);
+    this.lastWakeAt = Date.now();
+    return new Promise(resolve => {
+      const finish = () => {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = undefined;
+        this.wakeRetry = undefined;
+        this.pendingCancels.delete(finish);
+        resolve();
+      };
+      this.wakeRetry = finish;
+      this.pendingCancels.add(finish);
+      this.reconnectTimer = setTimeout(finish, delay);
+      if (generation !== this.generation) finish();
+    });
+  }
+
+  private detachRoom(): void {
+    this.dropCurrent = undefined;
+    this.detach.splice(0).forEach(unsubscribe => unsubscribe());
+    this.clearPrediction();
+    this.input = undefined;
+    this.room = undefined;
+    this.stateTimes = [];
+  }
+
+  /** Android can suspend timers without closing a half-open WebSocket. Rebase
+   * from server state after a long silence instead of replaying suspended input. */
+  resumeConnection(): void {
+    if (this.disposed) return;
+    if (this.status === "connected") {
+      if (!this.room?.connection.isOpen || Date.now() - this.lastStateAt > CONNECTION_STALE_MS) {
+        const stale = this.room;
+        this.dropCurrent?.();
+        stale?.connection.close(CloseCode.MAY_TRY_RECONNECT, "Resume stale connection");
+      }
+    } else if (this.status === "reconnecting" && Date.now() - this.lastWakeAt > 1_000) {
+      this.lastWakeAt = Date.now();
+      this.wakeRetry?.();
     }
   }
 
@@ -218,13 +343,15 @@ export class ColyseusAdapter implements NetworkAdapter {
     generation: number,
   ): Promise<void> {
     this.room = room;
+    this.personal = undefined;
     room.onMessage(
       "personal",
       (value: NonNullable<ColyseusAdapter["personal"]>) => {
-        this.personal = value;
+        if (this.room === room && generation === this.generation) this.personal = value;
       },
     );
     room.onMessage("actionResult", (value: ActionResult) => {
+      if (this.room !== room || generation !== this.generation) return;
       this.lastAction = value;
       this.onAction?.(value);
     });
@@ -233,44 +360,48 @@ export class ColyseusAdapter implements NetworkAdapter {
     this.lastRoomId = room.roomId;
     this.lastSessionId = room.sessionId;
     // SDK 0.18.5 auto retry timers cannot be cancelled. Use its documented
-    // Client.reconnect API with our own bounded, cancellable timer instead.
+    // Client.reconnect API with our own cancellable recovery loop instead.
     room.reconnection.enabled = false;
     room.reconnection.maxEnqueuedMessages = 0;
     let ready = false;
     const onState = () => {
       receiveLayout(room.state.layout);
+      this.lastStateAt = Date.now();
       this.stateTimes.push(performance.now());
       if (this.stateTimes.length > 120) this.stateTimes.shift();
     };
     const onDrop = () => {
-      if (!ready || generation !== this.generation || this.disposed) return;
-      const token = room.reconnectionToken;
-      this.frozenPlayers = this.snapshot().players.map((player) => ({
-        ...player,
-        connected: player.local ? false : player.connected,
+      if (!ready || this.room !== room || generation !== this.generation || this.disposed) return;
+      this.recoveryToken = room.reconnectionToken;
+      this.recoveryStarted = Date.now();
+      this.frozenPlayers = this.snapshot().players.map(player => ({
+        ...player, connected: player.local ? false : player.connected,
       }));
+      this.detachRoom();
+      this.message = "연결이 끊겼어요. 자동으로 다시 연결하고 있어요…";
       this.status = "reconnecting";
-      this.message = "연결이 끊겼습니다. 같은 플레이어로 재연결 중…";
       this.reconnectAttempt = 0;
-      this.clearPrediction();
-      this.input = undefined;
-      this.room = undefined;
-      this.detach.splice(0).forEach((unsubscribe) => unsubscribe());
-      this.stateTimes = [];
-      this.scheduleReconnect(token, generation, performance.now());
+      // onDrop/onLeave may both fire for one socket; detachment makes this single-flight.
+      void (async () => {
+        await this.waitToRetry(generation);
+        if (generation === this.generation && !this.disposed)
+          await this.recover(generation);
+      })().catch(() => undefined); // terminal errors are displayed in status/message
     };
-    const onLeave = (code: number) => {
-      if (generation !== this.generation) return;
-      this.status = "disconnected";
-      this.message = `연결 종료 (${code}). 같은 코드로 다시 참가하거나 새 방을 만드세요.`;
-      this.clearPrediction();
-      this.input = undefined;
-      this.room = undefined;
-      this.frozenPlayers = [];
-      this.detach.splice(0).forEach((unsubscribe) => unsubscribe());
+    const onLeave = (code: number, reason?: string) => {
+      if (!ready || this.room !== room || generation !== this.generation) return;
+      if ([1001, 1005, 1006, 1011, 1012, 1013, 4001, 4003, 4010].includes(code)) { onDrop(); return; }
+      this.detachRoom();
+      this.reopen = undefined;
+      this.recoveryToken = "";
+      this.message = code === CloseCode.CONSENTED
+        ? "다른 연결에서 이 플레이어로 접속했거나 농장에서 나갔어요."
+        : `접속이 종료됐어요 (${code}). ${reason ?? "접근 권한을 확인해 주세요."}`;
+      this.status = "error";
+      if (room.connection.isOpen) void this.closeRoom(room);
     };
     const onError = (code: number, reason?: string) => {
-      this.message = `연결 오류 (${code}): ${reason || "서버 주소와 방 코드를 확인하세요."}`;
+      if (ready && terminalConnectionError({ code, message: reason })) onLeave(code, reason);
     };
     room.onStateChange(onState);
     room.onDrop(onDrop);
@@ -282,6 +413,7 @@ export class ColyseusAdapter implements NetworkAdapter {
       () => room.onLeave.remove(onLeave),
       () => room.onError.remove(onError),
     );
+    room.send("personal");
     await this.waitForPlayer(room);
     if (generation !== this.generation)
       throw new Error("연결 작업이 취소되었습니다.");
@@ -291,66 +423,11 @@ export class ColyseusAdapter implements NetworkAdapter {
     receiveLayout(room.state.layout);
     this.initializePrediction();
     this.frozenPlayers = [];
-    this.status = "connected";
-    room.send("personal");
+    this.lastStateAt = Date.now();
+    this.dropCurrent = onDrop;
     ready = true;
-  }
-
-  private scheduleReconnect(
-    token: string,
-    generation: number,
-    started: number,
-  ): void {
-    if (generation !== this.generation || this.disposed) return;
-    if (
-      this.reconnectAttempt >= RECONNECT_MAX_RETRIES ||
-      performance.now() - started >= 25_000
-    ) {
-      this.status = "disconnected";
-      this.message =
-        "재연결에 실패했습니다. 같은 방 코드로 다시 참가하거나 새 방을 만드세요.";
-      this.frozenPlayers = [];
-      return;
-    }
-    const delay = Math.min(
-      RECONNECT_MAX_DELAY_MS,
-      200 * 2 ** this.reconnectAttempt++,
-    );
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = undefined;
-      void (async () => {
-        let candidate: FarmClientRoom | undefined;
-        try {
-          candidate = await this.openRoom(() =>
-            this.client.reconnect<FarmState>(token, FarmState),
-          );
-          if (generation !== this.generation || this.disposed) {
-            await this.closeRoom(candidate);
-            return;
-          }
-          await this.bindRoom(candidate, generation);
-          this.reconnectCount++;
-          this.message = "재연결 성공 · 입력을 다시 눌러 이동하세요.";
-        } catch {
-          if (generation !== this.generation || this.disposed) return;
-          this.detach.splice(0).forEach((unsubscribe) => unsubscribe());
-          this.clearPrediction();
-          this.input = undefined;
-          this.room = undefined;
-          // The server rotates the token at every successful handshake. If
-          // that new socket drops before its full state, retry its NEW token.
-          // Preserve the reservation: this is recovery, not a consented leave.
-          const retryToken = candidate?.reconnectionToken || token;
-          if (candidate?.connection.isOpen)
-            candidate.connection.close(
-              CloseCode.MAY_TRY_RECONNECT,
-              "Retry initial state",
-            );
-          this.status = "reconnecting";
-          this.scheduleReconnect(retryToken, generation, started);
-        }
-      })();
-    }, delay);
+    this.message = "연결이 복구됐어요.";
+    this.status = "connected";
   }
 
   private openRoom(
@@ -358,19 +435,29 @@ export class ColyseusAdapter implements NetworkAdapter {
   ): Promise<FarmClientRoom> {
     return new Promise((resolve, reject) => {
       let done = false;
+      const controller = new AbortController();
+      this.client.http.options.signal = controller.signal;
+      const cancelTransport = () => {
+        controller.abort();
+        for (const room of this.client.openingRooms) room.connection?.close(CloseCode.NORMAL_CLOSURE, "Cancelled connection attempt");
+        this.client.openingRooms.clear();
+      };
       const finish = () => {
         done = true;
         clearTimeout(timeout);
         this.pendingCancels.delete(cancel);
+        this.client.openingRooms.clear();
       };
       const cancel = () => {
         if (!done) {
+          cancelTransport();
           finish();
           reject(new Error("연결 작업이 취소되었습니다."));
         }
       };
       const timeout = setTimeout(() => {
         if (!done) {
+          cancelTransport();
           finish();
           reject(new Error("서버 연결 시간이 초과되었습니다."));
         }
@@ -387,6 +474,7 @@ export class ColyseusAdapter implements NetworkAdapter {
         },
         (error: unknown) => {
           if (!done) {
+            cancelTransport();
             finish();
             reject(error);
           }
@@ -396,30 +484,36 @@ export class ColyseusAdapter implements NetworkAdapter {
   }
 
   private waitForPlayer(room: FarmClientRoom): Promise<void> {
-    if (room.state?.players?.has(room.sessionId)) return Promise.resolve();
+    const isReady = () => room.state?.players?.has(room.sessionId) &&
+      this.personal?.member.id === room.state.players.get(room.sessionId)?.playerId;
+    if (isReady()) return Promise.resolve();
     return new Promise((resolve, reject) => {
       const cleanup = () => {
         clearTimeout(timeout);
         room.onStateChange.remove(check);
         room.onLeave.remove(failed);
+        room.onError.remove(failed);
+        offPersonal();
         this.pendingCancels.delete(failed);
       };
       const check = () => {
-        if (room.state?.players?.has(room.sessionId)) {
+        if (isReady()) {
           cleanup();
           resolve();
         }
       };
-      const failed = () => {
+      const failed = (code?: number, reason?: string) => {
         cleanup();
-        reject(new Error("초기 상태 수신 전에 연결이 종료되었습니다."));
+        reject(Object.assign(new Error(reason || "초기 상태 수신 전에 연결이 종료되었습니다."), { code }));
       };
       const timeout = setTimeout(() => {
         cleanup();
         reject(new Error("초기 상태 수신 시간이 초과되었습니다."));
       }, JOIN_TIMEOUT_MS);
+      const offPersonal = room.onMessage("personal", check);
       room.onStateChange(check);
       room.onLeave(failed);
+      room.onError(failed);
       this.pendingCancels.add(failed);
     });
   }
@@ -478,6 +572,7 @@ export class ColyseusAdapter implements NetworkAdapter {
   }
 
   frame(now: number, command: MovementInput): NetworkSnapshot {
+    if (this.status === "connected") this.resumeConnection();
     const room = this.room;
     const target = INTERPOLATION_PROFILES[this.profile];
     const dt = this.lastFrame ? Math.min(50, now - this.lastFrame) : 16;
@@ -623,20 +718,20 @@ export class ColyseusAdapter implements NetworkAdapter {
 
   async leave(): Promise<void> {
     ++this.generation;
-    clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = undefined;
-    this.pendingCancels.forEach((cancel) => cancel());
+    this.reopen = undefined;
+    this.recoveryToken = "";
+    this.savedToken = "";
+    this.pendingCancels.forEach(cancel => cancel());
     this.pendingCancels.clear();
     const room = this.room;
-    this.room = undefined;
-    this.input = undefined;
-    this.clearPrediction();
-    this.detach.splice(0).forEach((unsubscribe) => unsubscribe());
-    this.stateTimes = [];
+    this.detachRoom();
+    this.personal = undefined;
+    this.lastRoomId = "";
+    this.lastSessionId = "";
     this.frozenPlayers = [];
     this.reconnectAttempt = 0;
+    this.message = "저장된 농장을 선택하거나 가족 코드로 참가하세요.";
     this.status = "disconnected";
-    this.message = "방을 만들거나 참가 코드를 입력하세요.";
     if (!room) return;
     await this.closeRoom(room);
   }

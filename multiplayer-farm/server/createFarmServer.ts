@@ -150,13 +150,14 @@ export function createFarmServer(options: FarmServerOptions) {
             body.nickname,
             typeof body.templateId === "string" ? body.templateId : undefined,
             typeof body.farmName === "string" ? body.farmName : undefined,
+            typeof body.requestToken === "string" ? body.requestToken : undefined,
           );
           response.setHeader("Cache-Control", "no-store");
           response.json(result);
         } catch (error) {
-          response.status(400).json({
-            error: error instanceof Error ? error.message : "농장 접속 실패",
-          });
+          const message = error instanceof Error ? error.message : "농장 접속 실패";
+          const invalid = /닉네임|가족 코드|가족 세션|세션이 만료|입력값|접속 요청|농장 이름|설계도|Nickname in use/.test(message);
+          response.status(invalid ? 400 : 503).json({ error: invalid ? message : "서버에 잠시 연결할 수 없어요" });
         }
       });
       app.get("/api/session", async (request, response) => {

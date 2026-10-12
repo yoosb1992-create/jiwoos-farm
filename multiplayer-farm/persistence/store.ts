@@ -50,6 +50,7 @@ export interface Store extends BlueprintStore {
     nickname: string,
     templateId?: string,
     farmName?: string,
+    requestToken?: string,
   ): Promise<Session>;
   authenticate(token: string): Promise<Identity>;
   renameFarm(token: string, name: string): Promise<Identity>;
@@ -127,6 +128,7 @@ export class PostgresStore implements Store {
     nickname: string,
     templateId?: string,
     farmName?: string,
+    requestToken?: string,
   ): Promise<Session> {
     if (
       !nickname.trim() ||
@@ -155,9 +157,30 @@ export class PostgresStore implements Store {
         : undefined;
     const db = await this.pool.connect();
     const playerId = randomUUID(),
-      token = randomBytes(32).toString("base64url");
+      token = requestToken ?? randomBytes(32).toString("base64url");
     try {
       await db.query("BEGIN");
+      if (requestToken) {
+        if (create || !/^[a-f0-9]{64}$/.test(requestToken)) throw Error("접속 요청 정보가 올바르지 않습니다");
+        // Retry a first family join without issuing another member/session, even
+        // after a lost HTTP response or Railway restart. Uses existing tables.
+        await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [tokenHash(requestToken)]);
+        const existing = await db.query<{
+          farm_id: string; id: string; nickname: string; farm_name: string;
+          owner_member_id: string | null; valid: boolean;
+        }>(`SELECT m.farm_id,m.id,m.nickname,f.name AS farm_name,f.owner_member_id::text,
+            s.expires_at>now() AS valid FROM sessions s
+            JOIN members m ON s.member_id=m.id JOIN farms f ON f.id=m.farm_id
+            WHERE s.token_hash=$1`, [tokenHash(requestToken)]);
+        const previous = existing.rows[0];
+        if (previous) {
+          if (!previous.valid) throw Error("세션이 만료됐습니다");
+          if (previous.farm_id !== farmId || previous.nickname !== nickname.trim()) throw Error("가족 세션이 일치하지 않습니다");
+          await db.query("COMMIT");
+          return { farmId, playerId: previous.id, nickname: previous.nickname, token: requestToken,
+            farmName: previous.farm_name, isOwner: previous.owner_member_id === previous.id };
+        }
+      }
       if (create) {
         const w = newWorld(randomBytes(4).readUInt32LE(), layout);
         await db.query(

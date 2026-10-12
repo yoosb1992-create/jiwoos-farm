@@ -31,7 +31,16 @@ export class MemoryTestStore implements Store {
     nickname: string,
     templateId?: string,
     farmName?: string,
+    requestToken?: string,
   ): Promise<Session> {
+    if (requestToken) {
+      if (create || !/^[a-f0-9]{64}$/.test(requestToken)) throw Error("접속 요청 정보가 올바르지 않습니다");
+      const previous = this.sessions.get(requestToken);
+      if (previous) {
+        if (previous.farmId !== code || previous.nickname !== nickname) throw Error("가족 세션이 일치하지 않습니다");
+        return { ...previous, token: requestToken };
+      }
+    }
     const initialFarmName = create
       ? validatedFarmName(farmName === undefined || farmName === "" ? `${nickname.trim()}의 농장` : farmName)
       : "";
@@ -62,7 +71,7 @@ export class MemoryTestStore implements Store {
       farmName: meta.name,
       isOwner: meta.ownerId === playerId,
     };
-    const token = randomUUID();
+    const token = requestToken ?? randomUUID();
     this.sessions.set(token, identity);
     return { ...identity, token };
   }
