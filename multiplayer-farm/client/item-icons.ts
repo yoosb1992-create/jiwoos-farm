@@ -1,17 +1,22 @@
 import { ASSETS, ITEMS } from "../shared/content.js";
 import { HELD_TOOLS, paintHeldTool, type HeldTool } from "./tool-art.js";
 import { chestIconSource } from "./chest-art.js";
+import { paintToolIcon } from "./tool-icon-art.js";
 
 const toolIcons = new Map<string, string>();
 
-/** Bake once, with transparent padding trimmed so slim tools fill mobile slots.
- * The five held tools use their original painter; UI pixels never affect play. */
+/** Bake once. Distinct UI silhouettes stay independent of character animation. */
 export function toolIconSource(id: string): string | undefined {
   if (id === "watering_can") id = "water";
   if (id === "hand") return ASSETS.item_hand?.source?.path;
   if (!HELD_TOOLS.includes(id as HeldTool) && id !== "fishing_rod") return;
   const cached = toolIcons.get(id);
   if (cached) return cached;
+  const dedicated = document.createElement("canvas");
+  dedicated.width = dedicated.height = 32;
+  if (paintToolIcon(dedicated.getContext("2d")!,id)) {
+    const url=dedicated.toDataURL("image/png"); toolIcons.set(id,url);return url;
+  }
   const source = document.createElement("canvas");
   source.width = source.height = 64;
   const c = source.getContext("2d")!;

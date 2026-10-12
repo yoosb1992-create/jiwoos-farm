@@ -1,4 +1,5 @@
 import { TRANSPORT_DURATION_MS, HAND_CARRY_LIMIT_KG } from "./transport-config.js";
+import { parseQuickbarEdit, editQuickbar } from "./quickbar.js";
 import { carryAppearance } from "./transport.js";
 import { planPlacement } from "./placement.js";
 import { isUpgradeTool, migrateToolLevels, toolLevel, TOOL_UPGRADES } from "./tool-levels.js";
@@ -58,6 +59,7 @@ function requireThat(condition: unknown, message: string): asserts condition {
   if (!condition) throw new ActionError(message);
 }
 const TYPES = new Set([
+  "updateQuickbar",
   "useTool",
   "cutGrass",
   "destroyFlower",
@@ -125,6 +127,7 @@ export function parseCommand(value: unknown): Command {
     "지원하지 않는 행동",
   );
   const out: Command = { actionId: c.actionId, type: c.type };
+  if(out.type === "updateQuickbar") out.quickbarEdit=parseQuickbarEdit(c.quickbarEdit);
   if (c.chestName !== undefined) {
     requireThat(out.type === "configureChest" && validChestName(c.chestName), "보관함 이름은 특수 제어문자 없이 20자 이내로 입력해 주세요");
     out.chestName = c.chestName.normalize("NFC").trim();
@@ -247,8 +250,8 @@ export function applyAction(
   let failed = false;
   const m = w.members[a.id];
   requireThat(m, "플레이어 없음");
-  requireThat(command.type === "pickupDrop" || ctx.now >= (m.transportUntil ?? 0), "운반 동작을 마칠 때까지 기다려 주세요");
-  requireThat(!m.carried || ["lowerChest", "pickupDrop", "enterArea", "worldEvent"].includes(command.type), "보관함을 먼저 내려놓아 주세요");
+  requireThat(command.type === "pickupDrop" || command.type === "updateQuickbar" || ctx.now >= (m.transportUntil ?? 0), "운반 동작을 마칠 때까지 기다려 주세요");
+  requireThat(!m.carried || ["lowerChest", "pickupDrop", "enterArea", "worldEvent", "updateQuickbar"].includes(command.type), "보관함을 먼저 내려놓아 주세요");
   const cost = tool && command.type !== "refill" ? toolStaminaCost(tool, before) : 0;
   if (tool) {
     requireThat(isTool(tool) && (m.inventory[tool] ?? 0) > 0, "도구가 없습니다");
@@ -395,6 +398,7 @@ function applyActionCore(
       "앞칸에서만 사용할 수 있습니다",
     );
     requireThat(
+      (c.type !== "tillTile" && ["soil","crop","withered"].includes(w.entities[`soil-${a.area}-${x}-${y}`]?.kind ?? "")) ||
       isFarmable(a.area, x, y, w.layout?.maps),
       "경작 가능한 밭이 아닙니다",
     );
@@ -405,6 +409,11 @@ function applyActionCore(
   const q = c.quantity ?? 1;
   requireThat(q >= 1 && q <= MAX_QUANTITY, "수량은 1~999입니다");
   switch (c.type) {
+    case "updateQuickbar": {
+      editQuickbar(m,parseQuickbarEdit(c.quickbarEdit));
+      result.message="단축슬롯과 즐겨찾기를 저장했어요";
+      break;
+    }
     case "worldEvent": {
       const e = mapFor(a.area, w.layout?.maps).world2?.events.find(
         (e) => e.id === c.targetId,
@@ -457,6 +466,7 @@ function applyActionCore(
         "이미 경작한 밭",
       );
       requireThat(!Object.values(w.entities).some(e => e.area===a.area && e.id!==t.id && Math.floor(e.x/TILE)===Math.floor(t.x/TILE) && Math.floor(e.y/TILE)===Math.floor(t.y/TILE)), "먼저 자연물이나 설치물을 치우세요");
+      requireThat(!collidesWithObstacle(t.x,t.y,a.area,w.layout?.maps,Object.values(w.entities)), "시설이나 자연물이 차지한 땅입니다");
       markCleared(w,t);
       w.entities[t.id] = entity(
         t.id,

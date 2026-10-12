@@ -22,16 +22,14 @@ test("sketched default farm: editable overgrown grass, four accessible lanes, sa
     assert(!waterTerrain(t) && t !== "tilled_soil" && t !== "soil");
     if (isFarmable("farm", x, y, l.maps)) {
       farmable++;
-      assert.equal(t, "grass");
-      assert(placementAllowed(m, "building", x, y));
-      assert(placementAllowed(m, "decoration", x, y));
+      assert(["grass", "dark_grass"].includes(t));
       assert(!collidesWithObstacle((x + .5) * 32, (y + .5) * 32, "farm", l.maps));
     } else if (["stone_path", "dirt_path", "gravel"].includes(t)) {
       assert(!placementAllowed(m, "building", x, y));
       assert(!placementAllowed(m, "decoration", x, y));
     }
   }
-  assert(farmable / (m.width * m.height) >= .60 && farmable / (m.width * m.height) <= .70);
+  assert(farmable / (m.width * m.height) >= .60 && farmable / (m.width * m.height) <= .95);
   const spawn = safeSpawn("farm", "farm_entry", l.maps);
   assert.deepEqual(spawn, { x: 60.5 * 32, y: 37.5 * 32, facing: "down" });
   assert(!insideWarp(m, spawn.x, spawn.y));

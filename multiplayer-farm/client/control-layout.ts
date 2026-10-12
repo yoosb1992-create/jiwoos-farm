@@ -1,3 +1,4 @@
+import { favoriteModeControls } from "./quickbar-ui.js";
 type Control = "joystick" | "action" | "run";
 interface Placement {
   x: number;
@@ -46,6 +47,7 @@ export class ControlLayout {
     this.panel.innerHTML =
       '<strong>조작 배치 편집</strong><small>원하는 버튼을 드래그하세요</small><label>선택 <select id="control-choice"><option value="joystick">조이스틱</option><option value="action">행동</option><option value="run">RUN</option></select></label><label>크기 <input id="control-size" type="range" min="48" max="180"></label><label>투명도 <input id="control-opacity" type="range" min="35" max="100"></label><div><button id="controls-save">저장</button><button id="controls-reset">기본값 복원</button><button id="controls-cancel">취소</button></div>';
     document.body.append(this.panel);
+    this.panel.append(favoriteModeControls());
     const opts = { signal: this.abort.signal };
     for (const id of ids) {
       const e = this.element(id);
@@ -285,7 +287,7 @@ export class ControlLayout {
   /** Fit contextual furniture controls around the actual customized touch UI. */
   placeAuxiliary(): void {
     const { w, h } = this.viewport();
-    const occupied = ["top", "toolbar", ...ids].map(id => document.getElementById(id)!.getBoundingClientRect());
+    const occupied = ["top", "toolbar", ...ids, "favorite-popup"].map(id => document.getElementById(id)).filter((e):e is HTMLElement=>!!e&&!e.hidden).map(e => e.getBoundingClientRect());
     const action = this.element("action").getBoundingClientRect();
     for (const id of ["furniture-action", "placement-cancel"]) {
       const button = document.getElementById(id);

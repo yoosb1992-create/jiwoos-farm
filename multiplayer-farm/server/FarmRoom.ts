@@ -251,15 +251,16 @@ export class FarmRoom extends MovementRoom {
         throw new Error("지역 이동 준비 중입니다");
       const now = Date.now();
       const picking = command.type === "pickupDrop";
+      const preference = command.type === "updateQuickbar";
       const cooldown = picking ? this.pickupCooldown : this.cooldown;
       if (
-        now - (cooldown.get(identity.playerId) ?? 0) <
+        !preference && now - (cooldown.get(identity.playerId) ?? 0) <
         (picking ? PICKUP_SCAN_MS : ACTION_COOLDOWN_MS)
       )
         throw new Error("행동 준비 중입니다");
       if (picking && now < (this.dropReady.get(command.targetId ?? "") ?? 0))
         throw new Error("아이템이 내려오는 중이에요");
-      cooldown.set(identity.playerId, now);
+      if (!preference) cooldown.set(identity.playerId, now);
       const proposed = this.proposal(),
         votes = new Set(this.votes);
       const beforeDay = proposed.day;
@@ -274,7 +275,7 @@ export class FarmRoom extends MovementRoom {
       if (result.fx) result.fx.actorId = client.sessionId;
       if (result.transportFx) result.transportFx.actorId = client.sessionId;
       // Reserve actor while a durable action is committing. Movement packets cannot alter action range during storage.
-      const freeze = command.type !== "plantSeed" && !picking;
+      const freeze = command.type !== "plantSeed" && !picking && !preference;
       if (freeze) p.actionTicks = 30;
       try {
         await this.lease.save(proposed, this.world.revision, {

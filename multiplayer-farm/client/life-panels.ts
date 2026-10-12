@@ -1,5 +1,8 @@
 import { CLIENT_MAPS as MAPS } from "./layout.js";
 import { itemIconSource } from "./item-icons.js";
+import { BAG_CATEGORIES, itemCategory } from "../shared/item-categories.js";
+import { quickbarFor, type QuickbarEdit } from "../shared/quickbar.js";
+import { favoriteModeControls } from "./quickbar-ui.js";
 import {
   ASSETS,
   ITEMS,
@@ -43,6 +46,9 @@ export interface LifeContext {
   page(n: number): void;
   notice(message: string): void;
   zoom(value: number): void;
+  quickslot(id: string): void;
+  quickManager(): void;
+  editQuickbar(edit: QuickbarEdit): void;
 }
 const icons: Record<string, string> = {
   tool: "⚒",
@@ -109,6 +115,14 @@ export function renderLifePanel(
     cal = calendar(c.day),
     season = cal.season;
   if (type === "bag" && m) {
+    const category = localStorage.getItem("farm-bag-category") ?? "all";
+    const categories = element("nav", "", "bag-categories");
+    categories.setAttribute("aria-label", "가방 카테고리");categories.dataset.scroll="bag-categories";
+    for(const [id,label] of BAG_CATEGORIES) {
+      const b=action(label,()=>{localStorage.setItem("farm-bag-category",id);c.open("bag","가방");});
+      b.setAttribute("aria-pressed",String(category===id));categories.append(b);
+    }
+    body.append(categories);
     card(
       body,
       `${m.money} G · 가방 ${Object.keys(m.inventory).length}/48`,
@@ -130,6 +144,8 @@ export function renderLifePanel(
         },
       ],
       ["도감", () => c.open("crops", "사계절 도감")],
+      ["단축슬롯 · 즐겨찾기 관리", () => c.quickManager()],
+      ["손 선택", () => {c.select("hand");c.close();}],
     ]);
     const sorted = Object.entries(m.inventory).sort(([a], [b]) =>
       localStorage.getItem("farm-bag-sort") === "name"
@@ -137,10 +153,11 @@ export function renderLifePanel(
         : (ITEMS[a]?.kind ?? "").localeCompare(ITEMS[b]?.kind ?? "") ||
           itemName(a).localeCompare(itemName(b), "ko"),
     );
-    for (const [id, count] of sorted) {
+    const bar=quickbarFor(m);
+    for (const [id, count] of sorted.filter(([id,count])=>count>0 && (category==="all" || itemCategory(id)===category))) {
       const item = ITEMS[id],
         buttons: HTMLElement[] = [];
-      if (item?.kind === "tool" || item?.kind === "seed")
+      if (item)
         buttons.push(
           action("선택", () => {
             c.select(id === "watering_can" ? "water" : id);
@@ -152,6 +169,11 @@ export function renderLifePanel(
           action(`먹기 +${item!.energy}`, () => c.send("eat", { itemId: id })),
         );
       if (item?.placement) buttons.push(action("설치", () => c.place(id)));
+      const slots=bar.slots.filter(s=>s.itemId===id).map(s=>s.slotId).sort((a,b)=>a-b);
+      const favorite=bar.favorites.includes(id);
+      buttons.push(action(slots.length?"슬롯 변경":"단축슬롯 등록",()=>c.quickslot(id)));
+      for(const slotId of slots)buttons.push(action(`${slotId}번 등록 제거`,()=>c.editQuickbar({action:"clear",slotId})));
+      buttons.push(action(favorite?"★ 즐겨찾기 제거":"☆ 즐겨찾기 등록",()=>c.editQuickbar({action:favorite?"favorite-remove":"favorite-add",itemId:id})));
       const el = card(
         body,
         `${itemName(id)} ×${count}`,
@@ -161,6 +183,8 @@ export function renderLifePanel(
         icons[item?.kind ?? ""] ?? "•",
       );
       const path = itemIconSource(id);
+      el.dataset.scrollKey=`bag-${id}`;
+      el.append(element("p",`등록된 슬롯: ${slots.length?slots.map(n=>`${n}번`).join(", "):"없음"}${favorite?` · ★ ${bar.favorites.indexOf(id)+1}번째`:""}`,"slot-registration"));
       if (path && item?.kind !== "crop") {
         const img = element("img");
         img.src = path;
@@ -526,6 +550,7 @@ export function renderLifePanel(
     return true;
   }
   if (type === "settings") {
+    body.append(element("h3","조작 커스터마이징"),favoriteModeControls());
     card(
       body,
       "소리와 화면",

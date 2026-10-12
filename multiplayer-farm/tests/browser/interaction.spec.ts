@@ -134,7 +134,7 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
   await page.screenshot({path:info.outputPath("watering-from-spout.png")});
   await page.setViewportSize({width:390,height:844});
   await expect(page.locator('[data-tool="scythe"]')).toBeVisible();
-  await expect(page.locator("#quickslots button")).toHaveCount(7);
+  await expect(page.locator("#quickslots button[data-slot-id]")).toHaveCount(7);
   expect(await page.locator("#toolbar").evaluate(e=>e.scrollWidth<=e.clientWidth)).toBe(true);
   await page.screenshot({path:info.outputPath("phone-scythe.png")});
   expect(errors).toEqual([]);

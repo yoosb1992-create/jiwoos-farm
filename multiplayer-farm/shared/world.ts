@@ -1,4 +1,5 @@
 import type { CarriedChest, TransportFx } from "./transport.js";
+import { defaultQuickbar, ensureQuickbar, type Quickbar, type QuickbarEdit } from "./quickbar.js";
 import { activateHomeFurniture } from "./home-furniture.js";
 import { DEBRIS, DEBRIS_FIRST, DEBRIS_MAX, FARM_GRASS, GRASS_FIRST, GRASS_MAX, NATURAL_TREE_FIRST, TREE_SPECIES, treeHp } from "./nature.js";
 import { initializeTree, naturalPlacement, fencedInterior, buildNaturePlacementIndex, recordNaturePlacement } from "./nature-world.js";
@@ -23,6 +24,7 @@ export const GAME_MINUTE_MS = 500;
 export const MAX_QUANTITY = 999;
 export type Facing = "up" | "down" | "left" | "right";
 export interface Member {
+  quickbar?: Quickbar;
   id: string;
   nickname: string;
   inventory: Record<string, number>;
@@ -115,6 +117,7 @@ export interface Actor {
   stamina: number;
 }
 export interface Command {
+  quickbarEdit?: QuickbarEdit;
   actionId: string;
   type: string;
   toolId?: Tool;
@@ -174,6 +177,7 @@ export const entity = (
 });
 export function newMember(id: string, nickname: string, day = 1): Member {
   return {
+    quickbar: defaultQuickbar(),
     id,
     nickname,
     inventory: {
@@ -545,6 +549,7 @@ export function upgradeWorld(w: World): void {
   if (w.version > WORLD_VERSION)
     throw new Error("This farm needs a newer server");
   for (const m of Object.values(w.members)) {
+    ensureQuickbar(m);
     migrateToolLevels(m);
     if (m.carried) for (const e of m.carried.entities) {
       // Carried entities are the sole physical copy. Their ledgers/group keys

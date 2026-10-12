@@ -4,6 +4,9 @@ import {
   nearbyObjects,
   hasZone,
   elevationPass,
+  terrainAt,
+  waterTerrain,
+  inRect,
 } from "./world2.js";
 import {
   MAX_MOVEMENT_SUBSTEP,
@@ -368,7 +371,18 @@ export function isFarmable(
   maps?: Record<string, MapData>,
 ): boolean {
   const m = mapFor(area, maps);
-  return m.world2
-    ? hasZone(m, "farmable", x, y) && !blockedTile(m, x, y)
-    : m.farmAreas.some((r) => tileIn(r, x, y));
+  if (!Number.isInteger(x) || !Number.isInteger(y) || blockedTile(m, x, y)) return false;
+  const terrain = terrainAt(m, x, y);
+  if (waterTerrain(terrain) || ["cliff", "hill", "stairs", "ramp"].includes(terrain)) return false;
+  // Building/no-placement zones describe furniture, not the soil underneath.
+  // Evaluate saved maps at runtime; never repaint or reset an existing farm.
+  const permitted = area === "farm"
+    ? ["grass", "dark_grass", "soil", "tilled_soil", "sand", "snow"].includes(terrain)
+    : m.world2 ? hasZone(m, "farmable", x, y) : m.farmAreas.some(r => tileIn(r, x, y));
+  if (!permitted) return false;
+  if (m.warps.some(w => inRect({startX:w.area.startX-1,endX:w.area.endX+1,startY:w.area.startY-1,endY:w.area.endY+1},x,y)) ||
+      m.spawns.some(s => Math.abs(Math.floor(s.tileX)-x)+Math.abs(Math.floor(s.tileY)-y)<=1)) return false;
+  // Live fixtures/nature are checked by the action. An empty live index avoids
+  // reserving the original position of a chest which has since been moved.
+  return !collidesWithObstacle((x+.5)*TILE, (y+.5)*TILE, area, maps, []);
 }

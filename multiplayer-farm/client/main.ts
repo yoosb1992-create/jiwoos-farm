@@ -1,3 +1,5 @@
+import { QuickbarUI } from "./quickbar-ui.js";
+import { ownedItem } from "../shared/quickbar.js";
 import { placementHints, type PlacementHint } from "./placement-preview.js";
 import type { UpgradeTool } from "../shared/tool-levels.js";
 import { renderHouseholdPanel, type ChestSettingsDraft } from "./household-panels.js";
@@ -133,6 +135,20 @@ const send = (type: string, extra: Partial<Command> = {}) => {
     actionKinds.delete(actionKinds.keys().next().value!);
   network.action({ actionId, type, ...extra });
 };
+const quickbar = new QuickbarUI({
+  member: () => network.personal?.member,
+  selected: () => selected,
+  select: id => selectTool(id),
+  edit: edit => send("updateQuickbar", {quickbarEdit:edit}),
+  open: showPanel, close: () => closePanel(),
+  pause: () => { input.reset(); actionHeld=false; touchNavigation.cancel(); },
+});
+function startPlacement(id: string): void {
+  if (!ITEMS[id]?.placement || !ownedItem(network.personal?.member,id)) return;
+  if (network.personal?.member.carried) { notice("들고 있는 보관함을 먼저 내려놓아 주세요"); return; }
+  closePanel(); touchNavigation.cancel(); actionHeld=false; input.reset();
+  placementItem=id; candidateHints=[]; notice("상하좌우의 초록색 칸을 눌러 설치하세요");
+}
 function closePanel(cancelFishing = true): void {
   if (modal === "fishing" && fishing && cancelFishing) send("cancelFishing");
   fishingUI?.dispose();
@@ -153,6 +169,7 @@ panel.addEventListener(
   opts,
 );
 function showPanel(type: string, title: string, targetId?: string): void {
+  quickbar.closeFavorites();
   const samePanel = modal === type;
   if (!samePanel || targetId !== panelTarget) chestDraft = undefined;
   panelTarget = targetId;
@@ -262,6 +279,7 @@ function renderPanelContent(): void {
       renderPanel();
     }, send, close: () => closePanel(),
   })) return;
+  if (quickbar.renderPanel(modal,panelBody)) return;
   if (
     renderLifePanel(modal, panelBody, {
       member: m,
@@ -277,11 +295,10 @@ function renderPanelContent(): void {
       audio,
       send,
       select: selectTool,
-      place: id => {
-        if (!ITEMS[id]?.placement || network.personal?.member.carried) { notice("들고 있는 보관함을 먼저 내려놓아 주세요"); return; }
-        closePanel(); touchNavigation.cancel(); actionHeld = false; input.reset();
-        placementItem = id; candidateHints = []; notice("상하좌우의 초록색 칸을 눌러 설치하세요");
-      },
+      place: startPlacement,
+      quickslot: id => quickbar.openSlots(id),
+      quickManager: () => quickbar.openManager(),
+      editQuickbar: edit => send("updateQuickbar", {quickbarEdit:edit}),
       close: () => closePanel(),
       open: showPanel,
       page: (n) => {
@@ -453,17 +470,13 @@ function renderPanelContent(): void {
   }
 }
 function selectTool(id: string): void {
+  if(!ownedItem(network.personal?.member,id)) {notice("가방에 없는 아이템이에요");id="hand";}
+
   if(selected!==id)bufferedToolAction=undefined;
   selected = id;
   el<HTMLSelectElement>("tool").value = id;
   updateSelectedToolIcon();
-  for (const b of el("quickslots").querySelectorAll<HTMLButtonElement>(
-    "button",
-  ))
-    {
-      b.classList.toggle("selected", b.dataset.tool === id);
-      b.setAttribute("aria-pressed", String(b.dataset.tool === id));
-    }
+  quickbar.refresh();
 }
 function updateSelectedToolIcon(): void {
   let preview = document.getElementById("selected-tool-icon");
@@ -486,68 +499,18 @@ function updateSelectedToolIcon(): void {
   el("tool-picker").title = `${name} · 도구와 씨앗 선택`;
 }
 function refreshTools(): void {
-  const choices: Array<[string, string]> = [
-    ["hand", "손 · 줍기/상호작용"],
-    ["hoe", "괭이"],
-    ["water", "물뿌리개"],
-    ["axe", "도끼"],
-    ["pickaxe", "곡괭이"],
-    ["scythe", "낫"],
-    ["fishing_rod", "낚싯대"],
-  ];
-  const inventory = network.personal?.member.inventory ?? {};
-  for (const c of Object.values(CROPS))
-    if (inventory[c.seedItemId])
-      choices.push([
-        c.seedItemId,
-        `${c.name} 씨앗 ×${inventory[c.seedItemId]}`,
-      ]);
-  for(const t of TREE_SPECIES) if(inventory[t.seed]) choices.push([t.seed, `${t.seedName} ×${inventory[t.seed]}`]);
-  const select = el<HTMLSelectElement>("tool");
+  const member=network.personal?.member;
+  const inventory=member?.inventory??{};
+  const choices:Array<[string,string]>=[["hand","손 · 줍기/상호작용"]];
+  for(const [id,count] of Object.entries(inventory)) if(count>0 && ITEMS[id])
+    choices.push([id,`${itemName(id)}${ITEMS[id]?.kind==="tool"?"":` ×${count}`}`]);
+  const select=el<HTMLSelectElement>("tool");
   select.replaceChildren();
-  for (const [id, text] of choices) {
-    const option = document.createElement("option");
-    option.value = id;
-    option.textContent = text;
-    select.append(option);
-  }
-  if (!choices.some(([id]) => id === selected)) selected = "hand";
-  select.value = selected;
+  for(const [id,text] of choices) {const option=document.createElement("option");option.value=id;option.textContent=text;select.append(option);}
+  if(!ownedItem(member,selected)) { selected="hand";bufferedToolAction=undefined;actionHeld=false; }
+  select.value=selected;
   updateSelectedToolIcon();
-  const slots = el("quickslots");
-  slots.replaceChildren();
-  for (const [id, label] of [
-    ["hand", "手"],
-    ["hoe", "耕"],
-    ["water", "水"],
-    ["axe", "斧"],
-    ["pickaxe", "石"],
-    ["scythe", "낫"],
-    ["fishing_rod", "魚"],
-  ]) {
-    const b = button(
-      (
-        {
-          hand: "손",
-          hoe: "괭이",
-          water: "물",
-          axe: "도끼",
-          pickaxe: "곡괭이",
-          scythe: "낫",
-          fishing_rod: "낚시",
-        } as Record<string, string>
-      )[id!] ?? label!,
-      () => selectTool(id!),
-    );
-    b.dataset.tool = id;
-    b.setAttribute("aria-label", `${b.textContent} 빠른 선택`);
-    b.title = b.textContent ?? "";
-    const icon = toolIconImage(id!);
-    b.replaceChildren(...(icon ? [icon] : []));
-    b.classList.toggle("selected", id === selected);
-    b.setAttribute("aria-pressed", String(id === selected));
-    slots.append(b);
-  }
+  quickbar.refresh();
 }
 
 function act(): void {
@@ -562,6 +525,13 @@ function act(): void {
   }
   const me = latest.players.find((p) => p.local);
   if (!me || modal) return;
+  if (!ownedItem(network.personal?.member,selected)) {selectTool("hand");return;}
+  if (ITEMS[selected]?.placement) {startPlacement(selected);return;}
+  if (selected!=="hand" && !isTool(selected) && selected!=="fishing_rod" && !plantingTree(selected) && ITEMS[selected]?.kind!=="seed") {
+    if ((ITEMS[selected]?.energy??0)>0) send("eat",{itemId:selected});
+    else notice("이 아이템은 제작대나 해당 시설에서 사용할 수 있어요");
+    return;
+  }
   if (placementItem || me.carrying) return notice(placementItem ? "초록색 설치 칸을 선택하거나 취소하세요" : "내려놓기 버튼으로 보관함을 내려놓아 주세요");
   const tile = frontTile({
     x: me.authoritativeX,
@@ -928,6 +898,9 @@ window.addEventListener(
       )
     )
       return;
+    if (!panel.open && !controls.editing && /^[1-7]$/.test(e.key)) {
+      el("quickslots").querySelector<HTMLButtonElement>(`button[data-slot-id="${e.key}"]`)?.click();return;
+    }
     if (e.code === "Space") {
       e.preventDefault();
       if (!actionHeld) {

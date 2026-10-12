@@ -40,6 +40,7 @@ import { rockMaxHp } from "../shared/resources.js";
 import { getSunState, seedGlowVisibility, type SunState } from "../shared/sunlight.js";
 import { atmosphereLight, groundShadow, lightEnvironment, objectSunTint, receivesSunlight } from "./solar-lighting.js";
 import { chestTextureKey } from "./chest-art.js";
+import { TilledGroundIndex, paintTilledGround } from "./tilled-ground.js";
 interface View {
   kind?: string;
   body: Phaser.GameObjects.Sprite;
@@ -53,6 +54,15 @@ interface View {
   y: number;
 }
 export class FarmScene extends Phaser.Scene {
+  private tilledGround = new TilledGroundIndex();
+  private soilTexture(mask: number): string {
+    const key = `connected-soil-${mask}`;
+    if (!this.textures.exists(key)) {
+      const texture = this.textures.createCanvas(key,32,32)!;
+      paintTilledGround(texture.context,mask); texture.refresh();
+    }
+    return key;
+  }
   private placementMarks?: Phaser.GameObjects.Graphics;
   private placementLabels: Phaser.GameObjects.Text[] = [];
   setPlacementHints(hints: PlacementHint[]): void {
@@ -458,6 +468,7 @@ export class FarmScene extends Phaser.Scene {
         this.players.delete(id);
       }
     this.furniture?.prune(present);
+    this.tilledGround.sync(state.entities, state.revision);
     const ids = new Set<string>();
     state.entities.forEach((e, id) => {
       if (e.area !== me.area || this.furniture?.hiddenFloor(id, now)) return;
@@ -485,7 +496,7 @@ export class FarmScene extends Phaser.Scene {
       } else if (e.kind === "drop") {
         asset = `drop-icon-${e.item}`;
         label = `×${e.quantity}`;
-      } else if (e.kind === "soil") asset = "tile_farm_empty";
+      } else if (e.kind === "soil") asset = this.soilTexture(this.tilledGround.mask(e));
       else if (e.kind === "tree" || e.kind === "rock" || e.kind === "stump")
         label = Math.hypot(e.x - me.x, e.y - me.y) < 80 ? `${e.hp}타` : "";
       else if (e.kind === "chest") {
@@ -547,14 +558,14 @@ export class FarmScene extends Phaser.Scene {
       if (needsTilledGround) {
         if (!v.ground) {
           v.ground = this.add
-            .sprite(e.x, e.y, this.textured("tile_farm_empty"))
+            .sprite(e.x, e.y, this.soilTexture(this.tilledGround.mask(e)))
             .setOrigin(0.5)
             .setDepth(e.y - 110);
-          this.sizeObject(v.ground, "tile_farm_empty");
+          v.ground.setDisplaySize(TILE,TILE);
         }
         v.ground
           .setPosition(e.x, e.y)
-          .setTexture(this.textured("tile_farm_empty"))
+          .setTexture(this.soilTexture(this.tilledGround.mask(e)))
           .setDepth(e.y - 110)
           .setTint(this.feedback?.watered(id,e.watered,now) ? 0xa07a62 : 0xffffff);
       } else if (v.ground) {
@@ -569,7 +580,7 @@ export class FarmScene extends Phaser.Scene {
       if (forage && (e.kind === "gather" || e.kind === "drop"))
         v.body.setTint(forage.color);
       if (e.kind === "soil")
-        v.body.setOrigin(0.5).setTint(this.feedback?.watered(id,e.watered,now) ? 0xa07a62 : 0xffffff);
+        v.body.setDisplaySize(TILE,TILE).setOrigin(0.5).setTint(this.feedback?.watered(id,e.watered,now) ? 0xa07a62 : 0xffffff);
       if (e.kind === "crop")
         // Water is shown on the tilled soil beneath the plant, not by tinting the crop.
         v.body.setOrigin(0.5, 0.8).setTint(0xffffff);

@@ -1,5 +1,5 @@
 import { ITEMS, mapFor, TILE } from "./content.js";
-import { collidesWithObstacle, isFarmable } from "./applyMovement.js";
+import { collidesWithObstacle } from "./applyMovement.js";
 import { blockedTile, inRect, placementAllowed, terrainAt, waterTerrain } from "./world2.js";
 import { adjacentChestIds, mergeChestGroup } from "./chest-groups.js";
 import { migrateChestStorage } from "./chest-storage.js";
@@ -50,7 +50,8 @@ export function planPlacement(w: World, a: Actor, itemId: string, tileX: number,
       return fail("문과 출입구 주변은 비워 주세요");
     if (!portableChest && !placementAllowed(map, definition.kind === "decoration" ? "decoration" : "building", x, y))
       return fail("이곳은 설치할 수 없는 땅이에요");
-    if (definition.kind === "decoration" && isFarmable(a.area, x, y, w.layout?.maps)) return fail("밭을 피해 장식을 놓아 주세요");
+    // Cultivable ground can still accept decoration. Existing soil/crops are
+    // occupied entities and are rejected below, independently of building zones.
     if (collidesWithObstacle(p.x, p.y, a.area, w.layout?.maps, live) ||
         live.some(e => e.area === a.area && Math.abs(e.x - p.x) < 26 && Math.abs(e.y - p.y) < 26) ||
         [a, ...players].some(other => other.area === a.area && Math.abs(other.x - p.x) < 26 && Math.abs(other.y - p.y) < 26))
