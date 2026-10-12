@@ -1,4 +1,7 @@
 import { renderHouseholdPanel } from "./household-panels.js";
+import { recipesInCategory, type CraftCategory } from "./craft-categories.js";
+import { toolIconImage } from "./item-icons.js";
+import { updatePanelContent } from "./panel-view.js";
 import { TREE_SPECIES, plantingTree } from "../shared/nature.js";
 import { inRect } from "../shared/world2.js";
 import { worldNpcSchedule } from "../shared/world2-runtime.js";
@@ -69,6 +72,8 @@ let fishingOffset = 0,
   dialoguePage = 0;
 let lastStep = 0;
 let selectedRecipe = "wood_plank", householdFeedback = "", householdPending: string | undefined;
+let selectedCraftCategory: CraftCategory = "all";
+const categorySelections: Partial<Record<CraftCategory, string>> = {};
 let householdReadyAt = 0, observedDay = 0, sleepPanelDay = 1;
 const householdActions = new Set(["depositChest", "withdrawChest", "craftItem", "upgradeTool", "sleepVote"]);
 
@@ -139,6 +144,7 @@ panel.addEventListener(
   opts,
 );
 function showPanel(type: string, title: string, targetId?: string): void {
+  const samePanel = modal === type;
   panelTarget = targetId;
   householdFeedback = "";
   sleepPanelDay = network.state?.day ?? 1;
@@ -150,6 +156,7 @@ function showPanel(type: string, title: string, targetId?: string): void {
   actionHeld = false;
   el("panel-title").textContent = title;
   renderPanel();
+  if (!samePanel) { panel.scrollTop = 0; panelBody.scrollTop = 0; }
   if (!panel.open) panel.showModal();
 }
 function button(text: string, onClick: () => void): HTMLButtonElement {
@@ -197,13 +204,7 @@ function nearest(kind?: string): Entity | undefined {
     )[0];
 }
 function renderPanel(): void {
-  const scroll = panel.scrollTop;
-  const scrolls = new Map([...panelBody.querySelectorAll<HTMLElement>("[data-scroll]")].map(e => [e.dataset.scroll, e.scrollTop]));
-  const focus = (document.activeElement as HTMLElement | null)?.dataset.focus;
-  renderPanelContent();
-  if (focus) [...panelBody.querySelectorAll<HTMLElement>("[data-focus]")].find(e => e.dataset.focus === focus)?.focus({ preventScroll: true });
-  for (const e of panelBody.querySelectorAll<HTMLElement>("[data-scroll]")) e.scrollTop = scrolls.get(e.dataset.scroll) ?? 0;
-  panel.scrollTop = scroll;
+  updatePanelContent(panel, panelBody, renderPanelContent);
 }
 function renderPanelContent(): void {
   fishingUI?.dispose();
@@ -216,10 +217,24 @@ function renderPanelContent(): void {
   if (renderHouseholdPanel(modal, panelBody, {
     member: m, chest: personal?.chest ?? {}, day: sleepPanelDay, minute: state?.minute ?? 360,
     entities: [...(state?.entities.values() ?? [])], players: latest.players, targetId: panelTarget,
-    recipe: selectedRecipe, busy: !!householdPending || performance.now() < householdReadyAt,
+    recipe: selectedRecipe, category: selectedCraftCategory,
+    busy: !!householdPending || performance.now() < householdReadyAt,
     connected: latest.status === "connected", feedback: householdFeedback,
     sleepVoted: personal?.sleepVoted ?? false, votes: state?.votes ?? 0,
-    selectRecipe: id => { selectedRecipe = id; renderPanel(); }, send, close: () => closePanel(),
+    selectRecipe: id => {
+      selectedRecipe = id;
+      categorySelections[selectedCraftCategory] = id;
+      renderPanel();
+    },
+    selectCategory: category => {
+      categorySelections[selectedCraftCategory] = selectedRecipe;
+      const recipes = recipesInCategory(category);
+      const remembered = categorySelections[category];
+      selectedRecipe = recipes.find(r => r.id === remembered)?.id
+        ?? recipes.find(r => r.id === selectedRecipe)?.id ?? recipes[0]!.id;
+      selectedCraftCategory = category;
+      renderPanel();
+    }, send, close: () => closePanel(),
   })) return;
   if (
     renderLifePanel(modal, panelBody, {
@@ -409,10 +424,23 @@ function selectTool(id: string): void {
   if(selected!==id)bufferedToolAction=undefined;
   selected = id;
   el<HTMLSelectElement>("tool").value = id;
+  updateSelectedToolIcon();
   for (const b of el("quickslots").querySelectorAll<HTMLButtonElement>(
     "button",
   ))
     b.classList.toggle("selected", b.dataset.tool === id);
+}
+function updateSelectedToolIcon(): void {
+  let preview = document.getElementById("selected-tool-icon");
+  if (!preview) {
+    preview = document.createElement("span");
+    preview.id = "selected-tool-icon";
+    preview.setAttribute("aria-hidden", "true");
+    el("toolbar").insertBefore(preview, el("tool"));
+  }
+  const icon = toolIconImage(selected);
+  preview.replaceChildren(...(icon ? [icon] : []));
+  preview.hidden = !icon;
 }
 function refreshTools(): void {
   const choices: Array<[string, string]> = [
@@ -442,6 +470,7 @@ function refreshTools(): void {
   }
   if (!choices.some(([id]) => id === selected)) selected = "hand";
   select.value = selected;
+  updateSelectedToolIcon();
   const slots = el("quickslots");
   slots.replaceChildren();
   for (const [id, label] of [
@@ -469,6 +498,12 @@ function refreshTools(): void {
     );
     b.dataset.tool = id;
     b.setAttribute("aria-label", `${b.textContent} 빠른 선택`);
+    const icon = toolIconImage(id!);
+    if (icon) {
+      const label = document.createElement("span");
+      label.textContent = b.textContent;
+      b.replaceChildren(icon, label);
+    }
     b.classList.toggle("selected", id === selected);
     slots.append(b);
   }

@@ -1,4 +1,5 @@
 import { CLIENT_MAPS as MAPS } from "./layout.js";
+import { itemIconSource } from "./item-icons.js";
 import {
   ASSETS,
   ITEMS,
@@ -171,13 +172,16 @@ export function renderLifePanel(
         buttons,
         icons[item?.kind ?? ""] ?? "•",
       );
-      const path = ASSETS[item?.assetId ?? ""]?.source?.path;
-      if (path && !["tool", "crop"].includes(item?.kind ?? "")) {
+      const path = itemIconSource(id);
+      if (path && item?.kind !== "crop") {
         const img = element("img");
         img.src = path;
         img.alt = "";
-        img.className = "item-art";
+        img.className = item?.kind === "tool" ? "item-art tool-icon" : "item-art";
         img.loading = "lazy";
+        const badge = el.querySelector<HTMLElement>(".card-badge");
+        if (badge) badge.hidden = true;
+        img.onerror = () => { img.remove(); if (badge) badge.hidden = false; };
         el.prepend(img);
       }
     }

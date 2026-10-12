@@ -1,4 +1,6 @@
-import { ASSETS, ITEMS, RECIPES, itemName } from "../shared/content.js";
+import { ITEMS, itemName } from "../shared/content.js";
+import { recipesInCategory, visibleCraftCategories, type CraftCategory } from "./craft-categories.js";
+import { itemIconSource, toolIconImage } from "./item-icons.js";
 import { canCraft, maxCrafts, transferQuantity } from "../shared/household.js";
 import type { Command, Entity, Member } from "../shared/world.js";
 import type { RenderPlayer } from "./network.js";
@@ -12,12 +14,14 @@ export interface HouseholdContext {
   players: RenderPlayer[];
   targetId?: string;
   recipe: string;
+  category: CraftCategory;
   busy: boolean;
   connected: boolean;
   feedback: string;
   sleepVoted: boolean;
   votes: number;
   selectRecipe(id: string): void;
+  selectCategory(id: CraftCategory): void;
   send(type: string, extra?: Partial<Command>): void;
   close(): void;
 }
@@ -38,10 +42,11 @@ function button(label: string, key: string, run: () => void, disabled = false): 
 function icon(id: string): HTMLElement {
   const box = el("span", "", "household-icon");
   box.setAttribute("aria-hidden", "true");
-  const asset = ASSETS[ITEMS[id]?.assetId ?? id];
-  if (asset?.source?.kind === "image") {
+  const source = itemIconSource(id);
+  if (source) {
     const img = el("img");
-    img.src = asset.source.path;
+    img.src = source;
+    if (ITEMS[id]?.kind === "tool") img.className = "tool-icon";
     img.alt = "";
     img.loading = "lazy";
     img.onerror = () => box.replaceChildren(el("span", "✦"));
@@ -77,6 +82,7 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
       for (const [id, count] of entries) {
         const card = el("article", "", "storage-item");
         card.dataset.item = id;
+        card.dataset.scrollKey = `${into ? "bag" : "chest"}-${id}`;
         const heading = el("div", "", "household-item-heading");
         heading.append(icon(id), el("strong", itemName(id)), el("span", `×${count.toLocaleString()}`, "item-count"));
         const actions = el("div", "", "quantity-actions");
@@ -98,10 +104,23 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
   }
   if (type === "craft" && m) {
     body.append(el("p", "가방의 재료로 바로 만들어요. 제작 횟수만큼 재료가 사용됩니다.", "household-note"));
+    const categories = el("nav", "", "craft-categories");
+    categories.setAttribute("aria-label", "제작 카테고리");
+    categories.dataset.scroll = "categories";
+    for (const category of visibleCraftCategories) {
+      const tab = button(category.name, `category-${category.id}`, () => c.selectCategory(category.id));
+      tab.dataset.category = category.id;
+      tab.setAttribute("aria-pressed", String(c.category === category.id));
+      tab.classList.toggle("selected", c.category === category.id);
+      tab.append(el("span", String(recipesInCategory(category.id).length), "category-count"));
+      categories.append(tab);
+    }
+    body.append(categories);
+    const recipes = recipesInCategory(c.category);
     const workshop = el("div", "", "workshop-layout"), list = el("nav", "", "recipe-list");
     list.setAttribute("aria-label", "제작법");
     list.dataset.scroll = "recipes";
-    for (const recipe of Object.values(RECIPES)) {
+    for (const recipe of recipes) {
       const max = maxCrafts(m.inventory, recipe);
       const b = button("", `recipe-${recipe.id}`, () => c.selectRecipe(recipe.id));
       b.className = `recipe-choice${c.recipe === recipe.id ? " selected" : ""}`;
@@ -109,7 +128,7 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
       b.append(icon(recipe.output.itemId), el("strong", recipe.name), el("span", max ? `제작 가능 · ${max}회` : "재료·공간 부족", max ? "available" : "unavailable"));
       list.append(b);
     }
-    const recipe = RECIPES[c.recipe] ?? Object.values(RECIPES)[0]!;
+    const recipe = recipes.find(r => r.id === c.recipe) ?? recipes[0]!;
     const detail = el("section", "", "recipe-detail");
     detail.setAttribute("aria-label", "선택한 제작법");
     const heading = el("div", "", "household-item-heading");
@@ -136,6 +155,13 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
     const upgrade = el("section", "", "upgrade-tools");
     upgrade.setAttribute("aria-label", "도구 강화");
     upgrade.append(el("h3", `도구 강화 · 현재 Lv${m.toolLevel}`));
+    const upgradeIcons = el("div", "", "upgrade-icons");
+    upgradeIcons.setAttribute("aria-hidden", "true");
+    for (const id of ["axe", "pickaxe"]) {
+      const image = toolIconImage(id);
+      if (image) upgradeIcons.append(image);
+    }
+    upgrade.append(upgradeIcons);
     if (m.toolLevel >= 2) upgrade.append(el("p", "✓ 최고 단계 강화 완료", "available"));
     else {
       for (const id of ["copper_ore", "wood"]) upgrade.append(el("p", `${itemName(id)} · ${m.inventory[id] ?? 0} / 5`, (m.inventory[id] ?? 0) >= 5 ? "available" : "unavailable"));
