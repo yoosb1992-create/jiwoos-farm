@@ -114,10 +114,13 @@ test("over-capacity merging preserves all sources, empty splitting never copies 
 test("bag placement snaps to an authored chest, consumes one item, and connects a physical three-tile chest", () => {
   const { w, m, actor, act } = fixture(1);
   const farm = w.layout!.maps.farm!; farm.objects = []; farm.collisionRegions = []; delete farm.world2;
+  w.chestStores = { "chest:c0": { wood: 5 } }; w.chest = { stone: 11 };
   m.inventory.storage_chest = 3;
   Object.assign(actor, { x: 352, y: 368 });
   act("placeChest");
   assert.equal(chestInfo(w, "c0").size, 2);
+  assert.deepEqual(chestInventory(w, "c0"), { wood: 5, stone: 11 });
+  assert.deepEqual(w.chest, {});
   Object.assign(actor, { x: 384, y: 368 }); act("placeChest");
   assert.equal(chestInfo(w, "c0").size, 3);
   Object.assign(actor, { x: 416, y: 368 }); const result = act("placeChest");

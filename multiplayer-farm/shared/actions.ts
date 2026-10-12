@@ -46,7 +46,7 @@ import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
 import { isTool, cuttableGrass, pickupRadius, PICKUP_RANGE_EPSILON, type Tool, type ActionFx } from "./interaction.js";
 import { naturalFlower, normalizeRock, rockMaxHp } from "./resources.js";
-import { chestInfo, chestInventory, validChestColor, validChestName } from "./chest-storage.js";
+import { chestInfo, chestInventory, migrateChestStorage, validChestColor, validChestName } from "./chest-storage.js";
 import { adjacentChestIds, mergeChestGroup, splitChestGroup } from "./chest-groups.js";
 import { toolStaminaCost, HAND_STAMINA_COST, FISHING_CAST_STAMINA_COST } from "./tool-stamina.js";
 export class ActionError extends Error {}
@@ -666,6 +666,9 @@ function applyActionCore(
       change(m.inventory, "storage_chest", -1);
       const id = `chest-${++w.nextEntity}`;
       w.entities[id] = entity(id, a.area, "chest", p.x, p.y, "storage_chest");
+      // A legacy snapshot may have retained stock because every previous chest
+      // was missing or occupied. Give that stock a home before joining stores.
+      migrateChestStorage(w);
       const neighbors = adjacentChestIds(w, id);
       const error = neighbors.length > 1 ? mergeChestGroup(w, neighbors, neighbors.find(other => other !== id)) : undefined;
       result.message = error ? `작은 보관함을 놓았어요. ${error}` : neighbors.length > 1 ? "보관함을 놓고 옆 보관함과 연결했어요" : "작은 보관함을 놓았어요";
