@@ -40,6 +40,10 @@ test("mobile quickbar registration, favorites, persistence, silhouettes and conn
   await expect(page.locator("#favorite-popup")).toBeHidden();await expect(page.locator("#tool")).toHaveValue("axe");
   await page.locator("#menu").click();await page.getByRole("button",{name:"⚙ 소리·화면 설정"}).click();
   await page.getByRole("button",{name:"세로형",exact:true}).click();await page.locator("#panel-close").click();
+  // Settings and the already-mounted layout editor must show the same choice.
+  await page.locator("#menu").click();await page.getByRole("button",{name:"조작 배치 편집",exact:true}).click();
+  await expect(page.locator("#control-editor").getByRole("button",{name:"세로형",exact:true})).toHaveAttribute("aria-pressed","true");
+  await page.locator("#controls-cancel").click();
   await page.locator("#favorite-toggle").click();await expect(page.locator("#favorite-popup")).toHaveAttribute("data-mode","vertical");
   const overlap=await page.evaluate(()=>{
     const popup=document.getElementById("favorite-popup")!.getBoundingClientRect();
@@ -66,14 +70,21 @@ test("mobile quickbar registration, favorites, persistence, silhouettes and conn
     return results;
   });expect(new Set(iconCheck.map(i=>i.src)).size).toBe(4);expect(iconCheck.every(i=>i.transparent&&i.painted)).toBe(true);
   // One paused scene checks the real crop underlay and wet/dry tint together.
-  const ground=await page.evaluate(()=>{
-    const scene=(window.__FARM_DEBUG__ as any).scene(),original=scene.onFrame,frame=original(performance.now(),16);
-    const me=frame.snapshot.players.find((p:any)=>p.local);scene.scene.pause();
+  // Capture published data atomically; calling onFrame here advances networking
+  // and can observe an empty state during a software-renderer backlog reconnect.
+  const published=await page.waitForFunction(()=>{
+    const debug=window.__FARM_DEBUG__,snapshot=debug.snapshot(),state=debug.state();
+    return state&&snapshot.status==="connected"&&snapshot.players.some(p=>p.local)?{snapshot,state}:false;
+  });
+  const ground=await page.evaluate(frame=>{
+    if(!frame||typeof frame!=="object")throw Error("Missing connected renderer fixture");
+    const scene=(window.__FARM_DEBUG__ as any).scene();
+    const me=frame.snapshot.players.find(p=>p.local)!;scene.scene.pause();
     const entities=new Map();
     for(let i=0;i<3;i++)entities.set(`qa-${i}`,{id:`qa-${i}`,area:me.area,kind:i===1?"crop":i===2?"withered":"soil",asset:"tile_farm_empty",crop:"sproutberry",stage:0,watered:i===1,x:me.x+i*32,y:me.y+64,hp:0,item:"",quantity:0});
-    scene.onFrame=()=>({snapshot:frame.snapshot,state:{...frame.state.toJSON(),entities}});scene.update(1000,16);
+    scene.onFrame=()=>({snapshot:frame.snapshot,state:{...frame.state,entities}});scene.update(1000,16);
     return [...entities.keys()].map(id=>{const v=scene.objects.get(id),g=v.ground??v.body;return {texture:g.texture.key,tint:g.tintTopLeft};});
-  });expect(ground.map(g=>g.texture)).toEqual(["connected-soil-2","connected-soil-10","connected-soil-8"]);expect(ground[0]!.tint).not.toBe(ground[1]!.tint);
+  },await published.jsonValue());expect(ground.map(g=>g.texture)).toEqual(["connected-soil-2","connected-soil-10","connected-soil-8"]);expect(ground[0]!.tint).not.toBe(ground[1]!.tint);
   // 24px contact sheet uses the exact in-game sources, plus a magnified view.
   await page.evaluate(async()=>{
     const {toolIconSource}=await import("/client/item-icons.ts" as string),{paintTilledGround}=await import("/client/tilled-ground.ts" as string);

@@ -23,9 +23,11 @@ export function favoriteModeControls(): HTMLElement {
   for(const [mode,label] of [["expanded","펼쳐보기"],["vertical","세로형"]]) {
     const b=button(label!,()=>{
       localStorage.setItem("farm-favorite-mode",mode!);
-      for(const other of wrap.querySelectorAll("button"))other.setAttribute("aria-pressed",String(other===b));
+      for(const other of document.querySelectorAll<HTMLElement>(".favorite-mode-control button"))
+        other.setAttribute("aria-pressed",String(other.dataset.favoriteMode===mode));
       window.dispatchEvent(new Event("favorite-mode-change"));
     });
+    b.dataset.favoriteMode=mode;
     b.setAttribute("aria-pressed",String(favoriteMode()===mode));wrap.append(b);
   }
   return wrap;
