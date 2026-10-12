@@ -33,11 +33,19 @@ async function goHome(page: Page): Promise<void> {
   await waitForFarmInput(page);
 }
 async function tapObject(page:Page,id:string):Promise<void>{
-  const point=await page.evaluate(id=>{
-    const e=window.__FARM_DEBUG__.state().entities[id] as unknown as {x:number;y:number};
-    return window.__FARM_DEBUG__.screenPoint(e.x,e.y);
-  },id);
-  await page.touchscreen.tap(point.x,point.y);
+  // A software-rendered screenshot can trigger the existing backlog reconnect.
+  // Wait for acknowledged input again before reading the live room's furniture.
+  await waitForFarmInput(page);
+  let point:{x:number;y:number}|undefined;
+  await expect.poll(async()=>{
+    point=await page.evaluate(id=>{
+      const debug=window.__FARM_DEBUG__;
+      const e=debug.state()?.entities[id] as unknown as {x:number;y:number}|undefined;
+      return debug.snapshot().status==="connected"&&e?debug.screenPoint(e.x,e.y):undefined;
+    },id);
+    return !!point;
+  },{timeout:25000}).toBe(true);
+  await page.touchscreen.tap(point!.x,point!.y);
 }
 for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`household flow ${viewport.width}: transfer, batch craft, upgrade and bedside morning`,async({page,browser},info)=>{
   test.setTimeout(180000);
@@ -85,7 +93,7 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`hou
   await expect(page.locator(".sleep-card")).toContainText("잠");
   await page.screenshot({path:info.outputPath(`bed-${viewport.width}.png`)});
   await page.getByRole("button",{name:"잠자기",exact:true}).click();
-  await expect.poll(()=>page.evaluate(()=>(window.__FARM_DEBUG__.state() as unknown as {day:number}).day)).toBe(2);
+  await expect.poll(()=>page.evaluate(()=>(window.__FARM_DEBUG__.state() as unknown as {day:number}|undefined)?.day)).toBe(2);
   await expect(page.locator("#panel")).not.toBeVisible();
   await page.keyboard.press("Space");
   await expect(page.locator("#panel")).toHaveAttribute("data-panel","sleep");
@@ -102,11 +110,11 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`hou
       await page.locator("#action").tap();
       await page.getByRole("button",{name:"잠자기에 동의",exact:true}).click();
       await expect(peer.locator("#sleep-status")).toContainText("1/2");
-      expect(await page.evaluate(()=>(window.__FARM_DEBUG__.state() as unknown as {day:number}).day)).toBe(2);
+      await expect.poll(()=>page.evaluate(()=>(window.__FARM_DEBUG__.state() as unknown as {day:number}|undefined)?.day)).toBe(2);
       await peer.locator("#sleep-status").tap();
       await expect(peer.locator(".sleep-card")).toContainText("1/2");
       await peer.getByRole("button",{name:"잠자기에 동의",exact:true}).click();
-      await expect.poll(()=>page.evaluate(()=>(window.__FARM_DEBUG__.state() as unknown as {day:number}).day)).toBe(3);
+      await expect.poll(()=>page.evaluate(()=>(window.__FARM_DEBUG__.state() as unknown as {day:number}|undefined)?.day)).toBe(3);
       await expect(peer.locator("#sleep-status")).toBeHidden();
     } finally {await context.close();}
   }
