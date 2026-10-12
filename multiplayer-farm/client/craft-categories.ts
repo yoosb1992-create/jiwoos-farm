@@ -6,6 +6,7 @@ export const CRAFT_CATEGORIES = [
   { id: "equipment", name: "도구 / 설비" },
   { id: "food", name: "음식 / 소모품" },
   { id: "other", name: "장식 / 기타" },
+  { id: "upgrade", name: "도구 강화" },
 ] as const;
 export type CraftCategory = typeof CRAFT_CATEGORIES[number]["id"];
 type Recipe = typeof RECIPES[string];
@@ -20,4 +21,4 @@ function categoryOf(recipe: Recipe): CraftCategory {
 export function recipesInCategory(category: CraftCategory): Recipe[] {
   return Object.values(RECIPES).filter(r => category === "all" || categoryOf(r) === category);
 }
-export const visibleCraftCategories = CRAFT_CATEGORIES.filter(c => recipesInCategory(c.id).length > 0);
+export const visibleCraftCategories = CRAFT_CATEGORIES.filter(c => c.id === "upgrade" || recipesInCategory(c.id).length > 0);

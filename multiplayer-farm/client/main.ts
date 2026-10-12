@@ -227,11 +227,14 @@ function renderPanelContent(): void {
       renderPanel();
     },
     selectCategory: category => {
-      categorySelections[selectedCraftCategory] = selectedRecipe;
-      const recipes = recipesInCategory(category);
-      const remembered = categorySelections[category];
-      selectedRecipe = recipes.find(r => r.id === remembered)?.id
-        ?? recipes.find(r => r.id === selectedRecipe)?.id ?? recipes[0]!.id;
+      if (selectedCraftCategory !== "upgrade") categorySelections[selectedCraftCategory] = selectedRecipe;
+      // Upgrading is an action, not a recipe: keep the last recipe untouched.
+      if (category !== "upgrade") {
+        const recipes = recipesInCategory(category);
+        const remembered = categorySelections[category];
+        selectedRecipe = recipes.find(r => r.id === remembered)?.id
+          ?? recipes.find(r => r.id === selectedRecipe)?.id ?? recipes[0]?.id ?? selectedRecipe;
+      }
       selectedCraftCategory = category;
       renderPanel();
     }, send, close: () => closePanel(),

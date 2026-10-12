@@ -1285,7 +1285,7 @@ h1 {
 .household-note, .storage-summary { color: #65755f; line-height: 1.6; margin: 6px 0 14px; }
 .household-feedback { color: #355d41; margin: 0 0 10px; min-height: 22px; font-weight: 650; }
 .household-feedback:empty { visibility: hidden; }
-.storage-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr)); gap: 14px; align-items: start; }
+.storage-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
 .storage-side { min-width: 0; border: 1px solid #d7ddc4; border-radius: 16px; padding: 12px; background: #eef3e5; }
 .chest-side { background: #f7edda; border-color: #e1cba8; }
 .storage-side h3 { margin: 0; font-size: 17px; }
@@ -1321,14 +1321,25 @@ h1 {
 .unavailable { color: #9a503b; }
 .craft-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
 .craft-actions button { flex: 1 1 95px; }
-.upgrade-tools { margin-top: 18px; background: #f0eddf; }
+.upgrade-tools { margin-top: 0; background: #f0eddf; }
 .sleep-card { text-align: center; padding: 15px 5px; line-height: 1.8; }
 .sleep-card > .household-icon { width: 80px; height: 65px; }
 #sleep-status { position: absolute; z-index: 4; top: 92px; right: 12px; min-height: 44px; font-size: 13px; background: #fff5d9; box-shadow: 0 3px 12px #263e3926; }
 #sleep-status[hidden] { display: none; }
 /* The panel's available width, including foldable/tablet split windows. */
 @container household (max-width: 720px) {
-  .storage-columns { grid-template-columns: 1fr; }
+  .storage-columns { gap: 8px; }
+  .storage-side { padding: 6px; border-radius: 12px; }
+  .storage-side h3 { font-size: 14px; }
+  .storage-summary { font-size: 11px; line-height: 1.5; margin-bottom: 8px; }
+  .storage-item { padding: 6px; margin: 6px 0; }
+  .storage-item .household-item-heading { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 5px; }
+  .storage-item .household-icon { width: 28px; height: 28px; }
+  .storage-item .household-item-heading strong { grid-column: 1 / -1; grid-row: 2; font-size: 12px; }
+  .storage-item .item-count { grid-column: 2; grid-row: 1; justify-self: end; max-width: 100%; font-size: 12px; overflow-wrap: anywhere; }
+  .quantity-actions { grid-template-columns: 1fr; gap: 4px; margin-top: 7px; }
+  .quantity-actions button { font-size: 12px; padding: 6px 3px; }
+  .quantity-actions button:last-child { grid-column: auto; }
   .workshop-layout { grid-template-columns: 1fr; }
   .recipe-list { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: min(240px, 32dvh); }
   .recipe-choice { grid-template-columns: 32px minmax(0, 1fr); gap: 3px 6px; padding: 7px; }
@@ -1340,12 +1351,12 @@ h1 {
 .item-art.tool-icon { width: 48px; height: 48px; }
 .upgrade-icons { display: flex; gap: 8px; margin-top: 10px; }
 #quickslots button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 44px; }
-#quickslots .tool-icon { width: 28px; height: 28px; pointer-events: none; }
-#selected-tool-icon { display: flex; flex: 0 0 24px; }
-#selected-tool-icon .tool-icon { width: 24px; height: 24px; }
+#quickslots .tool-icon { width: 16px; height: 16px; pointer-events: none; }
+#selected-tool-icon { display: flex; flex: 0 0 16px; }
+#selected-tool-icon .tool-icon { width: 16px; height: 16px; }
 #toolbar select { min-width: 0; width: 0; }
 @media (max-height: 480px) {
-  #quickslots .tool-icon { width: 22px; height: 22px; }
+  #quickslots .tool-icon { width: 14px; height: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   #panel[open] { animation: none !important; }

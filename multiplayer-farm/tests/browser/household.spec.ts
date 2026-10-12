@@ -82,8 +82,13 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`hou
   await page.getByRole("button",{name:"5회 제작",exact:true}).click();
   await expect(detail.locator(".ingredient strong")).toHaveText("15 / 2");
   await expect(page.locator(".household-feedback")).toContainText("5개 제작");
+  await expect(page.getByRole("region",{name:"도구 강화"})).toHaveCount(0);
+  await page.locator('[data-category="upgrade"]').click();
+  await expect(detail).toHaveCount(0);
   await page.getByRole("button",{name:"Lv2로 강화",exact:true}).click();
   await expect(page.getByRole("region",{name:"도구 강화"})).toContainText("강화 완료");
+  await page.locator('[data-category="all"]').click();
+  await expect(page.getByRole("region",{name:"도구 강화"})).toHaveCount(0);
   await page.getByRole("button",{name:/최대 5회 제작/}).click();
   await expect(detail.locator(".ingredient strong")).toHaveText("0 / 2");
   await expect(page.getByRole("button",{name:"1회 제작",exact:true})).toBeDisabled();

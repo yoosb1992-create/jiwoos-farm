@@ -103,7 +103,7 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
     body.append(columns);
   }
   if (type === "craft" && m) {
-    body.append(el("p", "가방의 재료로 바로 만들어요. 제작 횟수만큼 재료가 사용됩니다.", "household-note"));
+    body.append(el("p", c.category === "upgrade" ? "가방의 재료로 도구를 강화해요." : "가방의 재료로 바로 만들어요. 제작 횟수만큼 재료가 사용됩니다.", "household-note"));
     const categories = el("nav", "", "craft-categories");
     categories.setAttribute("aria-label", "제작 카테고리");
     categories.dataset.scroll = "categories";
@@ -112,63 +112,69 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
       tab.dataset.category = category.id;
       tab.setAttribute("aria-pressed", String(c.category === category.id));
       tab.classList.toggle("selected", c.category === category.id);
-      tab.append(el("span", String(recipesInCategory(category.id).length), "category-count"));
+      if (category.id !== "upgrade") tab.append(el("span", String(recipesInCategory(category.id).length), "category-count"));
       categories.append(tab);
     }
     body.append(categories);
-    const recipes = recipesInCategory(c.category);
-    const workshop = el("div", "", "workshop-layout"), list = el("nav", "", "recipe-list");
-    list.setAttribute("aria-label", "제작법");
-    list.dataset.scroll = "recipes";
-    for (const recipe of recipes) {
-      const max = maxCrafts(m.inventory, recipe);
-      const b = button("", `recipe-${recipe.id}`, () => c.selectRecipe(recipe.id));
-      b.className = `recipe-choice${c.recipe === recipe.id ? " selected" : ""}`;
-      b.setAttribute("aria-pressed", String(c.recipe === recipe.id));
-      b.append(icon(recipe.output.itemId), el("strong", recipe.name), el("span", max ? `제작 가능 · ${max}회` : "재료·공간 부족", max ? "available" : "unavailable"));
-      list.append(b);
+    if (c.category === "upgrade") {
+      const upgrade = el("section", "", "upgrade-tools");
+      upgrade.setAttribute("aria-label", "도구 강화");
+      upgrade.append(el("h3", `도구 강화 · 현재 Lv${m.toolLevel}`));
+      const upgradeIcons = el("div", "", "upgrade-icons");
+      upgradeIcons.setAttribute("aria-hidden", "true");
+      for (const id of ["axe", "pickaxe"]) {
+        const image = toolIconImage(id);
+        if (image) upgradeIcons.append(image);
+      }
+      upgrade.append(upgradeIcons);
+      if (m.toolLevel >= 2) upgrade.append(el("p", "✓ 최고 단계 강화 완료", "available"));
+      else {
+        upgrade.append(el("h4", "필요 재료 · 보유 / 필요"));
+        for (const id of ["copper_ore", "wood"]) upgrade.append(el("p", `${itemName(id)} · ${m.inventory[id] ?? 0} / 5`, (m.inventory[id] ?? 0) >= 5 ? "available" : "unavailable"));
+        const ready = (m.inventory.copper_ore ?? 0) >= 5 && (m.inventory.wood ?? 0) >= 5;
+        upgrade.append(el("p", ready ? "강화할 수 있어요." : "강화 재료가 부족해요.", ready ? "available" : "unavailable"));
+        upgrade.append(button("Lv2로 강화", "upgrade", () => c.send("upgradeTool", { targetId: target?.id }),
+          blocked || (m.inventory.copper_ore ?? 0) < 5 || (m.inventory.wood ?? 0) < 5));
+      }
+      body.append(upgrade);
+    } else {
+      const recipes = recipesInCategory(c.category);
+      const workshop = el("div", "", "workshop-layout"), list = el("nav", "", "recipe-list");
+      list.setAttribute("aria-label", "제작법");
+      list.dataset.scroll = "recipes";
+      for (const recipe of recipes) {
+        const max = maxCrafts(m.inventory, recipe);
+        const b = button("", `recipe-${recipe.id}`, () => c.selectRecipe(recipe.id));
+        b.className = `recipe-choice${c.recipe === recipe.id ? " selected" : ""}`;
+        b.setAttribute("aria-pressed", String(c.recipe === recipe.id));
+        b.append(icon(recipe.output.itemId), el("strong", recipe.name), el("span", max ? `제작 가능 · ${max}회` : "재료·공간 부족", max ? "available" : "unavailable"));
+        list.append(b);
+      }
+      const recipe = recipes.find(r => r.id === c.recipe) ?? recipes[0]!;
+      const detail = el("section", "", "recipe-detail");
+      detail.setAttribute("aria-label", "선택한 제작법");
+      const heading = el("div", "", "household-item-heading");
+      heading.append(icon(recipe.output.itemId), el("h3", recipe.name));
+      detail.append(heading, el("p", `1회 결과: ${itemName(recipe.output.itemId)} ×${recipe.output.quantity}`, "household-note"));
+      detail.append(el("h4", "필요 재료 · 보유 / 필요"));
+      for (const i of recipe.ingredients) {
+        const owned = m.inventory[i.itemId] ?? 0;
+        const row = el("div", "", `ingredient ${owned >= i.quantity ? "available" : "unavailable"}`);
+        row.append(icon(i.itemId), el("span", itemName(i.itemId)), el("strong", `${owned} / ${i.quantity}`),
+          el("small", owned >= i.quantity ? "충분" : `${i.quantity - owned}개 부족`));
+        detail.append(row);
+      }
+      const max = maxCrafts(m.inventory, recipe), actions = el("div", "", "craft-actions");
+      for (const [label, count] of [["1회 제작", 1], ["5회 제작", 5], [`최대 ${max}회 제작`, max]] as const) {
+        const b = button(label, `craft-${label}`, () => c.send("craftItem", { targetId: target?.id, itemId: recipe.id, quantity: count }),
+          blocked || !canCraft(m.inventory, recipe, count));
+        b.title = `결과 ${count * recipe.output.quantity}개 · ${recipe.ingredients.map(i => `${itemName(i.itemId)} ${i.quantity * count}개`).join(" + ")}`;
+        actions.append(b);
+      }
+      detail.append(el("p", max ? `지금 최대 ${max}회 · 결과 ${max * recipe.output.quantity}개` : "재료가 부족하거나 가방이 가득 찼어요.", max ? "available" : "unavailable"), actions);
+      workshop.append(list, detail);
+      body.append(workshop);
     }
-    const recipe = recipes.find(r => r.id === c.recipe) ?? recipes[0]!;
-    const detail = el("section", "", "recipe-detail");
-    detail.setAttribute("aria-label", "선택한 제작법");
-    const heading = el("div", "", "household-item-heading");
-    heading.append(icon(recipe.output.itemId), el("h3", recipe.name));
-    detail.append(heading, el("p", `1회 결과: ${itemName(recipe.output.itemId)} ×${recipe.output.quantity}`, "household-note"));
-    detail.append(el("h4", "필요 재료 · 보유 / 필요"));
-    for (const i of recipe.ingredients) {
-      const owned = m.inventory[i.itemId] ?? 0;
-      const row = el("div", "", `ingredient ${owned >= i.quantity ? "available" : "unavailable"}`);
-      row.append(icon(i.itemId), el("span", itemName(i.itemId)), el("strong", `${owned} / ${i.quantity}`),
-        el("small", owned >= i.quantity ? "충분" : `${i.quantity - owned}개 부족`));
-      detail.append(row);
-    }
-    const max = maxCrafts(m.inventory, recipe), actions = el("div", "", "craft-actions");
-    for (const [label, count] of [["1회 제작", 1], ["5회 제작", 5], [`최대 ${max}회 제작`, max]] as const) {
-      const b = button(label, `craft-${label}`, () => c.send("craftItem", { targetId: target?.id, itemId: recipe.id, quantity: count }),
-        blocked || !canCraft(m.inventory, recipe, count));
-      b.title = `결과 ${count * recipe.output.quantity}개 · ${recipe.ingredients.map(i => `${itemName(i.itemId)} ${i.quantity * count}개`).join(" + ")}`;
-      actions.append(b);
-    }
-    detail.append(el("p", max ? `지금 최대 ${max}회 · 결과 ${max * recipe.output.quantity}개` : "재료가 부족하거나 가방이 가득 찼어요.", max ? "available" : "unavailable"), actions);
-    workshop.append(list, detail);
-    body.append(workshop);
-    const upgrade = el("section", "", "upgrade-tools");
-    upgrade.setAttribute("aria-label", "도구 강화");
-    upgrade.append(el("h3", `도구 강화 · 현재 Lv${m.toolLevel}`));
-    const upgradeIcons = el("div", "", "upgrade-icons");
-    upgradeIcons.setAttribute("aria-hidden", "true");
-    for (const id of ["axe", "pickaxe"]) {
-      const image = toolIconImage(id);
-      if (image) upgradeIcons.append(image);
-    }
-    upgrade.append(upgradeIcons);
-    if (m.toolLevel >= 2) upgrade.append(el("p", "✓ 최고 단계 강화 완료", "available"));
-    else {
-      for (const id of ["copper_ore", "wood"]) upgrade.append(el("p", `${itemName(id)} · ${m.inventory[id] ?? 0} / 5`, (m.inventory[id] ?? 0) >= 5 ? "available" : "unavailable"));
-      upgrade.append(button("Lv2로 강화", "upgrade", () => c.send("upgradeTool", { targetId: target?.id }),
-        blocked || (m.inventory.copper_ore ?? 0) < 5 || (m.inventory.wood ?? 0) < 5));
-    }
-    body.append(upgrade);
   }
   if (type === "sleep" || type === "sleep-status") {
     const count = c.players.filter(p => p.connected).length;
