@@ -42,12 +42,17 @@ test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch la
   expect(target, "A dense overgrown farm must still expose reachable farmland near its road").toBeDefined();
   // Path search can outlive camera settling after the first screenshot. Resolve
   // the selected world tile to its current screen point immediately before tap.
+  // The CPU-heavy target search may itself overlap a backlog reconnect.
+  await waitForFarmInput(page);
   const point=await page.evaluate(({x,y})=>window.__FARM_DEBUG__.screenPoint((x+.5)*32,(y+.5)*32),target!);
   await page.touchscreen.tap(point.x, point.y);
   await expect.poll(
-    () => page.evaluate(({x,y}) => window.__FARM_DEBUG__.state().entities[`soil-farm-${x}-${y}`]?.kind, target!),
+    // A real reconnect briefly removes the room snapshot. Keep polling the
+    // same authoritative soil assertion instead of throwing before recovery.
+    () => page.evaluate(({x,y}) => window.__FARM_DEBUG__.state()?.entities[`soil-farm-${x}-${y}`]?.kind, target!),
     { timeout: 20000 },
   ).toBe("soil");
+  await waitForFarmInput(page);
   const stopped = await page.evaluate(() => window.__FARM_DEBUG__.snapshot().local!.authoritative);
   await page.waitForTimeout(500);
   const settled = await page.evaluate(() => window.__FARM_DEBUG__.snapshot().local!.authoritative);
