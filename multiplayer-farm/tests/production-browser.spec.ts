@@ -294,18 +294,19 @@ test("production mobile: tree drops, inventory and repeated session restoration"
       .toBe("stump");
     // The starter magnet is deliberately only 32px. Align with the stump's
     // edge and walk into range; no action button or tool switch should be needed.
-    const alignKey=local().x<tree.x?"ArrowRight":"ArrowLeft";
-    await page.keyboard.down(alignKey);
-    try {
-      await expect.poll(()=>Math.abs(local().x-tree.x),{intervals:[20]}).toBeLessThan(8);
-    } finally { await page.keyboard.up(alignKey); }
-    if(Math.hypot(local().x-tree.x,local().y-tree.y)>32) {
-      const approachKey=local().y<tree.y?"ArrowDown":"ArrowUp";
-      await page.keyboard.down(approachKey);
-      try {
-        await expect.poll(()=>Math.hypot(local().x-tree.x,local().y-tree.y),{intervals:[20]}).toBeLessThanOrEqual(32.001);
-      } finally { await page.keyboard.up(approachKey); }
-    }
+    // A held alignment key can overshoot while the observer's patch arrives;
+    // a backlog reconnect also clears held keys. Use bounded real key presses
+    // and re-read both axes after each release, including after reconnects.
+    await expect(async () => {
+      await expect(page.locator("#connection")).toHaveAttribute("data-status", "connected");
+      const dx=tree.x-local().x,dy=tree.y-local().y;
+      if(Math.hypot(dx,dy)>32.001) {
+        const key=Math.abs(dx)>=8?(dx>0?"ArrowRight":"ArrowLeft"):(dy>0?"ArrowDown":"ArrowUp");
+        await page.keyboard.press(key,{delay:60});
+        await delay(120);
+      }
+      expect(Math.hypot(local().x-tree.x,local().y-tree.y)).toBeLessThanOrEqual(32.001);
+    }).toPass({timeout:10000,intervals:[100]});
     await expect.poll(()=>[...sdk.state.entities.values()].filter(e=>e.kind==="drop"&&Math.hypot(e.x-tree.x,e.y-tree.y)<1).length).toBe(0);
     await page.locator("#bag").click();
     await expect(page.locator("#panel-body")).toContainText("나무 ×1");
