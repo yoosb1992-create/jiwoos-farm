@@ -43,14 +43,22 @@ test("mobile touch action, saved control layout and new-world editor isolation",
   await waitForFarmInput(page);
   // Touch keeps the selected tool; explicitly equip the axe before chopping.
   await page.locator("#tool").selectOption("axe");
-  const target = await page.evaluate(() =>
-    (() => {
-      const farm = JSON.parse(window.__FARM_DEBUG__.state()!.layout).maps.farm;
+  // Tool selection can overlap a cold-renderer reconnect. Read the target
+  // from one live snapshot, then retain the real touch and tree-HP assertion.
+  await waitForFarmInput(page);
+  let target: { x: number; y: number } | undefined;
+  await expect.poll(async () => {
+    target = await page.evaluate(() => {
+      const state = window.__FARM_DEBUG__.state();
+      if (!state?.layout || window.__FARM_DEBUG__.snapshot().status !== "connected") return;
+      const farm = JSON.parse(state.layout).maps.farm;
       const tree = farm.objects.find((o: { id: string }) => o.id === "starter-pine");
+      if (!tree) return;
       return window.__FARM_DEBUG__.screenPoint(tree.position.tileX * 32, tree.position.tileY * 32 - 42);
-    })(),
-  );
-  await page.touchscreen.tap(target.x, target.y);
+    });
+    return target;
+  }, { timeout: 15000 }).toBeDefined();
+  await page.touchscreen.tap(target!.x, target!.y);
   await expect
     .poll(
       () =>
