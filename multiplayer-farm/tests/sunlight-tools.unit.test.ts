@@ -72,19 +72,19 @@ test("sun moves east-high-west; light rises and fades with opposite bounded shad
     for(const minute of [0,p.sunrise-1,p.sunrise,p.sunset,p.sunset+1,1439]) {
       const night=getSunState({day,minute,sunlightIntensity:1});
       assert.equal(night.sunlightIntensity,0); assert.equal(seedGlowVisibility(night.sunlightIntensity),0);
-      assert(night.ambientLight>=.72);
+      assert(night.ambientLight>=.018);
       if(minute===0) assert(night.sunElevation<0);
     }
     for(const boundary of [p.sunrise,p.sunset]) {
       const a=getSunState({day,minute:boundary-.001}),b=getSunState({day,minute:boundary+.001});
-      assert(Math.abs(a.ambientLight-b.ambientLight)<.00002);
+      assert(Math.abs(a.ambientLight-b.ambientLight)<.00004);
       assert(Math.abs(a.sunDirectionX-b.sunDirectionX)<.0001);
     }
     assert.deepEqual(getSunState({day,minute:731}),getSunState(JSON.parse(JSON.stringify({day,minute:731}))),"peers only need identical authoritative clock values");
   }
   assert(getSunState({day:42.5,minute:765}).sunElevation>getSunState({day:98.5,minute:750}).sunElevation);
 });
-test("render response changes sides, preserves indoor/mine brightness and readable nights", () => {
+test("render response changes sides, preserves indoor/mine brightness and deeply dark nights", () => {
   const morning=getSunState({day:42.5,minute:450}), evening=getSunState({day:42.5,minute:1080}), noon=getSunState({day:42.5,minute:765});
   const east=objectSunTint(0xffffff,morning), west=objectSunTint(0xffffff,evening);
   assert(east[1]>east[0]); assert(west[0]>west[1]);
@@ -101,7 +101,7 @@ test("render response changes sides, preserves indoor/mine brightness and readab
       assert.equal(atmosphereLight(area,minute,sun).warmth,0);
     }
     assert.equal(atmosphereLight("mine_1",minute,sun).darkness,.18);
-    assert(atmosphereLight("farm",minute,sun).darkness<=.281);
+    assert(atmosphereLight("farm",minute,sun).darkness<=.982);
   }
 });
 test("every physical tool spends exactly its base cost on an empty/invalid swing", () => {

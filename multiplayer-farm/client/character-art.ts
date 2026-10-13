@@ -18,17 +18,13 @@ function decode(rle:string):Uint8Array {
 }
 const paletteCache=new Map<string,string[]>();
 function palette(a:Appearance):string[] {
-  const colors=[appearanceColor(a,"skinColor"),appearanceColor(a,"top"),appearanceColor(a,"bottom"),a.top==="original"&&!a.customColors?.top?"#e7d8ab":shade(appearanceColor(a,"top"),1.25),"#587047"];
+  const colors=[appearanceColor(a,"skinColor"),appearanceColor(a,"top"),appearanceColor(a,"bottom"),(a.top==="original"||a.top==="terracotta")&&!a.customColors?.top?"#e7d8ab":shade(appearanceColor(a,"top"),1.25),"#587047"];
   const key=colors.join();let palette=paletteCache.get(key);if(palette)return palette;
   palette=["transparent"];
   for(const color of colors)for(const light of [.46,.74,1,1.2])palette.push(shade(color,light));
   // A neutral warm outline is separate from every dye channel.
   while(palette.length<=25)palette.push("#352d2b");
   paletteCache.set(key,palette);if(paletteCache.size>48)paletteCache.delete(paletteCache.keys().next().value!);return palette;
-}
-export function characterHeadRect(frame:number):{x:number;y:number;width:number;height:number} {
-  const [x,y]=CHARACTER_MASKS[frame%48]!.head;
-  return {x:x-23,y:Math.max(0,y-6),width:46,height:36};
 }
 /** Separate shoulder/waist/hip ratios, with continuous transitions into the
  * limbs. Every pixel in a row (including skin and outline) shares the transform

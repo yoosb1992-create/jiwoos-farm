@@ -1,20 +1,26 @@
 import {test,expect,type Page} from "@playwright/test";
 import {waitForFarmInput} from "./nature-target.js";
+async function choose(p:Page,label:string,value:string){
+  const field=p.getByLabel(label,{exact:true});
+  const group=p.locator(".character-group").filter({has:field});
+  if(await group.count() && !await group.evaluate((e:HTMLDetailsElement)=>e.open))await group.locator("summary").click();
+  await field.selectOption(value);
+}
 const localLook=(p:Page)=>p.evaluate(()=>window.__FARM_DEBUG__.snapshot().players.find(p=>p.local)?.appearance);
 const customize=async(p:Page)=>{await p.locator("#menu").click();await p.getByRole("button",{name:"캐릭터 꾸미기",exact:true}).click();};
 test("v2.8: appearance draft, all viewports, permission separation, peer update and another device",async({page,browser},info)=>{
   test.setTimeout(150000);
   const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
   await page.goto("/");await page.locator("#new-appearance").click();
-  await page.getByLabel("헤어스타일",{exact:true}).selectOption("ponytail");
-  await page.getByLabel("헤어 색상",{exact:true}).selectOption("rose");
-  await page.getByLabel("상의",{exact:true}).selectOption("blue");
-  await page.getByLabel("하의",{exact:true}).selectOption("denim");
-  await page.getByLabel("신발 색상",{exact:true}).selectOption("cream");
-  await page.getByLabel("성별",{exact:true}).selectOption("female");
+  await choose(page,"헤어스타일","ponytail");
+  await choose(page,"헤어 색상","rose");
+  await choose(page,"상의","blue");
+  await choose(page,"하의","denim");
+  await choose(page,"신발 색상","cream");
+  await choose(page,"성별","female");
   await expect(page.getByLabel("미리보기 동작")).toHaveValue("idle");
   for(const [name,value] of [["피부색","deep"],["눈 모양","large"],["눈동자 색상","green"],["눈썹 모양","straight"],["코 모양","long"],["귀 모양","long"],["신발 종류","sandals"]])
-    await page.getByLabel(name!,{exact:true}).selectOption(value!);
+    await choose(page,name!,value!);
   await page.getByLabel("키",{exact:true}).fill("145");
   await page.locator("#appearance-save").click();await page.locator("#nickname").fill("꾸미기 농부");await page.locator("#create-farm").click();
   await expect(page.locator("#login")).toBeHidden({timeout:25000});await waitForFarmInput(page);
@@ -42,7 +48,7 @@ test("v2.8: appearance draft, all viewports, permission separation, peer update 
     await page.locator("#menu").click();await page.getByRole("button",{name:"⚙ 소리·화면 설정"}).click();await page.locator("#developer-toggle").click();
     await expect(page.locator("#hud")).toBeHidden();await page.locator("#panel-close").click();
     await customize(page);
-    await page.getByLabel("헤어스타일",{exact:true}).selectOption("long");
+    await choose(page,"헤어스타일","long");
     expect(await localLook(page)).toEqual(original);
     await page.getByRole("button",{name:"취소",exact:true}).click();expect(await localLook(page)).toEqual(original);
     await customize(page);
@@ -52,7 +58,7 @@ test("v2.8: appearance draft, all viewports, permission separation, peer update 
       await page.getByRole("button",{name:"뒷모습",exact:true}).click();
       await page.screenshot({path:info.outputPath(`customize-${viewport.width}.png`)});
     }
-    await page.getByLabel("헤어스타일",{exact:true}).selectOption("bun");
+    await choose(page,"헤어스타일","bun");
     await page.getByLabel("키",{exact:true}).fill("70");await page.locator("#appearance-save").click();
     await expect(page.locator("#panel")).toBeHidden();
     await expect.poll(()=>localLook(page)).toEqual({...original,hair:"bun",height:70});
@@ -179,10 +185,17 @@ test("v2.8.1 fixed face layers, silhouettes, skin palettes and live texture life
   expect(result).toEqual([]);
 });
 
-test("idle entry, actual face magnifier and fixed height ruler at both extremes",async({page},info)=>{
+test("accordion toggles, full-body preview and fixed height ruler at both extremes",async({page},info)=>{
   await page.goto("/");await page.locator("#new-appearance").click();
   await expect(page.getByLabel("미리보기 동작")).toHaveValue("idle");
-  await page.locator(".character-face-detail summary").click();
+  await expect(page.locator("#character-face-preview")).toHaveCount(0);
+  await expect(page.locator(".character-face-detail")).toHaveCount(0);
+  const hair=page.locator('.character-group[data-group="hair"]');
+  await expect(hair.locator("select").first()).toBeHidden();
+  await hair.locator("summary").click();await expect(hair.locator("select").first()).toBeVisible();
+  await choose(page,"헤어스타일","ponytail");
+  await hair.locator("summary").click();await expect(hair.locator("select").first()).toBeHidden();
+  await expect(hair.locator("summary")).toContainText("포니테일");
   const sample=()=>page.locator("#character-preview").evaluate((n:HTMLCanvasElement)=>{
     const c=n.getContext("2d")!,data=c.getImageData(0,0,n.width,n.height).data;
     let top=280;for(let y=0;y<245;y++)for(let x=55;x<148;x++){
@@ -194,7 +207,24 @@ test("idle entry, actual face magnifier and fixed height ruler at both extremes"
   await page.waitForTimeout(60);const small=await sample();await page.screenshot({path:info.outputPath("height-70.png")});
   await page.getByLabel("키",{exact:true}).fill("145");await page.waitForTimeout(60);const tall=await sample();
   expect(small.top-tall.top).toBeGreaterThan(90);expect(tall.post).toEqual(small.post);
-  await expect(page.locator("#character-face-preview")).toBeVisible();await page.screenshot({path:info.outputPath("height-145.png")});
+  await expect(page.locator("#character-face-preview")).toHaveCount(0);await page.screenshot({path:info.outputPath("height-145.png")});
   await page.getByLabel("미리보기 동작").selectOption("run");await page.getByRole("button",{name:"취소",exact:true}).click();
   await page.locator("#new-appearance").click();await expect(page.getByLabel("미리보기 동작")).toHaveValue("idle");
+});
+
+
+test("female preset preserves deliberate choices and has a compact mobile overview",async({page},info)=>{
+  await page.goto("/");await page.locator("#new-appearance").click();
+  await choose(page,"성별","female");
+  await expect(page.getByLabel("헤어스타일",{exact:true})).toHaveValue("bun");
+  await expect(page.getByLabel("상의",{exact:true})).toHaveValue("terracotta");
+  await page.screenshot({path:info.outputPath("v282-female-mobile.png")});
+  await choose(page,"눈 모양","soft");await choose(page,"헤어 색상","rose");
+  await choose(page,"성별","male");
+  await expect(page.getByLabel("눈 모양",{exact:true})).toHaveValue("soft");
+  await expect(page.getByLabel("헤어 색상",{exact:true})).toHaveValue("rose");
+  await choose(page,"성별","female");await page.getByRole("button",{name:"기본 외형 복원",exact:true}).click();
+  await expect(page.getByLabel("성별",{exact:true})).toHaveValue("female");
+  await expect(page.getByLabel("헤어 색상",{exact:true})).toHaveValue("original");
+  expect(await page.locator("#panel-body").evaluate(e=>e.scrollWidth<=e.clientWidth+1)).toBe(true);
 });

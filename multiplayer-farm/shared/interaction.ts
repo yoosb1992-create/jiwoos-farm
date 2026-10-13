@@ -1,17 +1,10 @@
 import type { Entity, Facing } from "./world.js";
+import { itemPickupProfile, pickupRadius, PICKUP_RANGE_EPSILON } from "./pickup.js";
+export { BASE_PICKUP_RADIUS, PICKUP_RANGE_EPSILON, PICKUP_SCAN_MS, DROP_SETTLE_MS, pickupRadius } from "./pickup.js";
 
 export const TOOLS = ["axe", "pickaxe", "scythe", "hoe", "water"] as const;
 export type Tool = (typeof TOOLS)[number];
 export const isTool = (value?: string): value is Tool => TOOLS.includes(value as Tool);
-/** One 32px tile, only 20px beyond the player's 12px collision radius. */
-export const BASE_PICKUP_RADIUS = 32;
-// Movement can stop at 32.00000000000045px beside a solid stump. Preserve the
-// one-tile radius while accepting subpixel floating-point drift at its boundary.
-export const PICKUP_RANGE_EPSILON = .001;
-export const PICKUP_SCAN_MS = 120;
-export const DROP_SETTLE_MS = 800;
-/** Future equipment must supply this bonus from server-owned member data. */
-export const pickupRadius = (equipmentBonus = 0) => BASE_PICKUP_RADIUS + Math.max(0, Math.min(128, equipmentBonus));
 export const cuttableGrass = (e: Pick<Entity, "kind" | "asset">) =>
   e.kind === "gather" && /^(farm_(short_grass|tall_grass|clover|weed(?:_b|_c)?))$/.test(e.asset);
 
@@ -66,9 +59,12 @@ export const dropAppearDelay = (fx: ActionFx) => impactDelay(fx) +
 /** Rebuilt only on a committed world change. The 30Hz loop checks nearby buckets. */
 export class DropIndex {
   private cells = new Map<string, Entity[]>();
+  maxMagnetRadius = 56;
   rebuild(entities: Iterable<Entity>): void {
     this.cells.clear();
+    this.maxMagnetRadius = itemPickupProfile().magnetRadius;
     for (const e of entities) if (e.kind === "drop") {
+      this.maxMagnetRadius = Math.max(this.maxMagnetRadius, itemPickupProfile(e.item).magnetRadius);
       const key = `${e.area}:${Math.floor(e.x/64)}:${Math.floor(e.y/64)}`;
       const cell = this.cells.get(key) ?? [];
       cell.push(e); this.cells.set(key,cell);

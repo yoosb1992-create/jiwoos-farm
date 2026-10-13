@@ -67,7 +67,9 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
   await tap("fx-tree","axe");await expect.poll(()=>kind("fx-tree")).toBe("stump");
   await page.waitForFunction(()=>{const f=(window.__FARM_DEBUG__ as any).scene().feedback;return f.ghosts.some((g:any)=>Math.abs(g.sprites[0].angle)>15);});
   await page.screenshot({path:info.outputPath("tree-felling.png")});
-  await expect.poll(()=>page.evaluate(()=>[...(window.__FARM_DEBUG__ as any).scene().objects.entries()].filter(([id,v]:any)=>id.startsWith("drop-")&&v.body.visible).length)).toBe(2);
+  // The larger magnet may collect while the player still stands beside the stump.
+  // Assert the committed drops, rather than requiring the old 800ms idle pause.
+  await expect.poll(()=>page.evaluate(()=>(window as any).__committedFx.find((e:any)=>e.target?.id==="fx-tree"&&e.outcome==="break")?.drops.length)).toBe(2);
   expect(await page.evaluate(()=>{
     const s=(window.__FARM_DEBUG__ as any).scene();
     return ["drop-icon-wood","drop-icon-stone","drop-icon-grass","held-scythe"].every(key=>{

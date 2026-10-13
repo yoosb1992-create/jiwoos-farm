@@ -4,12 +4,12 @@ export const APPEARANCE_OPTIONS = {
   hair: { original: "기본 머리", short: "짧은 머리", parted: "가르마", bob: "단발", long: "장발", wave: "웨이브", ponytail: "포니테일", bun: "묶은 머리" },
   hairColor: { original: "밤갈색", black: "먹빛", chestnut: "초코", gold: "꿀빛", silver: "은빛", rose: "장밋빛", sage: "세이지" },
   skinColor: { peach: "복숭아", porcelain: "밝은 살구", warm: "따뜻한 베이지", tan: "햇살빛", brown: "갈색", deep: "깊은 갈색", umber: "짙은 갈색" },
-  eyeShape: { original: "기본 눈", round: "동그란 눈", large: "큰 눈", narrow: "가늘고 긴 눈", gentle: "살짝 처진 눈", sharp: "날카로운 눈" },
+  eyeShape: { original: "기본 눈", round: "동그란 눈", large: "큰 눈", narrow: "가늘고 긴 눈", gentle: "살짝 처진 눈", sharp: "또렷한 눈", soft: "웃는 듯한 눈", calm: "차분한 눈", crescent: "반달 눈", lively: "활기찬 눈" },
   eyeColor: { black: "검정", brown: "갈색", blue: "파랑", green: "초록", gray: "회색", amber: "호박색" },
   eyebrowStyle: { original: "기본 눈썹", straight: "일자 눈썹", round: "둥근 눈썹", raised: "올라간 눈썹", gentle: "처진 눈썹" },
   noseStyle: { original: "기본 코", small: "작은 코", round: "둥근 코", pointed: "뾰족한 코", long: "살짝 긴 코" },
   earStyle: { normal: "일반 귀", small: "작은 귀", large: "큰 귀", pointed: "뾰족한 귀", long: "길고 뾰족한 귀" },
-  top: { original: "기본 작업복", cream: "크림", sage: "풀잎", blue: "하늘", rose: "장미", plum: "자두", ochre: "해바라기" },
+  top: { original: "기본 작업복", terracotta: "살구빛 조끼", cream: "크림", sage: "풀잎", blue: "하늘", rose: "장미", plum: "자두", ochre: "해바라기" },
   bottom: { original: "기본 바지", denim: "청바지", charcoal: "차콜", cream: "크림", forest: "숲색" },
   shoeStyle: { boots: "기본 농장 부츠", sneakers: "운동화", wellies: "고무장화", sandals: "샌들" },
   shoeColor: { original: "기본 갈색", brown: "가죽색", red: "벽돌색", blue: "남색", cream: "아이보리" },
@@ -18,7 +18,7 @@ export const COLOR_PALETTES = {
   hairColor: { original: "#845039", black: "#343342", chestnut: "#624132", gold: "#d9ac62", silver: "#bbc3cd", rose: "#b27388", sage: "#809578" },
   skinColor: { peach: "#efb58e", porcelain: "#f7d5b5", warm: "#dca779", tan: "#c18b60", brown: "#a96e49", deep: "#805238", umber: "#593a2d" },
   eyeColor: { black: "#292936", brown: "#794a2d", blue: "#438ac2", green: "#528a52", gray: "#87989d", amber: "#be842e" },
-  top: { original: "#94714a", cream: "#dfc99a", sage: "#8ca36b", blue: "#719fb7", rose: "#c58085", plum: "#9678a5", ochre: "#cdac56" },
+  top: { original: "#94714a", terracotta: "#b9744b", cream: "#dfc99a", sage: "#8ca36b", blue: "#719fb7", rose: "#c58085", plum: "#9678a5", ochre: "#cdac56" },
   bottom: { original: "#745236", denim: "#547f99", charcoal: "#54545f", cream: "#ccbca0", forest: "#566f56" },
   shoeColor: { original: "#62402e", brown: "#906044", red: "#a5594e", blue: "#445b80", cream: "#cfc3ac" },
 } as const;
@@ -34,6 +34,22 @@ export const DEFAULT_APPEARANCE: Readonly<Appearance> = Object.freeze({
   eyeShape: "original", eyeColor: "brown", eyebrowStyle: "original", noseStyle: "original", earStyle: "normal",
   top: "original", bottom: "original", shoeStyle: "boots", shoeColor: "original",
 });
+/** Gender presets are applied on explicit selection/reset only. Existing saves
+ * keep every chosen part and color; no migration overwrites a player's outfit. */
+export function defaultAppearance(gender: Appearance["gender"] = "male"): Appearance {
+  return gender === "female" ? {
+    ...DEFAULT_APPEARANCE, gender, hair: "bun", eyeShape: "round", eyebrowStyle: "round",
+    noseStyle: "small", top: "terracotta", bottom: "forest", shoeColor: "brown",
+  } : { ...DEFAULT_APPEARANCE };
+}
+export function selectGender(a: Appearance, gender: Appearance["gender"]): Appearance {
+  const before=defaultAppearance(a.gender), after=defaultAppearance(gender), result={...a,gender};
+  for(const key of Object.keys(APPEARANCE_OPTIONS) as AppearanceField[]) {
+    if(key!=="gender" && a[key]===before[key] && !a.customColors?.[key as ColorSlot])
+      (result as unknown as Record<string,unknown>)[key]=after[key];
+  }
+  return result;
+}
 const LEGACY_HEIGHT = { short:90, normal:100, tall:110 } as const;
 const legacyFields=["gender","height","hair","hairColor","top","bottom","shoes"];
 const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==="object"&&!Array.isArray(v);

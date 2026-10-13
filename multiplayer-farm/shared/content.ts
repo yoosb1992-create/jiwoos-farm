@@ -78,6 +78,7 @@ for (const crop of EXPANSION_CROPS) for (const stage of ["seed", "sprout", "grow
   if (asset) asset.source = null;
 }
 export interface ItemDefinition {
+  itemPickupProfile?: Partial<import("./pickup.js").PickupProfile>;
   weightKg?: number;
   placement?: { kind: "chest" | "machine" | "decoration"; policy: "recoverable" | "destructible" | "permanent"; transport?: "hand"[]; recoveryTool?: "pickaxe" };
   naturalHarvest?: "flower";

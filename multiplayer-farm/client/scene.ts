@@ -40,6 +40,7 @@ import { createFarmerFrames, createCarryFrames } from "./tool-animation-art.js";
 import { rockMaxHp } from "../shared/resources.js";
 import { getSunState, seedGlowVisibility, type SunState } from "../shared/sunlight.js";
 import { atmosphereLight, groundShadow, lightEnvironment, objectSunTint, receivesSunlight } from "./solar-lighting.js";
+import { paintNightVeil, sceneryLight, type WorldLight } from "./night-lighting.js";
 import { chestTextureKey } from "./chest-art.js";
 import { TilledGroundIndex, paintTilledGround } from "./tilled-ground.js";
 interface View {
@@ -92,6 +93,9 @@ export class FarmScene extends Phaser.Scene {
   private layoutVersion = -1;
   private season: Season = "spring";
   private atmosphere?: Phaser.GameObjects.Graphics;
+  private daylightWash?: Phaser.GameObjects.Graphics;
+  private nightVeil?: Phaser.GameObjects.Image;
+  private nightTexture?: Phaser.Textures.CanvasTexture;
   private highlight?: Phaser.GameObjects.Ellipse;
   private lastAtmosphere = 0;
   private sunlight: SunState = getSunState({ day: 1, minute: 360 });
@@ -186,7 +190,10 @@ export class FarmScene extends Phaser.Scene {
         (window.innerWidth < 600 ? 0.95 : 1.15),
     );
     this.setZoom(Number.isFinite(savedZoom) ? savedZoom : 1);
-    this.atmosphere = this.add.graphics().setScrollFactor(0).setDepth(20000);
+    this.daylightWash = this.add.graphics().setScrollFactor(0).setDepth(19990).setBlendMode(Phaser.BlendModes.SCREEN);
+    this.nightTexture = this.textures.createCanvas("farm-night-veil",2,2)!;
+    this.nightVeil = this.add.image(0,0,"farm-night-veil").setOrigin(0).setScrollFactor(0).setDepth(20000);
+    this.atmosphere = this.add.graphics().setScrollFactor(0).setDepth(20001);
     // World-space ground layer: pinch/pan cannot reverse the east/west light.
     this.sunShadows = this.add.graphics().setDepth(-4);
     this.highlight = this.add
@@ -200,6 +207,8 @@ export class FarmScene extends Phaser.Scene {
     this.resolveReady?.();
     this.resolveReady = undefined;
     this.events.once("shutdown", () => {
+      this.nightVeil?.destroy();this.nightVeil=undefined;
+      this.textures.remove("farm-night-veil");this.nightTexture=undefined;
       this.feedback?.destroy();
       this.players.clear();
       this.objects.clear();
@@ -453,6 +462,8 @@ export class FarmScene extends Phaser.Scene {
       v.body.setTexture(texture,frame).setOrigin(.5,70/72).setScale(scale.x,scale.y);
       v.label.setPosition(p.x, p.y - 54*scale.y/1.05).setDepth(p.y + 1);
       this.furniture?.update(p, v.body, v.label, now, me.area);
+      // Names are orientation aids; they remain readable above world darkness.
+      v.label.setDepth(20003);
       v.x = p.x;
       v.y = p.y;
       if (p.local) {
@@ -720,28 +731,50 @@ export class FarmScene extends Phaser.Scene {
     g.clear();
     const environment = lightEnvironment(this.area);
     const light = atmosphereLight(this.area, state.minute, this.sunlight);
-    g.fillStyle(light.darkColor, light.darkness);
-    g.fillRect(0, 0, w, h);
+    const wash=this.daylightWash!;
+    wash.setPosition(g.x,g.y).setScale(1/zoom).clear();
+    if(light.daylightLift>0){wash.fillStyle(light.daylightColor,light.daylightLift);wash.fillRect(0,0,w,h);}
+    const veil=this.nightVeil!,texture=this.nightTexture!;
+    veil.setVisible(environment==="outdoor" && light.darkness>.001);
+    if(veil.visible){
+      // Half resolution is sufficient for smooth gradients, including phones.
+      const rw=Math.ceil(w/2),rh=Math.ceil(h/2);
+      if(texture.width!==rw||texture.height!==rh){texture.setSize(rw,rh);veil.setTexture(texture.key);}
+      const origin=this.cameras.main.getWorldPoint(0,0),lights:WorldLight[]=[];
+      for(const v of this.objects.values()){
+        if(!v.body.visible)continue;
+        const source=sceneryLight(v.body.texture.key,v.body.x,v.body.y);
+        if(!source)continue;
+        const x=(source.x-origin.x)*zoom/2,y=(source.y-origin.y)*zoom/2,radius=source.radius*zoom/2;
+        if(x+radius<0||y+radius<0||x-radius>rw||y-radius>rh)continue;
+        lights.push({...source,x,y,radius});if(lights.length>=24)break;
+      }
+      paintNightVeil(texture.context,rw,rh,light.darkness,lights);texture.refresh();
+      veil.setPosition(g.x,g.y).setDisplaySize(w/zoom,h/zoom);
+    }else if(environment!=="outdoor"){
+      g.fillStyle(light.darkColor,light.darkness);g.fillRect(0,0,w,h);
+    }
     if (light.warmth > 0) {
       g.fillStyle(light.warmColor, light.warmth);
       g.fillRect(0, 0, w, h);
     }
+    const weatherLight=environment==="outdoor"?Math.max(.08,this.sunlight.ambientLight):1;
     if (environment === "outdoor")
       for (let i = 0; i < 32; i++) {
         const x = (i * 137 + Math.sin(now / 2200 + i) * 24 + w) % w;
         const y =
           (i * 73 + now * (state.weather === "rain" ? 0.35 : 0.035)) % h;
         if (state.weather === "rain") {
-          g.lineStyle(1, 0xd2e9ee, 0.4);
+          g.lineStyle(1, 0xd2e9ee, 0.4*weatherLight);
           g.lineBetween(x, y, x - 4, y + 13);
         } else if (state.weather === "snow" || this.season === "winter") {
-          g.fillStyle(0xffffff, 0.55);
+          g.fillStyle(0xffffff, 0.55*weatherLight);
           g.fillCircle(x, y, (i % 2) + 1);
         } else if (this.season === "spring" && i < 12) {
-          g.fillStyle(0xffd2df, 0.55);
+          g.fillStyle(0xffd2df, 0.55*weatherLight);
           g.fillEllipse(x, y, 4, 2);
         } else if (this.season === "autumn" && i < 12) {
-          g.fillStyle(0xe2a15b, 0.5);
+          g.fillStyle(0xe2a15b, 0.5*weatherLight);
           g.fillEllipse(x, y, 5, 2);
         }
       }

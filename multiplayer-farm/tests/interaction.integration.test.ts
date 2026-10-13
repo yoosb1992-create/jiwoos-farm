@@ -23,9 +23,9 @@ test("committed failed swings reach peers once; nearby automatic pickup has one 
     assert.equal(access.world.members[f.a.playerId]!.stamina,stamina-3,"failed swing is durably charged once even when replayed");
     await until(()=>f.B.state.players.get(f.A.sessionId)?.stamina===stamina-3);
     assert.equal(access.world.entities[rock.id]!.hp,2);assert.equal(access.world.members[f.a.playerId]!.inventory.stone,undefined);
-    const drop=addDrop(access.world,{area:"farm",x:304,y:305},"stone",1);access.sync();
-    await delay(250);assert(access.world.entities[drop.id],"33px must not attract");
-    // Both authoritative actors enter the 32px radius on the same simulation step.
+    const drop=addDrop(access.world,{area:"farm",x:304,y:329},"stone",1);access.sync();
+    await delay(250);assert(access.world.entities[drop.id],"57px must not attract");
+    // Both authoritative actors enter the 56px radius on the same simulation step.
     for(const r of [f.A,f.B])room.state.players.get(r.sessionId)!.y=274;
     await until(()=>!f.A.state.entities.has(drop.id)&&!access.world.entities[drop.id]);
     const members=[f.a,f.b];assert.equal(members.reduce((n,m)=>n+(access.world.members[m.playerId]!.inventory.stone??0),0),1);

@@ -8,13 +8,14 @@ import type { Season } from "../shared/expansion.js";
 import type { Sound } from "./audio.js";
 import { ToolAnimationRig } from "./tool-animation.js";
 import { naturalFlower } from "../shared/resources.js";
+import { itemPickupProfile, pickupFlightMs } from "../shared/pickup.js";
 
 type View = {body:Phaser.GameObjects.Sprite;label:Phaser.GameObjects.Text;x:number;y:number};
 type Particle = {sprite:Phaser.GameObjects.Image;start:number;life:number;x:number;y:number;vx:number;vy:number;color:number};
 type Swing = {event:ActionFx;start:number;impacted:boolean;rig:ToolAnimationRig;whooshed:boolean};
 type Ghost = {sprites:Phaser.GameObjects.Sprite[];scales:Array<{x:number;y:number}>;event:ActionFx;start:number;duration:number;impact:boolean};
-type DropMotion = {start:number;dx:number;dy:number;shadow?:Phaser.GameObjects.Ellipse};
-type Attraction = {sprite:Phaser.GameObjects.Sprite;shadow:Phaser.GameObjects.Ellipse;event:ActionFx;start:number;x:number;y:number};
+type DropMotion = {start:number;dx:number;dy:number;settleMs?:number;shadow?:Phaser.GameObjects.Ellipse};
+type Attraction = {sprite:Phaser.GameObjects.Sprite;shadow:Phaser.GameObjects.Ellipse;event:ActionFx;start:number;x:number;y:number;duration:number;rare:boolean};
 
 /** Bounded, local-only animation state. No physics bodies, per-object timers,
  * per-frame network messages or permanent tweens on offscreen natural objects. */
@@ -58,7 +59,8 @@ export class FarmFeedback {
       if(!this.visible(x,y)||this.attractions.length>=16)return;
       const sprite=this.scene.add.sprite(x,y,`drop-icon-${target.item}`).setDisplaySize(24,24).setDepth(target.y+80);
       const shadow=this.scene.add.ellipse(target.x,target.y,15,5,0x293b2a,.18).setDepth(target.y-.1);
-      this.attractions.push({sprite,shadow,event,start:now,x,y});
+      const profile=itemPickupProfile(target.item);
+      this.attractions.push({sprite,shadow,event,start:now,x,y,duration:pickupFlightMs(Math.hypot(event.x-x,event.y-20-y),profile),rare:profile.reaction==="rare"});
       return;
     }
     const active=this.swings.get(event.actorId);
@@ -84,7 +86,7 @@ export class FarmFeedback {
     const target=event.target;
     event.drops.forEach((d,i)=>{
       const angle=i*2.399963+Number(d.id.slice(5))*.73;
-      this.born.set(d.id,{start:now+dropAppearDelay(event),dx:Math.cos(angle)*(12+i%3*4),dy:Math.sin(angle)*8});
+      this.born.set(d.id,{start:now+dropAppearDelay(event),dx:Math.cos(angle)*(12+i%3*4),dy:Math.sin(angle)*8,settleMs:Math.max(1,itemPickupProfile(d.item).spawnProtectionMs)});
     });
     if(!this.visible(target?.x??event.x,target?.y??event.y,300))return;
     if(event.outcome!=="fail" && event.action==="tillTile" && event.point)
@@ -133,7 +135,7 @@ export class FarmFeedback {
     if(!m.shadow)m.shadow=this.scene.add.ellipse(x,y,16,5,0x293b2a,.2).setDepth(y-.5);
     m.shadow.setVisible(!hidden);
     if(hidden)return;
-    const t=(now-m.start)/DROP_SETTLE_MS;
+    const t=(now-m.start)/(m.settleMs??DROP_SETTLE_MS);
     const scatter=Math.min(1,Math.max(0,t*1.8));
     const px=x+m.dx*scatter,py=y+m.dy*scatter;
     const h=t<.7 ? 29*Math.sin(Math.PI*t/.7) : t<1 ? 7*Math.sin(Math.PI*(t-.7)/.3) : 0;
@@ -241,11 +243,11 @@ export class FarmFeedback {
       return true;
     });
     this.attractions=this.attractions.filter(a=>{
-      const t=Math.min(1,(now-a.start)/300),p=players.find(p=>p.id===a.event.actorId),ease=t*t;
+      const t=Math.min(1,(now-a.start)/a.duration),p=players.find(p=>p.id===a.event.actorId),ease=1-(1-t)**2;
       const x=p?.x??a.event.x,y=(p?.y??a.event.y)-20;
       a.sprite.setPosition(a.x+(x-a.x)*ease,a.y+(y-a.y)*ease-Math.sin(t*Math.PI)*6).setScale(.6*(1-t*.65)).setAlpha(1-t*.4);
       a.shadow.setAlpha(.18*(1-t));
-      if(t>=1){a.sprite.destroy();a.shadow.destroy();this.emit(x,y,0xf4dda0,4,now);this.sound("pickup");return false;}return true;
+      if(t>=1){a.sprite.destroy();a.shadow.destroy();this.emit(x,y,a.rare?0xd9b5ff:0xf4dda0,a.rare?7:4,now);this.sound("pickup");return false;}return true;
     });
     this.particles=this.particles.filter(p=>{
       const t=(now-p.start)/1000,f=t/(p.life/1000);

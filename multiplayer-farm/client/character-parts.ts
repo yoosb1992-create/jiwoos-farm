@@ -45,14 +45,56 @@ export const EAR_PARTS:Record<Appearance["earStyle"],EarPartDefinition>={
   pointed:ear([0,1,7,-3,5,3,2,6,0,4]),
   long:ear([0,1,12,-5,9,1,5,4,2,6,0,4]),
 };
-export const EYE_PARTS:Record<Appearance["eyeShape"],{outline:Polygon;iris:readonly[number,number,number,number]}>={
-  original:{outline:[0,1,1,0,4,0,4,4,1,4,0,3],iris:[1,1,2,2]},
-  round:{outline:[1,0,3,0,4,1,4,4,3,5,1,5,0,4,0,1],iris:[1,1,2,3]},
-  large:{outline:[0,1,1,0,4,0,5,1,5,5,1,5,0,4],iris:[2,1,2,3]},
-  narrow:{outline:[0,1,5,1,5,3,0,3],iris:[2,1,2,1]},
-  gentle:{outline:[0,2,1,1,3,0,5,1,5,4,2,4,0,3],iris:[2,1,2,2]},
-  sharp:{outline:[0,0,2,1,5,2,4,4,1,4,0,3],iris:[1,2,2,1]},
+export interface EyePartDefinition {
+  outline: Polygon;
+  iris: readonly [number,number,number,number];
+  /** Local inner-to-outer offsets: the two eyes can be tuned independently. */
+  leftIrisOffset: readonly [number,number];
+  rightIrisOffset: readonly [number,number];
+  sideIrisOffset: readonly [number,number];
+  pupilWidth: number;
+  browOffsetY: number;
+}
+const eyePart=(outline:Polygon,iris:EyePartDefinition["iris"],browOffsetY=-3):EyePartDefinition=>({
+  outline,iris,leftIrisOffset:[0,0],rightIrisOffset:[0,0],sideIrisOffset:[.5,0],pupilWidth:1,browOffsetY,
+});
+export const EYE_PARTS:Record<Appearance["eyeShape"],EyePartDefinition>={
+  original:eyePart([0,1,1,0,4,0,5,1,5,4,1,4,0,3],[1,1,3,3]),
+  round:eyePart([1,0,4,0,5,1,5,4,4,5,1,5,0,4,0,1],[1,1,3,4]),
+  large:eyePart([0,1,1,0,4,0,5,1,5,5,4,6,1,6,0,5],[1,1,3,4],-4),
+  narrow:eyePart([0,1,1,1,5,1,5,3,0,3],[2,1,2,2]),
+  gentle:eyePart([0,1,2,0,4,1,5,2,5,4,2,5,0,4],[1,1,3,3]),
+  sharp:eyePart([0,2,1,1,5,0,5,3,4,4,0,4],[1,1,3,3]),
+  soft:eyePart([0,2,1,1,4,1,5,2,5,4,4,4,3,3,1,3,0,4],[1,1,3,2]),
+  calm:eyePart([0,1,5,1,5,4,1,4,0,3],[1,2,3,2]),
+  crescent:eyePart([0,3,1,1,2,0,4,0,5,2,5,3,3,2,2,2,1,3],[1,1,3,1]),
+  lively:eyePart([0,2,1,1,4,0,5,0,5,4,3,5,1,4,0,3],[1,1,3,3]),
 };
+export function eyeIrisRect(eye:EyePartDefinition,view:"left"|"right"|"side"):readonly[number,number,number,number] {
+  const [dx,dy]=view==="side"?eye.sideIrisOffset:view==="left"?eye.leftIrisOffset:eye.rightIrisOffset;
+  const [x,y,w,h]=eye.iris;
+  return [Math.max(0,Math.min(5-w,Math.round(x+dx))),Math.max(0,Math.min(6-h,Math.round(y+dy))),w,h];
+}
+/** Iris/pupil are clipped to the eye aperture. Light comes from the same
+ * screen side in both eyes instead of mirroring two outward-facing glints. */
+function drawEye(c:CanvasRenderingContext2D,eye:EyePartDefinition,a:Appearance,view:"left"|"right"|"side"):void {
+  const tile=document.createElement("canvas");tile.width=6;tile.height=7;
+  const t=tile.getContext("2d")!;pixelPolygon(t,eye.outline,"#f6e9d5");
+  const aperture=t.getImageData(0,0,6,7).data;
+  const [x,y,w,h]=eyeIrisRect(eye,view),iris=appearanceColor(a,"eyeColor");
+  t.globalCompositeOperation="source-atop";
+  rect(t,x,y,w,h,iris);
+  if(h>=2){
+    rect(t,x+Math.floor(w/2),y,eye.pupilWidth,Math.max(1,h-1),shade(iris,.42));
+    rect(t,view==="left"?x+w-1:x,y,1,1,"#fff5df");
+    if(h>=3)rect(t,x,y+h-1,w,1,shade(iris,1.2));
+  }
+  t.globalCompositeOperation="source-over";
+  for(let px=0;px<6;px++)for(let py=0;py<7;py++)if(aperture[(py*6+px)*4+3]){
+    rect(t,px,py,1,1,shade(appearanceColor(a,"skinColor"),.32));break;
+  }
+  c.drawImage(tile,0,0);
+}
 export const EYEBROW_PARTS:Record<Appearance["eyebrowStyle"],Polygon>={
   original:[0,1,1,0,4,0,4,1,1,1,0,2],straight:[0,1,5,1,5,2,0,2],
   round:[0,1,1,0,4,0,5,1,5,2,4,1,1,1,0,2],
@@ -110,18 +152,13 @@ function face(c:CanvasRenderingContext2D,a:Appearance,facing:Facing):void {
   const eye=EYE_PARTS[a.eyeShape],brow=EYEBROW_PARTS[a.eyebrowStyle];
   for(const mirror of side?[1]:[-1,1]){
     c.save();if(!side)c.scale(mirror,1);c.translate(side?3:2,14);
-    pixelPolygon(c,eye.outline,"#eee4ce");
-    // Open lower lids avoid a square spectacle outline on the tiny face.
-    const lid=document.createElement("canvas");lid.width=6;lid.height=6;const lc=lid.getContext("2d")!;
-    pixelPolygon(lc,eye.outline,"#ffffff");const lp=lc.getImageData(0,0,6,6).data;
-    for(let px=0;px<6;px++)for(let py=0;py<6;py++)if(lp[(py*6+px)*4+3]){rect(c,px,py,1,1,shade(skin,.28));break;}
-    const [x,y,w,h]=eye.iris;rect(c,x,y,w,h,appearanceColor(a,"eyeColor"));
-    if(h>1)rect(c,x,y,1,1,"#fff4df");
-    c.translate(0,-3);pixelPolygon(c,brow,shade(appearanceColor(a,"eyebrowColor"),.67));c.restore();
+    drawEye(c,eye,a,side?"side":mirror===-1?"left":"right");
+    c.translate(0,eye.browOffsetY);pixelPolygon(c,brow,shade(appearanceColor(a,"eyebrowColor"),.78));c.restore();
   }
   c.save();c.translate(side?8:0,17);pixelPolygon(c,NOSE_PARTS[a.noseStyle][side?"side":"front"],shade(skin,.68));
   if(side)rect(c,0,0,1,1,mix(skin,"#fff0cf",.2));c.restore();
-  rect(c,side?4:-1,20,2,1,shade(skin,.56));
+  if(female){rect(c,side?2:-6,18,2,1,mix(skin,"#d88778",.25));if(!side)rect(c,4,18,2,1,mix(skin,"#d88778",.25));}
+  rect(c,side?4:-1,20,2,1,shade(skin,.64));
 }
 function hairFront(c:CanvasRenderingContext2D,a:Appearance,facing:Facing):void {
   const color=appearanceColor(a,"hairColor");

@@ -42,11 +42,11 @@ test("wrong tools animate a server-confirmed attempt without HP, inventory or dr
   assert.throws(()=>parseCommand({actionId:"forged-tool",type:"useTool",toolId:"laser"}));
   assert.throws(()=>act("hitRock",{targetId:"resource",toolId:"axe"}));
 });
-test("pickup authority is one tile, area-bound, capacity-safe and idempotent",()=>{
-  const {w,a,act}=fixture();const drop=addDrop(w,{area:"farm",x:a.x+33,y:a.y},"wood",1);
+test("pickup authority is profile-bound, area-bound, capacity-safe and idempotent",()=>{
+  const {w,a,act}=fixture();const drop=addDrop(w,{area:"farm",x:a.x+41,y:a.y},"wood",1);
   assert.throws(()=>act("pickupDrop",{targetId:drop.id}));
   // A 30Hz walk can stop just beyond the exact tile boundary due to FP drift.
-  a.x=1327.9999999999995;drop.x=1360;
+  a.x=1319.9999999999995;drop.x=1360;
   assert(Math.hypot(a.x-drop.x,a.y-drop.y)>pickupRadius());
   const index=new DropIndex();index.rebuild(Object.values(w.entities));assert.equal(index.nearby("forest",a.x,a.y).length,0);
   assert.equal(index.nearby("farm",a.x,a.y)[0]?.id,drop.id);

@@ -70,6 +70,8 @@ export interface SunState extends SunlightProfile {
   shadowLength: number;
   sunlightIntensity: number;
   ambientLight: number;
+  moonlight: number;
+  season: Season;
   /** Warm low-sun contribution, zero at night and near midday. */
   warmth: number;
 }
@@ -104,14 +106,19 @@ export function getSunState(input: LightInput): SunState {
   const daylight = aboveHorizon ? smooth(Math.sin(position.sunAzimuth)) : 0;
   const sunlightIntensity = aboveHorizon ? clamp((input.sunlightIntensity ?? daylight * p.peakIntensity) *
     (input.seasonalSunModifier ?? 1) * (input.exposure ?? 1)) : 0;
-  // Twilight illuminates the sky before/after direct sunlight. A readable night
-  // floor preserves obstacles and characters; winter noon remains bright.
+  const day=Number.isFinite(input.day)?input.day!:fallbackDay;
+  const season=SEASONS[((Math.floor((day-1)/SEASON_DAYS)%4)+4)%4]!;
+  // A deterministic 28-day lunar cycle: only nights close to full moon gain
+  // a little visibility. No local wall clock or persisted phase is necessary.
+  const lunarPhase=((day-1)%28+28)%28/28;
+  const moonlight=.055*((1-Math.cos(lunarPhase*Math.PI*2))/2)**6;
+  const nightFloor=.018+moonlight;
   const sky = smooth((minute - p.sunrise + p.dawnMinutes / 2) / p.dawnMinutes) *
     smooth((p.sunset + p.duskMinutes / 2 - minute) / p.duskMinutes);
-  const ambientLight = .72 + .26 * sky + .02 * sunlightIntensity;
+  const ambientLight = Math.min(1,nightFloor+(1-nightFloor)*sky);
   const warmth = aboveHorizon ? smooth(daylight * 5) * (1 - smooth(daylight / .72)) : 0;
   return { ...p, ...position, dayLength: p.sunset - p.sunrise,
-    solarNoon: (p.sunrise + p.sunset) / 2, sunlightIntensity, ambientLight, warmth };
+    solarNoon: (p.sunrise + p.sunset) / 2, sunlightIntensity, ambientLight, moonlight, season, warmth };
 }
 export function currentLightLevel(input: LightInput): number {
   return getSunState(input).sunlightIntensity;

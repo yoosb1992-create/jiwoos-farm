@@ -1433,12 +1433,12 @@ h1 {
 .character-directions button { min-width:0; padding:4px 1px; font-size:11px; min-height:44px; }
 .character-directions [aria-pressed="true"] { background:#dbe8c6; border-color:#769062; }
 .character-preview select { width:100%; min-height:44px; margin-top:8px; }
-.character-options { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-content:start; }
+.character-options { display:grid; grid-template-columns:1fr; gap:12px; align-content:start; }
 .character-options label { font-size:12px; display:flex; flex-direction:column; gap:6px; min-width:0; }
 .character-options select { min-height:44px; width:100%; min-width:0; }
 .character-options button { grid-column:1/-1; min-height:44px; }
-.character-save { grid-column:1/-1; display:flex; gap:10px; position:sticky; bottom:0; padding:8px; background:#faf5e5; border-radius:12px; z-index:2; }
-.character-save button { flex:1; min-height:48px; }
+.character-save { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:10px; position:sticky; bottom:0; padding:8px; background:#faf5e5; border-radius:12px; z-index:2; }
+.character-save button { flex:1 1 30%; font-size:12px; padding:8px 4px; min-height:48px; }
 #appearance-save { background:#4d7558; color:#fff9e8; }
 .character-status { grid-column:1/-1; margin:0; font-size:12px; }
 .player-recovery { text-align:left; margin:14px 0; }
@@ -1480,10 +1480,20 @@ h1 {
 .character-height small { color:#75806b; }
 .character-options label { position:relative; }
 .character-swatch { position:absolute; width:13px; height:13px; right:2px; top:0; border-radius:50%; border:1px solid #384a3544; }
-.character-face-detail { margin-top:10px; border-top:1px solid #d4dcc4; padding-top:8px; }
-.character-face-detail summary { cursor:pointer; min-height:36px; font-size:12px; color:#486747; }
-.character-preview .character-face-detail canvas { width:100%; max-width:240px; }
+/* Native details toggle without remounting the preview or rebuilding textures. */
+.character-group { min-width:0; border:1px solid #ced9bc; border-radius:12px; background:#fffbee; overflow:hidden; }
+.character-group summary { min-height:56px; padding:10px 34px 10px 12px; box-sizing:border-box; cursor:pointer; position:relative; list-style:none; }
+.character-group summary::-webkit-details-marker { display:none; }
+.character-group summary::after { content:'+'; position:absolute; right:12px; top:17px; font-size:20px; color:#59704b; }
+.character-group[open] summary::after { content:'−'; }
+.character-group summary:focus-visible { outline:2px solid #557449; outline-offset:-3px; }
+.character-group[open] summary { background:#edf2df; border-bottom:1px solid #dbe3ce; }
+.character-group summary strong { display:block; font-size:14px; }
+.character-group-value { display:block; color:#657559; font-size:11px; line-height:1.5; margin-top:4px; overflow-wrap:anywhere; }
+.character-group-fields { display:grid; grid-template-columns:1fr 1fr; gap:14px 10px; padding:12px; }
+.character-group-fields .character-height { grid-column:1/-1; }
 @media(max-width:580px) {
-  .character-preview > canvas { width:200px; }
-  .character-preview .character-face-detail canvas { width:210px; }
+  .character-preview > canvas { width:180px; }
+  .character-preview { padding:8px; }
+  .character-layout { gap:10px; }
 }

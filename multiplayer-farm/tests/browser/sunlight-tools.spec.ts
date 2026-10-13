@@ -136,13 +136,19 @@ test("seed light in the live scene and botanical growth contact sheet", async ({
     // Keep the paused render probe monotonic so the existing atmosphere throttle
     // actually redraws (a fixed 2000 can be earlier than asset-loading frames).
     let tick=Math.max(performance.now(),s.lastAtmosphere,s.lastSunShadows)+1000;
-    (window as any).__solarProbe=(minute:number)=>{
-      s.onFrame=()=>({snapshot:frame.snapshot,state:{...state,day:42,minute,weather:"clear",entities:new Map([tree,rock,seed].map(e=>[e.id,e]))}});
+    (window as any).__solarProbe=(minute:number,day=42)=>{
+      s.onFrame=()=>({snapshot:frame.snapshot,state:{...state,day,minute,weather:"clear",entities:new Map([tree,rock,seed].map(e=>[e.id,e]))}});
       s.update(tick+=200,16);
+      // A season switch rebuilds static scenery; reattach the same authored
+      // porch source before comparing its local pool of light across seasons.
+      if(!s.objects.has("static-solar-house"))s.staticObject("static-solar-house","house",me.x-128,me.y-60,"");
+      s.drawAtmosphere(tick,s.onFrame().state);
       const b=s.objects.get(tree.id).body, glow=s.objects.get(seed.id).seedGlow;
       return {sun:s.sunlight,left:b.tintTopLeft,right:b.tintTopRight,glow:glow.alpha,
         shadows:s.sunShadows.commandBuffer.length,atmosphere:s.atmosphere.commandBuffer.slice(0,20),
-        textures:s.textures.getTextureKeys().length};
+        textures:s.textures.getTextureKeys().length,
+        nightVisible:s.nightVeil.visible,veilWidth:s.nightVeil.displayWidth,
+        veilAlpha:s.nightTexture.context.getImageData(0,0,1,1).data[3]};
     };
   });
   const phases: any[]=[];
@@ -159,7 +165,13 @@ test("seed light in the live scene and botanical growth contact sheet", async ({
   expect(phases[0].shadows).toBeGreaterThan(0);
   expect(phases[3].shadows).toBeLessThan(phases[0].shadows);
   expect(phases[3].glow).toBe(0);
-  expect(phases[3].atmosphere).not.toEqual(phases[1].atmosphere);
+  expect(phases[3].nightVisible).toBe(true);expect(phases[1].nightVisible).toBe(false);
+  expect(phases[3].veilAlpha).toBeGreaterThan(235);
+  for(const [name,day,minute] of [["spring",14,750],["summer",42,750],["autumn",70,750],["winter",98,750],["moonless",1,1380],["full-moon",15,1380]] as const){
+    const p=await page.evaluate(({day,minute})=>(window as any).__solarProbe(minute,day),{day,minute});
+    if(minute===1380)expect(p.sun.ambientLight).toBeLessThan(.08);
+    await page.screenshot({path:info.outputPath(`v282-light-${name}.png`)});
+  }
   expect(phases[1].sun.sunElevation).toBeGreaterThan(phases[0].sun.sunElevation);
   expect(new Set(phases.map(p=>p.textures)).size).toBe(1);
   const cameraInvariant=await page.evaluate(()=>{

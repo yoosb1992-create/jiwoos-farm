@@ -40,7 +40,7 @@ export function groundShadow(sun: SunState, width: number, height: number) {
     x: x * .46, y: y * .46,
     width: Math.min(180, width * .52 + Math.abs(x)),
     height: Math.min(85, Math.max(8, width * .15) + Math.abs(y)),
-    alpha: .15 * Math.sqrt(sun.sunlightIntensity),
+    alpha: .22 * Math.sqrt(sun.sunlightIntensity),
   };
 }
 
@@ -51,7 +51,10 @@ export function atmosphereLight(area: string, minute: number, sun: SunState) {
   const legacyInterior = minute >= 1140 ? Math.min(.32, (minute - 1140) / 800) : minute < 420 ? .08 : 0;
   return {
     darkness: environment === "mine" ? .18 : environment === "indoor" ? legacyInterior : 1 - sun.ambientLight,
-    darkColor: environment === "mine" ? 0x283043 : 0x263653,
+    darkColor: environment === "mine" ? 0x283043 : environment === "indoor" ? 0x263653 : 0x030711,
+    // Screen blending lifts the painted midtones without replacing hue detail.
+    daylightLift: environment === "outdoor" ? Math.sqrt(sun.sunlightIntensity) * ({spring:.12,summer:.22,autumn:.14,winter:.085}[sun.season]) : 0,
+    daylightColor: {spring:0xfff1c6,summer:0xffefb0,autumn:0xffc78d,winter:0xdbeeff}[sun.season],
     warmth: environment === "outdoor" ? sun.warmth * .065 : 0,
     warmColor: sun.sunDirectionX >= 0 ? 0xffd894 : 0xffbd78,
   };

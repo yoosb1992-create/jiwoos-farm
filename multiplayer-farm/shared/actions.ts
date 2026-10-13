@@ -50,7 +50,8 @@ import {
 import { FISH_STEP_MS, FISH_MAX_STEPS, replayFishing } from "./fishing.js";
 import { safeSpawn } from "./regions.js";
 import { collidesWithObstacle } from "./applyMovement.js";
-import { isTool, cuttableGrass, pickupRadius, PICKUP_RANGE_EPSILON, type Tool, type ActionFx } from "./interaction.js";
+import { isTool, cuttableGrass, PICKUP_RANGE_EPSILON, type Tool, type ActionFx } from "./interaction.js";
+import { itemPickupProfile } from "./pickup.js";
 import { naturalFlower, normalizeRock, rockMaxHp } from "./resources.js";
 import { chestInfo, chestInventory, validChestColor, validChestName } from "./chest-storage.js";
 import { adjacentChestIds, mergeChestGroup, splitChestGroup } from "./chest-groups.js";
@@ -188,6 +189,8 @@ export function parseCommand(value: unknown): Command {
   return out;
 }
 export interface ActionContext {
+  /** Set by the room's proximity scan, never parsed from a client command. */
+  automaticPickup?: boolean;
   now: number;
   online: string[];
   votes: Set<string>;
@@ -657,7 +660,8 @@ function applyActionCore(
     }
     case "pickupDrop": {
       const e = target("drop");
-      near(e, pickupRadius() + PICKUP_RANGE_EPSILON);
+      const profile = itemPickupProfile(e.item);
+      near(e, (ctx.automaticPickup ? profile.magnetRadius : profile.pickupRadius) + PICKUP_RANGE_EPSILON);
       change(m.inventory, e.item, e.quantity);
       m.collections ??= {};
       m.collections[e.item] = (m.collections[e.item] ?? 0) + e.quantity;

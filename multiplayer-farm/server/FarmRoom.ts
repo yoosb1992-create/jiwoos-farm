@@ -35,7 +35,8 @@ import {
 } from "../shared/regions.js";
 import { collidesWithObstacle } from "../shared/applyMovement.js";
 import { TILE, mapFor } from "../shared/content.js";
-import { DropIndex, PICKUP_SCAN_MS, DROP_SETTLE_MS, dropAppearDelay, pickupRadius } from "../shared/interaction.js";
+import { DropIndex, PICKUP_SCAN_MS, dropAppearDelay, PICKUP_RANGE_EPSILON } from "../shared/interaction.js";
+import { itemPickupProfile } from "../shared/pickup.js";
 
 /** One logical authority per family. PostgreSQL session advisory lease fences overlapping deploys. */
 export function configuredFarmRoom(store: Store): typeof FarmRoom {
@@ -67,6 +68,7 @@ export class FarmRoom extends MovementRoom {
   private readonly pickupPending = new Set<string>();
   private readonly dropReady = new Map<string, number>();
   private readonly pickupCooldown = new Map<string, number>();
+  private readonly pickupCandidate = new Map<string, { id: string; since: number }>();
   private lastPickupScan = 0;
   private enqueue<T>(job: () => Promise<T>): Promise<T> {
     const next = this.queue.then(job);
@@ -272,6 +274,7 @@ export class FarmRoom extends MovementRoom {
       const beforeDay = proposed.day;
       const actor = this.actor(p);
       const result = applyAction(proposed, actor, command, {
+        automaticPickup,
         now,
         online: [...this.state.players.values()]
           .filter((x) => x.connected)
@@ -329,7 +332,7 @@ export class FarmRoom extends MovementRoom {
       this.state.storage = "ready";
       if (result.fx) {
         for (const drop of result.fx.drops)
-          this.dropReady.set(drop.id, Date.now() + dropAppearDelay(result.fx) + DROP_SETTLE_MS);
+          this.dropReady.set(drop.id, Date.now() + dropAppearDelay(result.fx) + itemPickupProfile(drop.item).spawnProtectionMs);
         // Broadcast after the durable inventory/entity transaction commits.
         // Duplicate action IDs return their receipt above and never replay FX.
         this.broadcast("actionFx", result.fx);
@@ -360,10 +363,19 @@ export class FarmRoom extends MovementRoom {
         const inventory = this.world.members[p.playerId]?.inventory;
         const client = this.clients.get(sid);
         if (!inventory || !client) continue;
-        const e = this.drops.nearby(p.area,p.x,p.y,pickupRadius()).find(e =>
+        const e = this.drops.nearby(p.area,p.x,p.y,this.drops.maxMagnetRadius)
+          .sort((a,b)=>itemPickupProfile(b.item).autoCollectPriority-itemPickupProfile(a.item).autoCollectPriority)
+          .find(e =>
           !this.pickupPending.has(e.id) && now >= (this.dropReady.get(e.id)??0) &&
+          Math.hypot(e.x-p.x,e.y-p.y) <= itemPickupProfile(e.item).magnetRadius + PICKUP_RANGE_EPSILON &&
           (inventory[e.item] || Object.keys(inventory).length < 48) && (inventory[e.item]??0)+e.quantity<=999999);
-        if (!e) continue;
+        if (!e) { this.pickupCandidate.delete(p.playerId); continue; }
+        let candidate = this.pickupCandidate.get(p.playerId);
+        if (candidate?.id !== e.id) {
+          candidate = { id:e.id, since:now }; this.pickupCandidate.set(p.playerId,candidate);
+        }
+        if (now-candidate.since < itemPickupProfile(e.item).pickupDelayMs) continue;
+        this.pickupCandidate.delete(p.playerId);
         this.pickupPending.add(e.id); this.pending++;
         void this.enqueue(() => this.command(client,{
           actionId: crypto.randomUUID(), type:"pickupDrop", targetId:e.id,
@@ -492,6 +504,7 @@ export class FarmRoom extends MovementRoom {
         this.votes.delete(id);
         this.cooldown.delete(id);
         this.pickupCooldown.delete(id);
+        this.pickupCandidate.delete(id);
       }
       this.identities.delete(client.sessionId);
       this.transitionUntil.delete(client.sessionId);
