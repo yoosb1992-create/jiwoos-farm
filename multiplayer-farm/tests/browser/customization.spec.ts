@@ -10,12 +10,15 @@ test("v2.8: appearance draft, all viewports, permission separation, peer update 
   await page.getByLabel("헤어 색상",{exact:true}).selectOption("rose");
   await page.getByLabel("상의",{exact:true}).selectOption("blue");
   await page.getByLabel("하의",{exact:true}).selectOption("denim");
-  await page.getByLabel("신발",{exact:true}).selectOption("cream");
+  await page.getByLabel("신발 색상",{exact:true}).selectOption("cream");
   await page.getByLabel("성별",{exact:true}).selectOption("female");
-  await page.getByLabel("키",{exact:true}).selectOption("tall");
+  await expect(page.getByLabel("미리보기 동작")).toHaveValue("idle");
+  for(const [name,value] of [["피부색","deep"],["눈 모양","large"],["눈동자 색상","green"],["눈썹 모양","straight"],["코 모양","long"],["귀 모양","long"],["신발 종류","sandals"]])
+    await page.getByLabel(name!,{exact:true}).selectOption(value!);
+  await page.getByLabel("키",{exact:true}).fill("145");
   await page.locator("#appearance-save").click();await page.locator("#nickname").fill("꾸미기 농부");await page.locator("#create-farm").click();
   await expect(page.locator("#login")).toBeHidden({timeout:25000});await waitForFarmInput(page);
-  const original=await localLook(page);expect(original?.hair).toBe("ponytail");expect(original?.height).toBe("tall");
+  const original=await localLook(page);expect(original?.hair).toBe("ponytail");expect(original?.height).toBe(145);
   const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem("farm-v26-session")!));
   const peerContext=await browser.newContext({viewport:{width:390,height:844},hasTouch:true});
   const another=await browser.newContext({viewport:{width:768,height:1024},hasTouch:true});
@@ -50,17 +53,17 @@ test("v2.8: appearance draft, all viewports, permission separation, peer update 
       await page.screenshot({path:info.outputPath(`customize-${viewport.width}.png`)});
     }
     await page.getByLabel("헤어스타일",{exact:true}).selectOption("bun");
-    await page.getByLabel("키",{exact:true}).selectOption("short");await page.locator("#appearance-save").click();
+    await page.getByLabel("키",{exact:true}).fill("70");await page.locator("#appearance-save").click();
     await expect(page.locator("#panel")).toBeHidden();
-    await expect.poll(()=>localLook(page)).toEqual({...original,hair:"bun",height:"short"});
-    await expect.poll(()=>peer.evaluate(()=>window.__FARM_DEBUG__.snapshot().players.find(p=>!p.local)?.appearance)).toEqual({...original,hair:"bun",height:"short"});
+    await expect.poll(()=>localLook(page)).toEqual({...original,hair:"bun",height:70});
+    await expect.poll(()=>peer.evaluate(()=>window.__FARM_DEBUG__.snapshot().players.find(p=>!p.local)?.appearance)).toEqual({...original,hair:"bun",height:70});
     // New browser context: use the visible credential handoff, never copy a
     // local appearance cache or re-create a same-named member.
     await page.close();
     const device=await another.newPage();await device.goto("/");await device.locator(".player-recovery summary").click();
     await device.locator("#resume-code").fill(saved.token);await device.locator("#import-player").click();
     await expect(device.locator("#login")).toBeHidden({timeout:25000});
-    await expect.poll(()=>localLook(device)).toEqual({...original,hair:"bun",height:"short"});
+    await expect.poll(()=>localLook(device)).toEqual({...original,hair:"bun",height:70});
     await peer.goto("/editor.html");await expect(peer.getByRole("heading",{name:"월드 편집 권한이 필요해요"})).toBeVisible();
   }finally{await peerContext.close();await another.close();}
   expect(errors).toEqual([]);
@@ -71,7 +74,7 @@ test("appearance compositor: every hair, all directions, walking and every tool 
   await page.goto("/");await page.locator("#nickname").fill("외형 동작");await page.locator("#create-farm").click();
   await expect(page.locator("#login")).toBeHidden({timeout:25000});
   const result=await page.evaluate(async()=>{
-    const {appearanceTexture,paintCharacterFrame,CHARACTER_SOURCE}=await import("/client/character-art.ts" as string);
+    const {appearanceTexture,paintCharacterFrame,CHARACTER_SOURCE,characterHand}=await import("/client/character-art.ts" as string);
     const {APPEARANCE_OPTIONS,DEFAULT_APPEARANCE}=await import("/shared/appearance.ts" as string);
     const {ToolAnimationRig}=await import("/client/tool-animation.ts" as string);
     const {FARMER_FRAMES}=await import("/client/tool-animation-art.ts" as string);
@@ -81,7 +84,7 @@ test("appearance compositor: every hair, all directions, walking and every tool 
     const sheet=document.createElement("div");sheet.id="appearance-sheet";sheet.style.cssText="position:fixed;inset:0;z-index:9999;background:#f8f1df;overflow:auto;display:grid;grid-template-columns:repeat(4,1fr);padding:20px;gap:12px";
     const checks:string[]=[],hairSamples=new Set<string>();
     for(const [hair,label] of Object.entries(APPEARANCE_OPTIONS.hair))for(const facing of ["down","up","left","right"]){
-      const a={...DEFAULT_APPEARANCE,hair,hairColor:hair==="original"?"original":"chestnut",gender:hair==="original"?"male":"female",top:hair==="original"?"original":"sage",bottom:hair==="original"?"original":"denim",shoes:hair==="original"?"original":"cream"};
+      const a={...DEFAULT_APPEARANCE,hair,hairColor:hair==="original"?"original":"chestnut",gender:hair==="original"?"male":"female",top:hair==="original"?"original":"sage",bottom:hair==="original"?"original":"denim",shoeColor:hair==="original"?"original":"cream"};
       const cell=document.createElement("div"),title=document.createElement("small");title.textContent=`${label} · ${facing}`;cell.append(title);
       const canvas=document.createElement("canvas");canvas.width=48;canvas.height=72;canvas.style.cssText="height:144px;width:96px;image-rendering:pixelated;display:block";
       paintCharacterFrame(canvas.getContext("2d"),image,["down","up","left","right"].indexOf(facing)*4*48,0,a,facing);cell.append(canvas);sheet.append(cell);
@@ -89,10 +92,11 @@ test("appearance compositor: every hair, all directions, walking and every tool 
       const key=appearanceTexture(scene,"player",a);if(!scene.textures.get(key).has(31))checks.push("walk atlas missing");
       for(const tool of ["axe","pickaxe","hoe","scythe","water","hand"]){
         const event={id:"preview",actorId:"preview",area:"farm",x:200,y:300,facing,tool,action:tool==="water"?"waterCrop":"useTool",outcome:"hit",drops:[],point:{x:232,y:300}};
-        const rig=new ToolAnimationRig(scene);rig.start(event,{...a,height:"tall"});
+        const rig=new ToolAnimationRig(scene);rig.start(event,{...a,height:145});
+        if(rig.body.visible||rig.palm.visible)checks.push("unbound rig exposed old appearance");
         const timing=actionTiming(event);
         for(const t of [0,timing.windup,timing.impact,timing.follow]){
-          rig.update(t,200,300,{...a,height:"tall"});const hand=FARMER_FRAMES[facing][rig.currentPose].hand;
+          rig.update(t,200,300,{...a,height:145});const hand=characterHand({...a,height:145},facing,rig.currentPose);
           const actual=rig.body.getWorldTransformMatrix().transformPoint(hand[0]-rig.body.displayOriginX,hand[1]-rig.body.displayOriginY);
           if(Math.hypot(actual.x-rig.hands[0].x,actual.y-rig.hands[0].y)>.001)checks.push(`${tool}/${facing} grip`);
           if(rig.body.y!==300)checks.push("foot moved");
@@ -103,4 +107,94 @@ test("appearance compositor: every hair, all directions, walking and every tool 
   });
   expect(result.checks).toEqual([]);expect(result.hairCount).toBe(8);
   await page.screenshot({path:info.outputPath("hair-directions.png")});
+});
+
+test("v2.8.1 fixed face layers, silhouettes, skin palettes and live texture lifetime",async({page},info)=>{
+  test.setTimeout(60000);await page.setViewportSize({width:1320,height:1600});
+  await page.goto("/");await page.locator("#nickname").fill("얼굴 파츠 검증");await page.locator("#create-farm").click();
+  await expect(page.locator("#login")).toBeHidden({timeout:25000});
+  const result=await page.evaluate(async()=>{
+    const art=await import("/client/character-art.ts" as string);
+    const parts=await import("/client/character-parts.ts" as string);
+    const {CHARACTER_MASKS}=await import("/client/character-masks.ts" as string);
+    const {APPEARANCE_OPTIONS,DEFAULT_APPEARANCE}=await import("/shared/appearance.ts" as string);
+    const scene=(window.__FARM_DEBUG__ as any).scene();scene.scene.pause();
+    const source=scene.textures.get("player").getSourceImage();
+    const checks:string[]=[],sheet=document.createElement("div");sheet.id="face-parts-sheet";
+    sheet.style.cssText="position:absolute;top:0;left:0;right:0;z-index:99999;background:#f1ebdc;color:#304c35;padding:24px;display:grid;grid-template-columns:repeat(8,1fr);gap:12px;align-content:start";
+    const paint=(a:any,index:number)=>{
+      const canvas=document.createElement("canvas");canvas.width=48;canvas.height=72;
+      art.paintCharacterFrame(canvas.getContext("2d"),source,index%16*48,Math.floor(index/16)*72,a,["down","up","left","right"][Math.floor(index%16/4)]);return canvas;
+    };
+    const pixels=(canvas:HTMLCanvasElement,x=0,y=0,w=48,h=72)=>Array.from(canvas.getContext("2d")!.getImageData(x,y,w,h).data);
+    const alpha=(c:HTMLCanvasElement)=>pixels(c).filter((_,i)=>i%4===3).map(a=>a?1:0);
+    const silhouetteDiff=(a:any,b:any)=>{const one=alpha(a),two=alpha(b);return one.filter((v,i)=>v!==two[i]).length;};
+    for(const key of ["hair","gender","skinColor","eyeShape","eyeColor","eyebrowStyle","noseStyle","earStyle","shoeStyle"]){
+      const heading=document.createElement("h3");heading.textContent=key;heading.style.gridColumn="1/-1";sheet.append(heading);
+      const front=new Set<string>(),side=new Set<string>();
+      for(const value of Object.keys(APPEARANCE_OPTIONS[key])){
+        const a={...DEFAULT_APPEARANCE,hair:key==="hair"?value:"short",[key]:value};
+        const card=document.createElement("div"),label=document.createElement("div");label.textContent=value;card.append(label);sheet.append(card);
+        for(const index of [0,12,4]){
+          const canvas=paint(a,index);canvas.style.cssText="image-rendering:pixelated;width:120px;height:180px;display:block";card.append(canvas);
+          if(index===0)front.add(canvas.toDataURL());if(index===12)side.add(canvas.toDataURL());
+        }
+      }
+      if(front.size!==Object.keys(APPEARANCE_OPTIONS[key]).length)checks.push(`${key}: front options visually collapse`);
+      if(side.size!==Object.keys(APPEARANCE_OPTIONS[key]).length)checks.push(`${key}: side options visually collapse`);
+    }
+    const a={...DEFAULT_APPEARANCE,hair:"short",skinColor:"deep",earStyle:"long",eyeColor:"blue",eyeShape:"round",eyebrowStyle:"raised"};
+    for(const dir of [0,1,2,3]){
+      let expected:string|undefined;
+      for(const offset of [0,1,2,3,16,17,18,19]){
+        const index=dir*4+offset,[x,y]=CHARACTER_MASKS[index].head;
+        // The visible eye/skin region follows its explicit head anchor exactly.
+        const data=JSON.stringify(pixels(paint(a,index),x-6,y+13,13,7));
+        if(expected!==undefined&&data!==expected)checks.push(`face flicker ${index}`);expected=data;
+      }
+    }
+    const headSilhouette=(a:any,dir:number)=>{
+      const c=document.createElement("canvas");c.width=48;c.height=72;
+      const h=parts.headLayers(a,["down","up","left","right"][dir/4]);
+      c.getContext("2d")!.drawImage(h.back,0,0);c.getContext("2d")!.drawImage(h.front,0,0);return c;
+    };
+    for(const dir of [0,4,8,12]){
+      for(const [one,two] of [["bob","long"],["ponytail","bun"]])if(silhouetteDiff(headSilhouette({...a,hair:one},dir),headSilhouette({...a,hair:two},dir))<15)checks.push(`${one}/${two}: silhouette ${dir}`);
+      if(silhouetteDiff(paint({...a,earStyle:"normal"},dir),paint({...a,earStyle:"long"},dir))<10)checks.push(`ear silhouette ${dir}`);
+    }
+    const skinOnly=paint({...a,skinColor:"porcelain"},0),dark=paint(a,0);
+    // Clothes and boots outside the face/hand/ear regions cannot be recolored by skin.
+    if(JSON.stringify(pixels(skinOnly,19,58,10,6))!==JSON.stringify(pixels(dark,19,58,10,6)))checks.push("skin changed trousers");
+    const shared=parts.headLayers(a,"down");if(shared!==parts.headLayers({...a,top:"blue",height:145},"down"))checks.push("garment/height recreated head");
+    const texture=art.appearanceTexture(scene,"player",a),count=scene.textures.getTextureKeys().length;
+    for(let i=0;i<200;i++)if(art.appearanceTexture(scene,"player",{...a,height:i%2?70:145})!==texture)checks.push("height allocated texture");
+    if(scene.textures.getTextureKeys().length!==count)checks.push("cache hit allocated textures");
+    const pinned=scene.add.image(0,0,texture).setVisible(false);
+    const expired=art.appearanceTexture(scene,"player",{...a,hair:"wave"});
+    art.pruneAppearanceTextures(scene,performance.now()+40000);
+    if(!scene.textures.exists(texture)||scene.textures.exists(expired))checks.push("texture retirement removed a live reference or leaked an inactive bank");pinned.destroy();
+    document.body.append(sheet);return checks;
+  });
+  await page.locator("#face-parts-sheet").screenshot({path:info.outputPath("face-parts-all-directions.png")});
+  expect(result).toEqual([]);
+});
+
+test("idle entry, actual face magnifier and fixed height ruler at both extremes",async({page},info)=>{
+  await page.goto("/");await page.locator("#new-appearance").click();
+  await expect(page.getByLabel("미리보기 동작")).toHaveValue("idle");
+  await page.locator(".character-face-detail summary").click();
+  const sample=()=>page.locator("#character-preview").evaluate((n:HTMLCanvasElement)=>{
+    const c=n.getContext("2d")!,data=c.getImageData(0,0,n.width,n.height).data;
+    let top=280;for(let y=0;y<245;y++)for(let x=55;x<148;x++){
+      const i=(y*240+x)*4;if(data[i+3]!>240&&data[i]!<140&&data[i+1]!<115&&data[i+2]!<110)top=Math.min(top,y);
+    }
+    return {top,post:Array.from(c.getImageData(193,20,23,245).data)};
+  });
+  await page.getByLabel("키",{exact:true}).fill("70");await expect(page.locator(".character-height output")).toHaveText("70%");
+  await page.waitForTimeout(60);const small=await sample();await page.screenshot({path:info.outputPath("height-70.png")});
+  await page.getByLabel("키",{exact:true}).fill("145");await page.waitForTimeout(60);const tall=await sample();
+  expect(small.top-tall.top).toBeGreaterThan(90);expect(tall.post).toEqual(small.post);
+  await expect(page.locator("#character-face-preview")).toBeVisible();await page.screenshot({path:info.outputPath("height-145.png")});
+  await page.getByLabel("미리보기 동작").selectOption("run");await page.getByRole("button",{name:"취소",exact:true}).click();
+  await page.locator("#new-appearance").click();await expect(page.getByLabel("미리보기 동작")).toHaveValue("idle");
 });

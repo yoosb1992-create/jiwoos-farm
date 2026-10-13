@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { appearanceTexture, characterScale } from "./character-art.js";
+import { appearanceTexture, characterScale, characterHand } from "./character-art.js";
 import { appearanceOf, type Appearance } from "../shared/appearance.js";
 import { actionTiming, toolMotion, type ActionFx, type ToolMotion, type ToolTiming } from "../shared/interaction.js";
 import type { Facing } from "../shared/world.js";
@@ -20,8 +20,8 @@ export const TOOL_ANCHORS={
 } as const;
 
 type PoseKey={at:number;pose:FarmerPose};
-/** Original, whole-character sprite poses. The rig owns no joints, synthetic
- * arms or replacement clothing. Every tool grip follows the authored palm,
+/** Whole-character atlas poses with cached cosmetic layers.
+ * Every tool grip follows the authored palm,
  * including the discrete frame changes of the original pixel animation. */
 export class ToolAnimationRig {
   readonly body:Phaser.GameObjects.Image;
@@ -40,6 +40,7 @@ export class ToolAnimationRig {
   private readonly tips:Point[]=[];
   private currentPose:FarmerPose="idle";
   private appearance=appearanceOf();
+  private appearanceSource?:Appearance;
   constructor(private scene:Phaser.Scene) {
     this.body=scene.add.image(0,0,farmerKey("down","idle")).setOrigin(.5,70/72).setScale(1.05);
     this.palm=scene.add.image(0,0,`${farmerKey("down","idle")}-palm`).setOrigin(.5,70/72).setScale(1.05);
@@ -47,7 +48,7 @@ export class ToolAnimationRig {
     this.trail=scene.add.graphics();this.hide();
   }
   start(fx:ActionFx,appearance?:Appearance):void {
-    this.appearance=appearanceOf(appearance);
+    this.appearance=appearanceOf(appearance);this.appearanceSource=appearance;
     this.fx=fx;this.motion=toolMotion(fx);this.tips.length=0;
     const t=actionTiming(fx),f=facingVector(fx.facing),tree=fx.target?.kind==="tree";
     const p=fx.point??fx.target??{x:fx.x+f.x*32,y:fx.y+f.y*32};
@@ -74,17 +75,19 @@ export class ToolAnimationRig {
     const frame=FARMER_FRAMES[fx.facing][this.poseAt(t.impact)];
     const a=TOOL_ANCHORS[fx.tool==="hand"?"hoe":fx.tool];
     const size=characterScale(this.appearance);
-    const hx=fx.x+(frame.hand[0]-24)*size.x,hy=fx.y+(frame.hand[1]-farmerGround(fx.facing,this.poseAt(t.impact)))*size.y;
+    const hand=characterHand(this.appearance,fx.facing,this.poseAt(t.impact));
+    const hx=fx.x+(hand[0]-24)*size.x,hy=fx.y+(hand[1]-farmerGround(fx.facing,this.poseAt(t.impact)))*size.y;
     const mx=fx.facing==="left"?-1:1;
     const base=Math.atan2(a.tip.y-a.grip.y,(a.tip.x-a.grip.x)*mx);
     const toward=Math.atan2(this.contact.y-hy,this.contact.x-hx);
     this.impactAngle=toward-base;
     // Change the tool's size once for the near surface, never stretch an arm.
-    this.scale=fx.tool==="water"?.52:Math.max(.38,Math.min(1.35,Math.hypot(this.contact.x-hx,this.contact.y-hy)/Math.hypot(a.tip.x-a.grip.x,a.tip.y-a.grip.y)));
+    this.scale=fx.tool==="water"?.52*Math.sqrt(size.x*size.y)/1.05:Math.max(.38,Math.min(1.35,Math.hypot(this.contact.x-hx,this.contact.y-hy)/Math.hypot(a.tip.x-a.grip.x,a.tip.y-a.grip.y)));
     const wind=horizontal ? this.impactAngle-mx*(this.motion==="horizontal_cut"?1.7:1.1) : -Math.PI/2-base;
     this.windAngle=nearestAngle(this.impactAngle,wind);
     this.tool.setTexture(`held-${fx.tool==="hand"?"hoe":fx.tool}`).setOrigin(a.grip.x/64,a.grip.y/64);
-    this.body.setVisible(true);this.palm.setVisible(true);
+    // Wait for update to bind the actor's actual appearance before showing a pooled rig.
+    this.body.setVisible(false);this.palm.setVisible(false);
   }
   private poseAt(elapsed:number):FarmerPose {
     let pose:FarmerPose="idle";
@@ -106,7 +109,7 @@ export class ToolAnimationRig {
     return lerp(follow,nearestAngle(follow,this.windAngle+mx*.35),smooth((elapsed-t.follow)/(t.duration-t.follow)));
   }
   update(elapsed:number,x:number,y:number,appearance?:Appearance):void {
-    if(appearance&&JSON.stringify(appearance)!==JSON.stringify(this.appearance))this.start(this.fx,appearance);
+    if(appearance&&appearance!==this.appearanceSource&&JSON.stringify(appearance)!==JSON.stringify(this.appearance))this.start(this.fx,appearance);
     const size=characterScale(this.appearance);
     const t=actionTiming(this.fx),f=this.fx.facing,up=f==="up",pose=this.poseAt(elapsed);
     const key=farmerKey(f,pose),frame=FARMER_FRAMES[f][pose];
@@ -117,9 +120,10 @@ export class ToolAnimationRig {
     const shift=Math.sin(clamp(elapsed/t.duration)*Math.PI)*recovery;
     const bx=x+(f==="left"?-1:f==="right"?1:0)*shift,by=y;
     const ground=farmerGround(f,pose);
-    this.body.setTexture(appearanceTexture(this.scene,key,this.appearance)).setOrigin(.5,ground/72).setScale(size.x,size.y).setPosition(bx,by).setDepth(y+.03).setAlpha(1);
-    this.palm.setTexture(`${key}-palm`).setOrigin(.5,ground/72).setScale(size.x,size.y).setPosition(bx,by).setDepth(y+.12).setAlpha(1).setVisible(!up&&pose!=="idle");
-    const gx=bx+(frame.hand[0]-24)*size.x,gy=by+(frame.hand[1]-ground)*size.y;
+    this.body.setTexture(appearanceTexture(this.scene,key,this.appearance)).setVisible(true).setOrigin(.5,ground/72).setScale(size.x,size.y).setPosition(bx,by).setDepth(y+.03).setAlpha(1);
+    this.palm.setTexture(appearanceTexture(this.scene,`${key}-palm`,this.appearance)).setOrigin(.5,ground/72).setScale(size.x,size.y).setPosition(bx,by).setDepth(y+.12).setAlpha(1).setVisible(!up&&pose!=="idle");
+    const hand=characterHand(this.appearance,f,pose);
+    const gx=bx+(hand[0]-24)*size.x,gy=by+(hand[1]-ground)*size.y;
     const a=TOOL_ANCHORS[this.fx.tool==="hand"?"hoe":this.fx.tool],mirror=f==="left"?-1:1,rotation=this.angleAt(elapsed,t);
     const alpha=Math.min(smooth(elapsed/65),smooth((t.duration-elapsed)/70));
     this.tool.setPosition(gx,gy).setRotation(rotation).setScale(mirror*this.scale,this.scale).setDepth(up?y+.02:y+.11).setAlpha(alpha).setVisible(this.fx.tool!=="hand");

@@ -1,141 +1,147 @@
 import type Phaser from "phaser";
-import { appearanceOf, appearanceKey, DEFAULT_APPEARANCE, HEIGHT_SCALE, type Appearance } from "../shared/appearance.js";
+import { appearanceColor, appearanceKey, DEFAULT_APPEARANCE, type Appearance } from "../shared/appearance.js";
 import type { Facing } from "../shared/world.js";
-
-export const CHARACTER_SOURCE = "/assets/graphics-vertical-slice/player/adult-farmer-48.png";
-const palettes = {
-  hairColor: { original: "#845039", black: "#343342", chestnut: "#624132", gold: "#d9ac62", silver: "#bbc3cd", rose: "#b27388", sage: "#809578" },
-  top: { original: "#94714a", cream: "#dfc99a", sage: "#8ca36b", blue: "#719fb7", rose: "#c58085", plum: "#9678a5", ochre: "#cdac56" },
-  bottom: { original: "#745236", denim: "#547f99", charcoal: "#54545f", cream: "#ccbca0", forest: "#566f56" },
-  shoes: { original: "#62402e", brown: "#906044", red: "#a5594e", blue: "#445b80", cream: "#cfc3ac" },
-};
-const rgb = (hex:string) => [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
-const original = (a:Appearance) => appearanceKey(a)===appearanceKey(DEFAULT_APPEARANCE);
-export const characterScale = (value?:Appearance) => {
-  const a=appearanceOf(value),h=HEIGHT_SCALE[a.height];
-  return {x:1.05*(a.gender==="female"?.96:1)*(1+(h-1)*.3),y:1.05*h};
-};
-
-/** The same per-frame compositor is used by the game, tools, carrying and UI.
- * Source shading/face/limbs stay intact. Only bounded garment masks and hair
- * silhouettes change; no physics, atlas explosion or networked pixels. */
-export function paintCharacterFrame(c:CanvasRenderingContext2D, source:CanvasImageSource,
-  sx:number,sy:number,a:Appearance,facing:Facing):void {
-  c.clearRect(0,0,48,72);c.imageSmoothingEnabled=false;
-  c.drawImage(source,sx,sy,48,72,0,0,48,72);
-  if(original(a))return;
-  const data=c.getImageData(0,0,48,72),p=data.data;
-  // Find the head in the middle columns, excluding raised hands at the sides.
-  let top=24,found=false;
-  for(let y=14;y<42&&!found;y++) {
-    let count=0;
-    for(let x=17;x<30;x++){const i=(y*48+x)*4;if(p[i+3]!>80&&p[i]!>p[i+1]!*1.1&&p[i+1]!<125)count++;}
-    if(count>=5){top=y;found=true;}
+import { CHARACTER_MASKS } from "./character-masks.js";
+import { drawShoe, headLayers, shade } from "./character-parts.js";
+import { FARMER_FRAMES } from "./tool-animation-art.js";
+export const CHARACTER_SOURCE="/assets/graphics-vertical-slice/player/adult-farmer-48.png";
+export const CHARACTER_DIRECTIONS:Facing[]=["down","up","left","right"];
+export const characterScale=(a:Appearance=DEFAULT_APPEARANCE)=>({x:1.05*(1+(a.height/100-1)*.3),y:1.05*a.height/100});
+const decoded=new Map<string,Uint8Array>();
+function decode(rle:string):Uint8Array {
+  let data=decoded.get(rle);if(data)return data;
+  data=new Uint8Array(48*72);let offset=0;
+  for(const match of rle.matchAll(/([0-9a-z]+)([A-Z])/g)){
+    const length=parseInt(match[1]!,36);data.fill(match[2]!.charCodeAt(0)-65,offset,offset+length);offset+=length;
   }
-  let foot=70;
-  outer:for(let y=71;y>54;y--)for(let x=12;x<35;x++)if(p[(y*48+x)*4+3]!>80){foot=y;break outer;}
-  const center=facing==="left"?24:facing==="right"?25:24;
-  const footByColumn=new Uint8Array(48);
-  for(let x=0;x<48;x++)for(let y=71;y>=foot-13;y--)if(p[(y*48+x)*4+3]!>80){footByColumn[x]=y;break;}
-  const colors = {hairColor:rgb(palettes.hairColor[a.hairColor]),top:rgb(palettes.top[a.top]),bottom:rgb(palettes.bottom[a.bottom]),shoes:rgb(palettes.shoes[a.shoes])};
-  for(let y=0;y<72;y++)for(let x=0;x<48;x++) {
-    const i=(y*48+x)*4,r=p[i]!,g=p[i+1]!,b=p[i+2]!;
-    if(p[i+3]!<35)continue;
-    const skin=r>155&&g>95&&r>g*1.08&&r>b*1.22;
-    const hair=y>=top-2&&y<=top+16&&Math.abs(x-center)<13&&!skin&&r>g*1.12&&r>b*.95;
-    let channel:keyof typeof colors|undefined;
-    if(hair)channel="hairColor";
-    // Each leg has its own baseline, so a raised shoe keeps its color during
-    // the stride instead of inheriting the trouser palette of the lower leg.
-    else if(y>=foot-13&&footByColumn[x]&&y>=footByColumn[x]!-3&&Math.abs(x-center)<12)channel="shoes";
-    else if(y>=foot-12&&Math.abs(x-center)<10)channel="bottom";
-    else if(y>=top+21&&y<foot-12&&Math.abs(x-center)<7&&!skin)channel="top";
-    if(!channel||a[channel]==="original")continue;
-    const lum=.3*r+.59*g+.11*b;
-    if(lum<28)continue; // preserve original outline
-    const shade=Math.max(.28,Math.min(1.4,lum/(channel==="hairColor"?102:117)));
-    for(let k=0;k<3;k++)p[i+k]=Math.min(255,Math.round(colors[channel][k]!*shade));
+  decoded.set(rle,data);return data;
+}
+const paletteCache=new Map<string,string[]>();
+function palette(a:Appearance):string[] {
+  const colors=[appearanceColor(a,"skinColor"),appearanceColor(a,"top"),appearanceColor(a,"bottom"),a.top==="original"&&!a.customColors?.top?"#e7d8ab":shade(appearanceColor(a,"top"),1.25),"#587047"];
+  const key=colors.join();let palette=paletteCache.get(key);if(palette)return palette;
+  palette=["transparent"];
+  for(const color of colors)for(const light of [.46,.74,1,1.2])palette.push(shade(color,light));
+  // A neutral warm outline is separate from every dye channel.
+  while(palette.length<=25)palette.push("#352d2b");
+  paletteCache.set(key,palette);if(paletteCache.size>48)paletteCache.delete(paletteCache.keys().next().value!);return palette;
+}
+export function characterHeadRect(frame:number):{x:number;y:number;width:number;height:number} {
+  const [x,y]=CHARACTER_MASKS[frame%48]!.head;
+  return {x:x-23,y:Math.max(0,y-6),width:46,height:36};
+}
+/** Separate shoulder/waist/hip ratios, with continuous transitions into the
+ * limbs. Every pixel in a row (including skin and outline) shares the transform
+ * so slimming the waist cannot leave detached hand/outline pixels behind. */
+function bodyFactor(frame:number,a:Appearance,y:number):number {
+  const dy=y-CHARACTER_MASKS[frame]!.neck;
+  if(dy<0||dy>=20)return 1;
+  const stops=a.gender==="male"?[[0,1],[3,1.14],[6,1.14],[11,1.05],[15,1.02],[20,1]]:[[0,1],[3,.87],[6,.87],[11,.76],[15,1.04],[20,1]];
+  for(let i=1;i<stops.length;i++){
+    const [from,left]=stops[i-1]!,[to,right]=stops[i]!;
+    if(dy<=to!)return left!+(right!-left!)*(dy-from!)/(to!-from!);
   }
-  // A slightly shaped waist differentiates the body without moving feet/hands.
-  if(a.gender==="female")for(let y=Math.max(top+26,foot-20);y<foot-12;y++) {
-    for(const side of [-1,1]){
-      const x=center+side*7,i=(y*48+x)*4,next=(y*48+x+side)*4;
-      if(p[next+3]!<30)p[i+3]=0;
+  return 1;
+}
+function bodyX(frame:number,a:Appearance,x:number,y:number):number {
+  const cx=CHARACTER_MASKS[frame]!.head[0];return cx+Math.floor((x-cx)*bodyFactor(frame,a,y));
+}
+export function characterHand(a:Appearance,facing:Facing,pose:keyof typeof FARMER_FRAMES.down):readonly[number,number] {
+  const frame=actionIndex(facing,pose),[x,y]=FARMER_FRAMES[facing][pose].hand;
+  return [bodyX(frame,a,x,y),y];
+}
+const bodyLayers=new Map<string,HTMLCanvasElement>();
+function bodyLayer(c:CanvasRenderingContext2D,frame:number,a:Appearance,foreground=false):void {
+  const key=[frame,foreground,a.gender,...palette(a)].join("|");
+  const hit=bodyLayers.get(key);
+  if(hit){bodyLayers.delete(key);bodyLayers.set(key,hit);c.drawImage(hit,0,0);return;}
+  const tile=document.createElement("canvas");tile.width=48;tile.height=72;const dest=tile.getContext("2d")!;
+  const mask=CHARACTER_MASKS[frame]!,data=decode(foreground?mask.front:mask.body),colors=palette(a);
+  for(let y=0;y<72;y++){
+    const factor=bodyFactor(frame,a,y),cx=mask.head[0];
+    for(let x=0;x<48;x++){
+      const code=data[y*48+x]!;if(!code)continue;
+      const xx=cx+Math.floor((x-cx)*factor),end=cx+Math.floor((x+1-cx)*factor);
+      if(end>xx){dest.fillStyle=colors[code]!;dest.fillRect(xx,y,end-xx,1);}
     }
   }
-  if(a.hair==="short")for(let y=top-3;y<top+3;y++)for(let x=0;x<48;x++){
-    if(y>=0&&Math.abs(x-center)>5)p[(y*48+x)*4+3]=0;
-  }
-  c.putImageData(data,0,0);
-  if(a.hair==="original"||a.hair==="short")return;
-  const color=palettes.hairColor[a.hairColor],shade=rgb(color).map(v=>Math.round(v*.63));
-  const dark=`rgb(${shade.join(",")})`;
-  const polygon=(points:number[][],fill:string)=>{
-    c.fillStyle=fill;c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x!,y!):c.moveTo(x!,y!));c.closePath();c.fill();
-  };
-  const tail=(x:number,y:number,length:number,width:number,wave=false)=>{
-    polygon([[x,y],[x+width,y],[x+width+1,y+length-4],[x+width-1,y+length],[x+1,y+length-1],[x-1,y+3]],dark);
-    c.fillStyle=color;
-    for(let j=1;j<length-2;j++)c.fillRect(x+1+(wave?Math.round(Math.sin(j*.7)):0),y+j,Math.max(2,width-2),1);
-  };
-  c.globalCompositeOperation="destination-over";
-  if(["long","wave","bob"].includes(a.hair)) {
-    const length=a.hair==="bob"?13:a.hair==="long"?24:22;
-    tail(center-11,top+8,length,5,a.hair==="wave");
-    tail(center+7,top+8,length,5,a.hair==="wave");
-  }
-  if(a.hair==="ponytail") {
-    const x=facing==="left"?center+10:facing==="right"?center-14:center+6;
-    tail(x,top+8,23,5,true);
-    c.fillStyle="#d79b8b";c.fillRect(x,top+10,5,2);
-  }
-  if(a.hair==="bun") {
-    const x=facing==="left"?center+7:facing==="right"?center-13:center-3;
-    polygon([[x,top+4],[x-1,top],[x+1,top-4],[x+6,top-4],[x+9,top],[x+7,top+6]],dark);
-    c.fillStyle=color;c.fillRect(x+1,top-2,5,6);
-    c.fillStyle="#d9ba84";c.fillRect(x,top+3,7,1);
-  }
-  c.globalCompositeOperation="source-over";
-  if(facing==="up"&&(a.hair==="long"||a.hair==="wave"))tail(center-6,top+13,20,12,a.hair==="wave");
-  if(a.hair==="parted") {
-    c.fillStyle=dark;c.fillRect(center+1,top+2,1,8);
-    c.fillStyle=color;c.fillRect(center+2,top+3,4,2);
-  }
-  // On back views the tied hair belongs in front of the shirt, below the head.
-  if(facing==="up"&&a.hair==="ponytail")tail(center+1,top+14,17,5,true);
+  bodyLayers.set(key,tile);while(bodyLayers.size>240)bodyLayers.delete(bodyLayers.keys().next().value!);
+  c.drawImage(tile,0,0);
+}
+/** The atlas supplies the 48 authored poses as fixed masks. Head/face/shoe
+ * layers are reused by direction. No RGB thresholding or image reads occur
+ * here, and there is no default-outfit bypass that flashes the source art. */
+export function paintCharacterFrame(c:CanvasRenderingContext2D,_source:CanvasImageSource,
+  sx:number,sy:number,a:Appearance,facing:Facing):void {
+  const frame=Math.floor(sy/72)*16+Math.floor(sx/48),mask=CHARACTER_MASKS[frame]!;
+  c.clearRect(0,0,48,72);c.imageSmoothingEnabled=false;
+  const head=headLayers(a,facing),[hx,hy]=mask.head;
+  c.drawImage(head.back,hx-24,hy-8);
+  bodyLayer(c,frame,a);
+  for(const [x,y,w] of mask.feet)drawShoe(c,a,x,y,w,facing);
+  c.drawImage(head.front,hx-24,hy-8);
+  bodyLayer(c,frame,a,true);
 }
 
 type Bank={keys:Set<string>;used:number};
-const banks=new WeakMap<Phaser.Scene,Map<string,Bank>>();
-/** On-demand textures for only the appearances seen in this scene, not every
- * combination. Retire inactive banks after 30 seconds; keep active peers. */
-export function appearanceTexture(scene:Phaser.Scene,base:string,value?:Appearance):string {
-  const a=appearanceOf(value);if(original(a))return base;
-  const signature=appearanceKey(a),key=`outfit-${signature}-${base}`;
-  let cache=banks.get(scene);if(!cache){cache=new Map();banks.set(scene,cache);}
-  let bank=cache.get(signature);if(!bank){bank={keys:new Set(),used:0};cache.set(signature,bank);}
-  bank.used=performance.now();
+type Cache={id:number;banks:Map<string,Bank>;swept:number};
+let sceneId=0;
+const banks=new WeakMap<Phaser.Scene,Cache>();
+const signatures=new WeakMap<Appearance,string>();
+function signature(a:Appearance):string {let s=signatures.get(a);if(!s){s=appearanceKey(a);signatures.set(a,s);}return s;}
+function sceneCache(scene:Phaser.Scene):Cache {
+  let cache=banks.get(scene);if(cache)return cache;
+  cache={id:++sceneId,banks:new Map(),swept:0};banks.set(scene,cache);
+  const owned=cache;
+  scene.events.once("shutdown",()=>{for(const b of owned.banks.values())for(const key of b.keys)scene.textures.remove(key);owned.banks.clear();banks.delete(scene);});
+  return cache;
+}
+/** Retain every referenced texture (including hidden peers/carry/tool images).
+ * Periodic sweeping also runs on cache hits, so inactive appearances really
+ * expire even when the player has stopped changing their outfit. */
+export function pruneAppearanceTextures(scene:Phaser.Scene,now=performance.now()):void {
+  const cache=banks.get(scene);if(!cache||now-cache.swept<5000)return;cache.swept=now;
+  const referenced=new Set<string>();
+  for(const child of scene.children.list){const image=child as Phaser.GameObjects.Image;if(image.texture?.key)referenced.add(image.texture.key);}
+  for(const [id,b] of cache.banks)if(now-b.used>30000&&![...b.keys].some(k=>referenced.has(k))){
+    for(const key of b.keys)scene.textures.remove(key);cache.banks.delete(id);
+  }
+}
+function actionIndex(facing:Facing,pose:keyof typeof FARMER_FRAMES.down):number {
+  const f=FARMER_FRAMES[facing][pose];return f.row*16+f.column;
+}
+/** Shared by gameplay, tools, carrying and the editor. Height never enters the
+ * signature. Only appearances that are actually seen receive a texture bank. */
+export function appearanceTexture(scene:Phaser.Scene,base:string,a:Appearance=DEFAULT_APPEARANCE):string {
+  const cache=sceneCache(scene),id=signature(a),key=`outfit-${cache.id}-${id}-${base}`;
+  let bank=cache.banks.get(id);if(!bank){bank={keys:new Set(),used:0};cache.banks.set(id,bank);}bank.used=performance.now();
+  pruneAppearanceTextures(scene,bank.used);
   if(scene.textures.exists(key))return key;
-  const source=scene.textures.get(base).getSourceImage() as HTMLImageElement|HTMLCanvasElement;
-  const canvas=document.createElement("canvas");canvas.width=source.width;canvas.height=source.height;
-  const dest=canvas.getContext("2d")!;
-  const frame=document.createElement("canvas");frame.width=48;frame.height=72;
-  const c=frame.getContext("2d")!;
-  const directions:Facing[]=["down","up","left","right"];
-  if(base==="player") {
-    for(let row=0;row<3;row++)for(let col=0;col<16;col++) {
-      paintCharacterFrame(c,source,col*48,row*72,a,directions[Math.floor(col/4)]!);dest.drawImage(frame,col*48,row*72);
+  const source=scene.textures.get("player").getSourceImage() as HTMLImageElement;
+  const canvas=document.createElement("canvas");canvas.width=base==="player"?768:48;canvas.height=base==="player"?216:72;
+  const dest=canvas.getContext("2d")!;dest.imageSmoothingEnabled=false;
+  const tile=document.createElement("canvas");tile.width=48;tile.height=72;const c=tile.getContext("2d")!;
+  const paint=(index:number,facing:Facing)=>paintCharacterFrame(c,source,index%16*48,Math.floor(index/16)*72,a,facing);
+  if(base==="player"){
+    for(let row=0;row<3;row++)for(let col=0;col<16;col++){
+      paint(row*16+col,CHARACTER_DIRECTIONS[Math.floor(col/4)]!);dest.drawImage(tile,col*48,row*72);
     }
     const texture=scene.textures.addCanvas(key,canvas)!;
     for(let row=0;row<3;row++)for(let col=0;col<16;col++)texture.add(row*16+col,0,col*48,row*72,48,72);
-  } else {
-    const facing=directions.find(d=>base.includes(`-${d}-`))??"down";
-    paintCharacterFrame(c,source,0,0,a,facing);dest.drawImage(frame,0,0);
+  }else{
+    const facing=CHARACTER_DIRECTIONS.find(d=>base.includes(`-${d}-`))??"down";
+    if(base.startsWith("farmer-carry-")){
+      paint(actionIndex(facing,"raised"),facing);dest.drawImage(tile,0,0,48,52,0,0,48,52);
+      paint(16+CHARACTER_DIRECTIONS.indexOf(facing)*4+Number(base.split("-").at(-1)),facing);
+      dest.drawImage(tile,0,52,48,20,0,52,48,20);
+    }else{
+      const pose=base.split("-")[3] as keyof typeof FARMER_FRAMES.down;
+      paint(actionIndex(facing,pose),facing);
+      if(base.endsWith("-palm")){
+        const [x,y]=characterHand(a,facing,pose);dest.drawImage(tile,x-2,y-2,4,4,x-2,y-2,4,4);
+      }else dest.drawImage(tile,0,0);
+    }
     scene.textures.addCanvas(key,canvas);
   }
-  scene.textures.get(key).setFilter(0);bank.keys.add(key);
-  for(const [id,b] of cache)if(id!==signature&&performance.now()-b.used>30000){
-    for(const old of b.keys)scene.textures.remove(old);cache.delete(id);
-  }
-  return key;
+  scene.textures.get(key).setFilter(0);bank.keys.add(key);return key;
 }

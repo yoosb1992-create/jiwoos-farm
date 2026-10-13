@@ -22,6 +22,8 @@ test("original farmer choreography: four directions, unchanged source pixels and
     const result=await page.evaluate(async facing=>{
       const rigModule="/client/tool-animation.ts",timingModule="/shared/interaction.ts";
       const {ToolAnimationRig,TOOL_ANCHORS}=await import(rigModule),{actionTiming,toolMotion}=await import(timingModule);
+      const {characterHand}=await import("/client/character-art.ts" as string);
+      const {DEFAULT_APPEARANCE}=await import("/shared/appearance.ts" as string);
       const artModule="/client/tool-animation-art.ts",{FARMER_FRAMES,farmerKey}=await import(artModule);
       const s=(window.__FARM_DEBUG__ as any).scene();
       const old=(window as any).__qaRigs??[];old.forEach((r:any)=>r.destroy());
@@ -54,7 +56,8 @@ test("original farmer choreography: four directions, unchanged source pixels and
           for(let frame=0;frame<ms;frame+=16) {
             rig.update(frame,x,y);
             const pose=rig.currentPose,frameInfo=FARMER_FRAMES[facing][pose];
-            const palm=rig.body.getWorldTransformMatrix().transformPoint(frameInfo.hand[0]-rig.body.displayOriginX,frameInfo.hand[1]-rig.body.displayOriginY);
+            const hand=characterHand(DEFAULT_APPEARANCE,facing,pose);
+            const palm=rig.body.getWorldTransformMatrix().transformPoint(hand[0]-rig.body.displayOriginX,hand[1]-rig.body.displayOriginY);
             if(Math.hypot(rig.hands[0].x-palm.x,rig.hands[0].y-palm.y)>.001)errors.push(`${row}/${col} detached from original palm`);
             last={...rig.hands[0]};
           }

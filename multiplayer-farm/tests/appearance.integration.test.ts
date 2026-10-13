@@ -15,10 +15,10 @@ test("appearance is validated, persisted before broadcast and isolated across pl
   try{
     const before=await personal(f.A),peer=await personal(f.B);
     assert.deepEqual(appearanceOf(before.member.appearance),DEFAULT_APPEARANCE);
-    const look={...DEFAULT_APPEARANCE,gender:"female",height:"tall",hair:"ponytail",hairColor:"rose",top:"blue",bottom:"denim",shoes:"cream"} as const;
+    const look={...DEFAULT_APPEARANCE,gender:"female",height:145,hair:"ponytail",hairColor:"rose",top:"blue",bottom:"denim",shoeColor:"cream",shoeStyle:"sandals",skinColor:"deep",eyeShape:"large",eyeColor:"green",eyebrowStyle:"straight",noseStyle:"long",earStyle:"long"} as const;
     const pos=f.A.state.players.get(f.A.sessionId)!;const xy=[pos.x,pos.y,pos.area];
     assert((await action(f.A,"updateAppearance",{appearance:look})).ok);
-    await until(()=>f.B.state.players.get(f.A.sessionId)?.appearance===JSON.stringify(look));
+    await until(()=>f.B.state.players.get(f.A.sessionId)?.appearance===JSON.stringify(parseAppearance(look)));
     assert.deepEqual([pos.x,pos.y,pos.area],xy);
     const changed=await personal(f.A);
     assert.deepEqual(changed.member,{...before.member,appearance:look});

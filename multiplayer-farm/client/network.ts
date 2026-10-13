@@ -121,6 +121,7 @@ export class ColyseusAdapter implements NetworkAdapter {
   private readonly client: FarmConnectionClient;
   private room?: FarmClientRoom;
   private predict?: Predict<FarmState>;
+  private readonly appearanceCache = new Map<string, { source: string; value: Appearance }>();
   private readonly remotePredictors = new Map<number, Predict<FarmState>>();
   private input?: InputHandle<MoveInput>;
   private me?: Reconciler<Player, MovementInput>;
@@ -649,6 +650,11 @@ export class ColyseusAdapter implements NetworkAdapter {
       const ry = this.renderCoordinate(player, "y", local);
       // Prediction smoothing must not render the actor inside a blocked tile.
       const unsafeVisual = collidesWithObstacle(rx, ry, player.area, CLIENT_MAPS, obstacles);
+      let look = this.appearanceCache.get(id);
+      if (!look || look.source !== player.appearance) {
+        look = { source: player.appearance, value: appearanceOf(player.appearance) };
+        this.appearanceCache.set(id, look);
+      }
       players.push({
         id,
         nickname: player.nickname,
@@ -665,10 +671,11 @@ export class ColyseusAdapter implements NetworkAdapter {
         running: player.running,
         stamina: player.stamina,
         actionTicks: player.actionTicks,
-        appearance: appearanceOf(player.appearance),
+        appearance: look.value,
         carrying: player.carrying, carry: player.carry,
       });
     });
+    for (const id of this.appearanceCache.keys()) if (!room?.state?.players.has(id)) this.appearanceCache.delete(id);
     const local =
       this.me && this.self
         ? {
