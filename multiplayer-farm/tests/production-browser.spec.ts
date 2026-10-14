@@ -80,7 +80,7 @@ async function plantableScenario(page: Page) {
   const layout = await layoutResponse.json();
   const farm = layout.maps.farm;
   delete farm.world2;
-  Object.assign(farm, { baseTileType: "grass", objects: [], terrainRegions: [], collisionRegions: [], warps: [] });
+  Object.assign(farm, { baseTileType: "soil", objects: [], terrainRegions: [], collisionRegions: [], warps: [] });
   Object.assign(farm.spawns.find((s: { id: string }) => s.id === "farm_entry"), {
     tileX: 10.5, tileY: 10.5, facing: "right",
   });
@@ -142,12 +142,12 @@ test("production mobile: authoritative movement, remote canvas, crop planting an
       (p) => p.playerId === session.playerId,
     )!;
   try {
-    const before = await peer.locator("canvas").screenshot();
+    const before = await peer.getByLabel("가족 농장 게임 화면").locator("canvas").screenshot();
     const startX = local().x;
     await page.keyboard.down("ArrowRight");
     await expect.poll(() => local().x).toBeGreaterThan(startX + 40);
     await page.keyboard.up("ArrowRight");
-    const after = await peer.locator("canvas").screenshot();
+    const after = await peer.getByLabel("가족 농장 게임 화면").locator("canvas").screenshot();
     expect(before.equals(after)).toBe(false);
     await expect.poll(()=>local().moving).toBe(false);
     // Inspect actual authority state: Postgres family seeds vary, so a fixed

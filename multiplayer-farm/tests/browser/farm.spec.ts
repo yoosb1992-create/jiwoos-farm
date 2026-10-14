@@ -33,7 +33,7 @@ test("mobile farm load, two contexts, joystick+RUN, action, inventory and reconn
     "aria-label",
     /2명/,
   );
-  await expect(page.locator("canvas")).toBeVisible();
+  await expect(page.getByLabel("가족 농장 게임 화면").locator("canvas")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("v26-mobile-farm.png") });
   await page.locator("#menu").click();
   await page.getByRole("button", { name: "❧ 도감", exact: true }).click();
@@ -103,6 +103,6 @@ test("mobile farm load, two contexts, joystick+RUN, action, inventory and reconn
     "data-status",
     "connected",
   );
-  await expect(page.locator("canvas")).toBeVisible();
+  await expect(page.getByLabel("가족 농장 게임 화면").locator("canvas")).toBeVisible();
   await context.close();
 });

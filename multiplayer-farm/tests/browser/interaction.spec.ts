@@ -10,7 +10,9 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
   const layout=await(await page.request.get(`${backend}/api/blueprints/defaults`)).json();
   const map=layout.maps.farm;
   delete map.world2;map.objects=[];map.collisionRegions=[];map.terrainRegions=[];map.warps=[];
-  map.baseTileType="grass";map.farmAreas=[{startX:35,endX:45,startY:38,endY:46}];
+  // A deliberately cleared tool field: canonical layout normalization now
+  // seeds live nature on legacy grass too. Authored targets below remain real.
+  map.baseTileType="soil";map.farmAreas=[{startX:35,endX:45,startY:38,endY:46}];
   Object.assign(map.spawns.find((s:{id:string})=>s.id==="farm_entry"),{tileX:40.5,tileY:40.5,facing:"right"});
   map.objects.push(
     {id:"fx-tree",assetId:"tree_oak",position:{tileX:42.5,tileY:40.5},kind:"tree",tree:{species:"tree_oak",stage:2,chop:true,regrow:true}},

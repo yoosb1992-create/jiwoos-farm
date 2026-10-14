@@ -31,7 +31,10 @@ async function goHome(page: Page): Promise<void> {
   await waitForFarmInput(page);
   let connection = await page.evaluate(() => window.__FARM_DEBUG__.snapshot().reconnectCount);
   let recoveryAck: number | undefined, homeAck: number | undefined;
-  await page.locator("#action").tap();
+  // v2.8.3 restores the saved room/position. Do not open furniture again when
+  // reconnecting inside the house; the caller performs that interaction.
+  if (await page.evaluate(() => window.__FARM_DEBUG__.snapshot().players.find(p => p.local)?.area) !== "farmhouse")
+    await page.locator("#action").tap();
   await expect.poll(async () => {
     const snapshot = await page.evaluate(() => window.__FARM_DEBUG__.snapshot());
     if (snapshot.status !== "connected") { homeAck = undefined; return snapshot.status; }
@@ -98,7 +101,10 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`hou
   await expect(seeds(chest).getByRole("button",{name:/전체/})).toHaveCSS("min-height","44px");
   await page.screenshot({path:info.outputPath(`chest-${viewport.width}.png`)});
   await page.locator("#panel-close").click();
-  await page.reload();await expect(page.locator("#login")).toBeHidden({timeout:20000});await goHome(page);
+  await page.reload();await expect(page.locator("#login")).toBeHidden({timeout:20000});
+  await waitForFarmInput(page);
+  expect(await page.evaluate(() => window.__FARM_DEBUG__.snapshot().players.find(p => p.local)?.area)).toBe("farmhouse");
+  await goHome(page);
   await page.locator("#action").tap();await expect(seeds(chest)).toContainText("×6");
   await seeds(chest).getByRole("button",{name:/전체/}).click();await expect(seeds(bag)).toContainText("×12");
   await page.locator("#panel-close").click();

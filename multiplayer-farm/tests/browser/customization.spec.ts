@@ -34,7 +34,7 @@ test("v2.8: appearance draft, all viewports, permission separation, peer update 
     await expect(peer.locator("#login")).toBeHidden({timeout:25000});
     await expect.poll(()=>peer.evaluate(()=>window.__FARM_DEBUG__.snapshot().players.find(p=>!p.local)?.appearance)).toEqual(original);
     // A forged display preference (even a forged local isOwner flag) never
-    // grants the guest owner authority or a working editor.
+    // grants the guest owner authority over the live farm.
     await peer.evaluate(()=>{localStorage.setItem("farm-developer-ui-v1","true");const s=JSON.parse(localStorage.getItem("farm-v26-session")!);s.isOwner=true;localStorage.setItem("farm-v26-session",JSON.stringify(s));});
     await peer.locator("#menu").click();
     await expect(peer.getByRole("button",{name:"개발자 도구",exact:true})).toHaveCount(0);
@@ -70,7 +70,15 @@ test("v2.8: appearance draft, all viewports, permission separation, peer update 
     await device.locator("#resume-code").fill(saved.token);await device.locator("#import-player").click();
     await expect(device.locator("#login")).toBeHidden({timeout:25000});
     await expect.poll(()=>localLook(device)).toEqual({...original,hair:"bun",height:70});
-    await peer.goto("/editor.html");await expect(peer.getByRole("heading",{name:"월드 편집 권한이 필요해요"})).toBeVisible();
+    // Everyone may author a device-only starter, but a forged owner preference
+    // must still fail the authoritative current-family permission check.
+    await peer.goto("/editor.html");
+    await expect(peer.locator("#source-label")).toContainText("공식 기본 월드");
+    await peer.locator('#source-bar [data-panel="workspace"]').click();
+    const denied = peer.waitForResponse(r=>r.url().endsWith("/api/farm-layout"));
+    await peer.locator("#load-current").click();
+    expect((await denied).status()).toBe(403);
+    await expect(peer.locator("#status")).toContainText("소유자");
   }finally{await peerContext.close();await another.close();}
   expect(errors).toEqual([]);
 });
