@@ -466,3 +466,16 @@ h3 {
     bottom: 22px;
   }
 }
+
+#source-bar { height: 54px; padding: 4px 10px; display:flex; align-items:center; gap:8px; background:#f6f1df; border-top:1px solid #dadbc7; }
+#source-bar button { flex-shrink:0; min-height:44px; }
+#source-label { font-size:11px; line-height:1.4; overflow-wrap:anywhere; }
+#viewport { top:146px; }
+#sheet { max-height:calc(100dvh - 220px); }
+#workspace-actions button, #save-actions button { min-height:44px; }
+#workspace-actions select, #backups { min-width:0; }
+#apply-report { overflow-wrap:anywhere; font-size:12px; }
+@media(min-width:760px) { #sheet {top:156px;} #source-label {font-size:13px;} }
+@media(max-height:500px) { #source-bar {height:44px;} #viewport {top:136px;} #sheet {top:142px;max-height:none;} }
+
+#source-label { display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden; }

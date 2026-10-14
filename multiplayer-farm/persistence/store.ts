@@ -1,3 +1,5 @@
+import { PostgresWorldTemplates, startLayout, type WorldTemplateStore } from "./world-templates.js";
+import type { StartWorld } from "../shared/world-templates.js";
 import { Pool, type PoolClient } from "pg";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { WorldLayout } from "../shared/layout.js";
@@ -40,7 +42,7 @@ export interface FarmLease {
   ): Promise<void>;
   close(): Promise<void>;
 }
-export interface Store extends BlueprintStore {
+export interface Store extends BlueprintStore, WorldTemplateStore {
   readonly namespace?: string;
   migrate(): Promise<void>;
   health(): Promise<boolean>;
@@ -51,6 +53,7 @@ export interface Store extends BlueprintStore {
     templateId?: string,
     farmName?: string,
     requestToken?: string,
+    startWorld?: StartWorld,
   ): Promise<Session>;
   authenticate(token: string): Promise<Identity>;
   renameFarm(token: string, name: string): Promise<Identity>;
@@ -64,6 +67,12 @@ if (!["farm_v26", "farm_v27_preview"].includes(DATABASE_SCHEMA))
 export class PostgresStore implements Store {
   readonly namespace = DATABASE_SCHEMA;
   readonly pool: Pool;
+  private templates!: PostgresWorldTemplates;
+  officialWorld() { return this.templates.officialWorld(); }
+  publishOfficial(...args: Parameters<WorldTemplateStore['publishOfficial']>) { return this.templates.publishOfficial(...args); }
+  farmSnapshot(token: string) { return this.templates.farmSnapshot(token); }
+  previewFarmLayout(...args: Parameters<WorldTemplateStore['previewFarmLayout']>) { return this.templates.previewFarmLayout(...args); }
+  applyFarmLayout(...args: Parameters<WorldTemplateStore['applyFarmLayout']>) { return this.templates.applyFarmLayout(...args); }
   constructor(connectionString: string) {
     if (new URL(connectionString).searchParams.has("options"))
       throw new Error(
@@ -78,6 +87,7 @@ export class PostgresStore implements Store {
       idleTimeoutMillis: 30000,
       statement_timeout: 5000,
     });
+    this.templates = new PostgresWorldTemplates(this.pool, token => this.authenticate(token));
     this.pool.on("error", () =>
       console.error("[farm] idle database connection lost"),
     );
@@ -129,6 +139,7 @@ export class PostgresStore implements Store {
     templateId?: string,
     farmName?: string,
     requestToken?: string,
+    startWorld?: StartWorld,
   ): Promise<Session> {
     if (
       !nickname.trim() ||
@@ -151,10 +162,7 @@ export class PostgresStore implements Store {
       ]);
       if (!found.rowCount) throw new Error("가족 코드를 확인하세요");
     }
-    const layout =
-      create && templateId
-        ? await this.publishedBlueprint(templateId)
-        : undefined;
+    const template = create ? await startLayout(this, templateId, startWorld) : undefined;
     const db = await this.pool.connect();
     const playerId = randomUUID(),
       token = requestToken ?? randomBytes(32).toString("base64url");
@@ -182,7 +190,8 @@ export class PostgresStore implements Store {
         }
       }
       if (create) {
-        const w = newWorld(randomBytes(4).readUInt32LE(), layout);
+        const w = newWorld(randomBytes(4).readUInt32LE(), template!.layout);
+        w.sourceTemplate = template!.source;
         await db.query(
           "INSERT INTO farms(id,password_hash,world,name)VALUES($1,$2,$3,$4)",
           [farmId, "disabled:code-only", JSON.stringify(w), initialFarmName],
@@ -227,28 +236,40 @@ export class PostgresStore implements Store {
   }
   async createBlueprint(
     layout: WorldLayout,
+    ownerToken?: string,
+    name = "나만의 시작 농장",
   ): Promise<Blueprint & { editToken: string }> {
+    const owner = ownerToken ? await this.authenticate(ownerToken) : undefined;
+    name = validatedFarmName(name);
     const id = randomBytes(12).toString("hex"),
       editToken = randomBytes(32).toString("base64url");
     await this.pool.query(
-      "INSERT INTO world_blueprints(id,edit_hash,draft)VALUES($1,$2,$3)",
-      [id, tokenHash(editToken), JSON.stringify(layout)],
+      "INSERT INTO world_blueprints(id,edit_hash,draft,owner_member_id,name)VALUES($1,$2,$3,$4,$5)",
+      [id, tokenHash(editToken), JSON.stringify(layout), owner?.playerId ?? null, name],
     );
-    return { id, editToken, revision: 0, layout, published: false };
+    return { id, name, editToken, revision: 0, layout, published: false };
+  }
+  async listBlueprints(token: string) {
+    const owner = await this.authenticate(token);
+    const r = await this.pool.query<{ id: string; name: string; revision: number }>('SELECT id,name,revision FROM world_blueprints WHERE owner_member_id=$1 ORDER BY updated_at DESC LIMIT 100', [owner.playerId]);
+    return r.rows;
   }
   async getBlueprint(id: string, editToken: string): Promise<Blueprint> {
+    const owner = await this.authenticate(editToken).catch(() => undefined);
     const r = await this.pool.query<{
+      name: string;
       revision: number;
       draft: WorldLayout;
       published: WorldLayout | null;
     }>(
-      "SELECT revision,draft,published FROM world_blueprints WHERE id=$1 AND edit_hash=$2",
-      [id, tokenHash(editToken)],
+      "SELECT name,revision,draft,published FROM world_blueprints WHERE id=$1 AND (edit_hash=$2 OR owner_member_id=$3)",
+      [id, tokenHash(editToken), owner?.playerId ?? null],
     );
     const row = r.rows[0];
     if (!row) throw Error("설계도 편집 권한이 없습니다");
     return {
       id,
+      name: row.name,
       revision: row.revision,
       layout: row.draft,
       published: !!row.published,
@@ -260,14 +281,17 @@ export class PostgresStore implements Store {
     layout: WorldLayout,
     revision: number,
     publish: boolean,
+    name?: string,
   ): Promise<Blueprint> {
+    if (name !== undefined) name = validatedFarmName(name);
+    const owner = await this.authenticate(editToken).catch(() => undefined);
     layout = { ...layout, blueprintId: id, worldVersion: revision + 1 };
     const r = await this.pool.query<{
       revision: number;
       published: WorldLayout | null;
     }>(
-      `UPDATE world_blueprints SET draft=$1,published=CASE WHEN $2 THEN $1::jsonb ELSE published END,revision=revision+1,updated_at=now() WHERE id=$3 AND edit_hash=$4 AND revision=$5 RETURNING revision,published`,
-      [JSON.stringify(layout), publish, id, tokenHash(editToken), revision],
+      `UPDATE world_blueprints SET draft=$1,published=CASE WHEN $2 THEN $1::jsonb ELSE published END,name=COALESCE($7,name),revision=revision+1,updated_at=now() WHERE id=$3 AND (edit_hash=$4 OR owner_member_id=$6) AND revision=$5 RETURNING revision,published`,
+      [JSON.stringify(layout), publish, id, tokenHash(editToken), revision, owner?.playerId ?? null, name ?? null],
     );
     const row = r.rows[0];
     if (!row)

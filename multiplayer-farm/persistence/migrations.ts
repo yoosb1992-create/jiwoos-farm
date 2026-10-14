@@ -50,4 +50,26 @@ SET owner_member_id = (
 WHERE f.owner_member_id IS NULL;
 `,
   },
+  {
+    version: 4,
+    sql: `
+CREATE TABLE IF NOT EXISTS official_world_versions (
+ revision integer PRIMARY KEY, layout jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS farm_layout_backups (
+ id text PRIMARY KEY, farm_id text NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
+ revision bigint NOT NULL, world jsonb NOT NULL, reason text NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS farm_layout_backups_farm ON farm_layout_backups(farm_id,created_at DESC);
+CREATE TABLE IF NOT EXISTS farm_layout_previews (
+ id text PRIMARY KEY, farm_id text NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
+ member_id uuid NOT NULL, base_revision bigint NOT NULL, world jsonb NOT NULL,
+ backup_id text NOT NULL REFERENCES farm_layout_backups(id) ON DELETE CASCADE,
+ applied_revision bigint, expires_at timestamptz NOT NULL DEFAULT now()+interval '30 minutes'
+);
+ALTER TABLE world_blueprints ADD COLUMN IF NOT EXISTS owner_member_id uuid;
+ALTER TABLE world_blueprints ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT '나만의 시작 농장';
+`,
+  },
 ];

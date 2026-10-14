@@ -25,6 +25,7 @@ export const GAME_MINUTE_MS = 500;
 export const MAX_QUANTITY = 999;
 export type Facing = "up" | "down" | "left" | "right";
 export interface Member {
+  position?: { area: string; x: number; y: number; facing: string };
   appearance?: Appearance;
   quickbar?: Quickbar;
   id: string;
@@ -77,6 +78,8 @@ export interface Entity {
   owner: string;
 }
 export interface World {
+  layoutRevision?: number;
+  sourceTemplate?: { type: "official" | "local" | "server"; id: string; revision: number };
   /** Felled juvenile regrowth, saved in the existing JSON snapshot only.
    * These are not entities: no rendering, targeting or collision on any client. */
   treeRegrowth?: Record<string, Entity>;
@@ -494,11 +497,11 @@ export function newWorld(
   initializeChestGroups(w);
   return w;
 }
-function seedFixtures(w: World, daily: boolean): void {
+export function seedFixtures(w: World, daily: boolean, onlyIds?: Set<string>): void {
   for (const map of Object.values(w.layout?.maps ?? defaultLayout().maps)) {
     if ((map.id === "forest" || map.id.startsWith("mine")) !== daily) continue;
     for (const o of map.objects)
-      if (o.kind && o.visible !== false) {
+      if (o.kind && o.visible !== false && (!onlyIds || onlyIds.has(o.id))) {
         if (o.kind === "chest" && (w.retiredFixtures?.[o.id] || w.entities[o.id])) continue;
         if (daily && (o.kind === "tree" || o.kind === "stump") &&
           (w.entities[o.id] || w.treeRegrowth?.[o.id] ||

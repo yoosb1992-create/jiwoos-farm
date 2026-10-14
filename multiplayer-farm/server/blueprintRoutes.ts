@@ -1,6 +1,6 @@
+import { prepareLayout } from "../shared/world-templates.js";
 import express, { type Application } from "express";
 import type { Store } from "../persistence/store.js";
-import { defaultLayout, validateLayout } from "../shared/layout.js";
 import { safeSpawn } from "../shared/regions.js";
 /** Editing capability protects only this blueprint. It grants no authority over a live farm. */
 export function blueprintRoutes(app: Application, store: Store): void {
@@ -42,7 +42,13 @@ export function blueprintRoutes(app: Application, store: Store): void {
       next();
     },
   );
-  app.get("/api/blueprints/defaults", (_req, res) => res.json(defaultLayout()));
+  app.get("/api/blueprints/defaults", async (_req, res) => {
+    try { res.json((await store.officialWorld()).layout); } catch { res.status(503).json({error:"공식 월드를 불러오지 못했어요"}); }
+  });
+  app.get("/api/blueprints", async (req, res) => {
+    try { res.json(await store.listBlueprints(req.headers.authorization?.replace(/^Bearer /, "") ?? "")); }
+    catch { res.status(403).json({error:"소유자 세션 또는 설계도 편집 키로 불러오세요"}); }
+  });
   app.get("/api/blueprints/:id", async (req, res) => {
     try {
       res.json(
@@ -63,10 +69,10 @@ export function blueprintRoutes(app: Application, store: Store): void {
       if (!identity.isOwner) throw Error("권한 없음");
     } catch { res.status(403).json({ error: "새 설계도는 농장 소유자만 만들 수 있어요" }); return; }
     try {
-      const layout = validateLayout(req.body);
+      const layout = prepareLayout(req.body.layout ?? req.body);
       for (const m of Object.values(layout.maps))
         for (const s of m.spawns) safeSpawn(m.id, s.id, layout.maps);
-      res.json(await store.createBlueprint(layout));
+      res.json(await store.createBlueprint(layout, req.headers.authorization?.replace(/^Bearer /, "") ?? "", typeof req.body.name === "string" ? req.body.name : undefined));
     } catch (e) {
       res
         .status(400)
@@ -77,7 +83,7 @@ export function blueprintRoutes(app: Application, store: Store): void {
     try {
       const b = req.body as Record<string, unknown>;
       if (!Number.isSafeInteger(b.revision)) throw Error("버전 오류");
-      const layout = validateLayout(b.layout);
+      const layout = prepareLayout(b.layout);
       for (const m of Object.values(layout.maps))
         for (const s of m.spawns) safeSpawn(m.id, s.id, layout.maps);
       res.json(
@@ -87,6 +93,7 @@ export function blueprintRoutes(app: Application, store: Store): void {
           layout,
           b.revision as number,
           b.publish === true,
+          typeof b.name === "string" ? b.name : undefined,
         ),
       );
     } catch (e) {

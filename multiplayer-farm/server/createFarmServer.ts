@@ -1,3 +1,5 @@
+import { worldTemplateRoutes } from "./worldTemplateRoutes.js";
+import type { StartWorld } from "../shared/world-templates.js";
 import { blueprintRoutes } from "./blueprintRoutes.js";
 import { createServer } from "node:http";
 import { Server, createRouter } from "@colyseus/core";
@@ -115,7 +117,9 @@ export function createFarmServer(options: FarmServerOptions) {
         }
         next();
       });
+      worldTemplateRoutes(app, options.store);
       blueprintRoutes(app, options.store);
+      app.use("/api/session", express.json({ limit: "16mb" }));
       app.use(express.json({ limit: "8kb" }));
       // Rate-limit session and new farm creation independently of WebSocket inputs.
       const attempts = new Map<string, { count: number; until: number }>();
@@ -151,12 +155,13 @@ export function createFarmServer(options: FarmServerOptions) {
             typeof body.templateId === "string" ? body.templateId : undefined,
             typeof body.farmName === "string" ? body.farmName : undefined,
             typeof body.requestToken === "string" ? body.requestToken : undefined,
+            body.startWorld as StartWorld | undefined,
           );
           response.setHeader("Cache-Control", "no-store");
           response.json(result);
         } catch (error) {
           const message = error instanceof Error ? error.message : "농장 접속 실패";
-          const invalid = /닉네임|가족 코드|가족 세션|세션이 만료|입력값|접속 요청|농장 이름|설계도|Nickname in use/.test(message);
+          const invalid = /닉네임|가족 코드|가족 세션|세션이 만료|입력값|접속 요청|농장 이름|설계도|편집 권한|Nickname in use/.test(message);
           response.status(invalid ? 400 : 503).json({ error: invalid ? message : "서버에 잠시 연결할 수 없어요" });
         }
       });

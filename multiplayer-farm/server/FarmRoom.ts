@@ -190,11 +190,12 @@ export class FarmRoom extends MovementRoom {
         p.facing = spawn.facing;
 
         const member = this.world.members[auth.playerId]!;
-        const carriedPosition = member.carried?.position;
+        const carriedPosition = member.carried?.position ?? member.position;
         if (carriedPosition && this.movementMaps![carriedPosition.area] &&
             !collidesWithObstacle(carriedPosition.x, carriedPosition.y, carriedPosition.area, this.movementMaps, this.state.entities.values())) {
           p.area = carriedPosition.area; p.x = carriedPosition.x; p.y = carriedPosition.y; p.facing = carriedPosition.facing;
         }
+        member.position = { area:p.area, x:p.x, y:p.y, facing:p.facing };
         p.stamina = member.stamina;
         this.sync();
         this.privateState(client);
@@ -215,6 +216,7 @@ export class FarmRoom extends MovementRoom {
       const m = w.members[p.playerId];
       if (m) {
         m.stamina = p.stamina;
+        m.position = { area: p.area, x: p.x, y: p.y, facing: p.facing };
         if (m.carried) m.carried.position = { area: p.area, x: p.x, y: p.y, facing: p.facing };
       }
     }

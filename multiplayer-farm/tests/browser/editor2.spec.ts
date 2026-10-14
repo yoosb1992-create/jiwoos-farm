@@ -114,8 +114,8 @@ test("World Editor 2.0: phone 80k map, brush history, route, draft restore, sand
   ).toBe(400);
   await page.locator("#menu").click();
   await page.locator("[data-panel=save]").click();
-  await page.locator("#publish").click();
-  await expect(page.locator("#status")).toContainText("초기 월드 적용 완료");
+  await page.locator("#register-start").click();
+  await expect(page.locator("#status")).toContainText("나만의 시작 농장으로 등록 완료");
   await page.goto("/?newFarm=1");
   await page.locator("#nickname").fill("Editor2");
   await page.locator("#create-farm").click();

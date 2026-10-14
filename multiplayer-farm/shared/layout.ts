@@ -1,10 +1,17 @@
 import { activateHomeFurniture } from "./home-furniture.js";
-import { TERRAIN } from "./world2.js";
+import { migrateMap, TERRAIN } from "./world2.js";
 import { validateProperties, validateWorld2 } from "./world2-validation.js";
-import { MAPS, ASSETS, TILE, type MapData, type MapObject } from "./content.js";
+import { MAPS, ASSETS, NPCS, TILE, type MapData, type MapObject } from "./content.js";
 import { dressing } from "./dressing.js";
 import { createDefaultFarm } from "./default-farm.js";
+export interface NpcWorldBinding {
+  homeMapId?: string; homeObjectId?: string;
+  workMapId?: string; workObjectId?: string;
+  role?: string; shopId?: string;
+}
 export type WorldLayout = {
+  /** Optional semantic links, separate from existing time/path data. No job simulation. */
+  npcBindings?: Record<string, NpcWorldBinding>;
   version: 1 | 2;
   worldVersion?: number;
   blueprintId?: string;
@@ -90,6 +97,7 @@ export function defaultLayout(): WorldLayout {
   layout.maps.farm = createDefaultFarm(layout.maps.farm!);
   layout.version = 2;
   layout.worldVersion = 1;
+  for (const map of Object.values(layout.maps)) migrateMap(map);
   return layout;
 }
 const record = (v: unknown): Record<string, unknown> => {
@@ -297,8 +305,26 @@ export function validateLayout(value: unknown): WorldLayout {
         !maps[e.destination ?? ""]?.spawns.some((s) => s.id === e.spawn)
       )
         throw Error("이벤트 출입구 목적지 오류");
+  const npcBindings: Record<string, NpcWorldBinding> = {};
+  if (root.npcBindings !== undefined) {
+    const bindings = record(root.npcBindings);
+    if (Object.keys(bindings).length > 100) throw Error("NPC 연결 수 제한을 확인하세요");
+    for (const [npcId, rawBinding] of Object.entries(bindings)) {
+      if (!NPCS.some(n => n.id === npcId)) throw Error("등록되지 않은 NPC 연결입니다");
+      const raw = record(rawBinding), binding: NpcWorldBinding = {};
+      for (const key of ["homeMapId","homeObjectId","workMapId","workObjectId","role","shopId"] as const)
+        if (raw[key] !== undefined) binding[key] = id(raw[key]);
+      for (const type of ["home","work"] as const) {
+        const area = binding[`${type}MapId`], object = binding[`${type}ObjectId`];
+        if ((area && !maps[area]) || (object && (!area || !maps[area]!.objects.some(o => o.id === object))))
+          throw Error("NPC 거주지/작업 장소 참조를 확인하세요");
+      }
+      npcBindings[npcId] = binding;
+    }
+  }
   return {
     version: root.version as 1 | 2,
+    ...(root.npcBindings !== undefined ? { npcBindings } : {}),
     maps,
     ...(root.worldVersion !== undefined
       ? { worldVersion: num(root.worldVersion, 0, 1000000000) }

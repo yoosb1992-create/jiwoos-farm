@@ -1,3 +1,4 @@
+import { mountStartWorld, selectedStartWorld } from "./start-world.js";
 import { CharacterEditor } from "./character-editor.js";
 import { appearanceOf, type Appearance } from "../shared/appearance.js";
 import { DEVELOPER_KEY, verifyDeveloperAccess } from "./developer-access.js";
@@ -54,6 +55,7 @@ app.innerHTML = `<div id="arena" aria-label="가족 농장 게임 화면"></div>
 <button id="furniture-action" hidden type="button"></button><button id="placement-cancel" hidden type="button">설치 취소</button><div id="controls"><div id="joystick" role="group" aria-label="터치 이동 조이스틱"><div id="knob"></div></div><div id="right-controls"><button id="action" aria-label="행동">행동</button><button id="run" aria-label="달리기">RUN</button></div></div>
 <pre id="hud" hidden></pre><dialog id="panel"><div id="panel-top"><h2 id="panel-title"></h2><button id="panel-close">닫기</button></div><div id="panel-body"></div></dialog>
 <section id="login"><div class="login-card"><span class="eyebrow">FOUR SEASONS, ONE LITTLE HOME</span><h1>지우네 농장</h1><p>꽃 피는 봄부터 눈 내리는 겨울까지.<br>우리 가족의 사계절을 함께 가꾸어요.</p><div class="season-pills"><span>✿ 봄</span><span>☀ 여름</span><span>❧ 가을</span><span>❄ 겨울</span></div><form id="login-form"><label>닉네임<input id="nickname" maxlength="24" autocomplete="nickname" required placeholder="지우"></label><label>새 농장 이름 <small>(선택 · 만들 때만 적용)</small><input id="farm-name" maxlength="30" autocomplete="off" placeholder="예: 지우네 가족 농장"></label><label>가족 코드<input id="farm-code" autocomplete="off" placeholder="새 농장은 비워 두세요"></label><button type="button" id="new-appearance">캐릭터 꾸미기</button><div class="login-buttons"><button type="submit" id="create-farm">새 가족 농장</button><button type="button" id="join-farm">참가</button></div></form><button id="resume" hidden>저장된 농장 이어하기</button><div id="saved-farms"></div><p id="login-error" role="status"></p><button type="button" id="cancel-connect" hidden>연결 취소</button><small>이 버전은 독립된 새 농장입니다. 기존 세이브는 변경되지 않습니다.<br>가족 코드만 공유하면 함께할 수 있어요. 기기마다 다른 닉네임을 사용합니다.</small></div></section>`;
+mountStartWorld();
 function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
@@ -1292,7 +1294,7 @@ async function login(create: boolean): Promise<void> {
     const requestToken = create ? undefined : Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, "0")).join("");
     const body = JSON.stringify({ create, nickname, code, requestToken,
       farmName: create ? el<HTMLInputElement>("farm-name").value : undefined,
-      templateId: create ? (localStorage.getItem("farm-active-blueprint") ?? undefined) : undefined });
+      startWorld: create ? await selectedStartWorld() : undefined });
     let attempt = 0;
     while (!controller.signal.aborted && intent === connectionIntent) {
       try {
@@ -1385,18 +1387,7 @@ try {
   if (session)
     el("resume").textContent = `${session.farmName ?? `${session.nickname}의 농장`} 이어하기`;
   renderSavedFarms();
-  const template = localStorage.getItem("farm-active-blueprint");
-  if (template) {
-    const hint = document.createElement("p");
-    hint.textContent = "새 농장에는 편집한 초기 월드가 적용됩니다.";
-    hint.append(
-      button("기본 월드 사용", () => {
-        localStorage.removeItem("farm-active-blueprint");
-        hint.remove();
-      }),
-    );
-    el("login-form").before(hint);
-  }
+
 } catch {}
 // pagehide releases sockets/rendering; a bfcache restoration must rebuild them
 // from the saved family session instead of showing a disposed canvas.

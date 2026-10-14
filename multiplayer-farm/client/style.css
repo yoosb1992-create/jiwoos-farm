@@ -1497,3 +1497,12 @@ h1 {
   .character-preview { padding:8px; }
   .character-layout { gap:10px; }
 }
+
+#start-world {border:1px solid #c6c9af;border-radius:12px;padding:10px;min-width:0;margin:12px 0;background:#f4f2df;}
+#start-world legend {font-weight:700;color:#4a644d;font-size:13px;}
+#start-world select {width:100%;min-height:44px;min-width:0;max-width:100%;font:inherit;font-size:13px;border-radius:8px;padding:8px;background:#fffdf3;border:1px solid #bbc5aa;}
+#start-world-preview {display:block;width:100%;height:90px;object-fit:cover;border-radius:8px;image-rendering:pixelated;margin:8px 0;}
+#start-world-info {font-size:11px;line-height:1.4;}
+.start-world-actions {display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.start-world-actions a {display:flex;align-items:center;min-height:44px;flex:1;color:#446747;font-size:12px;}
+.start-world-actions button {font-size:12px;min-height:44px;}

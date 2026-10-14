@@ -1,4 +1,4 @@
-import { ownerAuthorization, verifyDeveloperAccess } from "../developer-access.js";
+import { EditorWorkspace } from "./workspace.js";
 import { TREE_SPECIES, NATURE_MATERIALS } from "../../shared/nature.js";
 import "./style.css";
 import { html } from "./ui.js";
@@ -56,7 +56,7 @@ import {
 } from "./catalog.js";
 import { ChunkPainter, COLORS } from "../world/terrain.js";
 import { loadMaterials } from "../world/painted-materials.js";
-import { loadDraft, storeDraft } from "./storage.js";
+
 import { serverUrl } from "../config.js";
 import { findPath, type Point } from "../../shared/pathfinding.js";
 import {
@@ -78,7 +78,7 @@ import {
 } from "../../shared/world.js";
 import { applyAction } from "../../shared/actions.js";
 import { fishingSpot } from "../../shared/expansion.js";
-import type { Blueprint } from "../../shared/blueprint.js";
+
 type Tool =
   | "pencil"
   | "eraser"
@@ -146,7 +146,7 @@ let favorites: string[] = [],
   paletteTab = "all",
   paletteLimit = 48,
   dirty = false;
-let capability: { id: string; editToken: string; revision: number } | undefined;
+const workspace = new EditorWorkspace({ layout: () => layout, replace: replaceLayout, status: message => status(message), redraw: render });
 const layerSettings: Record<
   string,
   { visible: boolean; locked: boolean; opacity: number }
@@ -178,7 +178,7 @@ async function autosave() {
   savingDraft = true;
   const epoch = draftEpoch;
   try {
-    await storeDraft(layout);
+    await workspace.saveDevice();
     if (epoch === draftEpoch) dirty = false;
   } catch {
     status("기기 초안 저장 실패 · JSON 내보내기를 사용하세요.");
@@ -191,6 +191,7 @@ async function autosave() {
   }
 }
 function changed(message = "초안 수정됨 · 5초 뒤 자동 보관") {
+  workspace.invalidateReview();
   draftEpoch++;
   dirty = true;
   clearTimeout(autosaveTimer);
@@ -240,7 +241,8 @@ const titles: Record<string, string> = {
   world: "지역 설정",
   prefabs: "템플릿",
   npc: "NPC 일정",
-  save: "저장과 초기 월드",
+  workspace: "편집 대상과 나만의 시작 농장",
+  save: "저장 · 게시 · 농장 적용",
   menu: "월드 제작 메뉴",
 };
 function panel(page: string) {
@@ -255,7 +257,7 @@ function panel(page: string) {
   if (page === "world") fields();
   if (page === "npc") routesPanel();
   if (page === "prefabs") prefabPanel();
-  if (page === "save") versionInfo();
+  if (page === "workspace") void workspace.list();
 }
 function closePanel() {
   el("sheet").hidden = true;
@@ -361,7 +363,7 @@ function draw() {
       (b.bridge ? -10000 : b.position.tileY * 32 + (b.depth ?? 0)),
   )) {
     const l = layer(o.layer ?? "Objects");
-    if (!l.visible || !objectVisible(o, season)) continue;
+    if (!l.visible || !objectVisible(o, season) || (workspace.snapshot && o.kind)) continue;
     if (zoom < 4) {
       ctx.fillStyle = o.layer === "Buildings" ? "#d7b479" : "#476f45";
       ctx.fillRect(
@@ -397,6 +399,21 @@ function draw() {
         ctx.fillText("↔", b.x + b.width - 9, b.y + b.height + 6);
         handle = { x: b.x + b.width, y: b.y + b.height };
       }
+    }
+  }
+  if (!sandbox && workspace.snapshot) {
+    for (const e of Object.values(workspace.snapshot.world.entities)) {
+      if (e.area !== area) continue;
+      const x = ox + e.x / TILE * zoom, y = oy + e.y / TILE * zoom;
+      if (x < -64 || y < -64 || x > viewWidth + 64 || y > viewHeight + 64) continue;
+      if (e.asset) drawObject(ctx, { id:e.id, assetId:e.asset, position:{tileX:e.x/TILE,tileY:e.y/TILE} }, x, y, zoom, render, .85, season);
+      if (['soil','crop','withered'].includes(e.kind)) {ctx.fillStyle=e.watered?'#6a492e':'#936845';ctx.fillRect(x-zoom/2,y-zoom/2,zoom,zoom);}
+      ctx.strokeStyle=['soil','crop','withered'].includes(e.kind)?'#e5b766':'#c5a5ff';ctx.lineWidth=2;
+      ctx.strokeRect(x-zoom*.4,y-zoom*.4,zoom*.8,zoom*.8);
+      if (e.crop && ['soil','crop','withered'].includes(e.kind)) textAt(e.crop,e.x/TILE,e.y/TILE,'#ffdf93');
+    }
+    for (const c of workspace.review?.conflicts ?? []) if(c.area===area) {
+      ctx.strokeStyle='#ff3434';ctx.lineWidth=4;ctx.strokeRect(ox+(c.x-.5)*zoom,oy+(c.y-.5)*zoom,zoom,zoom);
     }
   }
   if (!sandbox) {
@@ -1754,72 +1771,6 @@ function copySelection() {
       `복사됨 · ${clipboard.objects.length}개 배치물 / ${clipboard.tiles.length}개 레이어 타일`,
     );
 }
-let saving = false;
-const CAP = "farm-editor-capability-v1";
-function versionInfo() {
-  el("version-info").textContent = capability
-    ? `저장본 revision ${capability.revision} · World v${layout.worldVersion ?? "미적용"} · ${capability.id}`
-    : "아직 서버 저장 전";
-}
-async function save(publish: boolean) {
-  if (saving || sandbox || gesture) return;
-  saving = true;
-  el<HTMLButtonElement>("save").disabled = true;
-  el<HTMLButtonElement>("publish").disabled = true;
-  try {
-    const valid = validateLayout(layout),
-      endpoint = serverUrl().replace(/^ws/, "http");
-    status(publish ? "초기 월드 적용 중…" : "서버에 저장 중…");
-    if (!capability) {
-      const r = await fetch(endpoint + "/api/blueprints", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...ownerAuthorization() },
-          body: JSON.stringify(valid),
-        }),
-        b = (await r.json()) as Blueprint & {
-          editToken: string;
-          error?: string;
-        };
-      if (!r.ok) throw Error(b.error ?? "저장 실패");
-      capability = { id: b.id, editToken: b.editToken, revision: b.revision };
-      localStorage.setItem(CAP, JSON.stringify(capability));
-    }
-    const r = await fetch(endpoint + "/api/blueprints/" + capability.id, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + capability.editToken,
-        },
-        body: JSON.stringify({
-          layout: valid,
-          revision: capability.revision,
-          publish,
-        }),
-      }),
-      b = (await r.json()) as Blueprint & { error?: string };
-    if (!r.ok) throw Error(b.error ?? "서버 저장 실패");
-    capability.revision = b.revision;
-    localStorage.setItem(CAP, JSON.stringify(capability));
-    if (publish) {
-      layout.worldVersion = b.layout.worldVersion;
-      layout.blueprintId = capability.id;
-      localStorage.setItem("farm-active-blueprint", capability.id);
-    }
-    await autosave();
-    versionInfo();
-    status(
-      publish
-        ? `초기 월드 적용 완료 · World v${b.layout.worldVersion} · 새 가족 농장부터 적용`
-        : `서버 저장 완료 · revision ${b.revision} · 초기 월드는 아직 변경하지 않았습니다`,
-    );
-  } catch (e) {
-    status(e instanceof Error ? e.message : "저장 실패");
-  } finally {
-    saving = false;
-    el<HTMLButtonElement>("save").disabled = false;
-    el<HTMLButtonElement>("publish").disabled = false;
-  }
-}
 async function replaceLayout(value: unknown) {
   const next = validateLayout(value);
   next.version = 2;
@@ -2242,13 +2193,7 @@ el("editor").addEventListener("click", (e) => {
       fit();
       break;
     case "save":
-      void save(false);
-      break;
-    case "publish":
-      void save(true);
-      break;
-    case "new-farm":
-      location.href = "/?newFarm=1";
+      void workspace.action("device-save");
       break;
     case "test":
       startTest();
@@ -2381,47 +2326,7 @@ el("editor").addEventListener("click", (e) => {
       inspector();
       break;
     }
-    case "export": {
-      const url = URL.createObjectURL(
-          new Blob([JSON.stringify(layout)], { type: "application/json" }),
-        ),
-        a = document.createElement("a");
-      a.href = url;
-      a.download = "jiwoo-world-v2.json";
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      break;
-    }
-    case "load-server":
-      if (
-        capability &&
-        confirm(
-          "서버 저장본으로 현재 초안을 바꿀까요? 필요하면 먼저 JSON으로 보관하세요.",
-        )
-      )
-        void fetch(
-          serverUrl().replace(/^ws/, "http") +
-            "/api/blueprints/" +
-            capability.id,
-          { headers: { Authorization: "Bearer " + capability.editToken } },
-        )
-          .then(async (r) => {
-            const b = (await r.json()) as Blueprint & { error?: string };
-            if (!r.ok) throw Error(b.error);
-            capability!.revision = b.revision;
-            localStorage.setItem(CAP, JSON.stringify(capability));
-            await replaceLayout(b.layout);
-          })
-          .catch((e) => status(String(e)));
-      break;
-    case "defaults":
-      if (
-        confirm(
-          "초안을 기본 월드로 바꿀까요? 기존 가족 농장과 서버 저장본은 유지됩니다.",
-        )
-      )
-        void replaceLayout(editorLayout());
-      break;
+
   }
 });
 el("editor").addEventListener("change", (e) => {
@@ -2467,19 +2372,6 @@ el("search").oninput = () => {
   paletteLimit = 48;
   palette();
 };
-el<HTMLInputElement>("import").onchange = async () => {
-  const f = el<HTMLInputElement>("import").files?.[0];
-  if (!f) return;
-  try {
-    if (f.size > 16 * 1024 * 1024) throw Error("16MB 이하 파일만 가져오세요");
-    const parsed = validateLayout(JSON.parse(await f.text()));
-    if (confirm("검증된 JSON으로 초안을 교체할까요?"))
-      await replaceLayout(parsed);
-  } catch (e) {
-    status(String(e));
-  }
-  el<HTMLInputElement>("import").value = "";
-};
 for (const b of document.querySelectorAll<HTMLElement>("[data-walk]")) {
   b.onpointerdown = (e) => {
     e.preventDefault();
@@ -2517,30 +2409,16 @@ document.addEventListener("visibilitychange", () => {
 async function init() {
   const root = document.querySelector<HTMLElement>("#editor")!;
   root.inert = true;
-  if (!await verifyDeveloperAccess()) {
-    root.innerHTML = '<main style="padding:32px"><h1>월드 편집 권한이 필요해요</h1><p>농장 소유자 세션 또는 기존 설계도 편집 권한으로 접속해 주세요.</p><a href="/">농장으로 돌아가기</a></main>';
-    root.inert = false;
-    return;
-  }
-  root.inert = false;
   void loadMaterials().then(() => { painter.clear(); render(); });
   let restoreError = "";
   try {
-    const draft = await loadDraft(),
-      legacy = localStorage.getItem("farm-editor-draft-v1");
-    if (draft || legacy) {
-      layout = validateLayout(draft ?? JSON.parse(legacy!));
-      layout.version = 2;
-      for (const m of Object.values(layout.maps)) migrateMap(m);
-      journal = new Journal(layout);
-    }
-    const c = JSON.parse(localStorage.getItem(CAP) ?? "null");
-    if (c?.id && c.editToken) capability = c;
+    await workspace.init();
     favorites = JSON.parse(localStorage.getItem("world2-favorites") ?? "[]");
     recent = JSON.parse(localStorage.getItem("world2-recent") ?? "[]");
     prefabs = JSON.parse(localStorage.getItem("world2-prefabs") ?? "[]");
   } catch (e) {
-    restoreError = `초안 복원 오류: ${String(e)} · 서버 저장본/JSON을 불러오세요.`;
+    root.innerHTML = `<main style="padding:24px"><h1>월드를 불러오지 못했어요</h1><p>${esc(String(e))}</p><a href="/editor.html">다시 시도</a> · <a href="/">농장으로</a></main>`;
+    root.inert = false; return;
   }
   el<HTMLSelectElement>("npc-id").innerHTML = NPCS.map(
     (n) => `<option value="${n.id}">${n.name}</option>`,
@@ -2571,6 +2449,7 @@ async function init() {
     oy = viewHeight / 2 - s.tileY * zoom;
     render();
   });
+  root.inert = false;
   status(restoreError || "초안 준비 완료 · 브러시를 눌러 월드를 만드세요.");
 }
 void init();
