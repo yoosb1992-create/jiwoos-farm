@@ -561,8 +561,11 @@ function act(): void {
     const targets = [...(network.state?.entities.values() ?? [])].filter(e => {
       const ex=e.x-me.authoritativeX, ey=e.y-me.authoritativeY;
       return e.area===me.area && ["tree","stump","rock","twig","gather","crop","soil","withered","chest"].includes(e.kind) &&
+        // Hoe work is tile-based. A neighboring crop inside the broad natural
+        // tool cone must not replace the exact front tile with a wrong target.
+        (selected!=="hoe" || Math.floor(e.x/TILE)===tile.tileX && Math.floor(e.y/TILE)===tile.tileY) &&
         // Include the adjacent trunk corner while the player's collision body
-        // stays outside its full tile. All tools share the same aiming rule.
+        // stays outside its full tile.
         Math.hypot(ex,ey)<=64 && ex*dx+ey*dy>=4 && Math.abs(ex*dy-ey*dx)<=TILE;
     }).sort((a,b)=>Math.hypot(a.x-me.authoritativeX,a.y-me.authoritativeY)-Math.hypot(b.x-me.authoritativeX,b.y-me.authoritativeY));
     const target = targets[0];

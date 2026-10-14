@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { CROPS } from "../shared/content.js";
-import { cropVisual, type SeedForm } from "../shared/crop-visuals.js";
+import { cropVisual, CROP_TEXTURE, type SeedForm } from "../shared/crop-visuals.js";
 
 // Original code-native pixel artwork. Tiny, immutable 40x52 textures are baked
 // once; animation only changes a separate glow sprite's opacity.
@@ -97,7 +97,7 @@ export function createCropTextures(scene: Phaser.Scene): void {
     for (const stage of ["seed", "sprout", "growing", "glow"] as const) {
       const key = `crop_${crop.id}_${stage}`;
       if (scene.textures.exists(key)) scene.textures.remove(key);
-      const texture = scene.textures.createCanvas(key, 40, 52)!;
+      const texture = scene.textures.createCanvas(key, CROP_TEXTURE.width, CROP_TEXTURE.height)!;
       const c = texture.context;
       c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = "source-over";
       c.clearRect(0, 0, 40, 52);

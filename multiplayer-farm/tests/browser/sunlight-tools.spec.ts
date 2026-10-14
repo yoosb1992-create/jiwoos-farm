@@ -195,6 +195,8 @@ test("seed light in the live scene and botanical growth contact sheet", async ({
   await page.setViewportSize({ width: 1280, height: 1000 });
   await page.evaluate(async () => {
     const mod = "/shared/sunlight.ts", { currentLightLevel, seedGlowVisibility } = await import(mod);
+    const content = "/shared/content.ts", { ASSETS } = await import(content);
+    const visuals = "/shared/crop-visuals.ts", { CROP_GROUND_OFFSET } = await import(visuals);
     const s = (window.__FARM_DEBUG__ as any).scene();
     s.children.list.forEach((o: any) => o.setVisible?.(false)); s.feedback.clear();
     s.cameras.main.stopFollow().removeBounds().setOrigin(0, 0).setScroll(0, 0).setZoom(2);
@@ -209,8 +211,9 @@ test("seed light in the live scene and botanical growth contact sheet", async ({
       headers.forEach((_title, col) => {
         const x = 130 + col * 74, stage = col < 4 ? "seed" : ["sprout", "growing", "mature"][col - 4];
         s.add.image(x, y, "tile_farm_empty").setDisplaySize(32, 32).setTint(col > 0 && col < 4 ? 0xa07a62 : 0xffffff);
-        s.add.image(x, y, `crop_${id}_${stage}`).setOrigin(.5, .8).setDisplaySize(40, 52);
-        if (col < 4) s.add.image(x, y, `crop_${id}_glow`).setOrigin(.5, .8)
+        const origin=ASSETS[`crop_${id}_${stage}`].origin;
+        s.add.image(x, y+CROP_GROUND_OFFSET, `crop_${id}_${stage}`).setOrigin(origin.x, origin.y).setDisplaySize(40, 52);
+        if (col < 4) s.add.image(x, y+CROP_GROUND_OFFSET, `crop_${id}_glow`).setOrigin(origin.x, origin.y)
           .setAlpha(seedGlowVisibility(currentLightLevel({ minute: [720, 720, 1080, 1380][col] })));
       });
     });

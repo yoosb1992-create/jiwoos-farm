@@ -1,5 +1,6 @@
 import type { Asset } from "./content.js";
 import type { SeasonKey } from "./world2.js";
+import { CROP_ORIGIN, matureCropOrigin } from "./crop-visuals.js";
 
 /** Painted pixels are independent of world geometry. frameSize is in world pixels,
  * not the downloaded image resolution; anchors/collisions in saved maps stay valid. */
@@ -82,7 +83,7 @@ export function withPaintedArt(legacy: Record<string, Asset>, crops: readonly { 
       : `${file}-${stage}`;
     assets[id] = {
       assetId: id, textureKey: id, source: { kind: "image", path: `${root}/crops/${fileName}.webp` },
-      frameSize: { width: 40, height: 52 }, origin: { x: .5, y: .8 }, displayScale: { x: 1, y: 1 },
+      frameSize: { width: 40, height: 52 }, origin: stage === "mature" ? matureCropOrigin(file) : CROP_ORIGIN, displayScale: { x: 1, y: 1 },
     };
   }
   for (const [id, size] of Object.entries({

@@ -1,6 +1,7 @@
 import { HELD_TOOLS, paintHeldTool } from "./tool-art.js";
 import type Phaser from "phaser";
-import { CROPS, ITEMS, type MapData, TILE } from "../shared/content.js";
+import { ASSETS, CROPS, ITEMS, type MapData, TILE } from "../shared/content.js";
+import { CROP_TEXTURE, CROP_ORIGIN } from "../shared/crop-visuals.js";
 import { SEASON_INFO, FISH_CATALOG, type Season } from "../shared/expansion.js";
 import { paintMaterial } from "./world/painted-materials.js";
 import { createCropTextures } from "./crop-art.js";
@@ -63,6 +64,10 @@ export function createContentTextures(scene: Phaser.Scene): void {
       const key = `crop_${crop.id}_${stage}`;
       if (scene.textures.exists(key)) continue;
       texture(scene, key, 40, 52, (c) => {
+        // Failed image loads use the same ground contact as the painted asset.
+        const origin = ASSETS[key]?.origin ?? CROP_ORIGIN;
+        c.translate(origin.x * CROP_TEXTURE.width - CROP_TEXTURE.rootX,
+          origin.y * CROP_TEXTURE.height - CROP_TEXTURE.rootY);
         ellipse(c, 20, 44, 16, 5, "#533c2b44");
         if (stage === "seed") {
           for (let i = 0; i < 3; i++)

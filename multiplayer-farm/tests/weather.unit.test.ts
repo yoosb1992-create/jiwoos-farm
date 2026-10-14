@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { RAIN, RAIN_KINDS, makeWeatherPlan, ensureWeatherPlan, applyWeatherAt, coarseWeather, rainIntensity, weatherEventAt, WEATHER_EVENT_MINUTES } from "../shared/weather.js";
+import { RAIN, RAIN_KINDS, makeWeatherPlan, ensureWeatherPlan, applyWeatherAt, coarseWeather, rainIntensity, weatherEventAt, WEATHER_EVENT_MINUTES, precipitationForDay } from "../shared/weather.js";
+import { calendar } from "../shared/expansion.js";
 import { newWorld, newMember, entity, type Actor } from "../shared/world.js";
 import { legacyLayout } from "../shared/layout.js";
 import { applyAction, nextDay } from "../shared/actions.js";
@@ -8,6 +9,50 @@ import { CROPS } from "../shared/content.js";
 import { getSunState } from "../shared/sunlight.js";
 import { entityTouchIntent } from "../client/touch-action.js";
 import { rainParticleCount } from "../client/weather-effects.js";
+
+test("daily precipitation has independent deterministic farm/day rolls over 28, 112 and 365 days",t=>{
+  const seeds=Array.from({length:256},(_,i)=>i<128?i:Math.imul(i,2654435761)>>>0);
+  for(const days of [28,112,365]) {
+    let wet=0,pairs=0,min=days,max=0,maxDry=0,maxWet=0;
+    for(const seed of seeds) {
+      let count=0,dry=0,rain=0,previous=false;
+      for(let day=1;day<=days;day++) {
+        const hit=precipitationForDay(seed,day);
+        assert.equal(hit,precipitationForDay(seed,day));
+        if(hit){wet++;count++;rain++;dry=0;if(previous)pairs++;}else{dry++;rain=0;}
+        maxDry=Math.max(maxDry,dry);maxWet=Math.max(maxWet,rain);previous=hit;
+      }
+      min=Math.min(min,count);max=Math.max(max,count);
+    }
+    const rate=wet/(days*seeds.length),adjacent=pairs/((days-1)*seeds.length);
+    // Aggregate distribution and lag-one independence, not a quota for each farm.
+    assert(rate>.28&&rate<.32);assert(adjacent>.075&&adjacent<.105);
+    t.diagnostic(JSON.stringify({farms:seeds.length,days,wet,rate,adjacent,min,max,maxDry,maxWet}));
+  }
+  assert.notDeepEqual(Array.from({length:112},(_,i)=>precipitationForDay(42,i+1)),
+    Array.from({length:112},(_,i)=>precipitationForDay(43,i+1)));
+});
+
+test("only nextDay rolls new precipitation; saved plans and all-day rain/shower durations survive loading",()=>{
+  const w=newWorld(42,legacyLayout());w.entities={};
+  for(const kind of RAIN_KINDS) {
+    w.weatherPlan=makeWeatherPlan(42,w.day,"rain",kind);w.minute=600;
+    const saved=JSON.stringify(w),loaded=JSON.parse(saved),plan=JSON.stringify(loaded.weatherPlan);
+    ensureWeatherPlan(loaded);applyWeatherAt(loaded);
+    assert.equal(JSON.stringify(loaded.weatherPlan),plan,"current saved plan must not reroll");
+    for(const minute of [360,719,1000,1430])
+      assert.equal(coarseWeather(loaded.weatherPlan,minute),kind==="shower" &&
+        (minute<loaded.weatherPlan.startMinute || minute>=loaded.weatherPlan.endMinute)?"clear":"rain");
+    if(kind!=="shower")assert.equal(rainIntensity(loaded.weatherPlan,720),1);
+  }
+  for(const seed of [0,1,42,43,99999,2147483647])for(const day of [2,28,56,84,85,112,113]) {
+    w.seed=seed;w.day=day-1;w.entities={};nextDay(w);
+    const base=precipitationForDay(seed,day)?calendar(day).season==="winter"?"snow":"rain":"clear";
+    assert.equal(w.weatherPlan!.baseWeather,base);
+    assert.equal(w.weather,coarseWeather(w.weatherPlan!,360));
+    assert.deepEqual(w.weatherPlan,makeWeatherPlan(seed,day,base));
+  }
+});
 
 test("rain profiles, bounded mobile batches, cloud light and deterministic sound/lightning intervals",()=>{
   let prior=0;

@@ -44,7 +44,8 @@ import { getSunState, seedGlowVisibility, type SunState } from "../shared/sunlig
 import { atmosphereLight, groundShadow, lightEnvironment, objectSunTint, receivesSunlight } from "./solar-lighting.js";
 import { paintNightVeil, sceneryLight, type WorldLight } from "./night-lighting.js";
 import { chestTextureKey } from "./chest-art.js";
-import { TilledGroundIndex, paintTilledGround } from "./tilled-ground.js";
+import { TilledGroundIndex, paintTilledGround, isTilled } from "./tilled-ground.js";
+import { CROP_GROUND_OFFSET, CROP_ORIGIN } from "../shared/crop-visuals.js";
 interface View {
   kind?: string;
   body: Phaser.GameObjects.Sprite;
@@ -538,6 +539,7 @@ export class FarmScene extends Phaser.Scene {
       let v = this.objects.get(id);
       if (!v) v = this.staticObject(id, asset, e.x, e.y, label);
       v.kind=e.kind;
+      v.x=e.x; v.y=e.y;
       const changedTexture = v.body.texture.key !== asset;
       v.body
         .setPosition(e.x,e.y)
@@ -601,15 +603,19 @@ export class FarmScene extends Phaser.Scene {
         v.body.setTint(forage.color);
       if (e.kind === "soil")
         v.body.setDisplaySize(TILE,TILE).setOrigin(0.5).setTint(this.feedback?.watered(id,e.watered,now) ? 0xa07a62 : 0xffffff);
-      if (e.kind === "crop")
-        // Water is shown on the tilled soil beneath the plant, not by tinting the crop.
-        v.body.setOrigin(0.5, 0.8).setTint(0xffffff);
+      if (needsTilledGround) {
+        // Each texture's root meets this one visual ground point. Soil and
+        // server entity coordinates stay at the unshifted logical tile center.
+        const origin = ASSETS[asset]?.origin ?? CROP_ORIGIN;
+        v.body.setOrigin(origin.x, origin.y).setPosition(e.x, e.y + CROP_GROUND_OFFSET);
+        if (e.kind === "crop") v.body.setTint(0xffffff);
+      }
       v.baseTint = v.body.tintTopLeft;
       this.lightObject(v);
       if (e.kind === "crop" && e.stage === 0) {
         v.seedGlow ??= this.add.sprite(e.x, e.y, `crop_${e.crop}_glow`);
-        v.seedGlow.setTexture(`crop_${e.crop}_glow`).setPosition(e.x, e.y)
-          .setOrigin(.5, .8).setDisplaySize(v.body.displayWidth, v.body.displayHeight)
+        v.seedGlow.setTexture(`crop_${e.crop}_glow`).setPosition(v.body.x, v.body.y)
+          .setOrigin(v.body.originX, v.body.originY).setDisplaySize(v.body.displayWidth, v.body.displayHeight)
           .setDepth(v.body.depth + .1)
           .setAlpha(seedLight * (.9 + .1 * Math.sin(now / 650 + e.x * .17 + e.y * .11)))
           .setVisible(seedLight > 0 && v.body.visible);
@@ -810,8 +816,8 @@ export class FarmScene extends Phaser.Scene {
       b = c.getWorldPoint(1, 1),
       r = this.game.canvas.getBoundingClientRect();
     return {
-      x: (x - a.x) / (b.x - a.x) + r.left,
-      y: (y - a.y) / (b.y - a.y) + r.top,
+      x: (x - a.x) / (b.x - a.x) * r.width / this.scale.width + r.left,
+      y: (y - a.y) / (b.y - a.y) * r.height / this.scale.height + r.top,
     };
   }
   pickWorld(
@@ -830,6 +836,14 @@ export class FarmScene extends Phaser.Scene {
       .sort((a, b) => b[1].y - a[1].y)
       .find(([, v]) => v.body.getBounds().contains(p.x, p.y));
     if (npc) return { ...p, npcId: npc[0] };
+    // Plants grow above their own cell. Their transparent rectangular bounds
+    // must never steal an adjacent plot's tap (including seed/soil/withered).
+    // Use the same half-open tile coordinates as navigation and frontTile.
+    const tx = Math.floor(p.x / TILE), ty = Math.floor(p.y / TILE);
+    for (const [id,v] of this.objects)
+      if (v.body.visible && isTilled(v.kind ?? "") &&
+        Math.floor(v.x / TILE) === tx && Math.floor(v.y / TILE) === ty)
+        return { ...p, entityId: id };
     // A giant crown can overlap a smaller tree's trunk. A precise tap on the
     // occupied ground cell means that trunk/stump, even beneath another crown.
     // Only pointer events scan this visible view set; authority/collision stay
@@ -840,7 +854,7 @@ export class FarmScene extends Phaser.Scene {
         return {...p,entityId:id};
     const hit = [...this.objects.entries()]
       .sort((a, b) => b[1].y - a[1].y)
-      .find(([, v]) => v.body.visible && v.body.getBounds().contains(p.x, p.y));
+      .find(([, v]) => v.body.visible && !isTilled(v.kind ?? "") && v.body.getBounds().contains(p.x, p.y));
     if (hit) {
       const [id, v] = hit;
       if (id.startsWith("warp-")) return { ...p, warpId: id.slice(5) };

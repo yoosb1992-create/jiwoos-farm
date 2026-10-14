@@ -1,4 +1,4 @@
-import { makeWeatherPlan, coarseWeather, rainWaters } from "./weather.js";
+import { makeWeatherPlan, coarseWeather, rainWaters, precipitationForDay } from "./weather.js";
 import { parseAppearance } from "./appearance.js";
 import { TRANSPORT_DURATION_MS, HAND_CARRY_LIMIT_KG } from "./transport-config.js";
 import { parseQuickbarEdit, editQuickbar } from "./quickbar.js";
@@ -203,7 +203,7 @@ export function nextDay(w: World): void {
   w.minute = 360;
   const season = calendar(w.day).season;
   w.weather =
-    random(w.seed + w.day)() < 0.3
+    precipitationForDay(w.seed, w.day)
       ? season === "winter"
         ? "snow"
         : "rain"

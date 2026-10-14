@@ -1,4 +1,5 @@
 import type { Asset } from "./content.js";
+import { matureCropOrigin } from "./crop-visuals.js";
 import { TREE_SPECIES, TREE_STAGE_IDS, DEBRIS, FARM_GRASS, GARDEN_FLOWERS, stumpSprite, STUMP_SIZES } from "./nature.js";
 const root="/assets/nature";
 export const NEW_CROP_ART=["pinktulip","sweetpea","springonion","coolcucumber","watermelon","lavender","rubybeet","chrysanthemum","scarletbean","icelettuce","snowpea","frostflower"];
@@ -22,6 +23,9 @@ export function withNatureArt(assets: Record<string,Asset>): Record<string,Asset
     add(d.id,`debris/${d.id}`,d.kind==="twig"?32:30,d.kind==="twig"?24:30,.5);
   assets.farm_wildflower={...assets.farm_white_wildflower!,assetId:"farm_wildflower",textureKey:"farm_wildflower"};
   for(const f of GARDEN_FLOWERS)add(f.id,`flowers/${f.id}`,56,52);
-  for(const id of NEW_CROP_ART)add(`crop_${id}_mature`,`crops/${id}`,40,52,.8);
+  for(const id of NEW_CROP_ART) {
+    add(`crop_${id}_mature`,`crops/${id}`,40,52);
+    assets[`crop_${id}_mature`]!.origin=matureCropOrigin(id);
+  }
   return assets;
 }

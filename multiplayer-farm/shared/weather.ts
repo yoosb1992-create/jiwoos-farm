@@ -34,6 +34,12 @@ export function weatherRoll(seed: number, salt: number): number {
   n = Math.imul(n ^ (n >>> 15), 0x735a2d97);
   return ((n ^ (n >>> 15)) >>> 0) / 4294967296;
 }
+/** One independent, reproducible roll per farm/day. The separate stream keeps
+ * precipitation selection independent of rain kind, wind and event rolls.
+ * Only nextDay uses this: loading a saved day's plan must never reroll it. */
+export function precipitationForDay(seed: number, day: number): boolean {
+  return weatherRoll(seed ^ 0x70657263, day) < .3;
+}
 export function makeWeatherPlan(seed: number, day: number, baseWeather: string, force?: RainKind): WeatherPlan {
   const key = (seed ^ Math.imul(day, 7919)) >>> 0, roll = weatherRoll(key,1);
   const kind = baseWeather !== "rain" ? "none" : force ?? (roll < .23 ? "drizzle" : roll < .68 ? "rain" : roll < .88 ? "shower" : "storm");
