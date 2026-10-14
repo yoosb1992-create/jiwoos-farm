@@ -36,7 +36,7 @@ test("mobile nature: decode shipped art, touch plant a seed and reload the saved
   await expect(page.locator("#panel-body")).toContainText("솔방울 ×1");
   await page.locator("#panel-close").click();
   await page.screenshot({ path: info.outputPath("nature-planted-seedling.png") });
-  await page.reload();
+  await page.reload();await expect(page.locator("#login")).toBeVisible();await page.locator("#resume").click();
   await expect(page.locator("#connection")).toHaveAttribute("data-status", "connected");
   await expect.poll(() => page.evaluate(() => !!window.__FARM_DEBUG__.snapshot().local)).toBe(true);
   await expect.poll(() => page.evaluate(id => (window.__FARM_DEBUG__.state()?.entities[id] as Entity | undefined)?.stage, tree.id)).toBe(0);

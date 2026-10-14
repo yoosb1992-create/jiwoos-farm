@@ -1,0 +1,66 @@
+name: Farm FULL (development branch)
+run-name: Farm FULL · ${{ inputs.ref || 'feature/v2.7-world-editor-2' }}
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Development branch, tag or exact commit to verify
+        type: string
+        default: feature/v2.7-world-editor-2
+        required: true
+      force:
+        description: Repeat even when this exact commit already passed FULL
+        type: boolean
+        default: false
+  # Tuesday 04:17 Asia/Seoul. GitHub reads this scheduler from main.
+  schedule:
+    - cron: '17 19 * * 1'
+  # Verify dispatcher wiring when it is installed/updated on the default branch.
+  push:
+    branches: [main]
+    paths: [.github/workflows/farm-full.yml]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: farm-full-dispatch-${{ inputs.ref || 'feature/v2.7-world-editor-2' }}
+  cancel-in-progress: false
+jobs:
+  revision:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+      run: ${{ steps.resolve.outputs.run }}
+    steps:
+      - uses: actions/github-script@v7
+        id: resolve
+        env:
+          TARGET_REF: ${{ inputs.ref || 'feature/v2.7-world-editor-2' }}
+          FORCE: ${{ inputs.force || false }}
+        with:
+          script: |
+            const repo={owner:context.repo.owner,repo:context.repo.repo};
+            const {data:commit}=await github.rest.repos.getCommit({...repo,ref:process.env.TARGET_REF});
+            const sha=commit.sha;
+            core.setOutput('sha',sha);
+            let prior;
+            if(process.env.FORCE!=='true') {
+              const {data}=await github.rest.actions.listArtifactsForRepo({...repo,name:`farm-full-success-${sha}`,per_page:100});
+              for(const artifact of data.artifacts) {
+                if(artifact.expired || !artifact.workflow_run) continue;
+                // Weekly scheduled checks must eventually run again; manual
+                // requests reuse a verified identical revision unless forced.
+                if(context.eventName==='schedule' && Date.now()-Date.parse(artifact.created_at)>6*86400000) continue;
+                const {data:run}=await github.rest.actions.getWorkflowRun({...repo,run_id:artifact.workflow_run.id});
+                if(run.conclusion==='success' && ['.github/workflows/multiplayer-farm.yml','.github/workflows/farm-full.yml'].includes(run.path)) {prior=run.html_url;break;}
+              }
+            }
+            core.setOutput('run',!prior);
+            await core.summary.addHeading('Development revision selected').addRaw(`Target: ${process.env.TARGET_REF}\n\nCommit: ${sha}\n\n${prior?`Existing FULL success reused: ${prior}`:'Running the complete regression on this pinned commit.'}`).write();
+  full:
+    needs: revision
+    if: needs.revision.outputs.run == 'true'
+    uses: yoosb1992-create/jiwoos-farm/.github/workflows/multiplayer-farm.yml@feature/v2.7-world-editor-2
+    with:
+      ref: ${{ needs.revision.outputs.sha }}
+      full: true

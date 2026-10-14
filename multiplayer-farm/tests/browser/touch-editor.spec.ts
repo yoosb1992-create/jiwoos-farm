@@ -83,7 +83,7 @@ test("mobile touch action, saved control layout and new-world editor isolation",
     localStorage.getItem("farm-controls-v1"),
   );
   expect(saved).toBeTruthy();
-  await page.reload();
+  await page.reload();await expect(page.locator("#login")).toBeVisible();await page.locator("#resume").click();
   await expect(page.locator("#connection")).toHaveAttribute(
     "data-status",
     "connected",

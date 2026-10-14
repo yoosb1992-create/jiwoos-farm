@@ -89,7 +89,7 @@ test("mobile farm load, two contexts, joystick+RUN, action, inventory and reconn
   await page.mouse.down();
   await page.waitForTimeout(150);
   await page.mouse.up();
-  await page.reload();
+  await page.reload();await expect(page.locator("#login")).toBeVisible();await page.locator("#resume").click();
   await expect(page.locator("#login")).toBeHidden();
   await expect(page.locator("#connection")).toHaveAttribute(
     "data-status",
@@ -97,7 +97,7 @@ test("mobile farm load, two contexts, joystick+RUN, action, inventory and reconn
   );
   expect(errors).toEqual([]);
   await page.goto("about:blank");
-  await page.goBack();
+  await page.goBack();await expect(page.locator("#login")).toBeVisible();await page.locator("#resume").click();
   await expect(page.locator("#login")).toBeHidden();
   await expect(page.locator("#connection")).toHaveAttribute(
     "data-status",

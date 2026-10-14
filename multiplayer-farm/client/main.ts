@@ -443,6 +443,7 @@ function renderPanelContent(): void {
     row("접속 관리",[button("같은 플레이어로 다시 연결",()=>{closePanel();void connectSaved();}),button("로그아웃",()=>{
       void cancelConnecting();localStorage.removeItem(SESSION_KEY);session=undefined;verifiedDeveloper=false;el("hud").hidden=true;
       document.body.classList.remove("developer-mode");closePanel();el("login").hidden=false;
+      renderSavedFarms();
     })]);return;
   }
   if (modal === "fishing" && fishing) {
@@ -748,7 +749,7 @@ function updateConnection(status: NetworkSnapshot["status"]): void {
   );
   connection.title = `${network.snapshot().message} · ${players}명 · 가족 코드 ${session?.farmId ?? ""}`;
   if (!el("login").hidden && status !== "disconnected") el("login-error").textContent = network.snapshot().message;
-  el("cancel-connect").hidden = !["connecting", "reconnecting"].includes(status);
+  el("cancel-connect").hidden = !entryPending && !sessionRequest && !["connecting", "reconnecting"].includes(status);
   el<HTMLButtonElement>("action").disabled =
     status !== "connected" || !network.personal?.member || panel.open;
 }
@@ -1139,13 +1140,20 @@ const http = serverUrl().replace(/^ws/, "http");
 const SESSION_KEY = "farm-v26-session";
 const SESSION_LIST_KEY = "farm-v26-sessions";
 let connectionIntent = 0;
+// A saved identity is not permission to enter a farm. Only an explicit user
+// action enables recovery for this page lifetime; refresh/bfcache starts idle.
+let connectionAllowed = false;
+let entryPending = false;
 let sessionRequest: AbortController | undefined, wakeLoginRetry: (() => void) | undefined;
 function resumeConnections(): void {
+  if (!connectionAllowed) return;
   network.resumeConnection();
   wakeLoginRetry?.();
 }
 function cancelConnecting(): Promise<void> {
   ++connectionIntent;
+  connectionAllowed = false;
+  entryPending = false;
   sessionRequest?.abort();
   sessionRequest = undefined;
   wakeLoginRetry?.();
@@ -1153,6 +1161,8 @@ function cancelConnecting(): Promise<void> {
 }
 el("cancel-connect").addEventListener("click", () => {
   void cancelConnecting();
+  el("login").hidden = false;
+  renderSavedFarms();
   el("cancel-connect").hidden = true;
   el("login-error").textContent = "연결을 취소했어요. 저장된 농장을 다시 선택할 수 있어요.";
 }, opts);
@@ -1227,6 +1237,8 @@ async function deleteSavedFarm(value: Session): Promise<void> {
   notice("저장 농장을 삭제했습니다.");
 }
 function renderSavedFarms(): void {
+  el("resume").hidden = !session;
+  if (session) el("resume").textContent = `${session.farmName ?? `${session.nickname}의 농장`} 이어하기`;
   const holder = el("saved-farms");
   holder.replaceChildren();
   const seen = new Set<string>();
@@ -1251,6 +1263,9 @@ function renderSavedFarms(): void {
 async function connectSaved(): Promise<void> {
   if (!session) return;
   const value = session, closing = cancelConnecting(), intent = connectionIntent;
+  connectionAllowed = true;
+  entryPending = true;
+  el("cancel-connect").hidden = false;
   // Cancel the old target before waiting for assets or opening another farm.
   await closing;
   try {
@@ -1261,23 +1276,30 @@ async function connectSaved(): Promise<void> {
     await network.openFarm(value,newAppearance);
     if (intent !== connectionIntent || session !== value || network.snapshot().status !== "connected") return;
     el("login").hidden = true;
-    verifiedDeveloper=await verifyDeveloperAccess();
+    const canDevelop = await verifyDeveloperAccess();
+    if (intent !== connectionIntent || session !== value) return;
+    verifiedDeveloper=canDevelop;
     document.body.classList.toggle("developer-mode",developerActive());
     if(!developerActive())el("hud").hidden=true;
     notice("연결됐습니다. 길 밖의 잔디 평지를 괭이로 갈아 우리 가족의 밭을 만들어 보세요.");
   } catch (e) {
     if (intent !== connectionIntent) return;
+    connectionAllowed = false;
     el("login-error").textContent =
       e instanceof Error ? e.message : "연결 실패";
     el("login").hidden = false;
+  } finally {
+    if (intent === connectionIntent) entryPending = false;
   }
 }
 async function login(create: boolean): Promise<void> {
   if (sessionRequest) return; // repeated taps never create parallel login jobs
   const closing = cancelConnecting(), intent = connectionIntent;
+  connectionAllowed = true;
   const controller = new AbortController();
   sessionRequest = controller;
   await closing;
+  if (controller.signal.aborted || intent !== connectionIntent) return;
   el("login-error").textContent = "서버에 연결하는 중…";
   el("cancel-connect").hidden = false;
   try {
@@ -1336,15 +1358,26 @@ recovery.innerHTML='<summary>다른 기기의 내 플레이어 이어하기</sum
 el("login-form").after(recovery);
 el("import-player").addEventListener("click",async()=>{
   const b=el<HTMLButtonElement>("import-player");b.disabled=true;
+  const closing=cancelConnecting(), intent=connectionIntent;
+  connectionAllowed=true;
+  const controller=new AbortController();sessionRequest=controller;
+  el("cancel-connect").hidden=false;
   try{
+    await closing;
+    if(controller.signal.aborted||intent!==connectionIntent)return;
     const token=el<HTMLInputElement>("resume-code").value.trim();
     if(!token||token.length>200)throw Error("개인 이어하기 코드를 입력하세요");
-    const r=await fetch(`${http}/api/session`,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(JOIN_TIMEOUT_MS)});
+    const r=await fetch(`${http}/api/session`,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(JOIN_TIMEOUT_MS)])});
     if(!r.ok)throw Error("코드를 확인하세요. 만료된 코드는 사용할 수 없어요.");
     const identity=await r.json();
+    if(controller.signal.aborted||intent!==connectionIntent)return;
     archiveSession(session);session={...identity,token};archiveSession(session);localStorage.setItem(SESSION_KEY,JSON.stringify(session));
     el<HTMLInputElement>("resume-code").value="";await connectSaved();
-  }catch(e){el("login-error").textContent=e instanceof Error?e.message:"이어하기 실패";}finally{b.disabled=false;}
+  }catch(e){if(intent===connectionIntent)el("login-error").textContent=e instanceof Error?e.message:"이어하기 실패";}finally{
+    if(sessionRequest===controller)sessionRequest=undefined;
+    if(intent===connectionIntent)el("cancel-connect").hidden=true;
+    b.disabled=false;
+  }
 },opts);
 el("login-form").addEventListener(
   "submit",
@@ -1375,13 +1408,9 @@ try {
     if (value.token && value.farmId) {
       session = value;
       el("resume").hidden = false;
-      if (new URL(location.href).searchParams.get("newFarm") !== "1")
-        void connectSaved();
     }
   }
-} catch {
-  localStorage.removeItem(SESSION_KEY);
-}
+} catch { /* Keep stored data intact even if this page cannot read it. */ }
 try {
   archiveSession(session);
   if (session)
@@ -1389,8 +1418,8 @@ try {
   renderSavedFarms();
 
 } catch {}
-// pagehide releases sockets/rendering; a bfcache restoration must rebuild them
-// from the saved family session instead of showing a disposed canvas.
+// pagehide releases sockets/rendering. Rebuild the lobby after bfcache restore;
+// the saved session remains available for an explicit Continue click.
 window.addEventListener("pageshow", (event) => {
   if (event.persisted) window.location.reload();
 });

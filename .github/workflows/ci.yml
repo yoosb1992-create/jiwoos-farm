@@ -1,8 +1,14 @@
-name: CI
+name: Legacy Sites CI
 
 on:
-  push:
-  pull_request:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+
+permissions:
+  contents: read
 
 jobs:
   verify:
@@ -10,6 +16,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

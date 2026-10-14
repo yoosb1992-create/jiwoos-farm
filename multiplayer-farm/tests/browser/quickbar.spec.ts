@@ -104,7 +104,7 @@ test("mobile quickbar registration, favorites, persistence, silhouettes and conn
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>{localStorage.setItem("farm-favorite-mode","vertical");window.dispatchEvent(new Event("favorite-mode-change"));window.dispatchEvent(new Event("favorite-visibility"));});
   await page.screenshot({path:info.outputPath("mobile-slots-favorites.png")});
-  await page.reload();await expect(page.locator("#connection")).toHaveAttribute("data-status","connected",{timeout:25000});
+  await page.reload();await expect(page.locator("#login")).toBeVisible();await page.locator("#resume").click();await expect(page.locator("#connection")).toHaveAttribute("data-status","connected",{timeout:25000});
   await expect(slot(page,2)).toHaveAttribute("data-tool","axe");await expect(slot(page,4)).toHaveAttribute("data-tool","scythe");
   await page.locator("#favorite-toggle").click();await expect(page.locator("#favorite-popup")).toHaveAttribute("data-mode","vertical");
   await expect(page.getByRole("button",{name:"도끼 선택",exact:true})).toHaveClass(/selected/);

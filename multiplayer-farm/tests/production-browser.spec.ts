@@ -45,14 +45,14 @@ async function enter(page: Page, name: string, code?: string) {
   );
 }
 async function restore(page: Page, navigate: () => Promise<unknown>) {
-  // DOM load is earlier than Phaser preload and the asynchronous saved-session
-  // join. Observe that real protocol milestone before asserting the UI state.
-  // This works on the shipped production client, with no debug/test hooks.
+  // Refresh and browser restoration stay in the lobby until Continue.
+  await navigate();
+  await expect(page.locator("#login")).toBeVisible();
   const joined = page.waitForResponse(response =>
     response.request().method() === "POST" &&
     new URL(response.url()).pathname === `/matchmake/joinOrCreate/${ROOM_NAME}`,
   );
-  const [response] = await Promise.all([joined, navigate()]);
+  const [response] = await Promise.all([joined, page.locator("#resume").click()]);
   expect(response.ok()).toBe(true);
   await expect(page.locator("#login")).toBeHidden();
   await expect(page.locator("#connection")).toHaveAttribute("data-status", "connected");

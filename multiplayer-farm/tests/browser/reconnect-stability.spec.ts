@@ -44,5 +44,11 @@ test("phone: lost first-join response, matchmaking failure, offline/visible reco
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.locator("#login")).toBeVisible();
   await expect(page.locator("#connection")).toHaveAttribute("data-status", "disconnected");
+  await page.reload();
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await page.waitForTimeout(1500);
+  await expect(page.locator("#login")).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("farm-v26-session"))).toBeNull();
+  await expect(page.locator("#saved-farms")).toContainText(saved.farmId);
   expect(errors).toEqual([]);
 });

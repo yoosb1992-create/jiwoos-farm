@@ -97,7 +97,7 @@ test("five tree ages: juvenile cutting, species stumps, three-hit clearing and r
       await page.locator("#tool").selectOption("axe");
     }
   }
-  await page.reload();await expect(page.locator("#connection")).toHaveAttribute("data-status","connected",{timeout:20000});
+  await page.reload();await expect(page.locator("#login")).toBeVisible();await page.locator("#resume").click();await expect(page.locator("#connection")).toHaveAttribute("data-status","connected",{timeout:20000});
   await waitForFarmInput(page);
   const saved=await page.evaluate(()=>(window.__FARM_DEBUG__ as any).state().entities);
   expect(saved["age-0"]).toBeUndefined();expect(saved["age-1"]).toBeUndefined();expect(saved["age-2"]).toBeUndefined();

@@ -101,7 +101,7 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`hou
   await expect(seeds(chest).getByRole("button",{name:/전체/})).toHaveCSS("min-height","44px");
   await page.screenshot({path:info.outputPath(`chest-${viewport.width}.png`)});
   await page.locator("#panel-close").click();
-  await page.reload();await expect(page.locator("#login")).toBeHidden({timeout:20000});
+  await page.reload();await expect(page.locator("#login")).toBeVisible();await page.locator("#resume").click();await expect(page.locator("#login")).toBeHidden({timeout:20000});
   await waitForFarmInput(page);
   expect(await page.evaluate(() => window.__FARM_DEBUG__.snapshot().players.find(p => p.local)?.area)).toBe("farmhouse");
   await goHome(page);
