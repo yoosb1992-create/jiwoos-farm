@@ -74,3 +74,22 @@ Before this change, actual live Check Suites was false despite the older
 `deployment/auto-deploy-watch.json` declaring true. Verify platform configuration,
 not just that descriptive file. GitHub/Railway evidence and timings are reported
 at task completion; local browser checks are not a two-physical-phone test.
+
+## Measured validation (2026-10-14)
+
+The previous automatic farm run `38506708209` took 20m 07s. FULL run
+`38519430575` on `b28ec1a905c7eb79cc49c41b301b7bb3f88f6638` passed in
+8m 12s, including FAST (47s), 94 unit tests, 29 server integration tests,
+2 real PostgreSQL tests, 30 browser scenarios, 2 built-client browser scenarios,
+containers, legacy Sites and the byte-identical golden lab. The first v2.8.4
+attempt correctly failed on browser checks; no failures were hidden or skipped.
+
+Main commit `50c0f86192a75dea9c0509dfbcc46c8bb0987559` installs only the
+dispatcher. Its bootstrap run `38520258929` passed in seven seconds, resolved
+the development workflow at the same `b28ec1a` revision and reused its FULL
+success rather than repeating the suite.
+
+The final test-only refinement calls `scene().ready` before measuring eight
+seconds of idle lobby time. Its mobile and desktop cases passed locally. This
+change selects FAST plus the session-entry browser file, demonstrating targeted
+coverage without rerunning the unchanged full game regression.

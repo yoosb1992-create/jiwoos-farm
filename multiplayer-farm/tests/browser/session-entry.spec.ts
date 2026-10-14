@@ -29,7 +29,7 @@ for(const width of [390,1280])test(`saved identity stays in lobby until explicit
   await expect(page.locator('#saved-farms .item-row')).toHaveCount(2);
   await expect(page.locator('#start-world-select')).toBeVisible();
   await expect(page.locator('#create-farm')).toBeVisible();
-  await page.evaluate(()=>(window as unknown as {__FARM_DEBUG__:{scene:{ready:Promise<void>}}}).__FARM_DEBUG__.scene.ready);
+  await page.evaluate(()=>(window as unknown as {__FARM_DEBUG__:{scene():{ready:Promise<void>}}}).__FARM_DEBUG__.scene().ready);
   await wake(page);
   // Beyond the old automatic entry delay, after the renderer is fully ready.
   await page.waitForTimeout(8000);
