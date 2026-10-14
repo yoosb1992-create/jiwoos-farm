@@ -1,9 +1,10 @@
 name: Farm CI
 run-name: Farm CI · ${{ inputs.full && 'FULL' || 'AUTO' }} · ${{ inputs.ref || github.sha }}
-on:
+'on':
   push:
-    branches-ignore: [experiment/v2.4-multiplayer-lab-colyseus]
-  pull_request:
+    branches-ignore:
+    - experiment/v2.4-multiplayer-lab-colyseus
+  pull_request: null
   workflow_call:
     inputs:
       ref:
@@ -16,12 +17,10 @@ permissions:
   contents: read
 concurrency:
   group: farm-ci-${{ inputs.full && 'full' || 'auto' }}-${{ inputs.ref || github.sha }}
-  # Required deployment gates must not be bypassed by cancellation.
   cancel-in-progress: false
 jobs:
   fast:
     name: FAST CI
-    # Same-repository PRs already have a push run for their exact head.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -34,47 +33,88 @@ jobs:
       production: ${{ steps.plan.outputs.production }}
       legacy: ${{ steps.plan.outputs.legacy }}
       lab: ${{ steps.plan.outputs.lab }}
+      browsers: ${{ steps.plan.outputs.browsers }}
+      shards: ${{ steps.plan.outputs.shards }}
+      shard_count: ${{ steps.plan.outputs.shard_count }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-          fetch-depth: 0
-      - id: revision
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: multiplayer-farm/package-lock.json
-      - run: npm ci --prefix multiplayer-farm
-      - name: Verify selection and failure propagation
-        run: node --test scripts/ci/select.test.mjs
-      - name: Select changed dependencies and safety gates
-        id: plan
-        env:
-          CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          CI_HEAD: ${{ steps.revision.outputs.sha }}
-          CI_FULL: ${{ inputs.full || false }}
-        run: node scripts/ci/select.mjs
-      - run: npm run typecheck --prefix multiplayer-farm
-      - name: Core safety and affected unit tests
-        run: node scripts/ci/run.mjs units
-      - run: npm run test:deployment --prefix multiplayer-farm
-      - name: Build client and server once
-        run: npm run build --prefix multiplayer-farm
-        env:
-          VITE_MULTIPLAYER_SERVER_URL: wss://farm-validation.invalid
-      - uses: actions/upload-artifact@v4
-        with:
-          name: farm-build-${{ github.run_id }}
-          path: |
-            ci-plan.json
-            multiplayer-farm/dist/
-          retention-days: 7
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+        fetch-depth: 0
+    - id: revision
+      run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: multiplayer-farm/package-lock.json
+    - run: npm ci --prefix multiplayer-farm
+    - name: Verify selection and failure propagation
+      run: node --test scripts/ci/select.test.mjs
+    - name: Select changed dependencies and safety gates
+      id: plan
+      env:
+        CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        CI_HEAD: ${{ steps.revision.outputs.sha }}
+        CI_FULL: ${{ inputs.full || false }}
+      run: node scripts/ci/select.mjs
+    - run: npm run typecheck --prefix multiplayer-farm
+    - name: Core safety and affected unit tests
+      run: node scripts/ci/run.mjs units
+    - run: npm run test:deployment --prefix multiplayer-farm
+    - name: Build client and server once
+      run: npm run build --prefix multiplayer-farm
+      env:
+        VITE_MULTIPLAYER_SERVER_URL: wss://farm-validation.invalid
+    - uses: actions/upload-artifact@v4
+      with:
+        name: farm-build-${{ github.run_id }}
+        path: |
+          ci-plan.json
+          multiplayer-farm/dist/
+        retention-days: 7
   targeted:
     name: TARGETED CI
     needs: fast
     if: needs.fast.outputs.targeted == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: farmtest
+          POSTGRES_PASSWORD: ci-test-only
+          POSTGRES_DB: farmtest
+        ports:
+        - 5432:5432
+        options: --health-cmd "pg_isready -U farmtest -d farmtest" --health-interval 5s --health-timeout 5s --health-retries
+          10
+    env:
+      DATABASE_URL: postgresql://farmtest:ci-test-only@127.0.0.1:5432/farmtest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.fast.outputs.sha }}
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: multiplayer-farm/package-lock.json
+    - run: npm ci --prefix multiplayer-farm
+    - uses: actions/download-artifact@v4
+      with:
+        name: farm-build-${{ github.run_id }}
+        path: .
+    - name: Affected server integration tests
+      run: node scripts/ci/run.mjs integration
+    - name: Real PostgreSQL transactions, identity and world backups
+      if: needs.fast.outputs.db == 'true'
+      run: npm run test:db --prefix multiplayer-farm
+  browsers:
+    name: Browser regressions (${{ matrix.shard }})
+    needs: fast
+    if: needs.fast.outputs.browsers == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -84,59 +124,60 @@ jobs:
           POSTGRES_USER: farmtest
           POSTGRES_PASSWORD: ci-test-only
           POSTGRES_DB: farmtest
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U farmtest -d farmtest"
-          --health-interval 5s --health-timeout 5s --health-retries 10
+        ports:
+        - 5432:5432
+        options: --health-cmd "pg_isready -U farmtest -d farmtest" --health-interval 5s --health-timeout 5s --health-retries
+          10
     env:
       DATABASE_URL: postgresql://farmtest:ci-test-only@127.0.0.1:5432/farmtest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.fast.outputs.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: multiplayer-farm/package-lock.json
-      - run: npm ci --prefix multiplayer-farm
-      - uses: actions/download-artifact@v4
-        with:
-          name: farm-build-${{ github.run_id }}
-          path: .
-      - name: Affected server integration tests
-        run: node scripts/ci/run.mjs integration
-      - name: Real PostgreSQL transactions, identity and world backups
-        if: needs.fast.outputs.db == 'true'
-        run: npm run test:db --prefix multiplayer-farm
-      - id: browser
-        run: node -e "const p=require('./ci-plan.json');require('fs').appendFileSync(process.env.GITHUB_OUTPUT,'needed='+(p.browser.length>0||p.production)+'\n')"
-      - uses: actions/cache@v4
-        if: steps.browser.outputs.needed == 'true'
-        with:
-          path: ~/.cache/ms-playwright
-          key: chromium-${{ runner.os }}-${{ hashFiles('multiplayer-farm/package-lock.json') }}
-      - name: Chromium and required system libraries
-        if: steps.browser.outputs.needed == 'true'
-        working-directory: multiplayer-farm
-        run: |
-          npx playwright install --with-deps chromium
-          sudo apt-get install -y fonts-noto-cjk
-      - name: Affected browser scenarios (one invocation)
-        run: node scripts/ci/run.mjs browser
-      - name: Built production client regression
-        if: needs.fast.outputs.production == 'true'
-        run: npm run test:production-browser --prefix multiplayer-farm
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: farm-browser-results
-          path: |
-            ci-plan.json
-            multiplayer-farm/test-results/
-            multiplayer-farm/test-results-production/
-          if-no-files-found: ignore
-          retention-days: 7
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.fast.outputs.sha }}
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: multiplayer-farm/package-lock.json
+    - run: npm ci --prefix multiplayer-farm
+    - uses: actions/download-artifact@v4
+      with:
+        name: farm-build-${{ github.run_id }}
+        path: .
+    - id: browser
+      run: node -e "const p=require('./ci-plan.json');require('fs').appendFileSync(process.env.GITHUB_OUTPUT,'needed='+(p.browser.length>0||p.production)+'\n')"
+    - uses: actions/cache@v4
+      if: steps.browser.outputs.needed == 'true'
+      with:
+        path: ~/.cache/ms-playwright
+        key: chromium-${{ runner.os }}-${{ hashFiles('multiplayer-farm/package-lock.json') }}
+    - name: Chromium and required system libraries
+      if: steps.browser.outputs.needed == 'true'
+      working-directory: multiplayer-farm
+      run: |
+        npx playwright install --with-deps chromium
+        sudo apt-get install -y fonts-noto-cjk
+    - name: Selected browser scenarios in an isolated shard
+      run: node scripts/ci/run.mjs browser
+      env:
+        CI_SHARD: ${{ matrix.shard }}/${{ needs.fast.outputs.shard_count }}
+    - name: Built production client regression
+      if: needs.fast.outputs.production == 'true' && matrix.shard == 1
+      run: npm run test:production-browser --prefix multiplayer-farm
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: farm-browser-results-${{ matrix.shard }}
+        path: |
+          ci-plan.json
+          multiplayer-farm/test-results/
+          multiplayer-farm/test-results-production/
+        if-no-files-found: ignore
+        retention-days: 7
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.fast.outputs.shards) }}
   containers:
     name: Container deployment safety
     needs: fast
@@ -150,41 +191,41 @@ jobs:
           POSTGRES_USER: farmtest
           POSTGRES_PASSWORD: ci-test-only
           POSTGRES_DB: farmtest
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U farmtest -d farmtest"
-          --health-interval 5s --health-timeout 5s --health-retries 10
+        ports:
+        - 5432:5432
+        options: --health-cmd "pg_isready -U farmtest -d farmtest" --health-interval 5s --health-timeout 5s --health-retries
+          10
     env:
       DATABASE_URL: postgresql://farmtest:ci-test-only@127.0.0.1:5432/farmtest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.fast.outputs.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Build isolated farm images
-        run: |
-          docker build -t jiwoos-farm-backend -f multiplayer-farm/Dockerfile .
-          docker build -t jiwoos-farm-frontend -f multiplayer-farm/Dockerfile.client --build-arg VITE_MULTIPLAYER_SERVER_URL=wss://farm-validation.invalid .
-        working-directory: .
-      - name: Run production images, migration, health, restart, shutdown
-        run: |
-          docker run -d --init --network host --name farm-backend -e DATABASE_URL -e PORT=17881 -e CLIENT_ORIGINS=https://farm-validation.invalid jiwoos-farm-backend
-          docker run -d --init --name farm-frontend -p 127.0.0.1:17882:8080 jiwoos-farm-frontend
-          curl --fail --retry 20 --retry-delay 1 --retry-all-errors --retry-max-time 40 http://127.0.0.1:17881/healthz -o /tmp/farm-health.json
-          curl --fail --retry 20 --retry-delay 1 --retry-all-errors --retry-max-time 40 http://127.0.0.1:17882/healthz
-          node --input-type=module -e "import fs from 'node:fs';import assert from 'node:assert/strict';const h=JSON.parse(fs.readFileSync('/tmp/farm-health.json'));assert.equal(h.database,true);assert.equal(h.latencyMs,0);assert.equal(h.tickRate,30);"
-          docker restart -t 15 farm-backend
-          curl --fail --retry 20 --retry-delay 1 --retry-all-errors --retry-max-time 40 http://127.0.0.1:17881/healthz
-          docker stop -t 15 farm-backend farm-frontend
-          test "$(docker inspect -f '{{.State.ExitCode}}' farm-backend)" = 0
-          test "$(docker inspect -f '{{.State.ExitCode}}' farm-frontend)" = 0
-      - name: Container diagnostics
-        if: failure()
-        run: |
-          docker logs farm-backend || true
-          docker logs farm-frontend || true
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.fast.outputs.sha }}
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - name: Build isolated farm images
+      run: |
+        docker build -t jiwoos-farm-backend -f multiplayer-farm/Dockerfile .
+        docker build -t jiwoos-farm-frontend -f multiplayer-farm/Dockerfile.client --build-arg VITE_MULTIPLAYER_SERVER_URL=wss://farm-validation.invalid .
+      working-directory: .
+    - name: Run production images, migration, health, restart, shutdown
+      run: |
+        docker run -d --init --network host --name farm-backend -e DATABASE_URL -e PORT=17881 -e CLIENT_ORIGINS=https://farm-validation.invalid jiwoos-farm-backend
+        docker run -d --init --name farm-frontend -p 127.0.0.1:17882:8080 jiwoos-farm-frontend
+        curl --fail --retry 20 --retry-delay 1 --retry-all-errors --retry-max-time 40 http://127.0.0.1:17881/healthz -o /tmp/farm-health.json
+        curl --fail --retry 20 --retry-delay 1 --retry-all-errors --retry-max-time 40 http://127.0.0.1:17882/healthz
+        node --input-type=module -e "import fs from 'node:fs';import assert from 'node:assert/strict';const h=JSON.parse(fs.readFileSync('/tmp/farm-health.json'));assert.equal(h.database,true);assert.equal(h.latencyMs,0);assert.equal(h.tickRate,30);"
+        docker restart -t 15 farm-backend
+        curl --fail --retry 20 --retry-delay 1 --retry-all-errors --retry-max-time 40 http://127.0.0.1:17881/healthz
+        docker stop -t 15 farm-backend farm-frontend
+        test "$(docker inspect -f '{{.State.ExitCode}}' farm-backend)" = 0
+        test "$(docker inspect -f '{{.State.ExitCode}}' farm-frontend)" = 0
+    - name: Container diagnostics
+      if: failure()
+      run: |
+        docker logs farm-backend || true
+        docker logs farm-frontend || true
   golden-lab-regression:
     needs: fast
     if: needs.fast.outputs.lab == 'true'
@@ -194,29 +235,29 @@ jobs:
       run:
         working-directory: multiplayer-lab
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.fast.outputs.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: multiplayer-lab/package-lock.json
-      - name: Golden lab must remain byte-identical
-        working-directory: .
-        run: |
-          git fetch origin 982a94dec72ac7d125d55050f707f635c4407fd5
-          git diff --exit-code 982a94dec72ac7d125d55050f707f635c4407fd5 -- multiplayer-lab .github/workflows/multiplayer-lab.yml .github/workflows/multiplayer-lab-public.yml
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run test:deployment
-      - run: npm run build
-        env:
-          VITE_MULTIPLAYER_SERVER_URL: wss://lab-validation.invalid
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
-      - run: npm run test:production-browser
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.fast.outputs.sha }}
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: multiplayer-lab/package-lock.json
+    - name: Golden lab must remain byte-identical
+      working-directory: .
+      run: |
+        git fetch origin 982a94dec72ac7d125d55050f707f635c4407fd5
+        git diff --exit-code 982a94dec72ac7d125d55050f707f635c4407fd5 -- multiplayer-lab .github/workflows/multiplayer-lab.yml .github/workflows/multiplayer-lab-public.yml
+    - run: npm ci
+    - run: npm run typecheck
+    - run: npm test
+    - run: npm run test:deployment
+    - run: npm run build
+      env:
+        VITE_MULTIPLAYER_SERVER_URL: wss://lab-validation.invalid
+    - run: npx playwright install --with-deps chromium
+    - run: npm run test:browser
+    - run: npm run test:production-browser
   legacy:
     needs: fast
     if: needs.fast.outputs.legacy == 'true'
@@ -226,27 +267,35 @@ jobs:
   required:
     name: Required CI complete
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository)
-    needs: [fast, targeted, containers, golden-lab-regression, legacy]
+    needs:
+    - fast
+    - targeted
+    - browsers
+    - containers
+    - golden-lab-regression
+    - legacy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.fast.outputs.sha || inputs.ref || github.sha }}
-      - name: Fail closed on failed or cancelled required checks
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: node scripts/ci/gates.mjs
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.fast.outputs.sha || inputs.ref || github.sha }}
+    - name: Fail closed on failed or cancelled required checks
+      env:
+        RESULTS: ${{ toJSON(needs) }}
+      run: node scripts/ci/gates.mjs
   full-complete:
     name: FULL CI complete
-    needs: [fast, required]
+    needs:
+    - fast
+    - required
     if: needs.fast.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          echo 'Full regression passed for ${{ needs.fast.outputs.sha }}' >> "$GITHUB_STEP_SUMMARY"
-          echo '${{ needs.fast.outputs.sha }}' > full-success.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: farm-full-success-${{ needs.fast.outputs.sha }}
-          path: full-success.txt
-          retention-days: 30
+    - run: |
+        echo 'Full regression passed for ${{ needs.fast.outputs.sha }}' >> "$GITHUB_STEP_SUMMARY"
+        echo '${{ needs.fast.outputs.sha }}' > full-success.txt
+    - uses: actions/upload-artifact@v4
+      with:
+        name: farm-full-success-${{ needs.fast.outputs.sha }}
+        path: full-success.txt
+        retention-days: 30

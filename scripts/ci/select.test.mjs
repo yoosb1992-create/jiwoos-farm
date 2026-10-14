@@ -15,3 +15,9 @@ test('required gate rejects failures, cancellation and missing selected jobs',()
   assert.throws(()=>requireSuccess({fast}));
   assert.doesNotThrow(()=>requireSuccess({fast,targeted:{result:'success'},containers:{result:'skipped'}}));
 });
+
+test('selected browser shards must all succeed',()=>{
+  const fast={result:'success',outputs:{browsers:'true'}};
+  for(const result of ['failure','cancelled','skipped']) assert.throws(()=>requireSuccess({fast,browsers:{result}}));
+  assert.doesNotThrow(()=>requireSuccess({fast,browsers:{result:'success'}}));
+});

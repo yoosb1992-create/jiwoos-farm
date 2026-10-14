@@ -1,7 +1,19 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { ASSETS } from "../../shared/content.js";
 import { TERRAIN_ART } from "../../shared/art-assets.js";
 import { reachableNatureTarget, waitForFarmInput } from "./nature-target.js";
+
+async function authoritativePosition(page: Page): Promise<{x:number;y:number}> {
+  let point: {x:number;y:number}|undefined;
+  await expect.poll(async()=>{
+    point=await page.evaluate(()=>{
+      const s=window.__FARM_DEBUG__.snapshot();
+      return s.status==="connected" ? s.local?.authoritative : undefined;
+    });
+    return !!point;
+  },{timeout:15000}).toBe(true);
+  return point!;
+}
 
 test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch layout", async ({ page }, info) => {
   test.setTimeout(90000);
@@ -25,6 +37,7 @@ test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch la
     return decoded.filter(Boolean);
   }, artPaths);
   expect(failedArt).toEqual([]);
+  await waitForFarmInput(page);
   const state = await page.evaluate(() => ({
     layout: JSON.parse(window.__FARM_DEBUG__.state().layout),
     actor: window.__FARM_DEBUG__.snapshot().local!.authoritative,
@@ -53,9 +66,9 @@ test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch la
     { timeout: 20000 },
   ).toBe("soil");
   await waitForFarmInput(page);
-  const stopped = await page.evaluate(() => window.__FARM_DEBUG__.snapshot().local!.authoritative);
+  const stopped = await authoritativePosition(page);
   await page.waitForTimeout(500);
-  const settled = await page.evaluate(() => window.__FARM_DEBUG__.snapshot().local!.authoritative);
+  const settled = await authoritativePosition(page);
   expect(Math.hypot(stopped.x - settled.x, stopped.y - settled.y)).toBeLessThan(3);
   await page.screenshot({ path: info.outputPath("farm-phone-first-till.png") });
   await page.goto("/editor.html");

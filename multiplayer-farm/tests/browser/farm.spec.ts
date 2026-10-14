@@ -20,6 +20,9 @@ test("mobile farm load, two contexts, joystick+RUN, action, inventory and reconn
   page,
   browser,
 }, testInfo) => {
+  // Three full page lifecycles plus two explicit Continue actions now belong
+  // to this scenario; keep every connection and canvas assertion.
+  test.setTimeout(90000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const code = await login(page);

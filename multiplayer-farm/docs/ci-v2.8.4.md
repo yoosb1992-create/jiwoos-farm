@@ -33,11 +33,14 @@ browser list now also run in FULL. CI infrastructure changes automatically reque
 one FULL verification. Plan JSON and exact revision appear in the run summary and
 artifacts; failures are never made successful by retries or `continue-on-error`.
 
-Node dependencies use npm cache. Browser binaries use a lockfile-specific cache;
-all selected farm browser scenarios share one invocation. Production checks reuse
-the FAST build artifact. Docker builds run only when their inputs change or FULL
-is selected. Legacy Sites and the frozen multiplayer lab are not rebuilt for
-ordinary farm UI changes.
+Node dependencies use npm cache. Browser binaries use a lockfile-specific cache.
+Selected browser scenarios use one worker; FULL distributes the same scenarios
+across three isolated jobs, each with its own PostgreSQL and game server. The
+aggregate requires every selected shard to succeed. Server integration/DB checks
+run separately so browser installation does not delay them. Production browser
+checks run once (shard 1), reusing the FAST build artifact. Docker builds run only
+when their inputs change or FULL is selected. Legacy Sites and the frozen
+multiplayer lab are not rebuilt for ordinary farm UI changes.
 
 ## Manual and scheduled FULL
 

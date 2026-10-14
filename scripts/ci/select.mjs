@@ -96,6 +96,9 @@ if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.
   fs.writeFileSync(path.join(root,'ci-plan.json'),JSON.stringify({...result,files,sha:process.env.CI_HEAD},null,2)+'\n');
   console.log(JSON.stringify(result,null,2));
   if(process.env.GITHUB_OUTPUT) for(const key of ['full','db','docker','production','legacy','lab']) fs.appendFileSync(process.env.GITHUB_OUTPUT,`${key}=${result[key]}\n`);
-  if(process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT,`targeted=${!!(result.integration.length||result.browser.length||result.db||result.production)}\n`);
+  if(process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT,`targeted=${!!(result.integration.length||result.db)}\n` +
+    `browsers=${!!(result.browser.length||result.production)}\n` +
+    `shards=${JSON.stringify(result.full ? [1,2,3] : [1])}\n` +
+    `shard_count=${result.full ? 3 : 1}\n`);
   if(process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,`## CI selection\nCommit: ${process.env.CI_HEAD}\n\n\`\`\`json\n${JSON.stringify(result,null,2)}\n\`\`\`\n`);
 }
