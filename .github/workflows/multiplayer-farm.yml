@@ -10,7 +10,9 @@ permissions:
 jobs:
   farm:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Keep every browser and container gate after the expanded starter-world
+    # scenarios; per-test timeouts are unchanged.
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:17
