@@ -7,7 +7,9 @@ async function openClearFarm(page: Page) {
   const layout = await (await page.request.get(`${api}/api/blueprints/defaults`)).json();
   const map = layout.maps.farm;
   delete map.world2; map.objects = []; map.collisionRegions = []; map.terrainRegions = []; map.warps = [];
-  map.baseTileType = "grass"; map.farmAreas = [{ startX: 34, endX: 46, startY: 34, endY: 46 }];
+  // Cleared dirt keeps this authored tool field independent of the random
+  // nature now generated for every normalized starter layout.
+  map.baseTileType = "soil"; map.farmAreas = [{ startX: 34, endX: 46, startY: 34, endY: 46 }];
   Object.assign(map.spawns.find((s: any) => s.id === "farm_entry"), { tileX: 40.5, tileY: 40.5, facing: "right" });
   map.objects.push({ id: "water-well", assetId: "stone_well", kind: "well", position: { tileX: 42.5, tileY: 40.5 } });
   const draft = await (await page.request.post(`${api}/api/blueprints`, { headers:await editorHeaders(page), data: layout })).json();
@@ -26,6 +28,15 @@ async function openClearFarm(page: Page) {
     const s = (window.__FARM_DEBUG__ as any).scene(), original = s.actionFeedback.bind(s);
     (window as any).__sunFx = [];
     s.actionFeedback = (fx: any) => { (window as any).__sunFx.push(fx); original(fx); };
+    // Record the real rendered water trail when it appears. Waiting for a
+    // PostgreSQL/state acknowledgement first can miss this short live frame.
+    (window as any).__emptyPourTrailSeen = false;
+    const update = s.feedback.update.bind(s.feedback);
+    s.feedback.update = (...args: any[]) => {
+      update(...args);
+      if ([...s.feedback.swings.values()].some((v: any) => v.event.tool === "water" && v.event.outcome === "fail" && s.time.now - v.start > 240 && s.time.now - v.start < 590 && v.rig.trail.commandBuffer.length > 0))
+        (window as any).__emptyPourTrailSeen = true;
+    };
   });
 }
 const stamina = (page: Page) => page.evaluate(() => window.__FARM_DEBUG__.snapshot().players.find(p => p.local)?.stamina);
@@ -49,10 +60,7 @@ for (const mobile of [false, true]) test(`${mobile ? "phone touch" : "PC mouse/k
   if (mobile) { const b = await page.locator("#action").boundingBox(); await page.touchscreen.tap(b!.x + b!.width / 2, b!.y + b!.height / 2); }
   else await page.keyboard.press("Space");
   await expect.poll(() => stamina(page), { timeout: 15000 }).toBe(before - 1);
-  await page.waitForFunction(() => {
-    const s = (window.__FARM_DEBUG__ as any).scene();
-    return [...s.feedback.swings.values()].some((v: any) => v.event.tool === "water" && v.event.outcome === "fail" && s.time.now - v.start > 240 && s.time.now - v.start < 590 && v.rig.trail.commandBuffer.length > 0);
-  });
+  await page.waitForFunction(() => (window as any).__emptyPourTrailSeen, undefined, { timeout: 15000 });
   await page.screenshot({ path: info.outputPath("empty-pour.png") });
   // Capturing software WebGL can interrupt the room after idle first becomes
   // true. Observe live input acknowledgements before the next single charge.

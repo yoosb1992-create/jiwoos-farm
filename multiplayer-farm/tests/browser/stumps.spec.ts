@@ -6,7 +6,9 @@ test("five tree ages: juvenile cutting, species stumps, three-hit clearing and r
   test.setTimeout(150000);
   await page.setViewportSize({width:800,height:960});
   const backend="http://127.0.0.1:2575",layout=await(await page.request.get(`${backend}/api/blueprints/defaults`)).json(),m=layout.maps.farm;
-  delete m.world2;m.objects=[];m.collisionRegions=[];m.terrainRegions=[];m.warps=[];m.baseTileType="grass";m.farmAreas=[];
+  // The five authored ages are the subjects; random starter nature must not
+  // obstruct the cleared-stump walking assertion.
+  delete m.world2;m.objects=[];m.collisionRegions=[];m.terrainRegions=[];m.warps=[];m.baseTileType="soil";m.farmAreas=[];
   Object.assign(m.spawns.find((s:any)=>s.id==="farm_entry"),{tileX:40.5,tileY:40.5,facing:"left"});
   const points:Array<[number,number]>=[[38.5,40.5],[40.5,42.5],[42.5,40.5],[44.5,42.5],[46.5,40.5]];
   const species=["tree_cherry","tree_bamboo","tree_birch","tree_pine","tree_metasequoia"];
