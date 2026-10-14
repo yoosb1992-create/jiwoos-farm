@@ -1,3 +1,4 @@
+import { makeWeatherPlan, coarseWeather, rainWaters } from "./weather.js";
 import { parseAppearance } from "./appearance.js";
 import { TRANSPORT_DURATION_MS, HAND_CARRY_LIMIT_KG } from "./transport-config.js";
 import { parseQuickbarEdit, editQuickbar } from "./quickbar.js";
@@ -207,6 +208,9 @@ export function nextDay(w: World): void {
         ? "snow"
         : "rain"
       : "clear";
+  w.weatherPlan = makeWeatherPlan(w.seed,w.day,w.weather);
+  w.weather = coarseWeather(w.weatherPlan,w.minute);
+  delete w.rainWateredPeriod;
   for (const e of Object.values(w.entities)) {
     if (e.kind === "crop") {
       const crop = CROPS[e.crop];
@@ -216,11 +220,11 @@ export function nextDay(w: World): void {
         continue;
       }
       if (e.watered) e.stage = Math.min(crop.growthDays, e.stage + 1);
-      e.watered = w.weather === "rain";
+      e.watered = rainWaters(w,e.area);
     } else if (e.kind === "soil") {
       // Bare tilled soil can be watered too. It dries the next morning unless rain
       // waters it again, matching the same daily visual state as planted soil.
-      e.watered = w.weather === "rain";
+      e.watered = rainWaters(w,e.area);
     }
     if (e.kind === "animal" && e.stage === previousDay) {
       e.quantity = Math.min(5, e.quantity + 1);
@@ -487,6 +491,7 @@ function applyActionCore(
         t.y,
         "tile_farm_empty",
       );
+      w.entities[t.id]!.watered = rainWaters(w,t.area);
       break;
     }
     case "plantTree": {
@@ -520,7 +525,7 @@ function applyActionCore(
       e.crop = crop.id;
       e.stage = 0;
       // Preserve pre-watered tilled soil when a seed is planted into it.
-      e.watered = e.watered || w.weather === "rain";
+      e.watered = e.watered || rainWaters(w,e.area);
       break;
     }
     case "waterCrop": {
@@ -547,7 +552,7 @@ function applyActionCore(
       e.kind = crop.regrowDays ? "crop" : "soil";
       e.crop = crop.regrowDays ? crop.id : "";
       e.stage = crop.regrowDays ? crop.growthDays - crop.regrowDays : 0;
-      e.watered = false;
+      e.watered = e.watered || rainWaters(w,e.area);
       m.xp += 5;
       m.quests.harvest = (m.quests.harvest ?? 0) + 1;
       const c = calendar(w.day),

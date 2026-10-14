@@ -1,3 +1,4 @@
+import { RAIN, outdoors, makeWeatherPlan, applyWeatherAt, type RainKind } from "../../shared/weather.js";
 import { EditorWorkspace } from "./workspace.js";
 import { TREE_SPECIES, NATURE_MATERIALS } from "../../shared/nature.js";
 import "./style.css";
@@ -522,26 +523,22 @@ function draw() {
     ctx.fillStyle = minute >= 1260 ? "#25375566" : "#dc86532a";
     ctx.fillRect(0, 0, viewWidth, viewHeight);
   }
-  if (val("weather") === "fog") {
-    ctx.fillStyle = "#e5ecea66";
-    ctx.fillRect(0, 0, viewWidth, viewHeight);
-  } else if (val("weather") !== "clear") {
-    ctx.strokeStyle = "#e4f3e8aa";
-    ctx.fillStyle = "#f8faf0bb";
-    for (let i = 0; i < 55; i++) {
-      const x = (i * 137) % viewWidth,
-        y = (i * 79) % viewHeight;
-      if (val("weather") === "snow") {
-        ctx.beginPath();
-        ctx.arc(x, y, 2, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x - 3, y + 10);
-        ctx.stroke();
-      }
+  // Preview is local presentation only: it never changes a published layout
+  // or a connected family's clock/weather. Shower preview shows its peak.
+  const weather=val("weather"), rain=RAIN[weather as RainKind];
+  if(outdoors(area) && weather === "fog") {
+    ctx.fillStyle="#e5ecea66";ctx.fillRect(0,0,viewWidth,viewHeight);
+  } else if(outdoors(area) && (rain || weather === "snow")) {
+    if(rain) {ctx.fillStyle=`rgba(27,39,59,${rain.cloudReduction*.8})`;ctx.fillRect(0,0,viewWidth,viewHeight);}
+    const count=rain?Math.min(280,Math.round(viewWidth*viewHeight/6500*rain.density)):55;
+    ctx.strokeStyle=`rgba(207,232,246,${rain?.alpha??.55})`;ctx.lineWidth=rain?.thickness??1;
+    ctx.fillStyle="#f8faf0bb";ctx.beginPath();
+    for(let i=0;i<count;i++) {
+      const x=(i*137)%viewWidth,y=(i*79)%viewHeight;
+      if(weather==="snow"){ctx.moveTo(x+2,y);ctx.arc(x,y,2,0,Math.PI*2);}
+      else {const len=rain.length*rain.size;ctx.moveTo(x,y);ctx.lineTo(x+rain.angle*len,y+len);}
     }
+    if(weather==="snow")ctx.fill();else ctx.stroke();
   }
   drawMini();
 }
@@ -1855,7 +1852,11 @@ function testFrame(now: number) {
   }
   applyMovement(s.actor, { moveX: dx, moveY: dy, run: false }, dt, layout.maps);
   s.world.minute = num("time");
-  s.world.weather = val("weather");
+  const preview=val("weather");
+  s.world.weatherPlan=makeWeatherPlan(s.world.seed,s.world.day,RAIN[preview as RainKind]?"rain":preview,preview as RainKind);
+  // The isolated sandbox previews every rain kind at the selected time.
+  if(s.world.weatherPlan.kind!=="none") {s.world.weatherPlan.startMinute=0;s.world.weatherPlan.endMinute=1440;}
+  applyWeatherAt(s.world);
   const w = insideWarp(map(), s.actor.x, s.actor.y);
   if (w && now > s.until) {
     try {

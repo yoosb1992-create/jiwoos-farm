@@ -1,8 +1,9 @@
+import { outdoors } from "../shared/weather.js";
 import type { SunState } from "../shared/sunlight.js";
 
 export function lightEnvironment(area: string): "outdoor" | "indoor" | "mine" {
   if (area.startsWith("mine")) return "mine";
-  return ["farmhouse", "general_store", "cafe", "workshop"].includes(area) ? "indoor" : "outdoor";
+  return outdoors(area) ? "outdoor" : "indoor";
 }
 
 /** Phaser corner order: top-left, top-right, bottom-left, bottom-right.

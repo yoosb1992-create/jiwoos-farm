@@ -1,3 +1,4 @@
+import { type WeatherPlan } from "./weather.js";
 import { appearanceOf, DEFAULT_APPEARANCE, type Appearance } from "./appearance.js";
 import type { CarriedChest, TransportFx } from "./transport.js";
 import { defaultQuickbar, ensureQuickbar, type Quickbar, type QuickbarEdit } from "./quickbar.js";
@@ -78,6 +79,8 @@ export interface Entity {
   owner: string;
 }
 export interface World {
+  weatherPlan?: WeatherPlan;
+  rainWateredPeriod?: string;
   layoutRevision?: number;
   sourceTemplate?: { type: "official" | "local" | "server"; id: string; revision: number };
   /** Felled juvenile regrowth, saved in the existing JSON snapshot only.

@@ -1,6 +1,6 @@
 import { editorHeaders } from "./editor-auth.js";
 import { test, expect, type Page } from "@playwright/test";
-import { waitForFarmInput } from "./nature-target.js";
+import { waitForFarmInput, explicitToolAt } from "./nature-target.js";
 
 async function openClearFarm(page: Page) {
   const api = "http://127.0.0.1:2575";
@@ -68,8 +68,8 @@ for (const mobile of [false, true]) test(`${mobile ? "phone touch" : "PC mouse/k
   await idle(page);
   const well = await point(page, 42.5 * 32, 40.5 * 32);
   if (mobile) await page.touchscreen.tap(well.x, well.y); else await page.mouse.click(well.x, well.y);
-  await expect.poll(() => stamina(page)).toBe(before - 2);
-  expect(await page.evaluate(() => (window as any).__sunFx.at(-1).action)).toBe("waterCrop");
+  await expect.poll(() => page.evaluate(() => (window as any).__sunFx.at(-1)?.action)).toBe("refill");
+  expect(await stamina(page)).toBe(before - 1);
   await expect(page.locator("#tool")).toHaveValue("water");
   await idle(page);
   // A real planted tile still waters; the same pointer handler is used on PC and phone.
@@ -103,14 +103,15 @@ for (const mobile of [false, true]) test(`${mobile ? "phone touch" : "PC mouse/k
     throw Error(`Repeated reconnects prevented ${tool} on the test plot`);
   };
   const kindIs = (kind: string) => page.evaluate(({ id, kind }) => window.__FARM_DEBUG__.state()?.entities[id]?.kind === kind, { id, kind });
-  await tapPlot("hoe", () => kindIs("soil"));
+  await explicitToolAt(page,37,40,"hoe");
   await expect.poll(() => page.evaluate(id => window.__FARM_DEBUG__.state()?.entities[id]?.kind, id)).toBe("soil");
-  await tapPlot("sproutberry_seed", () => kindIs("crop"));
+  await explicitToolAt(page,37,40,"sproutberry_seed");
   await expect.poll(() => page.evaluate(id => window.__FARM_DEBUG__.state()?.entities[id]?.kind, id)).toBe("crop");
   const preWater = (await stamina(page))!; await tapPlot("water", async () => (await stamina(page)) === preWater - 1);
   await expect.poll(() => page.evaluate(id => (window.__FARM_DEBUG__.state()?.entities[id] as any)?.watered, id)).toBe(true);
   await expect.poll(() => stamina(page)).toBe(preWater - 1); await idle(page);
-  await tapPlot("water", async () => (await stamina(page)) === preWater - 2); await expect.poll(() => stamina(page)).toBe(preWater - 2); await idle(page);
+  const wet=await point(page,plot.x,plot.y);if(mobile)await page.touchscreen.tap(wet.x,wet.y);else await page.mouse.click(wet.x,wet.y);
+  await page.waitForTimeout(800);expect(await stamina(page)).toBe(preWater-1);
   expect(errors).toEqual([]);
 });
 

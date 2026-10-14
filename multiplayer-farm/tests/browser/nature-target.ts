@@ -112,3 +112,47 @@ export async function clearWorldBlueprint(page: Page, spawnX: number, spawnY: nu
   }, draft.id);
   return draft.id;
 }
+
+/** Explicit tool use: walk via real keyboard input to a server-valid adjacent
+ * cell, face the plot, then press the real action button. Bare-ground taps no
+ * longer imply tilling or planting. No state/action injection is involved. */
+export async function explicitToolAt(page:Page, tileX:number, tileY:number, tool:string):Promise<void> {
+  await page.locator("#tool").selectOption(tool);
+  await page.locator("#tool").evaluate(e=>(e as HTMLElement).blur());
+  await waitForFarmInput(page);
+  const read=()=>page.evaluate(()=>({state:window.__FARM_DEBUG__.state(),actor:window.__FARM_DEBUG__.snapshot().players.find(p=>p.local)}));
+  const readActor=()=>page.evaluate(()=>window.__FARM_DEBUG__.snapshot().players.find(p=>p.local));
+  const {state,actor}=await read();expect(actor).toBeTruthy();
+  const maps=JSON.parse(state.layout).maps,obstacles=prepareDynamicObstacles(Object.values(state.entities) as Entity[]);
+  const path=findPath(actor!.area,{x:actor!.authoritativeX,y:actor!.authoritativeY},p=>Math.abs(Math.floor(p.x/32)-tileX)+Math.abs(Math.floor(p.y/32)-tileY)===1,maps,obstacles);
+  expect(path,"explicit action target has a walkable adjacent cell").toBeDefined();
+  const stopped=async()=>{
+    const fence=await page.evaluate(()=>window.__FARM_DEBUG__.snapshot().sentInputs+1);
+    await page.waitForFunction(fence=>{const s=window.__FARM_DEBUG__.snapshot(),p=s.players.find(p=>p.local);return s.status==="connected"&&s.acknowledgedInputs>=fence&&p&&!p.moving;},fence,{timeout:15000});
+  };
+  // Each real movement is followed by a NEW acknowledged neutral input. An
+  // old stationary patch must not be mistaken for the end of this movement.
+  path!.unshift({x:(Math.floor(actor!.authoritativeX/32)+.5)*32,y:(Math.floor(actor!.authoritativeY/32)+.5)*32});
+  for(const point of path!)for(const axis of ["x","y"] as const) {
+    for(let correction=0;correction<8;correction++) {
+      const pos=(await readActor())!,current=axis==="x"?pos.authoritativeX:pos.authoritativeY,delta=point[axis]-current;
+      if(Math.abs(delta)<5)break;
+      const key=axis==="x"?(delta>0?"ArrowRight":"ArrowLeft"):(delta>0?"ArrowDown":"ArrowUp");
+      // Bounded real key pulses avoid RTT-dependent overrun. Re-measure the
+      // committed position after each pulse, without teleporting or injecting actions.
+      await page.keyboard.down(key);
+      await page.waitForTimeout(Math.max(40,Math.min(170,(Math.abs(delta)-2)/160*1000)));
+      await page.keyboard.up(key);await stopped();
+    }
+  }
+  await stopped();
+  const pos=(await readActor())!,dx=tileX-Math.floor(pos.authoritativeX/32),dy=tileY-Math.floor(pos.authoritativeY/32);
+  expect(Math.abs(dx)+Math.abs(dy),JSON.stringify({pos,path,tileX,tileY})).toBe(1);
+  const face=dx>0?"right":dx<0?"left":dy>0?"down":"up",key="Arrow"+face[0]!.toUpperCase()+face.slice(1);
+  if(pos.facing!==face) {
+    // A short manual turn stays within this tile even with simulated RTT.
+    await page.keyboard.down(key);await page.waitForTimeout(60);await page.keyboard.up(key);await stopped();
+  }
+  await page.waitForFunction(face=>{const d=window.__FARM_DEBUG__ as any,p=d.snapshot().players.find((p:any)=>p.local);return p&&p.facing===face&&!p.moving&&!d.scene().actionBusy(p.id);},face);
+  await page.locator("#action").tap();
+}

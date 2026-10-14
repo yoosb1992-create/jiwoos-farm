@@ -1,3 +1,5 @@
+import { WeatherEffects } from "./weather-effects.js";
+import type { WeatherEvent } from "../shared/weather.js";
 import { appearanceTexture, characterScale } from "./character-art.js";
 import { FurnitureAnimation } from "./furniture-animation.js";
 import type { TransportFx } from "../shared/transport.js";
@@ -100,6 +102,8 @@ export class FarmScene extends Phaser.Scene {
   private lastAtmosphere = 0;
   private sunlight: SunState = getSunState({ day: 1, minute: 360 });
   private sunlightKey = "";
+  readonly weatherEffects = new WeatherEffects(e=>this.onThunder?.(e));
+  onThunder?: (event:WeatherEvent)=>void;
   private sunTints = new Map<string, [number, number, number, number]>();
   private sunShadows?: Phaser.GameObjects.Graphics;
   private lastSunShadows = -Infinity;
@@ -385,12 +389,14 @@ export class FarmScene extends Phaser.Scene {
     const { snapshot, state } = this.onFrame(now, delta);
     const me = snapshot.players.find((p) => p.local);
     this.me = me;
-    if (!me || !state) return;
+    if (!me || !state) {this.weatherEffects.resetSession();return;}
     const season = calendar(state.day).season;
-    const sunKey = `${state.day}:${state.minute}`;
+    this.weatherEffects.update(state,me.area,snapshot.status==="connected",now,delta);
+    const cloud=this.weatherEffects.cloudReduction;
+    const sunKey = `${state.day}:${state.minute}:${Math.round(cloud*500)}`;
     if (sunKey !== this.sunlightKey) {
       this.sunlightKey = sunKey;
-      this.sunlight = getSunState({ day: state.day, minute: state.minute });
+      this.sunlight = getSunState({ day: state.day, minute: state.minute, cloudReduction: cloud });
       this.sunTints.clear();
     }
     const seedLight = seedGlowVisibility(this.sunlight.sunlightIntensity);
@@ -759,15 +765,13 @@ export class FarmScene extends Phaser.Scene {
       g.fillRect(0, 0, w, h);
     }
     const weatherLight=environment==="outdoor"?Math.max(.08,this.sunlight.ambientLight):1;
-    if (environment === "outdoor")
+    this.weatherEffects.draw(g,w,h,now,this.sunlight.ambientLight);
+    if (environment === "outdoor" && this.weatherEffects.intensity<.015)
       for (let i = 0; i < 32; i++) {
         const x = (i * 137 + Math.sin(now / 2200 + i) * 24 + w) % w;
         const y =
-          (i * 73 + now * (state.weather === "rain" ? 0.35 : 0.035)) % h;
-        if (state.weather === "rain") {
-          g.lineStyle(1, 0xd2e9ee, 0.4*weatherLight);
-          g.lineBetween(x, y, x - 4, y + 13);
-        } else if (state.weather === "snow" || this.season === "winter") {
+          (i * 73 + now * 0.035) % h;
+        if (state.weather === "snow" || this.season === "winter") {
           g.fillStyle(0xffffff, 0.55*weatherLight);
           g.fillCircle(x, y, (i % 2) + 1);
         } else if (this.season === "spring" && i < 12) {

@@ -1,3 +1,4 @@
+import type { TouchIntent } from "./touch-action.js";
 import { waterTerrain, terrainAt, hasZone } from "../shared/world2.js";
 import { worldNpcSchedule } from "../shared/world2-runtime.js";
 import { CLIENT_MAPS as NPC_MAPS } from "./layout.js";
@@ -16,6 +17,7 @@ export type TouchTarget = {
   x: number;
   y: number;
   signature?: string;
+  intent?: TouchIntent;
 };
 const stop: MovementInput = { moveX: 0, moveY: 0, run: false };
 const faceOnly = (face: string): MovementInput => ({
@@ -60,12 +62,11 @@ export class TouchNavigator {
       kind: "ground",
       id: "",
       ...point,
-      signature: groundAction,
+      signature: groundAction === "water" ? "water" : undefined,
     };
-    if (groundAction === "water") {
-      // A water tap addresses a ground cell even when a resource, NPC, pond,
-      // doorway or shop is drawn over it. The same adjacent-tile approach is
-      // used for mouse and touch; never switch tools or enter a context panel.
+    if (groundAction === "water" && entity && ["soil","crop"].includes(entity.kind) && !entity.watered) {
+      // Only actual dry tilled soil accepts a water tap. Facilities and
+      // natural resources always keep their own interaction priority.
       t.x = (Math.floor((entity ? entity.x : point.x) / TILE) + .5) * TILE;
       t.y = (Math.floor((entity ? entity.y : point.y) / TILE) + .5) * TILE;
     } else if (entity)
@@ -131,6 +132,7 @@ export class TouchNavigator {
           };
       }
     }
+    if(t.kind === "ground" && !(entity && ["soil","crop"].includes(entity.kind) && !entity.watered))t.signature=undefined;
     this.target = t;
     this.started = this.progressAt = performance.now();
     this.planned = 0;

@@ -82,8 +82,10 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`hou
   await page.setViewportSize(viewport);
   const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
   await enterHome(page);
-  // PC Space and mobile button both use the authoritative nearby furniture.
-  if(viewport.width>600)await page.keyboard.press("Space");else await page.locator("#action").tap();
+  // Empty chest taps must open it, never recover with pickaxe or lift by hand.
+  await page.locator("#tool").selectOption("pickaxe");
+  const chestId=await page.evaluate(()=>Object.entries(window.__FARM_DEBUG__.state().entities).find(([,e])=>e.kind==="chest")![0]);
+  await tapObject(page,chestId);
   await expect(page.locator("#panel")).toHaveAttribute("data-panel","chest");
   const bag=page.getByRole("region",{name:"내 가방",exact:true});
   const chest=page.getByRole("region",{name:"가족 보관함",exact:true});
@@ -105,9 +107,11 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`hou
   await waitForFarmInput(page);
   expect(await page.evaluate(() => window.__FARM_DEBUG__.snapshot().players.find(p => p.local)?.area)).toBe("farmhouse");
   await goHome(page);
+  await page.locator("#tool").selectOption("hand");
   await page.locator("#action").tap();await expect(seeds(chest)).toContainText("×6");
   await seeds(chest).getByRole("button",{name:/전체/}).click();await expect(seeds(bag)).toContainText("×12");
   await page.locator("#panel-close").click();
+  await page.locator("#tool").selectOption("axe");
   await tapObject(page,"crafting_table");
   await expect(page.locator("#panel")).toHaveAttribute("data-panel","craft",{timeout:15000});
   const detail=page.getByRole("region",{name:"선택한 제작법"});

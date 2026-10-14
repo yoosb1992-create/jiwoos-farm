@@ -1,3 +1,4 @@
+import { entityTouchIntent, type TouchIntent } from "./touch-action.js";
 import { mountStartWorld, selectedStartWorld } from "./start-world.js";
 import { CharacterEditor } from "./character-editor.js";
 import { appearanceOf, type Appearance } from "../shared/appearance.js";
@@ -276,7 +277,14 @@ function renderPanelContent(): void {
       showPanel("settings","게임 설정");
     });toggle.id="developer-toggle";toggle.disabled=!verifiedDeveloper;toggle.setAttribute("aria-pressed",String(developerActive()));
     const help=document.createElement("p");help.textContent=verifiedDeveloper?"농장 소유자 또는 설계도 편집 권한 확인됨 · 편집/진단 메뉴를 표시합니다.":"일반 플레이어 모드 · 편집 권한이 있는 계정에서 사용할 수 있어요.";
-    section.append(toggle,help);panelBody.append(section);
+    const weatherLabel=document.createElement("label");weatherLabel.textContent="번개 시각 효과 ";
+    const flash=document.createElement("select");flash.id="lightning-mode";
+    for(const [value,label] of [["normal","보통 · 부드러운 번개"],["reduced","줄이기 · 섬광 없이"],["off","끄기"]]) {
+      const option=document.createElement("option");option.value=value!;option.textContent=label!;flash.append(option);
+    }
+    flash.value=renderer.scene.weatherEffects.lightningMode;
+    flash.onchange=()=>renderer.scene.weatherEffects.setLightningMode(flash.value as "normal"|"reduced"|"off");
+    weatherLabel.append(flash);section.append(toggle,help,weatherLabel);panelBody.append(section);
   }
   if(modal==="developer") {
     row("개발자 모드 · 편집 권한은 서버에서 별도로 확인합니다",[button("월드 편집기",()=>{window.location.href="/editor.html";})]);
@@ -458,7 +466,8 @@ function renderPanelContent(): void {
     );
   }
 }
-function selectTool(id: string): void {
+function selectTool(id: string, automatic = false): void {
+  if(!automatic)touchNavigation.cancel();
   if(!ownedItem(network.personal?.member,id)) {notice("가방에 없는 아이템이에요");id="hand";}
 
   if(selected!==id)bufferedToolAction=undefined;
@@ -612,114 +621,54 @@ function act(): void {
   notice("도구를 선택하거나 입구·주민·보관함 가까이에서 행동하세요");
 }
 function touchAct(t: TouchTarget): void {
-  if (placementItem || latest.players.find(p => p.local)?.carrying) return;
-  if (t.kind === "ground" && t.signature === "water") {
-    if (selected !== "water") return;
-    send("useTool", { toolId: "water", tileX: Math.floor(t.x / TILE), tileY: Math.floor(t.y / TILE) });
+  const live=network.snapshot();
+  if(live.status!=="connected" || !network.personal?.member || panel.open || placementItem || live.players.find(p=>p.local)?.carrying)return;
+  const intent=t.intent;
+  if(intent?.tool && (selected!==intent.tool || !ownedItem(network.personal.member,intent.tool)))return;
+  if(t.kind==="fish") { if(intent?.action==="castFishing")send("castFishing");return; }
+  if(t.kind==="shop") {showPanel("shop","사계절 상점");return;}
+  if(t.kind==="npc") {send("talkNpc",{targetId:t.id});return;}
+  const e=network.state?.entities.get(t.id);
+  if(!e || e.kind!==t.signature || e.area!==t.area)return;
+  const current=entityTouchIntent(e,selected);
+  const tile={tileX:Math.floor(e.x/TILE),tileY:Math.floor(e.y/TILE)};
+  if(intent?.mode==="action") {
+    if(current.action!==intent.action || current.tool!==intent.tool)return;
+    if(intent.action==="useTool" && isTool(intent.tool))send("useTool",{toolId:intent.tool,targetId:e.id,...tile});
+    else if(intent.action)send(intent.action,{targetId:e.id,...tile});
     return;
   }
-  if(t.kind === "ground" && t.signature && plantingTree(t.signature)) {
-    if(selected!==t.signature)return;
-    send("plantTree", {tileX:Math.floor(t.x/TILE),tileY:Math.floor(t.y/TILE),itemId:t.signature}); return;
+  // Touch never calls lift/recover/place commands, irrespective of held tool.
+  if(current.mode!=="interact")return;
+  switch(e.kind) {
+    case "bed":showPanel("sleep","포근한 잠자리",e.id);break;
+    case "chest":showPanel("chest","보관함",e.id);break;
+    case "craft":showPanel("craft","제작",e.id);break;
+    case "machine":send(e.readyAt?"collectMachine":"startMachine",{targetId:e.id});break;
+    case "well":send("refill",{targetId:e.id});break;
+    case "ladder":send("mineAction",{targetId:e.id});break;
+    case "animal":case "barn":case "trough":showPanel("animals","우리와 동물",e.id);break;
+    case "board":showPanel("board","마을 게시판",e.id);break;
+    case "decoration":showPanel("decoration","정원 꾸미기",e.id);break;
   }
-  if (t.kind === "ground" && t.signature === "hoe") {
-    if(selected!=="hoe")return;
-    send("useTool", {
-      toolId: "hoe",
-      tileX: Math.floor(t.x / TILE),
-      tileY: Math.floor(t.y / TILE),
-    });
-    return;
+}
+function chooseTouch(point:ReturnType<typeof renderer.scene.pickWorld>):void {
+  const live=network.snapshot(), me=live.players.find(p=>p.local), state=network.state;
+  touchNavigation.cancel();bufferedToolAction=undefined;actionHeld=false;
+  if(live.status!=="connected" || !me || !state || !network.personal?.member)return;
+  if(me.carrying){notice("내려놓기 버튼으로 보관함을 내려놓아 주세요");return;}
+  touchNavigation.choose(point,me,state);
+  const t=touchNavigation.target;if(!t)return;
+  const entity=t.kind==="entity"?state.entities.get(t.id):undefined;
+  const intent:TouchIntent=entity?entityTouchIntent(entity,selected):t.kind==="fish"?
+    {mode:"action",tool:"fishing_rod",action:"castFishing"}:t.kind==="ground"?{mode:"move"}:{mode:"interact"};
+  if(intent.message){touchNavigation.cancel();notice(intent.message);return;}
+  if(intent.tool && !ownedItem(network.personal.member,intent.tool)) {
+    touchNavigation.cancel();notice(`${itemName(intent.tool)} 도구가 가방에 없어요`);return;
   }
-  const e = network.state?.entities.get(t.id);
-  if (t.kind === "shop") {
-    showPanel("shop", "사계절 상점");
-    return;
-  }
-  if (t.kind === "fish") {
-    selectTool("fishing_rod");
-    send("castFishing");
-    return;
-  }
-  if (t.kind === "npc") {
-    send("talkNpc", { targetId: t.id });
-    return;
-  }
-  if (!e || e.kind !== t.signature) return;
-  const tile = { tileX: Math.floor(e.x / TILE), tileY: Math.floor(e.y / TILE) };
-  if (isTool(selected) && ["tree","stump","twig","rock","gather","crop","soil","withered","chest"].includes(e.kind)) {
-    send("useTool",{toolId:selected,targetId:e.id,...tile});
-    return;
-  }
-  switch (e.kind) {
-    case "tree":
-    case "stump":
-    case "twig":
-    case "rock":
-      notice("도구를 선택한 뒤 사용하세요");
-      break;
-    case "drop":
-      send("pickupDrop", { targetId: e.id });
-      break;
-    case "gather":
-      send("gather", { targetId: e.id });
-      break;
-    case "withered":
-      selectTool("hoe");
-      send("tillTile", tile);
-      break;
-    case "crop":
-      if (selected === "water") {
-        send("waterCrop", tile);
-      } else if (e.stage >= (CROPS[e.crop]?.growthDays ?? 3)) {
-        selectTool("hand");
-        send("harvestCrop", tile);
-      } else {
-        notice("물뿌리개를 선택해 물을 주세요");
-      }
-      break;
-    case "soil": {
-      if (selected === "water") {
-        send("waterCrop", tile);
-        break;
-      }
-      if (selected.endsWith("_seed")) {
-        send("plantSeed", { ...tile, itemId: selected });
-      } else notice("씨앗이나 물뿌리개를 선택하세요");
-      break;
-    }
-    case "bed":
-      showPanel("sleep", "포근한 잠자리", e.id);
-      break;
-    case "chest":
-      showPanel("chest", "보관함", e.id);
-      break;
-    case "craft":
-      showPanel("craft", "제작", e.id);
-      break;
-    case "machine":
-      send(e.readyAt ? "collectMachine" : "startMachine", { targetId: e.id });
-      break;
-    case "well":
-      send("refill", { targetId: e.id });
-      break;
-    case "ladder":
-      send("mineAction", { targetId: e.id });
-      break;
-    case "animal":
-      showPanel("animals", "동물 돌보기", e.id);
-      break;
-    case "barn":
-    case "trough":
-      showPanel("animals", "우리와 동물", e.id);
-      break;
-    case "board":
-      showPanel("board", "마을 게시판", e.id);
-      break;
-    case "decoration":
-      showPanel("decoration", "정원 꾸미기", e.id);
-      break;
-  }
+  if(intent.mode==="move") {t.kind="ground";t.id="";t.signature=undefined;}
+  t.intent=intent;
+  if(intent.tool)selectTool(intent.tool,true);
 }
 const touchNavigation = new TouchNavigator(notice, touchAct,()=>{
   const me=latest.players.find(p=>p.local);return !!me && renderer.scene.actionBusy(me.id);
@@ -1012,7 +961,7 @@ const renderer = createRenderer((now, delta) => {
       ? `${info.icon} ${info.name} ${cal.day}일 · ${String(Math.floor(state.minute / 60)).padStart(2, "0")}:${String(state.minute % 60).padStart(2, "0")} ${state.weather === "rain" ? "☂" : state.weather === "snow" ? "❄" : "☀"}`
       : "우리 가족의 작은 세계";
     el("place").textContent =
-      `${local ? mapFor(local.area).name : "사계절을 함께 가꾸어요"} · ${state?.weather === "rain" ? "☂ 비" : state?.weather === "snow" ? "❄ 눈" : "☀ 맑음"}`;
+      `${local ? mapFor(local.area).name : "사계절을 함께 가꾸어요"} · ${state?.weather === "rain" ? `☂ ${renderer.scene.weatherEffects.label}` : state?.weather === "snow" ? "❄ 눈" : "☀ 맑음"}`;
     el("wallet").textContent = `${personal?.money ?? 0} G`;
     el("bag-space").textContent =
       `${Object.keys(personal?.inventory ?? {}).length}/48`;
@@ -1061,6 +1010,7 @@ const renderer = createRenderer((now, delta) => {
   return { snapshot: latest, state: network.state };
 });
 renderer.scene.onSound = sound => audio.play(sound);
+renderer.scene.onThunder = event => audio.thunder(event.strength,event.thunderDelayMs);
 const pointers = new Map<number, { x: number; y: number }>();
 const pointerStarts = new Map<number, { x: number; y: number }>();
 let pinch = 0,
@@ -1113,12 +1063,7 @@ el("arena").addEventListener(
         if (hint?.error) notice(hint.error);
         else if (hint) send("placeItem", { itemId: placementItem, tileX: hint.tileX, tileY: hint.tileY });
       } else if (me && network.state)
-        touchNavigation.choose(
-          renderer.scene.pickWorld(e.clientX, e.clientY),
-          me,
-          network.state,
-          selected === "hoe" || selected === "water" ? selected : plantingTree(selected) ? selected : undefined,
-        );
+        chooseTouch(renderer.scene.pickWorld(e.clientX,e.clientY));
     }
     pointers.delete(e.pointerId);
     pointerStarts.delete(e.pointerId);

@@ -48,6 +48,8 @@ export interface LightInput {
   sunlightIntensity?: number;
   seasonalSunModifier?: number;
   exposure?: number;
+  /** Rain clouds attenuate daylight, retaining the existing lunar/night floor. */
+  cloudReduction?: number;
 }
 const clamp = (n: number) => Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
 const smooth = (n: number) => { const t = clamp(n); return t * t * (3 - 2 * t); };
@@ -105,7 +107,7 @@ export function getSunState(input: LightInput): SunState {
   const aboveHorizon = minute > p.sunrise && minute < p.sunset;
   const daylight = aboveHorizon ? smooth(Math.sin(position.sunAzimuth)) : 0;
   const sunlightIntensity = aboveHorizon ? clamp((input.sunlightIntensity ?? daylight * p.peakIntensity) *
-    (input.seasonalSunModifier ?? 1) * (input.exposure ?? 1)) : 0;
+    (input.seasonalSunModifier ?? 1) * (input.exposure ?? 1) * (1-clamp(input.cloudReduction ?? 0))) : 0;
   const day=Number.isFinite(input.day)?input.day!:fallbackDay;
   const season=SEASONS[((Math.floor((day-1)/SEASON_DAYS)%4)+4)%4]!;
   // A deterministic 28-day lunar cycle: only nights close to full moon gain
@@ -115,7 +117,7 @@ export function getSunState(input: LightInput): SunState {
   const nightFloor=.018+moonlight;
   const sky = smooth((minute - p.sunrise + p.dawnMinutes / 2) / p.dawnMinutes) *
     smooth((p.sunset + p.duskMinutes / 2 - minute) / p.duskMinutes);
-  const ambientLight = Math.min(1,nightFloor+(1-nightFloor)*sky);
+  const ambientLight = Math.min(1,nightFloor+(1-nightFloor)*sky*(1-clamp(input.cloudReduction ?? 0)));
   const warmth = aboveHorizon ? smooth(daylight * 5) * (1 - smooth(daylight / .72)) : 0;
   return { ...p, ...position, dayLength: p.sunset - p.sunrise,
     solarNoon: (p.sunrise + p.sunset) / 2, sunlightIntensity, ambientLight, moonlight, season, warmth };

@@ -73,6 +73,8 @@ export const FarmState = schema(
     day: t.uint32().default(1),
     minute: t.uint16().default(360),
     weather: t.string().default("clear"),
+    weatherPlan: t.string().default(""),
+    weatherEvent: t.string().default(""),
     revision: t.uint32().default(0),
     deepest: t.uint8().default(1),
     votes: t.uint8().default(0),

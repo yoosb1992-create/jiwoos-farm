@@ -1,3 +1,4 @@
+import { outdoors } from "../shared/weather.js";
 import type { Season } from "../shared/expansion.js";
 export type Sound =
   | "swing" | "cut" | "soil" | "clunk" | "fall" | "breakStone" | "pickup"
@@ -28,6 +29,8 @@ export class FarmAudio {
   private night = false;
   private event = false;
   private voices = 0;
+  private thunderBuffer?: AudioBuffer;
+  private lastThunder = -Infinity;
   enabled = localStorage.getItem("farm-audio") !== "off";
   volume = Math.min(
     1,
@@ -102,7 +105,7 @@ export class FarmAudio {
     this.apply();
     if (this.ctx && this.ambience && this.filter) {
       this.ambience.gain.setTargetAtTime(
-        weather === "rain"
+        weather === "rain" && outdoors(area)
           ? 0.2
           : area === "coast"
             ? 0.14
@@ -162,6 +165,26 @@ export class FarmAudio {
     };
     oscillator.start();
     oscillator.stop(now + duration + 0.03);
+  }
+  thunder(strength=.6, delayMs=0): void {
+    const ctx=this.ctx, master=this.master;
+    if(!ctx || !master || !this.enabled || document.hidden || !outdoors(this.area) || ctx.currentTime-this.lastThunder<8)return;
+    this.lastThunder=ctx.currentTime;
+    if(!this.thunderBuffer) {
+      this.thunderBuffer=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*3.2),ctx.sampleRate);
+      const data=this.thunderBuffer.getChannelData(0);let low=0;
+      for(let i=0;i<data.length;i++){low=(low+(Math.random()*2-1)*.035)/1.035;data[i]=low*3.5;}
+    }
+    const source=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();
+    source.buffer=this.thunderBuffer;filter.type="lowpass";filter.frequency.value=260;filter.Q.value=.5;
+    const at=ctx.currentTime+Math.min(1.2,Math.max(0,delayMs/1000)), level=.16*Math.max(.2,Math.min(1,strength));
+    gain.gain.setValueAtTime(0,ctx.currentTime);gain.gain.setValueAtTime(.0001,at);
+    gain.gain.exponentialRampToValueAtTime(level,at+.35);
+    gain.gain.exponentialRampToValueAtTime(level*.5,at+1.05);
+    gain.gain.exponentialRampToValueAtTime(.0001,at+3);
+    source.connect(filter).connect(gain).connect(master);
+    source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};
+    source.start(at);source.stop(at+3.2);
   }
   play(sound: Sound): void {
     const effects: Record<

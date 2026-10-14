@@ -41,8 +41,8 @@ test("mobile touch action, saved control layout and new-world editor isolation",
       JSON.parse(localStorage.getItem("farm-v26-session")!).farmId as string,
   );
   await waitForFarmInput(page);
-  // Touch keeps the selected tool; explicitly equip the axe before chopping.
-  await page.locator("#tool").selectOption("axe");
+  // Tapping the tree selects axe even when another tool was selected.
+  await page.locator("#tool").selectOption("pickaxe");
   // Tool selection can overlap a cold-renderer reconnect. Read the target
   // from one live snapshot, then retain the real touch and tree-HP assertion.
   await waitForFarmInput(page);

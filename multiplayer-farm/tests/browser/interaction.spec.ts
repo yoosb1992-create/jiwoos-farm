@@ -1,8 +1,8 @@
 import { editorHeaders } from "./editor-auth.js";
 import { test, expect } from "@playwright/test";
-import { waitForFarmInput } from "./nature-target.js";
+import { waitForFarmInput, explicitToolAt } from "./nature-target.js";
 
-test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drops, magnet and scythe",async({page},info)=>{
+test("tablet/phone tools: automatic tools, felling, transparent bouncing drops, magnet and scythe",async({page},info)=>{
   test.setTimeout(150000);
   await page.setViewportSize({width:800,height:960});
   const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
@@ -57,15 +57,9 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
     const state=window.__FARM_DEBUG__.state();return state?state.entities[id]?.kind:"offline";
   },id);
   const hp=(id:string)=>page.evaluate(id=>window.__FARM_DEBUG__.state()?.entities[id]?.hp,id);
-  // Cold software-rendered startup can reconnect after input becomes ready.
-  // Follow the UI's re-tap instruction only for this harmless failed attempt.
-  // Every damaging action below remains single-shot, preserving HP/drop checks.
-  await expect(async()=>{
-    await tap("fx-tree","pickaxe");
-    await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");
-  }).toPass({timeout:40000,intervals:[250]});
-  await expect(page.locator("#tool")).toHaveValue("pickaxe");expect(await hp("fx-tree")).toBe(3);
-  for(const health of [2,1]){await tap("fx-tree","axe");await expect.poll(()=>hp("fx-tree")).toBe(health);await page.waitForTimeout(430);}
+  await tap("fx-tree","pickaxe");
+  await expect(page.locator("#tool")).toHaveValue("axe");await expect.poll(()=>hp("fx-tree")).toBe(2);
+  await tap("fx-tree","water");await expect.poll(()=>hp("fx-tree")).toBe(1);
   await tap("fx-tree","axe");await expect.poll(()=>kind("fx-tree")).toBe("stump");
   await page.waitForFunction(()=>{const f=(window.__FARM_DEBUG__ as any).scene().feedback;return f.ghosts.some((g:any)=>Math.abs(g.sprites[0].angle)>15);});
   await page.screenshot({path:info.outputPath("tree-felling.png")});
@@ -106,12 +100,7 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
   await tap("fx-flower","scythe");await expect.poll(()=>kind("fx-flower")).toBeUndefined();
   await page.waitForTimeout(430);await tap("fx-grass","scythe");await expect.poll(()=>kind("fx-grass")).toBeUndefined();
   await tap("fx-rock","axe");
-  // The same notice remains from the earlier tree attempt. Wait for this
-  // rock's committed miss before changing the tool during walk-and-use.
-  await expect.poll(()=>page.evaluate(()=>(window as any).__committedFx.filter((e:any)=>
-    e.target?.id==="fx-rock"&&e.tool==="axe"&&e.outcome==="fail").length)).toBe(1);
-  await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");expect(await kind("fx-rock")).toBe("rock");
-  await page.waitForTimeout(430);await tap("fx-rock","pickaxe");await expect.poll(()=>kind("fx-rock")).toBeUndefined();
+  await expect(page.locator("#tool")).toHaveValue("pickaxe");await expect.poll(()=>kind("fx-rock")).toBeUndefined();
   await tap("fx-twig","axe");await expect.poll(()=>kind("fx-twig")).toBeUndefined();
   for(const health of [2,1,0]) {
     await tap("fx-ore","pickaxe");
@@ -122,14 +111,14 @@ test("tablet/phone tools: wrong-tool attempt, felling, transparent bouncing drop
   for(const tool of ["hand","axe","pickaxe"]) {
     const id=`flower-${tool}`;await tap(id,tool);await expect.poll(()=>kind(id)).toBeUndefined();
     const result=await page.evaluate(id=>(window as any).__committedFx.find((e:any)=>e.target?.id===id),id);
-    expect(result.outcome).toBe("break");expect(result.drops).toHaveLength(tool==="hand"?1:0);
-    await expect(page.locator("#tool")).toHaveValue(tool);
+    expect(result.outcome).toBe("break");expect(result.drops).toHaveLength(1);
+    await expect(page.locator("#tool")).toHaveValue("hand");
   }
   await waitForFarmInput(page);await page.locator("#tool").selectOption("hoe");
   const plot={x:35.5*32,y:43.5*32},soil="soil-farm-35-43";
   const point=await page.evaluate(p=>window.__FARM_DEBUG__.screenPoint(p.x,p.y),plot);
-  await page.touchscreen.tap(point.x,point.y);await expect.poll(()=>kind(soil)).toBe("soil");
-  await tap(soil,"sproutberry_seed");await expect.poll(()=>kind(soil)).toBe("crop");
+  await explicitToolAt(page,35,43,"hoe");await expect.poll(()=>kind(soil)).toBe("soil");
+  await explicitToolAt(page,35,43,"sproutberry_seed");await expect.poll(()=>kind(soil)).toBe("crop");
   await tap(soil,"water");
   await expect.poll(()=>page.evaluate(id=>(window.__FARM_DEBUG__.state().entities[id] as any)?.watered,soil)).toBe(true);
   await page.waitForFunction(()=>{

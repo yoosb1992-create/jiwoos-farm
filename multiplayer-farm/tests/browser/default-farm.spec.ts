@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { ASSETS } from "../../shared/content.js";
 import { TERRAIN_ART } from "../../shared/art-assets.js";
-import { reachableNatureTarget, waitForFarmInput } from "./nature-target.js";
+import { reachableNatureTarget, waitForFarmInput, explicitToolAt } from "./nature-target.js";
 
 async function authoritativePosition(page: Page): Promise<{x:number;y:number}> {
   let point: {x:number;y:number}|undefined;
@@ -15,7 +15,7 @@ async function authoritativePosition(page: Page): Promise<{x:number;y:number}> {
   return point!;
 }
 
-test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch layout", async ({ page }, info) => {
+test("default farm: phone spawn, ground tap moves without tilling, explicit hoe and editable sketch layout", async ({ page }, info) => {
   test.setTimeout(90000);
   const errors: string[] = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -59,6 +59,9 @@ test("default farm: phone spawn, touch walk-stop-face-hoe and editable sketch la
   await waitForFarmInput(page);
   const point=await page.evaluate(({x,y})=>window.__FARM_DEBUG__.screenPoint((x+.5)*32,(y+.5)*32),target!);
   await page.touchscreen.tap(point.x, point.y);
+  await page.waitForTimeout(800);
+  expect(await page.evaluate(({x,y})=>window.__FARM_DEBUG__.state()?.entities[`soil-farm-${x}-${y}`],target!)).toBeUndefined();
+  await explicitToolAt(page,target!.x,target!.y,"hoe");
   await expect.poll(
     // A real reconnect briefly removes the room snapshot. Keep polling the
     // same authoritative soil assertion instead of throwing before recovery.

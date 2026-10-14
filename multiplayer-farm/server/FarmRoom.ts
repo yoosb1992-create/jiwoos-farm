@@ -1,3 +1,4 @@
+import { applyWeatherAt, coarseWeather, ensureWeatherPlan, weatherEventAt, WEATHER_EVENT_MINUTES } from "../shared/weather.js";
 import { appearanceOf, parseAppearance } from "../shared/appearance.js";
 import { carryAppearance } from "../shared/transport.js";
 import { TRANSPORT_DURATION_MS } from "../shared/transport-config.js";
@@ -64,6 +65,8 @@ export class FarmRoom extends MovementRoom {
   private clockMinute = 360;
   private clockDay = 1;
   private dueCheckpoint = false;
+  private weatherPending = false;
+  private weatherSlot = "";
   private readonly drops = new DropIndex();
   private readonly pickupPending = new Set<string>();
   private readonly dropReady = new Map<string, number>();
@@ -93,6 +96,7 @@ export class FarmRoom extends MovementRoom {
     this.world = await this.lease.load();
     const migrateGroups = this.world.chestGroupsVersion !== 1 || this.world.version < WORLD_VERSION;
     upgradeWorld(this.world);
+    applyWeatherAt(this.world);
     if (migrateGroups) {
       // Commit the one-time routing/ledger transition before any client can
       // observe the group. The lease keeps the old snapshot intact on failure.
@@ -105,6 +109,7 @@ export class FarmRoom extends MovementRoom {
     this.clockDay = this.world.day;
     this.clockStarted = Date.now();
     this.sync();
+    this.weatherSlot = `${this.world.day}:${Math.floor(this.world.minute/WEATHER_EVENT_MINUTES)}`;
     this.startMovement();
     this.onMessage("personal", (client) => this.privateState(client));
     this.onMessage("action", (client, value: unknown) => {
@@ -127,6 +132,17 @@ export class FarmRoom extends MovementRoom {
           Math.floor((Date.now() - this.clockStarted) / GAME_MINUTE_MS),
       );
       this.state.minute = minute;
+      const plan=ensureWeatherPlan(this.world);
+      if(coarseWeather(plan,minute)!==this.world.weather && !this.weatherPending && !this.closing) {
+        this.weatherPending=true;
+        void this.enqueue(()=>this.checkpoint()).finally(()=>{this.weatherPending=false;});
+      }
+      const slot=`${this.world.day}:${Math.floor(minute/WEATHER_EVENT_MINUTES)}`;
+      if(slot!==this.weatherSlot) {
+        this.weatherSlot=slot;
+        const event=weatherEventAt(plan,minute);
+        if(event)this.state.weatherEvent=JSON.stringify(event);
+      }
     }, 500);
     this.checkpointTimer = setInterval(() => {
       if (this.dueCheckpoint || this.closing) return;
@@ -212,6 +228,7 @@ export class FarmRoom extends MovementRoom {
       layout: this.world.layout,
     };
     w.minute = this.state.minute;
+    applyWeatherAt(w);
     for (const p of this.state.players.values()) {
       const m = w.members[p.playerId];
       if (m) {
@@ -438,6 +455,7 @@ export class FarmRoom extends MovementRoom {
     this.state.day = this.world.day;
     this.state.minute = this.world.minute;
     this.state.weather = this.world.weather;
+    this.state.weatherPlan = JSON.stringify(ensureWeatherPlan(this.world));
     this.state.revision = this.world.revision;
     this.state.deepest = this.world.deepest;
     this.state.votes = this.votes.size;
@@ -482,8 +500,10 @@ export class FarmRoom extends MovementRoom {
       const proposed = this.proposal();
       proposed.revision++;
       await this.lease.save(proposed, this.world.revision);
+      const weatherChanged=proposed.weather!==this.world.weather || proposed.rainWateredPeriod!==this.world.rainWateredPeriod;
       this.world = proposed;
-      this.state.revision = proposed.revision;
+      if(weatherChanged)this.sync();
+      else this.state.revision = proposed.revision;
       this.state.storage = "ready";
     } catch {
       this.state.storage = "error";

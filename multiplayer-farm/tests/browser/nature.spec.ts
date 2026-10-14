@@ -2,10 +2,10 @@ import { test, expect } from "@playwright/test";
 import { ASSETS } from "../../shared/content.js";
 import { TREE_SPECIES } from "../../shared/nature.js";
 import { authorizeEditor } from "./editor-auth.js";
-import { reachableNatureTarget, clearWorldBlueprint, waitForFarmInput } from "./nature-target.js";
+import { reachableNatureTarget, clearWorldBlueprint, waitForFarmInput, explicitToolAt } from "./nature-target.js";
 import type { Entity } from "../../shared/world.js";
 
-test("mobile nature: decode shipped art, touch plant a seed and reload the saved tree", async ({ page }, info) => {
+test("mobile nature: decode shipped art, explicitly plant a seed and reload the saved tree", async ({ page }, info) => {
   const errors: string[] = [];
   page.on("pageerror", e => errors.push(e.message));
   // The test scenario uses a genuinely published clear farm with its spawn
@@ -28,7 +28,7 @@ test("mobile nature: decode shipped art, touch plant a seed and reload the saved
   const target = await reachableNatureTarget(page, "tree");
   expect(target, "A plantable tree tile must be reachable without crossing natural objects").toBeDefined();
   await page.locator("#tool").selectOption("pine_cone");
-  await page.touchscreen.tap(target!.screenX, target!.screenY);
+  await explicitToolAt(page,target!.x,target!.y,"pine_cone");
   await expect.poll(() => page.evaluate(() => (Object.values(window.__FARM_DEBUG__.state()?.entities ?? {}) as Entity[]).filter(e => e.planted && e.species === "tree_pine").length), { timeout: 15000 }).toBe(1);
   const tree = await page.evaluate(() => (Object.values(window.__FARM_DEBUG__.state().entities) as Entity[]).find(e => e.planted)!);
   expect(tree.stage).toBe(0);
