@@ -220,21 +220,29 @@ test("production mobile: authoritative movement, remote canvas, crop planting an
 });
 
 test("production mobile: tree drops, inventory and repeated session restoration", async ({
-  browser,
   page,
   request,
 }, info) => {
   await transport(page.context());
-  const peerContext = await browser.newContext({
-    viewport: { width: 390, height: 844 },
-    hasTouch: true,
-  });
-  await transport(peerContext);
-  const peer = await peerContext.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const session = await enter(page, "Farm A");
-  await enter(peer, "Farm B", session.farmId);
+  // Run 38545947874 passed every gameplay/restoration assertion, then hit the
+  // 60s budget during cleanup. This peer only verifies continued membership;
+  // a second software-rendered canvas adds no assertion here. Keep all three
+  // authenticated players using the real SDK; the preceding test still checks
+  // a remote browser's rendered canvas. Do not raise timeouts or skip checks.
+  const peerResponse = await request.post(`${api}/api/session`, {
+    data: { create: false, code: session.farmId, nickname: "Farm B" },
+  });
+  expect(peerResponse.ok()).toBe(true);
+  const peerSession = (await peerResponse.json()) as Session;
+  const peer = await new Client(socket).joinOrCreate<FarmState>(
+    ROOM_NAME, { farmId: session.farmId, token: peerSession.token }, FarmState,
+  );
+  peer.reconnection.enabled = false;
+  peer.onMessage("personal", () => undefined);
+  peer.onMessage("actionFx", () => undefined);
   await expect(page.locator("#connection")).toHaveAttribute(
     "aria-label",
     /2명/,
@@ -266,6 +274,7 @@ test("production mobile: tree drops, inventory and repeated session restoration"
       "aria-label",
       "연결됨 · 3명",
     );
+    await until(() => peer.state?.players.size === 3);
     // This independent scenario already starts at the safe spawn. Reload is
     // exercised after crops above; history restoration follows tree pickup below.
     const tree = sdk.state.entities.get("starter-pine")!;
@@ -327,6 +336,8 @@ test("production mobile: tree drops, inventory and repeated session restoration"
       "aria-label",
       "연결됨 · 3명",
     );
+    await until(() => peer.state.players.size === 3);
+    expect([...peer.state.players.values()].filter(p => p.playerId === session.playerId && p.connected)).toHaveLength(1);
     await page.locator("#bag").click();
     await expect(page.locator("#panel-body")).toContainText("나무 ×1");
     await page.locator("#panel-close").click();
@@ -340,13 +351,12 @@ test("production mobile: tree drops, inventory and repeated session restoration"
       observerOpen: sdk.connection.isOpen,
       players: [...sdk.state.players.values()].map(p => ({ nickname: p.nickname, connected: p.connected })),
       pageStatus: await page.locator("#connection").getAttribute("aria-label").catch(() => null),
-      peerStatus: await peer.locator("#connection").getAttribute("aria-label").catch(() => null),
+      peerConnected: peer.connection.isOpen,
       pageUrl: page.url(),
       errors,
     }));
     throw error;
   } finally {
-    await sdk.leave();
-    await peerContext.close();
+    await Promise.all([sdk.leave(), peer.leave()]);
   }
 });
