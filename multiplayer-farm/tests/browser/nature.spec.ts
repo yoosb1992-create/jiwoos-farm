@@ -66,12 +66,16 @@ test("editor nature: eight thumbnails, five stages and species properties surviv
   }
   await page.screenshot({ path: info.outputPath("nature-tree-palette.png") });
   await page.locator("[data-asset=tree_bamboo]").click();
+  const existing = await page.evaluate(() => window.__WORLD_EDITOR__.snapshot().maps.farm!.objects.map(o => o.id));
   const p = await page.evaluate(() => window.__WORLD_EDITOR__.screenPoint(64.5, 44.5));
   await page.mouse.click(p.x, p.y);
-  const bamboo = await page.evaluate(() => window.__WORLD_EDITOR__.snapshot().maps.farm!.objects.find(o => o.tree?.species === "tree_bamboo")!);
+  const bamboo = await page.evaluate(ids => window.__WORLD_EDITOR__.snapshot().maps.farm!.objects.find(o => !ids.includes(o.id) && o.tree?.species === "tree_bamboo")!, existing);
   expect(bamboo).toBeTruthy();
   await page.locator("[data-tool=selection]").click();
-  await page.mouse.click(p.x, p.y - 12);
+  // Select the placed, snapped tree in world coordinates. A fixed 12px offset
+  // misses the crown when the taller editor header changes the fit zoom.
+  const trunk = await page.evaluate(o => window.__WORLD_EDITOR__.screenPoint(o.position.tileX, o.position.tileY - 0.25), bamboo);
+  await page.mouse.click(trunk.x, trunk.y);
   await expect(page.locator("#prop-stage")).toBeVisible();
   await expect(page.locator("#prop-stage option")).toHaveCount(5);
   await page.locator("#prop-species").selectOption("tree_metasequoia");
