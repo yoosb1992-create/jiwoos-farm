@@ -1,6 +1,6 @@
 import { editorHeaders } from "./editor-auth.js";
 import { test,expect } from "@playwright/test";
-import { waitForFarmInput } from "./nature-target.js";
+import { waitForFarmInput, explicitToolAt } from "./nature-target.js";
 
 test("five tree ages: juvenile cutting, species stumps, three-hit clearing and reload",async({page},info)=>{
   test.setTimeout(150000);
@@ -50,8 +50,11 @@ test("five tree ages: juvenile cutting, species stumps, three-hit clearing and r
     }
     throw Error(`Repeated reconnects prevented a settled hit on ${id}`);
   };
-  await page.locator("#tool").selectOption("pickaxe");
-  await expect(async()=>{await tap("age-0");await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");}).toPass({timeout:35000,intervals:[300]});
+  // A wrong-tool attempt is still available through explicit action. A simple
+  // tap now selects axe automatically and would correctly remove this seedling.
+  await explicitToolAt(page,38,40,"pickaxe");
+  await expect(page.locator("#notice")).toContainText("이 도구로는 처리할 수 없어요");
+  expect(await page.evaluate(()=>window.__FARM_DEBUG__.state()?.entities["age-0"]?.hp)).toBe(1);
   await page.locator("#tool").selectOption("axe");
   for(let stage=0;stage<5;stage++) {
     const id=`age-${stage}`,hits=[1,2,3,5,7][stage]!;

@@ -137,6 +137,7 @@ test("production mobile: authoritative movement, remote canvas, crop planting an
   sdk.onMessage("personal", () => undefined);
   sdk.onMessage("actionFx", () => undefined);
   await until(() => sdk.state?.players.size === 3);
+  expect(JSON.parse(sdk.state.weatherPlan)).toMatchObject({day:sdk.state.day,windDirection:expect.any(Number),windSpeed:expect.any(Number),gustStrength:expect.any(Number)});
   const local = () =>
     [...sdk.state.players.values()].find(
       (p) => p.playerId === session.playerId,
@@ -255,6 +256,7 @@ test("production mobile: tree drops, inventory and repeated session restoration"
   sdk.onMessage("personal", () => undefined);
   sdk.onMessage("actionFx", () => undefined);
   await until(() => sdk.state?.players.size === 3);
+  expect(JSON.parse(sdk.state.weatherPlan)).toMatchObject({day:sdk.state.day,windDirection:expect.any(Number),windSpeed:expect.any(Number),gustStrength:expect.any(Number)});
   const local = () =>
     [...sdk.state.players.values()].find(
       (p) => p.playerId === session.playerId,
@@ -315,6 +317,10 @@ test("production mobile: tree drops, inventory and repeated session restoration"
       await page.evaluate(() => Object.hasOwn(window, "__FARM_DEBUG__")),
     ).toBe(false);
     expect(errors).toEqual([]);
+    await page.locator("#menu").click();
+    await page.getByRole("button",{name:"⚙ 소리·화면 설정",exact:true}).click();
+    await page.locator("#lightning-mode").selectOption("reduced");
+    await page.locator("#panel-close").click();
     await page.goto("about:blank");
     await restore(page, () => page.goBack());
     await expect(page.locator("#connection")).toHaveAttribute(
@@ -323,6 +329,10 @@ test("production mobile: tree drops, inventory and repeated session restoration"
     );
     await page.locator("#bag").click();
     await expect(page.locator("#panel-body")).toContainText("나무 ×1");
+    await page.locator("#panel-close").click();
+    await page.locator("#menu").click();
+    await page.getByRole("button",{name:"⚙ 소리·화면 설정",exact:true}).click();
+    await expect(page.locator("#lightning-mode")).toHaveValue("reduced");
     await page.locator("#panel-close").click();
     await page.screenshot({ path: info.outputPath("farm-mobile.png") });
   } catch (error) {
