@@ -10,4 +10,6 @@ export const TOOL_ACTION_DEFINITIONS: Record<ToolKey, { effectTiming: ToolEffect
   seed: { effectTiming: { trigger: "start" } },
   water: { effectTiming: { trigger: "start" } },
   hand: { effectTiming: { trigger: "start" } },
+  axe: { effectTiming: { trigger: "start" } },
+  pickaxe: { effectTiming: { trigger: "start" } },
 };

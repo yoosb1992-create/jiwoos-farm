@@ -1,0 +1,21 @@
+import { strict as assert } from "node:assert";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { CraftingPanel } from "../../app/components/CraftingPanel";
+import { MAP_DEFINITIONS } from "../maps/definitions";
+import { WORLD_OBJECT_ASSETS } from "../assets/definitions";
+import { validateEditorDocument } from "../editor/validation";
+import { createBuiltInEditorDocument } from "../editor/document";
+
+const table = MAP_DEFINITIONS.farmhouse.objects.find(o => o.id === "crafting_table")!;
+assert.equal(table.assetId, "crafting_table");
+assert.equal(table.interaction?.action, "craft");
+assert.ok(table.collision && WORLD_OBJECT_ASSETS.crafting_table.source);
+assert.deepEqual(validateEditorDocument(createBuiltInEditorDocument()), [], "editor keeps built-in table interaction valid");
+const empty = renderToStaticMarkup(createElement(CraftingPanel, { items: {}, busy: false, onCraft() {}, onClose() {} }));
+assert.ok(empty.includes("제작대") && empty.includes("재료 부족") && empty.includes("0/2"));
+const supplied = renderToStaticMarkup(createElement(CraftingPanel, { items: { wood: 2, stone: 3, wild_herb: 2, fairy_bloom: 1 }, busy: false, onCraft() {}, onClose() {} }));
+assert.ok(supplied.includes("2/2") && supplied.includes("3/3") && supplied.includes("요정실") && supplied.includes(">제작</button>"));
+const busy = renderToStaticMarkup(createElement(CraftingPanel, { items: { wood: 2 }, busy: true, onCraft() {}, onClose() {} }));
+assert.ok(/<button[^>]*disabled[^>]*aria-label="제작대 닫기"|<button[^>]*aria-label="제작대 닫기"[^>]*disabled/.test(busy));
+console.log("Crafting table: farmhouse placement, editor reference and mobile-ready recipe controls passed");

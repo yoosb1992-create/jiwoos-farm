@@ -1,0 +1,26 @@
+import { strict as assert } from "node:assert";
+import { FamilyRooms } from "../../server/family/rooms";
+import { FamilyState } from "../../server/family/state";
+import { FamilyPresenceService } from "../../server/family/presence";
+import { familyTestDB } from "./family-db";
+const { db, close } = familyTestDB();
+try {
+  let now = 100000;
+  const rooms = new FamilyRooms(db, () => now), state = new FamilyState(db, () => now), presence = new FamilyPresenceService(db, () => now);
+  const a = await rooms.create("A", "수면", "수빈"), id = a.room.id;
+  await rooms.join("B", a.room.inviteCode, "지우");
+  const pose = { mapId: "farmhouse", x: 304, y: 224, facing: "down", moving: false, selectedTool: "hand" };
+  const sa = crypto.randomUUID(), sb = crypto.randomUUID();
+  await presence.heartbeat("A", id, pose, sa); await presence.heartbeat("B", id, pose, sb);
+  const act = async (user: string, kind = "sleep") => state.act(user, id, (await state.read(user, id)).revision, { kind, pose });
+  const first = await act("A"); assert.equal(first.world.day, 1); assert.deepEqual(first.sleep?.waiting, ["수빈"]); assert.equal(first.sleep?.online, 2);
+  const cancelled = await act("A", "sleep-cancel"); assert.equal(cancelled.sleep?.agreed, 0);
+  await act("A"); const together = await act("B"); assert.equal(together.world.day, 2); assert.equal(together.sleep?.agreed, 0);
+  await act("A"); now += 12001; await presence.heartbeat("A", id, pose, sa);
+  const timeout = await state.read("A", id); assert.equal(timeout.world.day, 3, "offline nonvoter excluded after TTL");
+  assert.equal((await state.read("A", id)).world.day, 3, "one vote round advances only once");
+  await presence.heartbeat("B", id, pose, sb); await act("A");
+  await presence.heartbeat("A", id, pose, crypto.randomUUID());
+  assert.equal((await state.read("A", id)).sleep?.agreed, 0, "new session must not inherit prior sleep consent");
+  console.log("Family sleep: unanimous vote, cancellation, TTL and session reset passed");
+} finally { close(); }

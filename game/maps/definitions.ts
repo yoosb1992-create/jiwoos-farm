@@ -12,7 +12,7 @@ export const TILE_TYPE_DEFINITIONS: Record<TileTypeId, { walkable: boolean; farm
 
 const area = (startX: number, endX: number, startY: number, endY: number): TileRect => ({ startX, endX, startY, endY });
 
-export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
+export const MAP_DEFINITIONS: Record<string, MapDefinition> = {
   farm: {
     id: "farm", name: "지우네 농장", width: 42, height: 26, baseTileType: "grass",
     terrainRegions: [
@@ -40,6 +40,7 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
     terrainRegions: [{ ...area(0, 17, 0, 1), tileType: "stone_floor" }], farmAreas: [], collisionRegions: [],
     objects: [
       { id: "bed", assetId: "bed", position: { tileX: 7, tileY: 7 }, collision: { x: -48, y: -28, width: 96, height: 56 }, interaction: { action: "sleep", area: area(5, 9, 6, 9) }, label: "침대 · 잠자기", depth: 3 },
+      { id: "crafting_table", assetId: "crafting_table", position: { tileX: 12, tileY: 6.5 }, collision: { x: -28, y: -12, width: 56, height: 28 }, interaction: { action: "craft", area: area(10, 14, 5, 8) }, label: "제작대", depth: 3 },
     ],
     spawns: [{ id: "entry", tileX: 9, tileY: 10, facing: "up" }, { id: "bed_wake", tileX: 9.5, tileY: 7, facing: "left" }],
     warps: [{ id: "exit", area: area(8, 10, 11, 12), targetMapId: "farm", targetSpawnId: "from_house" }],
@@ -77,8 +78,8 @@ export const pointInTileRect = (x: number, y: number, rect: TileRect) => {
   const tileX = x / tileSize, tileY = y / tileSize;
   return tileX >= rect.startX && tileX <= rect.endX + 1 && tileY >= rect.startY && tileY <= rect.endY + 1;
 };
-export const getTileTypeAt = (mapId: MapId, x: number, y: number): TileTypeId => {
-  const map = MAP_DEFINITIONS[mapId];
+export const getTileTypeInMap = (map: MapDefinition, x: number, y: number): TileTypeId => {
   if (map.farmAreas.some((rect) => x >= rect.startX && x <= rect.endX && y >= rect.startY && y <= rect.endY)) return "farm";
-  return map.terrainRegions.find((r) => x >= r.startX && x <= r.endX && y >= r.startY && y <= r.endY)?.tileType ?? map.baseTileType;
+  return map.terrainRegions.findLast((r) => x >= r.startX && x <= r.endX && y >= r.startY && y <= r.endY)?.tileType ?? map.baseTileType;
 };
+export const getTileTypeAt = (mapId: MapId, x: number, y: number): TileTypeId => getTileTypeInMap(MAP_DEFINITIONS[mapId], x, y);

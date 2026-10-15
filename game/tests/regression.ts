@@ -1,5 +1,14 @@
+import { normalizeProgress } from "../npc/progress";
+import "./family-client";
+import "./family-lobby";
+import "./family-presence";
+import "./family-state";
+import "./family-rooms";
+import "./editor-graphics";
+import "./environment-assets";
 import { strict as assert } from "node:assert";
-import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale } from "../assets/definitions";
+import { readFileSync } from "node:fs";
+import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, physicsBoxForScale, playerAnimationFrames, playerAnimationName } from "../assets/definitions";
 import { CROP_DEFINITIONS } from "../data/crops";
 import { Inventory, LocalStorageSaveRepository, advanceFarmDay, normalizeSaveData, purchaseInventoryItem, type FarmTileData, type SaveData } from "../domain";
 import { GENERAL_STORE_LISTINGS } from "../data/shop";
@@ -8,6 +17,15 @@ import { GAME_CONFIG } from "../config";
 import { MAP_DEFINITIONS, TILE_TYPE_DEFINITIONS, getTileTypeAt, tilePoint } from "../maps/definitions";
 import { collisionRectCenter } from "../rendering/WorldRenderer";
 import { ToolActionSystem } from "../actions/ToolActionSystem";
+import { cloneEditorDocument, createBuiltInEditorDocument, documentToRegistry, LocalMapEditorRepository, parseEditorDocument, touchEditorDocument } from "../editor/document";
+import { EditorHistory } from "../editor/history";
+import { validateEditorDocument } from "../editor/validation";
+import { MapRegistry } from "../maps/MapRegistry";
+import { facingFromMovement, mergeMovementInput, normalizeMovement } from "../input/MovementInput";
+import { compareDraftFreshness, shouldAdoptCloudDraft } from "../editor/sync";
+import { createPinchStart, updatePinchViewport } from "../editor/viewport";
+import { PlayerAnimationController } from "../player/PlayerAnimationController";
+import { AssetManager } from "../assets/AssetManager";
 
 const storage = new Map<string, string>();
 Object.defineProperty(globalThis, "localStorage", { value: {
@@ -16,6 +34,16 @@ Object.defineProperty(globalThis, "localStorage", { value: {
 } });
 
 const tile: FarmTileData = { x: 9, y: 8, tilled: true, wateredToday: false, cropType: "sproutberry", cropStage: 0, plantedDay: 1 };
+const diagonal = normalizeMovement({ x: 1, y: 1 });
+assert.ok(Math.abs(Math.hypot(diagonal.x, diagonal.y) - 1) < 1e-12, "대각선 이동 속도는 정규화되어야 함");
+assert.deepEqual(mergeMovementInput({ x: 1, y: 0 }, { x: 0, y: -1 }), { x: 0, y: -1 }, "가상 조이스틱 입력은 공통 이동 입력으로 합쳐져야 함");
+assert.equal(facingFromMovement({ x: -.8, y: -.2 }, "down"), "left");
+assert.equal(compareDraftFreshness(100, 200), "cloud-newer", "서버 updatedAt이 최신이면 충돌 안내가 필요함");
+assert.equal(compareDraftFreshness(300, 200), "local-newer", "오프라인 로컬 편집은 다음 연결 때 업로드 대상이어야 함");
+assert.equal(shouldAdoptCloudDraft(false, 300, 200), true, "새 기기의 임시 기본 문서보다 기존 클라우드 초안을 우선해야 함");
+assert.equal(shouldAdoptCloudDraft(true, 300, 200), false, "실제 로컬 초안이 더 최신이면 자동으로 덮어쓰면 안 됨");
+const pinchStart = createPinchStart({ x: 40, y: 50 }, { x: 80, y: 50 }, { zoom: 1, panX: 0, panY: 0 });
+assert.deepEqual(updatePinchViewport(pinchStart, { x: 20, y: 65 }, { x: 100, y: 65 }), { zoom: 2, panX: 0, panY: 15 }, "두 손가락 간격과 중심 이동이 zoom/pan에 함께 반영되어야 함");
 for (let day = 0; day < CROP_DEFINITIONS.sproutberry.growthDays; day += 1) {
   tile.wateredToday = true;
   advanceFarmDay([tile]);
@@ -40,7 +68,7 @@ const save: SaveData = {
 };
 const repository = new LocalStorageSaveRepository();
 repository.save(save);
-assert.deepEqual(repository.load(), save, "날짜·시간·농장·인벤토리·돈·위치를 동일하게 복원해야 함");
+assert.deepEqual(repository.load(), {...save, daySerial:save.day, playerProgress:normalizeProgress(null)}, "날짜·시간·농장·인벤토리·돈·위치를 동일하게 복원해야 함");
 
 storage.clear();
 storage.set("jiwoos-farm.save.v2", JSON.stringify({
@@ -55,7 +83,7 @@ assert.equal(migrated?.inventory.items.sproutberry, 2);
 
 storage.clear();
 storage.set("jiwoos-farm.save.v4", JSON.stringify({
-  version: 4, day: -8, timeMinutes: "broken", money: -50, selectedTool: "axe",
+  version: 4, day: -8, timeMinutes: "broken", money: -50, selectedTool: "broken_tool",
   player: { x: "NaN", y: null, facing: "sideways", mapId: "deleted_map" },
   inventory: { items: { sproutberry_seed: 3, unknown_item: 99 } },
   farm: [{ x: 9, y: 8, tilled: true, wateredToday: true, cropType: "missing_crop", cropStage: 99 }],
@@ -82,6 +110,83 @@ const requiredAnimations = [
   "tool_down", "tool_up", "tool_left", "tool_right",
 ];
 assert.deepEqual(Object.keys(PLAYER_ASSET.animations), requiredAnimations);
+assert.deepEqual(Object.keys(PLAYER_ASSET.animations), [...PLAYER_ANIMATION_NAMES]);
+const configuredFrames = Object.values(PLAYER_ASSET.animations).flatMap(playerAnimationFrames);
+assert.equal(new Set(configuredFrames).size, configuredFrames.length, "12개 상태는 서로 겹치지 않는 프레임 범위를 사용해야 함");
+for (const definition of Object.values(PLAYER_ASSET.animations)) {
+  assert.ok(definition.startFrame >= 0 && definition.endFrame >= definition.startFrame, "animation 프레임 범위가 유효해야 함");
+  assert.ok(definition.fps > 0, "animation FPS는 양수여야 함");
+}
+assert.equal(PLAYER_ASSET.source?.kind, "spritesheet", "실제 PNG 시트를 연결해야 함");
+assert.equal(PLAYER_ASSET.source?.path, "/assets/player/player-main.png");
+for (const filename of ["player-main.png", "player-dev.png"]) {
+  const playerPng = readFileSync(new URL(`../../public/assets/player/${filename}`, import.meta.url));
+  assert.equal(playerPng.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  assert.equal(playerPng.readUInt32BE(16), 512, `${filename}: 16열`);
+  assert.equal(playerPng.readUInt32BE(20), 108, `${filename}: 3행`);
+  assert.equal(playerPng[25], 6, `${filename}: 투명 RGBA PNG`);
+}
+assert.equal(Math.max(...configuredFrames), 47, "48프레임 시트 범위를 넘지 않아야 함");
+// Exercise the actual loader/fallback registration paths without a DOM renderer.
+for (const availableFrames of [48, 0, 20]) {
+  const textures = new Map<string, number>();
+  if (availableFrames) textures.set(PLAYER_ASSET.textureKey, availableFrames);
+  const registered = new Map<string, { frames: unknown[] }>();
+  const graphics: any = new Proxy({}, { get: (_target, method) => (...args: any[]) => {
+    if (method === "generateTexture") textures.set(args[0], 0);
+    return graphics;
+  } });
+  const scene = {
+    textures: {
+      exists: (key: string) => textures.has(key),
+      remove: (key: string) => textures.delete(key),
+      get: (key: string) => ({ has: (frame: string) => Number(frame) < (textures.get(key) ?? 0) }),
+    },
+    add: { graphics: () => graphics },
+    anims: {
+      exists: (key: string) => registered.has(key),
+      remove: (key: string) => registered.delete(key),
+      generateFrameNumbers: (key: string, range: { start: number; end: number }) =>
+        Array.from({ length: range.end - range.start + 1 }, (_, i) => ({ key, frame: range.start + i })),
+      create: (config: { key: string; frames: unknown[] }) => registered.set(config.key, config),
+    },
+  };
+  const manager = new AssetManager(scene as never);
+  manager.createFallbackTextures();
+  manager.createPlayerAnimations();
+  manager.createPlayerAnimations();
+  assert.equal(registered.size, 12);
+  for (const config of registered.values()) assert.equal(config.frames.length, availableFrames === 48 ? 4 : 1);
+  assert.equal(textures.get(PLAYER_ASSET.textureKey), availableFrames === 48 ? 48 : 0);
+}
+assert.equal(playerAnimationName("walk", facingFromMovement({ x: 1, y: 0 }, "down")), "walk_right");
+assert.equal(playerAnimationName("walk", facingFromMovement(mergeMovementInput({ x: 0, y: 0 }, { x: 1, y: 0 }), "down")), "walk_right", "키보드와 조이스틱은 같은 걷기 animation 이름을 사용해야 함");
+
+type AnimationComplete = () => void;
+const playedAnimations: string[] = [];
+let animationComplete: AnimationComplete = () => undefined;
+const animatedSprite = {
+  x: 100, y: 80,
+  anims: { currentAnim: { frames: [{}, {}] } },
+  on: (_event: string, handler: AnimationComplete) => { animationComplete = handler; return animatedSprite; },
+  play: (key: string) => { playedAnimations.push(key); return animatedSprite; },
+};
+const animationController = new PlayerAnimationController(animatedSprite as never, "down");
+animationController.playMovement("left", true);
+animationController.playMovement("left", false);
+animationController.playTool("up");
+animationComplete();
+assert.deepEqual(playedAnimations, ["walk_left", "idle_left", "tool_up", "idle_up"], "도구 animation 뒤에는 같은 방향 대기로 복귀해야 함");
+
+const fallbackAnimations: string[] = [];
+const fallbackSprite = {
+  x: 0, y: 0,
+  anims: { currentAnim: { frames: [{}] } },
+  on: () => fallbackSprite,
+  play: (key: string) => { fallbackAnimations.push(key); return fallbackSprite; },
+};
+new PlayerAnimationController(fallbackSprite as never).playTool("right");
+assert.deepEqual(fallbackAnimations, ["tool_right", "idle_right"], "단일 프레임 fallback도 도구 상태에 고정되면 안 됨");
 const scaledPlayer = { ...PLAYER_ASSET, displayScale: { x: 2, y: 1.5 } };
 assert.deepEqual(displayedSize(scaledPlayer), { width: 64, height: 54 }, "scale 변경은 표현 크기에만 반영되어야 함");
 const compensatedBox = physicsBoxForScale(PLAYER_ASSET.collisionBox, scaledPlayer.displayScale);
@@ -133,4 +238,74 @@ now += GAME_CONFIG.toolActionCooldownMs;
 assert.equal(toolActions.execute("hoe", "down", () => { effects += 1; }), true);
 assert.equal(effects, 2);
 
-console.log("0.3 world, save migration, farming, and asset-swap regression checks: passed");
+const animatedTools: string[] = [];
+const allToolActions = new ToolActionSystem({ playTool: (facing) => animatedTools.push(facing) }, () => now);
+for (const tool of ["hoe", "water", "seed", "hand", "axe", "pickaxe"] as const) {
+  now += GAME_CONFIG.toolActionCooldownMs;
+  assert.equal(allToolActions.execute(tool, "left", () => undefined), true);
+}
+assert.deepEqual(animatedTools, Array(6).fill("left"), "괭이·물뿌리개·씨앗·손·도끼·곡괭이는 모두 현재 방향 도구 animation을 요청해야 함");
+
+const editorDocument = createBuiltInEditorDocument();
+assert.deepEqual(validateEditorDocument(editorDocument), [], "기본 맵은 편집기 schema/참조 검증을 통과해야 함");
+const editorRepository = new LocalMapEditorRepository();
+editorDocument.maps.find((map) => map.id === "town")!.name = "테스트 햇살마을";
+editorRepository.save(editorDocument);
+assert.equal(editorRepository.load()?.maps.find((map) => map.id === "town")?.name, "테스트 햇살마을", "게임 저장과 별도 key로 편집 문서를 복원해야 함");
+assert.equal(editorRepository.load()?.updatedAt, editorDocument.updatedAt, "로컬 저장 자체가 콘텐츠 수정 시각을 바꾸면 안 됨");
+const previousEditorUpdatedAt = editorDocument.updatedAt;
+touchEditorDocument(editorDocument, previousEditorUpdatedAt);
+assert.equal(editorDocument.updatedAt, previousEditorUpdatedAt + 1, "연속 편집도 항상 더 최신 문서 시각을 가져야 함");
+assert.ok(storage.has(LocalMapEditorRepository.key));
+const registry = new MapRegistry();
+registry.replace(documentToRegistry(editorDocument));
+assert.equal(registry.require("town").name, "테스트 햇살마을", "working copy를 runtime registry에 적용해야 함");
+registry.require("town").name = "runtime only";
+assert.equal(MAP_DEFINITIONS.town.name, "햇살마을", "runtime 편집이 내장 맵 상수를 변경하면 안 됨");
+
+const history = new EditorHistory(cloneEditorDocument, 3);
+const beforeEdit = cloneEditorDocument(editorDocument);
+history.push(beforeEdit);
+editorDocument.maps[0].name = "변경";
+const undone = history.undo(editorDocument)!;
+assert.equal(undone.maps[0].name, beforeEdit.maps[0].name);
+assert.equal(history.redo(undone)?.maps[0].name, "변경");
+
+const brokenEditor = cloneEditorDocument(editorDocument);
+brokenEditor.maps.push(structuredClone(brokenEditor.maps[0]));
+brokenEditor.maps[0].objects.push({ id: "missing", assetId: "not_registered" as never, position: { tileX: 2, tileY: 2 } });
+brokenEditor.maps[0].warps.push({ id: "broken", area: { startX: 0, endX: 0, startY: 0, endY: 0 }, targetMapId: "missing_map", targetSpawnId: "missing" });
+const editorIssues = validateEditorDocument(brokenEditor);
+assert.ok(editorIssues.some((issue) => issue.message.includes("중복된 맵 ID")));
+assert.ok(editorIssues.some((issue) => issue.message.includes("등록되지 않은 에셋")));
+assert.ok(editorIssues.some((issue) => issue.message.includes("목적지 맵")));
+assert.equal(parseEditorDocument({ editorVersion: 99, maps: [] }).document, null, "잘못된 Import는 적용하지 않아야 함");
+assert.doesNotThrow(() => validateEditorDocument({ editorVersion: 1, maps: [{ id: "bad", width: 20, height: 10, warps: [null] }] }), "손상된 문서 검증이 crash하면 안 됨");
+const importedRoundTrip = parseEditorDocument(JSON.parse(JSON.stringify(editorDocument))).document;
+assert.deepEqual(importedRoundTrip, editorDocument, "Export한 Editor Document를 validation 후 동일하게 Import해야 함");
+assert.equal(createBuiltInEditorDocument().maps.find((map) => map.id === "town")?.name, "햇살마을", "기본값 초기화는 내장 맵의 새 사본을 만들어야 함");
+
+console.log("0.4 mobile input, editor viewport/cloud sync, world, save migration, farming, and asset-swap regression checks: passed");
+
+import "./family-sleep";
+import "./fairy-forest";
+import "./forest-resources";
+import "./forest-feedback";
+import "./family-forest";
+import "./family-tool-forest";
+import "./crafting";
+import "./crafting-interface";
+import "./family-crafting";
+import "./tool-progression";
+
+import "./spring-crops";
+
+import "./npc";
+
+import "./npc-dialogue";
+
+import "./npc-progress";
+
+import "./npc-quests";
+
+import "./npc-ux";

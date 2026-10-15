@@ -1,5 +1,5 @@
-import * as Phaser from "phaser";
-import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, type AssetSource } from "./definitions";
+import type * as Phaser from "phaser";
+import { CROP_ASSETS, ITEM_ASSETS, PLAYER_ANIMATION_NAMES, PLAYER_ASSET, TILE_ASSETS, WORLD_OBJECT_ASSETS, displayedSize, playerAnimationFrames, type AssetSource } from "./definitions";
 
 const loadSource = (scene: Phaser.Scene, key: string, source: AssetSource) => {
   if (!source) return;
@@ -8,6 +8,8 @@ const loadSource = (scene: Phaser.Scene, key: string, source: AssetSource) => {
 };
 
 export class AssetManager {
+  private playerSpritesheetReady = false;
+
   constructor(private readonly scene: Phaser.Scene) {}
 
   preload() {
@@ -19,7 +21,15 @@ export class AssetManager {
   }
 
   createFallbackTextures() {
-    if (!this.scene.textures.exists(PLAYER_ASSET.textureKey)) this.createPlayerFallback();
+    this.playerSpritesheetReady = this.hasValidPlayerSpritesheet();
+    if (!this.playerSpritesheetReady) {
+      // A missing file and a sheet with too few frames are both recoverable. Remove
+      // an incomplete texture before generating the known-safe single-frame fallback.
+      if (PLAYER_ASSET.source?.kind === "spritesheet" && this.scene.textures.exists(PLAYER_ASSET.textureKey)) {
+        this.scene.textures.remove(PLAYER_ASSET.textureKey);
+      }
+      if (!this.scene.textures.exists(PLAYER_ASSET.textureKey)) this.createPlayerFallback();
+    }
     Object.values(TILE_ASSETS).forEach((asset) => {
       if (this.scene.textures.exists(asset.textureKey)) return;
       const size = displayedSize(asset);
@@ -34,9 +44,12 @@ export class AssetManager {
   }
 
   createPlayerAnimations() {
-    for (const [name, definition] of Object.entries(PLAYER_ASSET.animations)) {
-      if (this.scene.anims.exists(name)) continue;
-      const frames = PLAYER_ASSET.source?.kind === "spritesheet"
+    for (const name of PLAYER_ANIMATION_NAMES) {
+      const definition = PLAYER_ASSET.animations[name];
+      // Phaser's animation manager is shared between scene restarts. Recreate these
+      // stable keys so a previous fallback animation cannot mask a newly loaded sheet.
+      if (this.scene.anims.exists(name)) this.scene.anims.remove(name);
+      const frames = this.playerSpritesheetReady
         ? this.scene.anims.generateFrameNumbers(PLAYER_ASSET.textureKey, { start: definition.startFrame, end: definition.endFrame })
         : [{ key: PLAYER_ASSET.textureKey }];
       this.scene.anims.create({
@@ -46,6 +59,14 @@ export class AssetManager {
         repeat: definition.repeat,
       });
     }
+  }
+
+  private hasValidPlayerSpritesheet() {
+    if (PLAYER_ASSET.source?.kind !== "spritesheet" || !this.scene.textures.exists(PLAYER_ASSET.textureKey)) return false;
+    const texture = this.scene.textures.get(PLAYER_ASSET.textureKey);
+    return Object.values(PLAYER_ASSET.animations)
+      .flatMap(playerAnimationFrames)
+      .every((frame) => texture.has(String(frame)));
   }
 
   private createPlayerFallback() {
@@ -73,6 +94,25 @@ export class AssetManager {
       g.fillStyle(f.trunk).fillRect(18, 29, 8, 22).fillStyle(f.crown).fillCircle(22, 17, 19)
         .fillStyle(f.highlight).fillCircle(13, 22, 11).generateTexture(tree.textureKey, displayedSize(tree).width, displayedSize(tree).height).destroy();
     }
+    for (const rock of [WORLD_OBJECT_ASSETS.forest_rock, WORLD_OBJECT_ASSETS.forest_ore]) {
+      if (this.scene.textures.exists(rock.textureKey)) continue;
+      const g = this.scene.add.graphics(); const f = rock.fallback;
+      g.fillStyle(f.stroke).fillEllipse(16, 23, 28, 16).fillStyle(f.fill).fillEllipse(16, 19, 26, 19)
+        .generateTexture(rock.textureKey, rock.frameSize.width, rock.frameSize.height).destroy();
+    }
+    const herb = WORLD_OBJECT_ASSETS.forest_herb;
+    if (!this.scene.textures.exists(herb.textureKey)) {
+      const g = this.scene.add.graphics(); const f = herb.fallback;
+      g.fillStyle(f.stem).fillRect(15, 15, 3, 13).fillStyle(f.leaf).fillEllipse(11, 16, 13, 9).fillEllipse(22, 18, 12, 9)
+        .generateTexture(herb.textureKey, herb.frameSize.width, herb.frameSize.height).destroy();
+    }
+    for (const asset of [WORLD_OBJECT_ASSETS.forest_moon_mushroom, WORLD_OBJECT_ASSETS.forest_fairy_bloom]) {
+      if (this.scene.textures.exists(asset.textureKey)) continue;
+      const g = this.scene.add.graphics();
+      if (asset.assetId === "forest_moon_mushroom") g.fillStyle(0x9ed4ce).fillRect(14, 17, 5, 11).fillStyle(0x665f9d).fillEllipse(16, 16, 20, 12);
+      else g.fillStyle(0x4a824b).fillRect(15, 16, 3, 12).fillStyle(0xf3b9d7).fillCircle(16, 14, 9);
+      g.generateTexture(asset.textureKey, 32, 32).destroy();
+    }
     const basket = WORLD_OBJECT_ASSETS.sell_basket;
     if (!this.scene.textures.exists(basket.textureKey)) {
       const g = this.scene.add.graphics(); const f = basket.fallback;
@@ -87,7 +127,7 @@ export class AssetManager {
         .lineStyle(6, f.trim).strokeRect(4, 48, width - 8, height - 52).fillStyle(f.door).fillRect(width / 2 - 18, height - 54, 36, 54)
         .generateTexture(store.textureKey, width, height).destroy();
     }
-    for (const asset of [WORLD_OBJECT_ASSETS.bed, WORLD_OBJECT_ASSETS.shop_counter]) {
+    for (const asset of [WORLD_OBJECT_ASSETS.bed, WORLD_OBJECT_ASSETS.shop_counter, WORLD_OBJECT_ASSETS.crafting_table]) {
       if (this.scene.textures.exists(asset.textureKey)) continue;
       const g = this.scene.add.graphics(); const f = asset.fallback; const { width, height } = displayedSize(asset);
       g.fillStyle(f.fill).fillRoundedRect(2, 2, width - 4, height - 4, 7).lineStyle(4, f.stroke).strokeRoundedRect(2, 2, width - 4, height - 4, 7);

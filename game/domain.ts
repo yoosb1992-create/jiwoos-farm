@@ -1,3 +1,4 @@
+import { normalizeProgress, type PlayerProgress } from "./npc/progress";
 import type { ToolKey } from "./events";
 import { CROP_DEFINITIONS, getCropDefinition, type CropId } from "./data/crops";
 import { ITEM_DEFINITIONS, type ItemId } from "./data/items";
@@ -5,6 +6,10 @@ import type { Facing } from "./assets/definitions";
 import { GAME_CONFIG } from "./config";
 import type { MapId } from "./maps/types";
 import { MAP_DEFINITIONS } from "./maps/definitions";
+import { FAIRY_FOREST_ID, FOREST_ENTRY } from "./forest/generation";
+import { normalizeForestState, type ForestState } from "./forest/resources";
+import { normalizeToolProgression } from "./tools/progression";
+import type { ToolProgression } from "./tools/types";
 
 export interface FarmTileData {
   x: number;
@@ -18,6 +23,10 @@ export interface FarmTileData {
 export interface InventoryData { items: Partial<Record<ItemId, number>> }
 export interface PlayerData { x: number; y: number; facing: Facing; mapId: MapId }
 export interface SaveData {
+  toolProgression?: ToolProgression;
+  forestState?: ForestState;
+  playerProgress?: PlayerProgress;
+  daySerial?: number;
   version: 4;
   day: number;
   timeMinutes: number;
@@ -53,6 +62,15 @@ export function purchaseInventoryItem(inventory: Inventory, money: number, itemI
   return { purchased: true, money: money - price };
 }
 
+export function sellAllCrops(inventory: Inventory) {
+  let amount = 0, earned = 0;
+  for (const crop of Object.values(CROP_DEFINITIONS)) {
+    const sold = inventory.sellAll(crop.harvestItemId, crop.sellPrice);
+    amount += sold.amount; earned += sold.earned;
+  }
+  return { amount, earned };
+}
+
 export function advanceFarmDay(farm: FarmTileData[]) {
   let grown = 0;
   for (const tile of farm) {
@@ -72,13 +90,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const finiteNumber = (value: unknown, fallback: number) => typeof value === "number" && Number.isFinite(value) ? value : fallback;
 const nonNegativeInteger = (value: unknown, fallback: number) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
 const isFacing = (value: unknown): value is Facing => value === "up" || value === "down" || value === "left" || value === "right";
-const isTool = (value: unknown): value is ToolKey => value === "hoe" || value === "seed" || value === "water" || value === "hand";
-const isMapId = (value: unknown): value is MapId => typeof value === "string" && Object.hasOwn(MAP_DEFINITIONS, value);
+const isTool = (value: unknown): value is ToolKey => value === "hoe" || value === "seed" || value === "water" || value === "hand" || value === "axe" || value === "pickaxe";
+const isMapId = (value: unknown): value is MapId => typeof value === "string" && (value === FAIRY_FOREST_ID || Object.hasOwn(MAP_DEFINITIONS, value));
 const isItemId = (value: string): value is ItemId => Object.hasOwn(ITEM_DEFINITIONS, value);
 const isCropId = (value: unknown): value is CropId => typeof value === "string" && Object.hasOwn(CROP_DEFINITIONS, value);
 
 const defaultPlayer = (mapId: MapId): PlayerData => {
-  const spawn = MAP_DEFINITIONS[mapId].spawns[0];
+  const spawn = mapId === FAIRY_FOREST_ID ? FOREST_ENTRY : MAP_DEFINITIONS[mapId].spawns[0];
   return { x: spawn.tileX * GAME_CONFIG.tileSize, y: spawn.tileY * GAME_CONFIG.tileSize, facing: spawn.facing, mapId };
 };
 
@@ -113,6 +131,7 @@ const normalizeV4 = (value: unknown): SaveData | null => {
   const mapId: MapId = isMapId(rawPlayer.mapId) ? rawPlayer.mapId : "farm";
   const fallbackPlayer = defaultPlayer(mapId);
   const invalidMap = !isMapId(rawPlayer.mapId);
+  const daySerial = Math.max(1, nonNegativeInteger(value.daySerial, nonNegativeInteger(value.day, 1)));
   const player = invalidMap ? fallbackPlayer : {
     mapId,
     x: finiteNumber(rawPlayer.x, fallbackPlayer.x),
@@ -121,6 +140,10 @@ const normalizeV4 = (value: unknown): SaveData | null => {
   };
   return {
     version: 4,
+    ...(Object.hasOwn(value, "toolProgression") ? { toolProgression: normalizeToolProgression(value.toolProgression) } : {}),
+    playerProgress: normalizeProgress(value.playerProgress),
+    daySerial,
+    ...(Object.hasOwn(value, "forestState") ? { forestState: normalizeForestState(value.forestState, daySerial) } : {}),
     day: Math.min(GAME_CONFIG.day.daysPerSeason, Math.max(1, nonNegativeInteger(value.day, 1))),
     timeMinutes: Math.min(GAME_CONFIG.day.endMinutes, Math.max(GAME_CONFIG.day.startMinutes, nonNegativeInteger(value.timeMinutes, GAME_CONFIG.day.startMinutes))),
     money: nonNegativeInteger(value.money, GAME_CONFIG.startingMoney),
