@@ -1,3 +1,5 @@
+import { QuantityDialog } from "./quantity-dialog.js";
+import { renderCommerce } from "./commerce-panels.js";
 import { entityTouchIntent, type TouchIntent } from "./touch-action.js";
 import { mountStartWorld, selectedStartWorld } from "./start-world.js";
 import { CharacterEditor } from "./character-editor.js";
@@ -81,6 +83,7 @@ let fishingOffset = 0,
   dialogue: ActionResult["dialogue"],
   dialoguePage = 0;
 let lastStep = 0;
+let seenShippingReport = "";
 let selectedRecipe = "wood_plank", householdFeedback = "", householdPending: string | undefined;
 let chestDraft: ChestSettingsDraft | undefined;
 let placementItem: string | undefined, furniturePending: string | undefined;
@@ -89,7 +92,7 @@ let selectedUpgradeTool: UpgradeTool = "axe";
 let selectedCraftCategory: CraftCategory = "all";
 const categorySelections: Partial<Record<CraftCategory, string>> = {};
 let householdReadyAt = 0, observedDay = 0, sleepPanelDay = 1;
-const householdActions = new Set(["depositChest", "withdrawChest", "configureChest", "linkChest", "unlinkChest", "craftItem", "upgradeTool", "sleepVote"]);
+const householdActions = new Set(["buyItem", "sellItem", "shipItem", "withdrawShipment","depositChest", "withdrawChest", "configureChest", "linkChest", "unlinkChest", "craftItem", "upgradeTool", "sleepVote"]);
 const characterEditor=new CharacterEditor();
 let newAppearance=appearanceOf(),appearanceDraft=appearanceOf(),appearanceForNew=false,appearanceRequest:string|undefined;
 let verifiedDeveloper=false;
@@ -126,7 +129,7 @@ const notice = (message: string) => {
   el("notice").classList.remove("quiet");
 };
 let bufferedToolAction: {type:string;extra:Partial<Command>;expires:number}|undefined;
-const send = (type: string, extra: Partial<Command> = {}):void => {
+const send = (type: string, extra: Partial<Command> = {}):string | undefined => {
   if (network.snapshot().status !== "connected") return;
   const actor=latest.players.find(p=>p.local);
   if(actor && ["useTool","gather","harvestCrop","tillTile","waterCrop","refill"].includes(type) && renderer.scene.actionBusy(actor.id)) {
@@ -149,7 +152,19 @@ const send = (type: string, extra: Partial<Command> = {}):void => {
     actionKinds.delete(actionKinds.keys().next().value!);
   if(type==="updateAppearance")appearanceRequest=actionId;
   network.action({ actionId, type, ...extra });
+  return actionId;
 };
+const quantityDialog = new QuantityDialog(request => {
+  const snapshot=network.snapshot(), personal=network.personal, me=snapshot.players.find(p=>p.local);
+  const target=request.targetId ? network.state?.entities.get(request.targetId) : undefined;
+  const store=request.targetId ? personal?.chestStorageKeys?.[request.targetId] : undefined;
+  const ready=snapshot.status==="connected" && !!me && (request.targetId
+    ? !!target && target.area===me.area && Math.hypot(target.x-me.authoritativeX,target.y-me.authoritativeY)<=64
+    : ["general_store","cafe"].includes(me.area));
+  return {member:personal?.member,day:network.state?.day??1,chest:store?personal?.chestStores?.[store]:undefined,
+    capacity:request.targetId?personal?.chestInfos?.[request.targetId]?.capacity:undefined,
+    ready:!!ready,busy:!!householdPending||performance.now()<householdReadyAt};
+}, (request,quantity) => send(request.type,{itemId:request.itemId,targetId:request.targetId,shipmentId:request.shipmentId,quantity}));
 const quickbar = new QuickbarUI({
   member: () => network.personal?.member,
   selected: () => selected,
@@ -165,6 +180,7 @@ function startPlacement(id: string): void {
   placementItem=id; candidateHints=[]; notice("상하좌우의 초록색 칸을 눌러 설치하세요");
 }
 function closePanel(cancelFishing = true): void {
+  quantityDialog.close();
   characterEditor.dispose();
   if (modal === "fishing" && fishing && cancelFishing) send("cancelFishing");
   fishingUI?.dispose();
@@ -251,6 +267,7 @@ function nearest(kind?: string): Entity | undefined {
 }
 function renderPanel(): void {
   updatePanelContent(panel, panelBody, renderPanelContent);
+  quantityDialog.refresh();
 }
 function renderPanelContent(): void {
   fishingUI?.dispose();
@@ -303,6 +320,7 @@ function renderPanelContent(): void {
     }
   }
   if (renderHouseholdPanel(modal, panelBody, {
+    quantity: request => quantityDialog.open(request),
     member: m, chest: (chestKey ? personal?.chestStores?.[chestKey] : undefined) ?? {},
     storageReady: !!chestKey && !!personal?.chestStores && !!chestInfo, legacyChestTarget: personal?.legacyChestTarget,
     chestInfo, chestDraft,
@@ -382,52 +400,17 @@ function renderPanelContent(): void {
     }
     row(`보람의 부탁: 작물 3개 수확 (${Math.min(3, m.quests.harvest ?? 0)}/3)`);
   }
-  if (modal === "shop") {
-    const season = calendar(network.state?.day ?? 1).season;
-    row(
-      `${SEASON_INFO[season].icon} ${SEASON_INFO[season].name} 장터 · ${m?.money ?? 0} G`,
-    );
-    for (const crop of Object.values(CROPS).filter((c) =>
-      c.seasons.includes(season),
-    ))
-      row(
-        `${crop.name} 씨앗 · ${crop.seedPrice} G · ${crop.growthDays}일${crop.regrowDays ? " / 재수확" : ""}`,
-        [
-          button("1개", () => send("buyItem", { itemId: crop.seedItemId })),
-          button("5개", () =>
-            send("buyItem", { itemId: crop.seedItemId, quantity: 5 }),
-          ),
-        ],
-      );
-    row("나무 씨앗과 묘목 · 빈 잔디에 심어요");
-    for(const t of TREE_SPECIES.filter(t=>t.seedPrice>0)) row(`${t.seedName} · ${t.seedPrice} G`,[button("구매",()=>send("buyItem",{itemId:t.seed}))]);
-    for (const [id, price] of [
-      ["stamina_biscuit", 10],
-      ["animal_feed", 8],
-      ["herb_tea", 45],
-      ["harvest_stew", 95],
-    ] as const)
-      row(`${itemName(id)} · ${price} G`, [
-        button("구매", () => send("buyItem", { itemId: id })),
-      ]);
-    for (const [id, d] of Object.entries(DECORATIONS))
-      row(`${d.name} · ${d.price} G`, [
-        button("구입", () => send("buyItem", { itemId: id })),
-      ]);
-    row("수확물 판매");
-    for (const [id, count] of Object.entries(m?.inventory ?? {}))
-      if ((ITEMS[id]?.sellPrice ?? 0) > 0)
-        row(`${itemName(id)} ×${count} · 개당 ${ITEMS[id]!.sellPrice} G`, [
-          button("1개 판매", () => send("sellItem", { itemId: id })),
-          button("모두 판매", () =>
-            send("sellItem", { itemId: id, quantity: Math.min(999, count) }),
-          ),
-        ]);
-  }
+  if (renderCommerce(modal,panelBody,{member:m,day:state?.day??1,targetId:panelTarget,
+    open:request=>quantityDialog.open(request),report:()=>showPanel("shipping-report","출하 정산 내역")})) return;
   if (modal === "menu") {
     const menuGrid=document.createElement("div");menuGrid.className="menu-grid player-menu";
     for(const [id,title] of [["journal","✦ 퀘스트 / 오늘 할 일"],["map","⌖ 지역 지도"],["residents","♧ 주민과 부탁"],["calendar","▦ 행사 달력"],["codex","❧ 도감"],["settings","⚙ 소리·화면 설정"],["family","농장 및 가족"]])
       menuGrid.append(button(title!,()=>showPanel(id!,title!)));
+    menuGrid.append(button("출하 정산 내역",()=>showPanel("shipping-report","출하 정산 내역")));
+    if(personal?.shippingPlacementNeeded) {
+      row("판매 꾸러미를 놓을 빈 자리를 찾지 못했어요. 농장 소유자가 현재 농장 편집에서 위치를 골라 주세요.",
+        personal.canDevelop?[button("현재 농장 편집",()=>{window.location.href="/editor.html";})]:[]);
+    }
     menuGrid.prepend(button("가방",()=>showPanel("bag","가방")),button("캐릭터 꾸미기",()=>openAppearance()));
     menuGrid.append(button("조작 배치 편집",()=>{closePanel();controls.open();}));
     if(developerActive())menuGrid.append(button("개발자 도구",()=>showPanel("developer","개발자 도구")));
@@ -541,9 +524,11 @@ function act(): void {
     y: me.authoritativeY,
     facing: me.facing,
   });
+  const crate=nearest("shipping");
+  if(crate && nearest()?.id===crate.id)return showPanel("shipping","판매 꾸러미",crate.id);
   // Pouring has priority over wells, harvesting, doors, shops and object use.
   // Refilling remains an explicit hand interaction with a well.
-  if (selected === "water") return send("useTool", { toolId: "water", ...tile });
+  if (selected === "water") return void send("useTool", { toolId: "water", ...tile });
   const bed = me.area === "farmhouse" ? nearest("bed") : undefined;
   if (bed && nearest()?.id === bed.id) return showPanel("sleep", "포근한 잠자리", bed.id);
   const event = mapFor(me.area).world2?.events.find(
@@ -552,7 +537,7 @@ function act(): void {
       inRect(e.area, Math.floor(me.x / 32), Math.floor(me.y / 32)),
   );
   if (event && selected === "hand")
-    return send("worldEvent", { targetId: event.id });
+    return void send("worldEvent", { targetId: event.id });
   if (isTool(selected)) {
     // Aim at the actual front object, irrespective of which tool can damage it.
     // This prevents a wrong-tool swing silently snapping to a different resource.
@@ -569,32 +554,33 @@ function act(): void {
         Math.hypot(ex,ey)<=64 && ex*dx+ey*dy>=4 && Math.abs(ex*dy-ey*dx)<=TILE;
     }).sort((a,b)=>Math.hypot(a.x-me.authoritativeX,a.y-me.authoritativeY)-Math.hypot(b.x-me.authoritativeX,b.y-me.authoritativeY));
     const target = targets[0];
-    return send("useTool", {toolId:selected,targetId:target?.id,...tile});
+    return void send("useTool", {toolId:selected,targetId:target?.id,...tile});
   }
-  if (plantingTree(selected)) return send("plantTree", {...tile,itemId:selected});
+  if (plantingTree(selected)) return void send("plantTree", {...tile,itemId:selected});
   if (selected.endsWith("_seed"))
-    return send("plantSeed", { ...tile, itemId: selected });
-  if (selected === "fishing_rod") return send("castFishing");
+    return void send("plantSeed", { ...tile, itemId: selected });
+  if (selected === "fishing_rod") return void send("castFishing");
   const drop = nearest("drop");
-  if (drop) return send("pickupDrop", { targetId: drop.id });
+  if (drop) return void send("pickupDrop", { targetId: drop.id });
   const crop = network.state?.entities.get(
     `soil-${me.area}-${tile.tileX}-${tile.tileY}`,
   );
-  if (crop?.kind === "crop") return send("harvestCrop", tile);
+  if (crop?.kind === "crop") return void send("harvestCrop", tile);
   const e = nearest();
   if (e) {
+    if (e.kind === "shipping") return showPanel("shipping", "판매 꾸러미", e.id);
     if (e.kind === "chest") return showPanel("chest", "보관함", e.id);
     if (e.kind === "craft") return showPanel("craft", "제작대", e.id);
-    if (e.kind === "gather") return send("gather", { targetId: e.id });
-    if (e.kind === "ladder") return send("mineAction", { targetId: e.id });
+    if (e.kind === "gather") return void send("gather", { targetId: e.id });
+    if (e.kind === "ladder") return void send("mineAction", { targetId: e.id });
     if (["animal", "barn", "trough"].includes(e.kind))
       return showPanel("animals", "사계절 우리", e.id);
     if (e.kind === "board") return showPanel("board", "마을 게시판", e.id);
     if (e.kind === "decoration")
       return showPanel("decoration", "정원 꾸미기", e.id);
-    if (e.kind === "well") return send("refill", { targetId: e.id });
+    if (e.kind === "well") return void send("refill", { targetId: e.id });
     if (e.kind === "machine")
-      return send(e.readyAt ? "collectMachine" : "startMachine", {
+      return void send(e.readyAt ? "collectMachine" : "startMachine", {
         targetId: e.id,
       });
   }
@@ -606,7 +592,7 @@ function act(): void {
       me.y / TILE >= w.area.startY - 1 &&
       me.y / TILE <= w.area.endY + 2,
   );
-  if (warp) return send("enterArea", { targetId: warp.id });
+  if (warp) return void send("enterArea", { targetId: warp.id });
   const npc = NPCS.find((n) => {
     const s = authoredNpcSchedule(
       n,
@@ -618,7 +604,7 @@ function act(): void {
       Math.hypot(s.from.x * TILE - me.x, s.from.y * TILE - me.y) < 96
     );
   });
-  if (npc) return send("talkNpc", { targetId: npc.id });
+  if (npc) return void send("talkNpc", { targetId: npc.id });
   if (["general_store", "cafe"].includes(me.area))
     return showPanel("shop", me.area === "cafe" ? "바람찻집" : "사계절 상점");
   notice("도구를 선택하거나 입구·주민·보관함 가까이에서 행동하세요");
@@ -645,6 +631,7 @@ function touchAct(t: TouchTarget): void {
   if(current.mode!=="interact")return;
   switch(e.kind) {
     case "bed":showPanel("sleep","포근한 잠자리",e.id);break;
+    case "shipping":showPanel("shipping","판매 꾸러미",e.id);break;
     case "chest":showPanel("chest","보관함",e.id);break;
     case "craft":showPanel("craft","제작",e.id);break;
     case "machine":send(e.readyAt?"collectMachine":"startMachine",{targetId:e.id});break;
@@ -708,6 +695,7 @@ function updateConnection(status: NetworkSnapshot["status"]): void {
 network.onConnection = (status) => {
   updateConnection(status);
   if (status !== "connected") {
+    quantityDialog.disconnected();
     bufferedToolAction = undefined;
     householdPending = undefined;
     householdFeedback = "연결을 복구하고 있어요. 다시 연결되면 수량을 확인해 주세요.";
@@ -726,6 +714,7 @@ network.onConnection = (status) => {
   controlStatus = status;
 };
 network.onAction = (result) => {
+  quantityDialog.result(result);
   if(appearanceRequest===result.actionId){
     appearanceRequest=undefined;
     if(result.ok&&modal==="appearance")closePanel();
@@ -1003,8 +992,18 @@ const renderer = createRenderer((now, delta) => {
     if (!el("hud").hidden)
       el("hud").textContent =
         `FPS ${Math.round(1000 / delta)} | RTT ${latest.rtt?.toFixed(0) ?? "—"}ms\nPATCH ${latest.patchRate.toFixed(1)}Hz | TICK ${latest.tickRate ?? "—"}\nBUFFER ${network.delay.toFixed(1)}ms (${network.profile})\nCORRECTION ${latest.correctionDistance.toFixed(2)}px | ${latest.players.length}명\nRECONNECT ${latest.reconnectCount} | ${state?.storage ?? ""}`;
+    const report=network.personal?.member.shipping?.reports.at(-1);
+    const reportKey=`farm-shipping-report:${network.personal?.farmId}:${network.personal?.member.id}`;
+    const stamp=`${reportKey}:${report?.day}`;
+    if(report && !quantityDialog.node.open && seenShippingReport!==stamp) {
+      seenShippingReport=stamp;
+      if(Number(localStorage.getItem(reportKey)??0)<report.day) {
+        localStorage.setItem(reportKey,String(report.day));showPanel("shipping-report","출하 정산 내역");
+      }
+    }
     if (network.personal !== lastPersonal) {
       lastPersonal = network.personal;
+      if(network.personal?.shippingPlacementNeeded) notice("판매 꾸러미를 놓을 빈 자리가 없어요. 소유자가 메뉴 → 현재 농장 편집에서 위치를 골라 주세요.");
       refreshTools();
       if (modal && !["fishing", "settings", "dialogue", "appearance"].includes(modal))
         renderPanel();

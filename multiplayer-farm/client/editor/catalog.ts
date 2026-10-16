@@ -1,3 +1,5 @@
+import { shippingIconSource } from "../shipping-art.js";
+import { shippingObject } from "../../shared/shipping-placement.js";
 import { TREE_SPECIES, DEBRIS, FARM_GRASS, GARDEN_FLOWERS, treeSprite, inferSpecies, treeSeasonScale, treeRootSprite, stumpSprite, TREE_STAGE_IDS, TREE_STAGES } from "../../shared/nature.js";
 import { ASSETS, type MapObject } from "../../shared/content.js";
 import { PAINTED_SPRITES, visualSize, foliageColor } from "../../shared/art-assets.js";
@@ -44,6 +46,7 @@ const labels: Record<string, string> = {
   bench: "벤치",
   bed: "침대 · 잠자기",
   storage_chest: "보관함",
+  shipping_crate: "판매 꾸러미 · 다음 날 정산",
   crafting_table: "제작대",
   stone_well: "우물",
   flower_bed: "꽃밭",
@@ -78,6 +81,7 @@ export const CATALOG = [
   "decor_scarecrow",
 ].filter((v, i, a) => a.indexOf(v) === i && (v.includes("_stump_") || !/^tree_.*_(seedling|young|mature|giant|guardian|summer|autumn|winter)$/.test(v)));
 export function objectFor(assetId: string, x: number, y: number): MapObject {
+  if (assetId === "shipping_crate") return shippingObject(`o-${uid()}`, x, y);
   const c = category(assetId),
     o: MapObject = {
       id: `o-${uid()}`,
@@ -155,16 +159,16 @@ function seasonImage(id: string, image: HTMLImageElement, season: SeasonKey) {
 }
 export function spriteImage(id: string, ready: () => void) {
   const src = ASSETS[id]?.source;
-  if (!src) return;
+  if (!src && id !== "shipping_crate") return;
   let img = images.get(id);
   if (!img) {
     img = new Image();
     img.onload = ready;
     img.onerror = () => {
-      if (src.fallbackPath && img!.src !== new URL(src.fallbackPath, location.href).href)
+      if (src?.fallbackPath && img!.src !== new URL(src.fallbackPath, location.href).href)
         img!.src = src.fallbackPath;
     };
-    img.src = id === "storage_chest" ? chestIconSource() : src.path;
+    img.src = id === "shipping_crate" ? shippingIconSource() : id === "storage_chest" ? chestIconSource() : src!.path;
     images.set(id, img);
   }
   return img;

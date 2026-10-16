@@ -489,6 +489,7 @@ export class FarmRoom extends MovementRoom {
         chestStorageKeys: chestStorageKeys(this.world),
         chestInfos: chestInfos(this.world),
         legacyChestTarget: this.world.legacyChestTarget,
+        shippingPlacementNeeded: this.world.shippingPlacementNeeded === true,
         sleepVoted: this.votes.has(id),
         farmId: this.farmId,
         events: this.world.events,

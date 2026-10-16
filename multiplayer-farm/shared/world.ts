@@ -1,3 +1,5 @@
+import { ensureShippingCrate } from "./shipping-placement.js";
+import type { ShippingLedger } from "./shipping.js";
 import { type WeatherPlan } from "./weather.js";
 import { appearanceOf, DEFAULT_APPEARANCE, type Appearance } from "./appearance.js";
 import type { CarriedChest, TransportFx } from "./transport.js";
@@ -17,7 +19,7 @@ import { normalizeRock } from "./resources.js";
 import { migrateChestStorage, type ChestBinding, type ChestStores, type ChestSettings } from "./chest-storage.js";
 import { initializeChestGroups } from "./chest-groups.js";
 import { migrateToolLevels, type UpgradeTool } from "./tool-levels.js";
-export const WORLD_VERSION = 11;
+export const WORLD_VERSION = 12;
 export const STAMINA_MAX = 100;
 export const ACTION_COOLDOWN_MS = 200;
 export const ACTION_RANGE = 64;
@@ -26,6 +28,7 @@ export const GAME_MINUTE_MS = 500;
 export const MAX_QUANTITY = 999;
 export type Facing = "up" | "down" | "left" | "right";
 export interface Member {
+  shipping?: ShippingLedger;
   position?: { area: string; x: number; y: number; facing: string };
   appearance?: Appearance;
   quickbar?: Quickbar;
@@ -79,6 +82,7 @@ export interface Entity {
   owner: string;
 }
 export interface World {
+  shippingPlacementNeeded?: boolean;
   weatherPlan?: WeatherPlan;
   rainWateredPeriod?: string;
   layoutRevision?: number;
@@ -129,6 +133,7 @@ export interface Command {
   quickbarEdit?: QuickbarEdit;
   actionId: string;
   type: string;
+  shipmentId?: string;
   toolId?: Tool;
   targetId?: string;
   tileX?: number;
@@ -496,6 +501,7 @@ export function newWorld(
   };
   activateHomeFurniture(w.layout!.maps);
   seedFixtures(w, false);
+  ensureShippingCrate(w);
   generateDaily(w);
   initializeChestGroups(w);
   return w;
@@ -629,5 +635,6 @@ export function upgradeWorld(w: World): void {
   w.naturalTreesSeeded ??= true;
   migrateChestStorage(w);
   initializeChestGroups(w);
+  ensureShippingCrate(w);
   w.version = WORLD_VERSION;
 }

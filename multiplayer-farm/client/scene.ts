@@ -524,6 +524,7 @@ export class FarmScene extends Phaser.Scene {
         asset = chestTextureKey(e.chestColor, e.chestSize, e.chestIndex);
         if (e.chestIndex === Math.floor((e.chestSize - 1) / 2)) label = e.chestName || "작은 보관함";
       }
+      else if (e.kind === "shipping") label = "판매 꾸러미 · 다음 날 정산";
       else if (e.kind === "craft") label = "제작대";
       else if (e.kind === "bed") label = Math.hypot(e.x - me.x, e.y - me.y) <= 80 ? "침대 · 행동으로 잠자기" : "침대";
       else if (e.kind === "machine") label = e.readyAt ? "가공 중" : "가공기";

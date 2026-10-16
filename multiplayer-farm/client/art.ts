@@ -1,3 +1,4 @@
+import { createShippingTexture } from "./shipping-art.js";
 import { HELD_TOOLS, paintHeldTool } from "./tool-art.js";
 import type Phaser from "phaser";
 import { ASSETS, CROPS, ITEMS, type MapData, TILE } from "../shared/content.js";
@@ -42,6 +43,7 @@ function texture(
 export function createContentTextures(scene: Phaser.Scene): void {
   createCropTextures(scene);
   createChestTextures(scene);
+  createShippingTexture(scene);
   // A 2x painted soil patch keeps furrows readable on phone zoom. Texture work
   // happens once at launch, never per plant or per animation frame.
   if (scene.textures.exists("terrain-art-soil"))

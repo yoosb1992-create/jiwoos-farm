@@ -1,3 +1,4 @@
+import { shippingObject } from "./shipping-placement.js";
 import { ASSETS, TILE, type MapData, type MapObject } from "./content.js";
 import { sceneryCollision } from "./applyMovement.js";
 import { newWorld2, setCell, terrainCode, tileHash, ZONES } from "./world2.js";
@@ -87,6 +88,7 @@ export function createDefaultFarm(previous: MapData): MapData {
   add("family-chest", "storage_chest", 65.5, 34.5, 1, {
     kind: "chest", collision: { x: -25, y: -16, width: 50, height: 30 },
   });
+  farm.objects.push(shippingObject("shipping-crate", 67, 31.5));
   add("crafting-table", "crafting_table", 53, 34.5, 1, {
     kind: "craft", collision: { x: -26, y: -17, width: 52, height: 32 },
   });

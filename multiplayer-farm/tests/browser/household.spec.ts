@@ -77,6 +77,10 @@ async function tapObject(page:Page,id:string):Promise<void>{
   },{timeout:25000}).toBe(true);
   await page.touchscreen.tap(point!.x,point!.y);
 }
+async function confirmQuantity(page:Page) {
+  await page.locator("#quantity-dialog .quantity-confirm").click();
+  await expect(page.locator("#quantity-dialog")).not.toBeVisible();
+}
 for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`household flow ${viewport.width}: transfer, batch craft, upgrade and bedside morning`,async({page,browser},info)=>{
   test.setTimeout(180000);
   await page.setViewportSize(viewport);
@@ -91,13 +95,21 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`hou
   const chest=page.getByRole("region",{name:"가족 보관함",exact:true});
   const seeds=(region: typeof bag)=>region.locator('[data-item="sproutberry_seed"]');
   await expect(seeds(bag)).toContainText("×12");
-  await seeds(bag).getByRole("button",{name:"1개 넣기",exact:true}).click();
+  const woodBag=bag.locator('[data-item="wood"]'),woodChest=chest.locator('[data-item="wood"]');
+  await woodBag.getByRole("button",{name:"수량 입력",exact:true}).click();
+  await page.locator("#quantity-dialog").getByRole("textbox").fill("17");
+  await confirmQuantity(page);await expect(woodChest).toContainText("×17");await expect(woodBag).toContainText("×8");
+  await woodChest.getByRole("button",{name:"수량 입력",exact:true}).click();
+  await page.locator("#quantity-dialog").getByRole("textbox").fill("17");
+  await confirmQuantity(page);await expect(woodBag).toContainText("×25");
+
+  await seeds(bag).getByRole("button",{name:"1개 넣기",exact:true}).click();await confirmQuantity(page);
   await expect(seeds(chest)).toContainText("×1");
-  await seeds(bag).getByRole("button",{name:/절반/}).click();
+  await seeds(bag).getByRole("button",{name:/절반/}).click();await confirmQuantity(page);
   await expect(seeds(chest)).toContainText("×7");
-  await seeds(bag).getByRole("button",{name:/전체/}).click();
+  await seeds(bag).getByRole("button",{name:/전체/}).click();await confirmQuantity(page);
   await expect(seeds(chest)).toContainText("×12");await expect(seeds(bag)).toHaveCount(0);
-  await seeds(chest).getByRole("button",{name:/절반/}).click();
+  await seeds(chest).getByRole("button",{name:/절반/}).click();await confirmQuantity(page);
   await expect(seeds(bag)).toContainText("×6");
   expect(await page.locator("#panel-body").evaluate(e=>e.scrollWidth<=e.clientWidth)).toBe(true);
   await expect(seeds(chest).getByRole("button",{name:/전체/})).toHaveCSS("min-height","44px");
@@ -109,14 +121,17 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`hou
   await goHome(page);
   await page.locator("#tool").selectOption("hand");
   await page.locator("#action").tap();await expect(seeds(chest)).toContainText("×6");
-  await seeds(chest).getByRole("button",{name:/전체/}).click();await expect(seeds(bag)).toContainText("×12");
+  await seeds(chest).getByRole("button",{name:/전체/}).click();await confirmQuantity(page);await expect(seeds(bag)).toContainText("×12");
   await page.locator("#panel-close").click();
   await page.locator("#tool").selectOption("axe");
   await tapObject(page,"crafting_table");
   await expect(page.locator("#panel")).toHaveAttribute("data-panel","craft",{timeout:15000});
   const detail=page.getByRole("region",{name:"선택한 제작법"});
   await expect(detail.locator(".ingredient strong")).toHaveText("25 / 2");
-  await page.getByRole("button",{name:"5회 제작",exact:true}).click();
+  await page.getByRole("button",{name:"제작 횟수 입력",exact:true}).click();
+  await page.locator("#quantity-dialog").getByRole("textbox",{name:"제작 횟수"}).fill("5");
+  await expect(page.locator("#quantity-dialog")).toContainText("필요 10개 / 보유 25개");
+  await confirmQuantity(page);
   await expect(detail.locator(".ingredient strong")).toHaveText("15 / 2");
   await expect(page.locator(".household-feedback")).toContainText("5개 제작");
   await expect(page.getByRole("region",{name:"도구 강화"})).toHaveCount(0);
@@ -126,7 +141,7 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`hou
   await expect(page.getByRole("region",{name:"도구 강화"})).toContainText("강화 완료");
   await page.locator('[data-category="all"]').click();
   await expect(page.getByRole("region",{name:"도구 강화"})).toHaveCount(0);
-  await page.getByRole("button",{name:/최대 5회 제작/}).click();
+  await page.getByRole("button",{name:/최대 5회 제작/}).click();await confirmQuantity(page);
   await expect(detail.locator(".ingredient strong")).toHaveText("0 / 2");
   await expect(page.getByRole("button",{name:"1회 제작",exact:true})).toBeDisabled();
   await page.screenshot({path:info.outputPath(`craft-${viewport.width}.png`)});

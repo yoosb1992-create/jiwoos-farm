@@ -78,6 +78,7 @@ const SOLID_NATURE_KINDS = new Set(["tree", "stump", "rock", "twig"]);
 const solidNatureEntity = (e: DynamicObstacle): boolean =>
   SOLID_NATURE_KINDS.has(e.kind) || e.kind === "gather";
 const dynamicObstacleBox = (e: DynamicObstacle): DynamicObstacleBox | undefined => {
+  if (e.kind === "shipping") return { halfW: 28, halfH: 14, offsetY: 0 };
   // Machines/decorations retain their authored footprint collision.
   if (["machine", "decoration", "barn", "trough", "chest"].includes(e.kind))
     return { halfW: 14, halfH: 14, offsetY: 0 };
@@ -254,6 +255,7 @@ export function collidesWithObstacle(
     if (o.visible === false || o.bridge) return false;
     // Live entities own chest collision. Only editor/offline map queries without
     // a live entity index fall back to the original authored footprint.
+    if (o.kind === "shipping") return hit(o.position.tileX * TILE - 28, o.position.tileY * TILE - 14, 56, 28);
     if (o.kind === "chest") return !obstacleIndex && hit(o.position.tileX * TILE - 14, o.position.tileY * TILE - 14, 28, 28);
     // Interactable nature leaves no static ghost when harvested or destroyed.
     // Its collision belongs to current server-authoritative live entities.

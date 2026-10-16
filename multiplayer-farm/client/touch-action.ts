@@ -9,7 +9,7 @@ export interface TouchIntent {
   message?: string;
 }
 type Target = Pick<Entity,"kind"|"asset"|"crop"|"stage"|"watered"|"chopEnabled">;
-const facilities = new Set(["chest","craft","bed","board","machine","well","animal","barn","trough","decoration","ladder"]);
+const facilities = new Set(["shipping","chest","craft","bed","board","machine","well","animal","barn","trough","decoration","ladder"]);
 /** Matches the server's useTool/gather rules, not asset-name guesses. Recovery
  * and transport commands are deliberately absent from this touch-only policy. */
 export function entityTouchIntent(e:Target, selected:string):TouchIntent {

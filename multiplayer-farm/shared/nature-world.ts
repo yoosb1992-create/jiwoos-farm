@@ -138,7 +138,7 @@ export function naturalPlacement(w: World, area: string, x: number, y: number,
     const dx=e.x/TILE-(x+.5),dy=e.y/TILE-(y+.5);
     if(Math.floor(e.x/TILE)===x && Math.floor(e.y/TILE)===y)return false;
     if((e.kind==="tree"||e.kind==="stump") && Math.hypot(dx,dy)<(purpose==="tree"?treeSpacing:2))return false;
-    if(["decoration","machine","well","chest","craft","barn","trough"].includes(e.kind) && Math.abs(dx)<2 && Math.abs(dy)<2)return false;
+    if(["decoration","machine","well","chest","shipping","craft","barn","trough"].includes(e.kind) && Math.abs(dx)<2 && Math.abs(dy)<2)return false;
   }
   return true;
 }

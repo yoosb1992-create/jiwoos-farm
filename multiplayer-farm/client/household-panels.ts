@@ -1,3 +1,4 @@
+import type { TransactionRequest } from "../shared/transactions.js";
 import { UPGRADE_TOOLS, TOOL_UPGRADES, toolLevel, type UpgradeTool } from "../shared/tool-levels.js";
 import { ITEMS, itemName } from "../shared/content.js";
 import { recipesInCategory, visibleCraftCategories, type CraftCategory } from "./craft-categories.js";
@@ -10,6 +11,7 @@ import { CHEST_COLORS, CHEST_NAME_LIMIT, validChestName, type ChestColor, type C
 export interface ChestSettingsDraft { key: string; name: string; color: ChestColor; open: boolean; dirty: boolean }
 
 export interface HouseholdContext {
+  quantity(request: TransactionRequest): void;
   member?: Member;
   chest: Record<string, number>;
   storageReady?: boolean;
@@ -146,12 +148,13 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
           const destination = into ? c.chest : m.inventory;
           const full = into ? !!info && info.used >= info.capacity : Object.keys(m.inventory).length >= 48;
           const noSlot = full && !((destination[id] ?? 0) > 0);
-          const b = button(`${name} ${verb}`, `${into}-${id}-${mode}`, () => c.send(into ? "depositChest" : "withdrawChest", {
-            targetId: target?.id, itemId: id, ...(mode === "one" ? { quantity: 1 } : { quantityMode: mode }),
+          const b = button(`${name} ${verb}`, `${into}-${id}-${mode}`, () => c.quantity({ type: into ? "depositChest" : "withdrawChest",
+            targetId: target?.id, itemId: id, initial: Math.min(999, amount),
           }), blocked || noSlot || (destination[id] ?? 0) + amount > STACK_LIMIT);
           if (noSlot) b.title = into ? "보관함의 빈 칸이 필요해요" : "가방의 빈 칸이 필요해요";
           actions.append(b);
         }
+        actions.append(button("수량 입력",`${into}-${id}-custom`,()=>c.quantity({type:into?"depositChest":"withdrawChest",targetId:target?.id,itemId:id}),blocked));
         card.append(heading, actions);
         stack.append(card);
       }
@@ -233,11 +236,12 @@ export function renderHouseholdPanel(type: string, body: HTMLElement, c: Househo
       }
       const max = maxCrafts(m.inventory, recipe), actions = el("div", "", "craft-actions");
       for (const [label, count] of [["1회 제작", 1], ["5회 제작", 5], [`최대 ${max}회 제작`, max]] as const) {
-        const b = button(label, `craft-${label}`, () => c.send("craftItem", { targetId: target?.id, itemId: recipe.id, quantity: count }),
+        const b = button(label, `craft-${label}`, () => c.quantity({type:"craftItem",targetId:target?.id,itemId:recipe.id,initial:count}),
           blocked || !canCraft(m.inventory, recipe, count));
         b.title = `결과 ${count * recipe.output.quantity}개 · ${recipe.ingredients.map(i => `${itemName(i.itemId)} ${i.quantity * count}개`).join(" + ")}`;
         actions.append(b);
       }
+      actions.append(button("제작 횟수 입력","craft-custom",()=>c.quantity({type:"craftItem",targetId:target?.id,itemId:recipe.id}),blocked||max<1));
       detail.append(el("p", max ? `지금 최대 ${max}회 · 결과 ${max * recipe.output.quantity}개` : "재료가 부족하거나 가방이 가득 찼어요.", max ? "available" : "unavailable"), actions);
       menu.append(list);
       workshop.append(detail);

@@ -68,6 +68,7 @@ export const MAPS: Record<string, MapData> = snapshot.maps;
 export const ASSETS: Record<string, Asset> = withNatureArt(withPaintedArt(snapshot.assets, EXPANSION_CROPS));
 // The original front-facing runtime painting has a one-tile footprint.
 ASSETS.storage_chest = { ...ASSETS.storage_chest!, frameSize: { width: 32, height: 40 }, displayScale: { x: 1, y: 1 }, origin: { x: .5, y: .65 } };
+ASSETS.shipping_crate = { assetId: "shipping_crate", textureKey: "shipping_crate", source: null, frameSize: { width: 80, height: 72 }, displayScale: { x: 1, y: 1 }, origin: { x: .5, y: .72 } };
 export const CROPS: Record<string, CropDef> = Object.fromEntries(
   EXPANSION_CROPS.map((c) => [c.id, c]),
 );

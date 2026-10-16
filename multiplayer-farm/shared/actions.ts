@@ -1,3 +1,5 @@
+import { purchasePrice } from "./transactions.js";
+import { shippingLedger, settleShipping } from "./shipping.js";
 import { makeWeatherPlan, coarseWeather, rainWaters, precipitationForDay } from "./weather.js";
 import { parseAppearance } from "./appearance.js";
 import { TRANSPORT_DURATION_MS, HAND_CARRY_LIMIT_KG } from "./transport-config.js";
@@ -112,6 +114,8 @@ const TYPES = new Set([
   "talkNpc",
   "buyItem",
   "sellItem",
+  "shipItem",
+  "withdrawShipment",
   "eat",
   "refill",
   "upgradeTool",
@@ -145,7 +149,7 @@ export function parseCommand(value: unknown): Command {
     requireThat(typeof c.toolId === "string" && isTool(c.toolId), "도구 오류");
     out.toolId = c.toolId;
   }
-  for (const key of ["targetId", "itemId", "area"] as const) {
+  for (const key of ["targetId", "itemId", "area", "shipmentId"] as const) {
     if (c[key] !== undefined) {
       requireThat(
         typeof c[key] === "string" && c[key].length <= 100,
@@ -199,6 +203,7 @@ export interface ActionContext {
 }
 export function nextDay(w: World): void {
   const previousDay = w.day;
+  settleShipping(w, previousDay);
   w.day++;
   w.minute = 360;
   const season = calendar(w.day).season;
@@ -900,6 +905,32 @@ function applyActionCore(
       result.message = `${itemName(c.itemId)}를 Lv2로 강화했어요`;
       break;
     }
+    case "shipItem": {
+      target("shipping");
+      const price = c.itemId ? ITEMS[c.itemId]?.sellPrice ?? 0 : 0;
+      requireThat(c.itemId && price > 0, "판매 가능한 물품을 선택하세요");
+      own(c.itemId, q);
+      const ledger = shippingLedger(m);
+      // Merge only equal-day, equal-price lots. IDs remain stable for partial returns.
+      const lot = ledger.pending.find(s => s.itemId === c.itemId && s.unitPrice === price && s.day === w.day);
+      requireThat((lot?.quantity ?? 0) + q <= STACK_LIMIT, "출하 보관 한도를 확인하세요");
+      change(m.inventory, c.itemId, -q);
+      if (lot) lot.quantity += q;
+      else ledger.pending.push({ id: c.actionId, itemId: c.itemId, quantity: q, unitPrice: price, day: w.day });
+      result.message = `${itemName(c.itemId)} ${q}개 출하 예약 · 다음 날 아침 정산`;
+      break;
+    }
+    case "withdrawShipment": {
+      target("shipping");
+      const ledger = shippingLedger(m);
+      const lot = ledger.pending.find(s => s.id === c.shipmentId);
+      requireThat(lot && lot.quantity >= q && lot.day === w.day, "본인의 정산 전 출하 수량을 확인하세요");
+      change(m.inventory, lot.itemId, q);
+      lot.quantity -= q;
+      ledger.pending = ledger.pending.filter(s => s.quantity > 0);
+      result.message = `${itemName(lot.itemId)} ${q}개를 가방으로 회수했어요`;
+      break;
+    }
     case "buyItem":
     case "sellItem": {
       requireThat(
@@ -908,30 +939,12 @@ function applyActionCore(
       );
       requireThat(c.itemId && ITEMS[c.itemId], "아이템 없음");
       if (c.type === "buyItem") {
-        const crop = Object.values(CROPS).find(
-          (cr) => cr.seedItemId === c.itemId,
-        );
-        const decor = DECORATIONS[c.itemId as keyof typeof DECORATIONS];
-        const costEach =
-          crop?.seedPrice ??
-          (plantingTree(c.itemId)?.seedPrice || undefined) ??
-          decor?.price ??
-          (
-            {
-              stamina_biscuit: 10,
-              animal_feed: 8,
-              herb_tea: 45,
-              harvest_stew: 95,
-            } as Record<string, number>
-          )[c.itemId];
-        requireThat(
-          costEach && (!crop || crop.seasons.includes(calendar(w.day).season)),
-          "지금 판매하지 않는 물품이에요",
-        );
+        const costEach = purchasePrice(c.itemId, w.day);
+        requireThat(costEach > 0, "지금 판매하지 않는 물품이에요");
         const cost = costEach * q;
         requireThat(m.money >= cost, "골드 부족");
-        m.money -= cost;
         change(m.inventory, c.itemId, q);
+        m.money -= cost;
       } else {
         const price = ITEMS[c.itemId]?.sellPrice ?? 0;
         requireThat(price > 0, "판매할 수 없습니다");

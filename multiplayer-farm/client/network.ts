@@ -174,6 +174,7 @@ export class ColyseusAdapter implements NetworkAdapter {
   private disposed = false;
   personal?: {
     canDevelop?: boolean;
+    shippingPlacementNeeded?: boolean;
     member: Member;
     chestStores?: Record<string, Record<string, number>>;
     chestStorageKeys?: Record<string, string>;

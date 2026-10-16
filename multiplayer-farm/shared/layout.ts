@@ -24,6 +24,7 @@ export const FIXTURE_KINDS = [
   "gather",
   "well",
   "chest",
+  "shipping",
   "bed",
   "craft",
   "barn",
@@ -287,6 +288,9 @@ export function validateLayout(value: unknown): WorldLayout {
       collisionRegions: list(m.collisionRegions, 300).map(rect),
     };
   }
+  const shipping = Object.values(maps).flatMap(map => map.objects.filter(o => o.kind === "shipping" || o.assetId === "shipping_crate").map(o => ({map, o})));
+  if (shipping.length > 1 || shipping.some(({map,o}) => map.id !== "farm" || o.kind !== "shipping" || o.visible === false))
+    throw Error("판매 꾸러미는 농장에 보이는 상태로 1개만 설치해 주세요");
   const ids = new Set<string>();
   for (const map of Object.values(maps)) {
     for (const o of map.objects.filter((o) => o.kind)) {

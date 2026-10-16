@@ -1,3 +1,4 @@
+import { shippingPositionSafe } from "./shipping-placement.js";
 import {
   collidesWithObstacle,
   isFarmable,
@@ -64,6 +65,12 @@ export function reviewLayout(
   for (const [id, old] of oldObjects)
     if (old.object.kind) {
       const next = newObjects.get(id);
+      if (old.object.kind === "shipping" && next?.object.kind === "shipping" && next.map === "farm") {
+        const position = next.object.position;
+        if (stable(next.object) !== stable(old.object) && !shippingPositionSafe({ ...world, layout }, position.tileX, position.tileY, id))
+          conflict(next.map,id,position.tileX*TILE,position.tileY*TILE,"판매 꾸러미 앞까지 접근 가능한 빈 공간을 선택하세요");
+        continue;
+      }
       if (
         !next ||
         next.map !== old.map ||
@@ -168,6 +175,8 @@ export function reviewLayout(
   for (const [id, next] of newObjects)
     if (next.object.kind && !oldObjects.has(id)) {
       const p = next.object.position;
+      if (next.object.kind === "shipping" && !shippingPositionSafe({ ...world, layout },p.tileX,p.tileY,id))
+        conflict(next.map,id,p.tileX*TILE,p.tileY*TILE,"판매 꾸러미 앞까지 접근 가능한 빈 공간을 선택하세요");
       const physicalOverlap =
         Object.values(world.entities).some(
           (e) =>
@@ -210,6 +219,12 @@ export function reviewLayout(
   proposed.layout = layout;
   proposed.layoutRevision = (world.layoutRevision ?? 0) + 1;
   if (!conflicts.length) {
+    for (const [id, next] of newObjects) if (next.object.kind === "shipping" && proposed.entities[id]) {
+      proposed.entities[id]!.x = next.object.position.tileX*TILE;
+      proposed.entities[id]!.y = next.object.position.tileY*TILE;
+      proposed.entities[id]!.area = next.map;
+    }
+    if ([...newObjects.values()].some(o=>o.object.kind === "shipping")) delete proposed.shippingPlacementNeeded;
     seedFixtures(proposed, false, additions);
     seedFixtures(proposed, true, additions);
   }
