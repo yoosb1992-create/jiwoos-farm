@@ -9,7 +9,10 @@ import { initializeChestGroups, mergeChestGroup } from "../shared/chest-groups.j
 import { collidesWithObstacle } from "../shared/applyMovement.js";
 
 function fixture(count = 3) {
-  const w = newWorld(42, legacyLayout()); w.entities = {}; w.nextEntity = 0;
+  const w = newWorld(42, legacyLayout());
+  // Keep the required crate so reload assertions isolate chest group changes.
+  w.entities = Object.fromEntries(Object.entries(w.entities).filter(([, e]) => e.kind === "shipping"));
+  w.nextEntity = 0;
   for (let i = 0; i < count; i++) w.entities[`c${i}`] = entity(`c${i}`, "farm", "chest", 320 + i * 32, 320, "storage_chest");
   const m = w.members.a = newMember("a", "A");
   const actor: Actor = { id: "a", area: "farm", x: 352, y: 350, facing: "up", running: false, stamina: 100 };

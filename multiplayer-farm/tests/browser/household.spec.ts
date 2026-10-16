@@ -98,6 +98,10 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}])test(`hou
   const woodBag=bag.locator('[data-item="wood"]'),woodChest=chest.locator('[data-item="wood"]');
   await woodBag.getByRole("button",{name:"수량 입력",exact:true}).click();
   await page.locator("#quantity-dialog").getByRole("textbox").fill("17");
+  await page.locator("#quantity-dialog").getByRole("button",{name:"취소",exact:true}).click();
+  await expect(woodBag).toContainText("×25");await expect(woodChest).toHaveCount(0);
+  await woodBag.getByRole("button",{name:"수량 입력",exact:true}).click();
+  await page.locator("#quantity-dialog").getByRole("textbox").fill("17");
   await confirmQuantity(page);await expect(woodChest).toContainText("×17");await expect(woodBag).toContainText("×8");
   await woodChest.getByRole("button",{name:"수량 입력",exact:true}).click();
   await page.locator("#quantity-dialog").getByRole("textbox").fill("17");

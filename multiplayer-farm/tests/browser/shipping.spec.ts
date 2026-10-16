@@ -54,10 +54,19 @@ test("mobile crate touch, numeric validation, cancellation, partial return, relo
 test("mobile shop uses common quantity dialog, affordability, immediate prices and explicit confirmation",async({page})=>{
  test.setTimeout(65000);await enter(page,true);await page.locator("#action").tap();
  await expect.poll(()=>page.evaluate(()=>window.__FARM_DEBUG__.snapshot().players.find(p=>p.local)?.area)).toBe("general_store");
- await waitForFarmInput(page);await page.locator("#action").tap();await expect(page.locator("#panel")).toHaveAttribute("data-panel","shop");
+ await waitForFarmInput(page);
+ // At the entrance, the action button can legitimately select the exit warp.
+ await page.locator("#menu").click();await page.getByRole("button",{name:"농장 및 가족",exact:true}).click();
+ await page.getByRole("button",{name:"상점 둘러보기",exact:true}).click();
+ await expect(page.locator("#panel")).toHaveAttribute("data-panel","shop");
  await page.locator('.commerce-item[data-item="stamina_biscuit"]').getByRole("button").click();
  const dialog=page.locator("#quantity-dialog"),input=dialog.getByRole("textbox");
  await input.fill("13");await expect(dialog.locator(".quantity-confirm")).toBeDisabled();await expect(dialog).toContainText("최대 수량은 12");
  await input.fill("5");await expect(dialog).toContainText("총 구매 가격: 50 G");await expect(page.locator("#wallet")).toHaveText("120 G");await confirm(page);await expect(page.locator("#wallet")).toHaveText("70 G");
  await expect(page.locator('.commerce-item[data-item="stamina_biscuit"]')).toContainText("보유 10개");
+  const sale=page.locator('.commerce-item[data-item="acorn"]').filter({has:page.getByRole("button",{name:"판매 수량 선택",exact:true})});
+  await sale.getByRole("button").click();await input.fill("3");await expect(dialog.locator(".quantity-confirm")).toBeDisabled();
+  await input.fill("2");await expect(dialog).toContainText("예상 판매 금액: 10 G");await confirm(page);
+  await expect(page.locator("#wallet")).toHaveText("80 G");await expect(sale).toHaveCount(0);
+  expect(await page.evaluate(()=>(window.__FARM_DEBUG__.state() as unknown as {day:number}).day)).toBe(1);
 });
