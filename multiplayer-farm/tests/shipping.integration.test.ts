@@ -47,8 +47,9 @@ test("simultaneous family shipments, durable duplicate receipts, owner-only retu
    assert.equal(saved().members[f.a.playerId]!.shipping!.pending.length,0);
    settledGold=saved().members[f.a.playerId]!.money;
    await delay(230);assert.equal((await action(A,"sleepVote",{day:1})).ok,false);
-  }finally{await Promise.all([A.leave(),B.leave()]);}
-  await fresh.disconnect();
+  // Server disconnect awaits onDispose and the PostgreSQL lease release.
+  // Client leave alone can start auto-disposal without awaiting that save.
+  }finally{await fresh.disconnect();}
   const afterMorning=await join(f.url,f.a);
   try {
    const reopened=(matchMaker.getLocalRoomById(afterMorning.roomId) as unknown as {world:World}).world;
