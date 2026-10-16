@@ -247,6 +247,7 @@ function nearest(kind?: string): Entity | undefined {
           : [
               "bed",
               "chest",
+              "shipping",
               "craft",
               "gather",
               "ladder",
@@ -511,6 +512,12 @@ function act(): void {
   const me = latest.players.find((p) => p.local);
   if (!me || modal) return;
   if (!network.personal?.member) {notice("가방 정보를 불러오는 중이에요");return;}
+  if (placementItem || me.carrying) return notice(placementItem ? "초록색 설치 칸을 선택하거나 취소하세요" : "내려놓기 버튼으로 보관함을 내려놓아 주세요");
+  // Interaction takes priority over equipped tools, consumables and placeable items.
+  // The generic nearest() list includes shipping so this also respects a closer
+  // chest or crafting table instead of stealing their action-button target.
+  const closest = nearest();
+  if (closest?.kind === "shipping") return showPanel("shipping", "판매 꾸러미", closest.id);
   if (!ownedItem(network.personal?.member,selected)) {selectTool("hand");return;}
   if (ITEMS[selected]?.placement) {startPlacement(selected);return;}
   if (selected!=="hand" && !isTool(selected) && selected!=="fishing_rod" && !plantingTree(selected) && ITEMS[selected]?.kind!=="seed") {
@@ -518,14 +525,11 @@ function act(): void {
     else notice("이 아이템은 제작대나 해당 시설에서 사용할 수 있어요");
     return;
   }
-  if (placementItem || me.carrying) return notice(placementItem ? "초록색 설치 칸을 선택하거나 취소하세요" : "내려놓기 버튼으로 보관함을 내려놓아 주세요");
   const tile = frontTile({
     x: me.authoritativeX,
     y: me.authoritativeY,
     facing: me.facing,
   });
-  const crate=nearest("shipping");
-  if(crate && nearest()?.id===crate.id)return showPanel("shipping","판매 꾸러미",crate.id);
   // Pouring has priority over wells, harvesting, doors, shops and object use.
   // Refilling remains an explicit hand interaction with a well.
   if (selected === "water") return void send("useTool", { toolId: "water", ...tile });

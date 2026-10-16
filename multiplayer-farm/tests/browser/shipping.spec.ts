@@ -32,6 +32,14 @@ test("mobile crate touch, numeric validation, cancellation, partial return, relo
  await page.locator("#tool").selectOption("axe");
  await page.screenshot({path:info.outputPath("shipping-house-right.png")});
  await waitForFarmInput(page);await tapCrate(page);
+ // A tap already brought us within range. Action must reopen the same crate
+ // regardless of the currently held tool, without performing a tool swing.
+ for (const tool of ["axe","water"] as const) {
+   await page.locator("#panel-close").click();
+   await page.locator("#tool").selectOption(tool);
+   await page.locator("#action").tap();
+   await expect(page.locator("#panel")).toHaveAttribute("data-panel","shipping");
+ }
  const item=page.locator('.commerce-item[data-item="sunpotato"]').filter({has:page.getByRole("button",{name:"출하 수량 선택"})});
  await expect(item).toContainText("보유 137개");await item.getByRole("button").click();
  const dialog=page.locator("#quantity-dialog"),input=dialog.getByRole("textbox",{name:"선택 수량"});
