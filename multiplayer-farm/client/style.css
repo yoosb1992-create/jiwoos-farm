@@ -1514,12 +1514,20 @@ h1 {
 .quantity-item,.household-item-heading { min-width:0; }
 .quantity-item { display:flex;align-items:center;gap:10px; }
 .quantity-item img,.commerce-item img { width:42px;height:42px;object-fit:contain; }
-.quantity-stepper { display:grid;grid-template-columns:repeat(2,minmax(44px,1fr)) minmax(64px,1.5fr) repeat(2,minmax(44px,1fr));gap:5px; }
-.quantity-stepper input { min-width:0;width:100%;box-sizing:border-box;text-align:center;font-size:20px;min-height:48px;border:2px solid #a99267;border-radius:8px;background:#fff; }
+.quantity-stepper { display:grid;grid-template-columns:minmax(58px,1fr) minmax(94px,1.4fr) minmax(58px,1fr);gap:10px;align-items:stretch;margin-top:12px; }
+.quantity-stepper input { min-width:0;width:100%;box-sizing:border-box;text-align:center;font-size:24px;font-weight:750;min-height:54px;border:2px solid #a99267;border-radius:12px;background:#fff; }
+.quantity-stepper button { font-size:1.4rem;font-weight:800;border:1px solid #d7cfb3;border-radius:12px;background:#faf8ef;color:#344e38; }
 .quantity-dialog button { min-height:44px;touch-action:manipulation;padding:7px 5px; }
-.quantity-quick { display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:10px; }
-.quantity-summary { background:#f3ebd6;border-radius:12px;padding:8px 12px;margin-top:14px; }
-.quantity-summary p { margin:7px 0; }
+.quantity-summary { display:grid;gap:8px;margin-top:14px; }
+.quantity-summary p { margin:0; }
+.quantity-summary--prices { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.quantity-price-row { min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px;padding:11px 12px;background:#f4eddc;border:1px solid #e1d6b9;border-radius:12px; }
+.quantity-price-label { color:#675c43;font-size:.89rem;font-weight:700; }
+.quantity-price-value { color:#405a36;font-size:1.17rem;font-weight:850;font-variant-numeric:tabular-nums;overflow-wrap:anywhere; }
+.quantity-price-row--total { grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between;gap:12px;padding:14px 12px;background:#eaf1dd;border:2px solid #86a46b; }
+.quantity-price-row--total .quantity-price-label { color:#31562f;font-size:1.04rem;font-weight:850; }
+.quantity-price-row--total .quantity-price-value { color:#28602f;font-size:1.52rem; }
+.quantity-summary--prices > p:not(.quantity-price-row) { grid-column:1/-1;color:#665e4b;margin:2px 2px 0; }
 .quantity-dialog footer { position:sticky;bottom:-18px;background:#fff9e9;display:flex;gap:10px;padding:12px 0 8px; }
 .quantity-dialog footer button { flex:1; }
 .quantity-confirm { background:#547a42;color:#fff; }

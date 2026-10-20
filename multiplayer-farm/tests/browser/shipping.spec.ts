@@ -69,6 +69,13 @@ test("mobile shop uses common quantity dialog, affordability, immediate prices a
  await expect(page.locator("#panel")).toHaveAttribute("data-panel","shop");
  await page.locator('.commerce-item[data-item="stamina_biscuit"]').getByRole("button").click();
  const dialog=page.locator("#quantity-dialog"),input=dialog.getByRole("textbox");
+ await expect(dialog.locator(".quantity-stepper button")).toHaveCount(2);
+ await expect(dialog.locator(".quantity-quick")).toHaveCount(0);
+ await expect(dialog.locator(".quantity-price-row--unit")).toContainText("개당 구매 가격: 10 G");
+ await expect(dialog.locator(".quantity-price-row--wallet")).toContainText("내 골드: 120 G");
+ await expect(dialog.locator(".quantity-price-row--total")).toContainText("총 구매 가격: 10 G");
+ await dialog.getByRole("button",{name:"+1",exact:true}).click();await expect(input).toHaveValue("2");
+ await dialog.getByRole("button",{name:"−1",exact:true}).click();await expect(input).toHaveValue("1");
  await input.fill("13");await expect(dialog.locator(".quantity-confirm")).toBeDisabled();await expect(dialog).toContainText("최대 수량은 12");
  await input.fill("5");await expect(dialog).toContainText("총 구매 가격: 50 G");await expect(page.locator("#wallet")).toHaveText("120 G");await confirm(page);await expect(page.locator("#wallet")).toHaveText("70 G");
  await expect(page.locator('.commerce-item[data-item="stamina_biscuit"]')).toContainText("보유 10개");

@@ -43,10 +43,7 @@ export class QuantityDialog {
     this.input.value=String(request.initial ?? 1);
     this.input.oninput=()=>this.refresh();
     const adjust=(delta:number)=>{ const n=parseQuantity(this.input.value)??0; this.input.value=String(Math.max(1,Math.min(this.max(),n+delta))); this.refresh(); };
-    controls.append(makeButton("−10",()=>adjust(-10)),makeButton("−1",()=>adjust(-1)),this.input,makeButton("+1",()=>adjust(1)),makeButton("+10",()=>adjust(10)));
-    const quick=document.createElement("div"); quick.className="quantity-quick";
-    for(const [label,value] of [["1개",1],["5개",5],["10개",10],["절반",-1],["최대",-2]] as const)
-      quick.append(makeButton(label,()=>{this.input.value=String(value===-1?Math.ceil(this.max()/2):value===-2?this.max():value);this.refresh();}));
+    controls.append(makeButton("−1",()=>adjust(-1)),this.input,makeButton("+1",()=>adjust(1)));
     this.summary=document.createElement("div"); this.summary.className="quantity-summary";
     this.error=document.createElement("p"); this.error.className="unavailable"; this.error.setAttribute("role","status");
     this.confirm=makeButton(`${transactionLabels[request.type]} 확인`,()=>{
@@ -55,7 +52,7 @@ export class QuantityDialog {
     }); this.confirm.className="primary quantity-confirm";
     const cancel=makeButton("취소",()=>this.close());
     const footer=document.createElement("footer"); footer.append(cancel,this.confirm);
-    this.node.append(heading,item,this.limit,controls,quick,this.summary,this.error,footer);
+    this.node.append(heading,item,this.limit,controls,this.summary,this.error,footer);
     this.refresh(); this.node.showModal();
     // Avoid opening Android's keyboard until the number itself is tapped.
     cancel.focus({preventScroll:true});
@@ -67,17 +64,26 @@ export class QuantityDialog {
     const n=parseQuantity(this.input.value), busy=!!this.actionId||c.busy;
     this.input.disabled=busy;
     for(const b of this.controls)b.disabled=busy;
-    this.limit.textContent=`현재 보유 ${q?.owned ?? 0}개 · 이번 거래 최대 ${q?.max ?? 0}${r.type==="craftItem"?"회":"개"} · 1회 거래 한도 999 (초과분은 나누어 거래)`;
+    this.limit.textContent=`현재 보유 ${q?.owned ?? 0}개 · 이번 거래 최대 ${q?.max ?? 0}${r.type==="craftItem"?"회":"개"}${(q?.available ?? 0)>(q?.max ?? 0)?" · 초과 수량은 나누어 거래":""}`;
     let error=!c.ready?"연결·거리·최신 수량을 확인해 주세요.":!q?.max?"수량, 골드 또는 빈 공간이 부족해요.":!n?"1 이상의 정수만 입력해 주세요.":n>q.max?`현재 가능한 최대 수량은 ${q.max}입니다.`:!q.valid(n)?"재료를 소비한 뒤에도 가방 공간이 부족해요.":"";
     this.summary.replaceChildren();
+    const priced=["buyItem","sellItem","shipItem","withdrawShipment"].includes(r.type);
+    this.summary.classList.toggle("quantity-summary--prices",priced);
     const line=(text:string)=>{const p=document.createElement("p");p.textContent=text;this.summary.append(p);};
+    const priceRow=(label:string,value:string,kind:string)=>{
+      const p=document.createElement("p");p.className=`quantity-price-row quantity-price-row--${kind}`;
+      const name=document.createElement("span");name.className="quantity-price-label";name.textContent=`${label}: `;
+      const amount=document.createElement("strong");amount.className="quantity-price-value";amount.textContent=`${value} G`;
+      p.append(name,amount);this.summary.append(p);
+    };
     if(q?.recipe){
       line(`제작 횟수: ${n ?? "—"}회`);
       for(const i of q.recipe.ingredients)line(`${itemName(i.itemId)}: 필요 ${n?i.quantity*n:"—"}개 / 보유 ${c.member?.inventory[i.itemId]??0}개`);
       line(`결과: ${itemName(q.recipe.output.itemId)} ${n?q.recipe.output.quantity*n:"—"}개`);
-    }else if(["buyItem","sellItem","shipItem","withdrawShipment"].includes(r.type)){
-      line(`보유 골드: ${(c.member?.money??0).toLocaleString()} G · 개당 ${q?.price??0} G`);
-      line(`${r.type==="buyItem"?"총 구매 가격":r.type==="withdrawShipment"?"취소할 정산 금액":"예상 판매 금액"}: ${n?((q?.price??0)*n).toLocaleString():"—"} G`);
+    }else if(priced){
+      priceRow(r.type==="buyItem"?"개당 구매 가격":r.type==="withdrawShipment"?"개당 정산 금액":"개당 판매 가격",(q?.price??0).toLocaleString(),"unit");
+      priceRow("내 골드",(c.member?.money??0).toLocaleString(),"wallet");
+      priceRow(r.type==="buyItem"?"총 구매 가격":r.type==="withdrawShipment"?"취소할 정산 금액":"예상 판매 금액",n?((q?.price??0)*n).toLocaleString():"—","total");
       if(r.type==="shipItem")line("다음 날 아침에 지급 · 잠자기 전 본인만 회수 가능");
       if(r.type==="sellItem")line("상점 즉시 판매 · 확인 후 골드 지급");
     }else line(`이동 수량: ${n??"—"}개 · 확인 전에는 이동하지 않아요.`);
